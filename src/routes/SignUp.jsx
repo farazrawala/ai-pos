@@ -4,39 +4,43 @@ import { useNavigate } from 'react-router-dom';
 import { setName } from '../features/user/userSlice.js';
 
 const initialForm = {
+  fullName: '',
   email: '',
   password: '',
-  remember: false
+  confirmPassword: ''
 };
 
-const SignIn = () => {
+const SignUp = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
 
   const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
+    const { name, value } = event.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
     setError('');
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    if (!form.email || !form.password) {
-      setError('Please fill in both email and password.');
+    if (!form.fullName.trim() || !form.email || !form.password || !form.confirmPassword) {
+      setError('Please complete all fields.');
       return;
     }
     if (!form.email.includes('@')) {
       setError('Enter a valid email address.');
       return;
     }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords must match.');
+      return;
+    }
 
-    const displayName = form.email.split('@')[0] || 'User';
-    dispatch(setName(displayName));
+    dispatch(setName(form.fullName.trim()));
     setForm(initialForm);
     navigate('/profile');
   };
@@ -49,18 +53,28 @@ const SignIn = () => {
       <div className="signin-content">
         <div className="signin-card">
           <header className="signin-card-header">
-            <h2>POS Sign in</h2>
-            <p className="muted">Sign in with your email credentials</p>
+            <h2>Create Account</h2>
+            <p className="muted">Fill in the details below to set up your profile</p>
           </header>
 
           <div className="signin-divider">
-            <span>Credentials</span>
+            <span>Details</span>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit}>
-            <label htmlFor="email">Email</label>
+            <label htmlFor="fullName">Full name</label>
             <input
-              id="email"
+              id="fullName"
+              type="text"
+              name="fullName"
+              placeholder="Jane Doe"
+              value={form.fullName}
+              onChange={handleChange}
+              required
+            />
+            <label htmlFor="signupEmail">Email</label>
+            <input
+              id="signupEmail"
               type="email"
               name="email"
               placeholder="you@example.com"
@@ -68,9 +82,9 @@ const SignIn = () => {
               onChange={handleChange}
               required
             />
-            <label htmlFor="password">Password</label>
+            <label htmlFor="signupPassword">Password</label>
             <input
-              id="password"
+              id="signupPassword"
               type="password"
               name="password"
               placeholder="••••••••"
@@ -78,25 +92,24 @@ const SignIn = () => {
               onChange={handleChange}
               required
             />
-
-            <label className="form-switch">
-              <input
-                type="checkbox"
-                name="remember"
-                checked={form.remember}
-                onChange={handleChange}
-              />
-              <span className="switch-slider" />
-              Remember me
-            </label>
+            <label htmlFor="confirmPassword">Confirm password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              name="confirmPassword"
+              placeholder="••••••••"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              required
+            />
 
             {error && <p className="error">{error}</p>}
 
             <button type="submit" className="cta-btn">
-              Sign In
+              Sign Up
             </button>
-            <button type="button" className="ghost-btn" onClick={() => navigate('/signup')}>
-              Create account
+            <button type="button" className="ghost-btn" onClick={() => navigate('/signin')}>
+              Already have an account?
             </button>
           </form>
         </div>
@@ -105,5 +118,5 @@ const SignIn = () => {
   );
 };
 
-export default SignIn;
+export default SignUp;
 

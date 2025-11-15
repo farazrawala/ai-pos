@@ -3,11 +3,12 @@ import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
 import Profile from './routes/Profile.jsx';
 import SignIn from './routes/SignIn.jsx';
+import SignUp from './routes/SignUp.jsx';
 import Loader from './components/Loader.jsx';
 
 const App = () => {
   const location = useLocation();
-  const hideHeader = location.pathname === '/signin';
+  const hideHeader = location.pathname === '/signin' || location.pathname === '/signup';
 
   return (
     <div className="app-shell">
@@ -28,6 +29,9 @@ const App = () => {
             <NavLink to="/signin" className="nav-link">
               Sign In
             </NavLink>
+            <NavLink to="/signup" className="nav-link">
+              Sign Up
+            </NavLink>
           </nav>
         </header>
       )}
@@ -37,6 +41,7 @@ const App = () => {
           <Route path="/about" element={<About />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
         </Routes>
       </main>
     </div>
