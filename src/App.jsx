@@ -2,9 +2,11 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
 import Profile from './routes/Profile.jsx';
+import Loader from './components/Loader.jsx';
 
 const App = () => (
   <div className="app-shell">
+    <Loader />
     <header className="app-header">
       <h1>AI POS</h1>
       <nav>

@@ -1,6 +1,6 @@
 # AI POS React Starter
 
-Minimal React 18 + React Router + Redux Toolkit setup that lives directly at the repository root. Everything is wired for navigation, global state, and fast iteration with Vite.
+React 18 + React Router + Redux Toolkit starter that now demonstrates async data flows with Axios, loader interceptors, and a posts feature powered by JSONPlaceholder. Everything runs directly at the repository root via Vite.
 
 ## Prerequisites
 
@@ -38,14 +38,16 @@ npm run build
 yarn build
 ```
 
-## Project structure
+## Project structure (highlights)
 
-- `src/index.js` – React entry that wraps `<App />` with `Provider` and `BrowserRouter`
-- `src/App.jsx` – shared layout and top-level routes
-- `src/routes/*` – Home, About, Profile pages
-- `src/features/user/*` – Redux slice and connected component
-- `src/store/index.js` – store configuration
-- `src/styles.css` – small styling baseline
+- `src/api/apiClient.js` – Axios instance + loader-aware interceptors
+- `src/features/posts/` – async thunks (`postsSlice.js`) + API helpers
+- `src/features/loader/loaderSlice.js` – global loader boolean
+- `src/components/PostList.jsx` – fetch list + create post form
+- `src/components/Loader.jsx` – overlay tied to loader slice
+- `src/routes/Home.jsx` – renders `PostList` plus existing demo controls
+- `src/store/index.js` – wires user, posts, loader reducers and injects store into Axios interceptors
+- `src/styles.css` – adds loader + post list styling
 
-Home dispatches `setName('Guest')`, navigates to Profile, and Profile reads the Redux state via `useSelector`. `UserProfile` shows how to dispatch another action from a nested component.
+Home still demonstrates the original user slice behavior and now also surfaces the posts experience on the same page.
 

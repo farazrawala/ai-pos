@@ -1,0 +1,12 @@
+
+
+// Front End :
+Html Break,
+redux, navigation setup,
+Login
+Navigate with permissions
+
+Categories
+    List of Categories
+    Edit Categories
+    Delete
