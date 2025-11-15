@@ -89,6 +89,29 @@ body {
   width: 100%;
 }
 
+.auth-card {
+  max-width: 480px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.auth-form label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.auth-form input {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5f5;
+  font-size: 1rem;
+}
+
 .card button,
 .profile-card button {
   margin-top: 1rem;

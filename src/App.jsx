@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
 import Profile from './routes/Profile.jsx';
+import SignIn from './routes/SignIn.jsx';
 import Loader from './components/Loader.jsx';
 
 const App = () => (
@@ -19,6 +20,9 @@ const App = () => (
         <NavLink to="/profile" className="nav-link">
           Profile
         </NavLink>
+        <NavLink to="/signin" className="nav-link">
+          Sign In
+        </NavLink>
       </nav>
     </header>
     <main className="app-main">
@@ -26,6 +30,7 @@ const App = () => (
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/signin" element={<SignIn />} />
       </Routes>
     </main>
   </div>
