@@ -45,7 +45,7 @@ yarn build
 - `src/features/loader/loaderSlice.js` – global loader boolean
 - `src/components/PostList.jsx` – fetch list + create post form
 - `src/components/Loader.jsx` – overlay tied to loader slice
-- `src/routes/SignIn.jsx` – styled email/password form that seeds the user slice
+- `src/routes/SignIn.jsx` – Argon-inspired hero sign-in form with socials that seeds the user slice
 - `src/routes/Home.jsx` – renders `PostList` plus existing demo controls
 - `src/store/index.js` – wires user, posts, loader reducers and injects store into Axios interceptors
 - `src/styles.css` – adds loader + post list styling

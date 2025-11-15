@@ -5,7 +5,8 @@ import { setName } from '../features/user/userSlice.js';
 
 const initialForm = {
   email: '',
-  password: ''
+  password: '',
+  remember: false
 };
 
 const SignIn = () => {
@@ -15,8 +16,11 @@ const SignIn = () => {
   const [error, setError] = useState('');
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
     setError('');
   };
 
@@ -30,6 +34,7 @@ const SignIn = () => {
       setError('Enter a valid email address.');
       return;
     }
+
     const displayName = form.email.split('@')[0] || 'User';
     dispatch(setName(displayName));
     setForm(initialForm);
@@ -37,34 +42,63 @@ const SignIn = () => {
   };
 
   return (
-    <section className="card auth-card">
-      <h2>Sign In</h2>
-      <p className="muted">Use any email to simulate signing in.</p>
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          name="email"
-          placeholder="you@example.com"
-          value={form.email}
-          onChange={handleChange}
-          required
-        />
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          name="password"
-          placeholder="••••••••"
-          value={form.password}
-          onChange={handleChange}
-          required
-        />
-        {error && <p className="error">{error}</p>}
-        <button type="submit">Sign In</button>
-      </form>
-      <p className="muted">Successful sign-in routes you to the Profile page.</p>
+    <section className="signin-page">
+      <div className="signin-hero">
+        <span className="signin-mask" />
+      </div>
+      <div className="signin-content">
+        <div className="signin-card">
+          <header className="signin-card-header">
+            <h2>POS Sign in</h2>
+            <p className="muted">Sign in with your email credentials</p>
+          </header>
+
+          <div className="signin-divider">
+            <span>Credentials</span>
+          </div>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
+
+            <label className="form-switch">
+              <input
+                type="checkbox"
+                name="remember"
+                checked={form.remember}
+                onChange={handleChange}
+              />
+              <span className="switch-slider" />
+              Remember me
+            </label>
+
+            {error && <p className="error">{error}</p>}
+
+            <button type="submit" className="cta-btn">
+              Sign In
+            </button>
+            
+          </form>
+        </div>
+      </div>
     </section>
   );
 };
