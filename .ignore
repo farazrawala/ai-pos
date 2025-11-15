@@ -1,0 +1,12 @@
+node_modules
+.DS_Store
+dist
+.vite
+*.log
+package-lock.json
+yarn.lock
+npm-debug.log*
+pnpm-debug.log*
+coverage
+*.local
+
