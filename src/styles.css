@@ -1,0 +1,91 @@
+:root {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-link {
+  color: #cbd5f5;
+  text-decoration: none;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-link.active {
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  background: linear-gradient(180deg, #eef2ff, #f8fafc);
+}
+
+.card {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
+  max-width: 640px;
+}
+
+.card button,
+.profile-card button {
+  margin-top: 1rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.5rem;
+  border: none;
+  color: #fff;
+  background-color: #2563eb;
+  cursor: pointer;
+}
+
+.card button:hover,
+.profile-card button:hover {
+  background-color: #1d4ed8;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.text-link {
+  color: #2563eb;
+  text-decoration: underline;
+  margin-top: 1rem;
+  display: inline-block;
+}
+
