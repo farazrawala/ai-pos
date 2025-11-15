@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setName } from '../features/user/userSlice.js';
+import apiClient from '../api/apiClient.js';
 
 const initialForm = {
   email: '',
@@ -14,6 +15,7 @@ const SignIn = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('idle');
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -24,7 +26,7 @@ const SignIn = () => {
     setError('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.email || !form.password) {
       setError('Please fill in both email and password.');
@@ -35,10 +37,38 @@ const SignIn = () => {
       return;
     }
 
-    const displayName = form.email.split('@')[0] || 'User';
-    dispatch(setName(displayName));
-    setForm(initialForm);
-    navigate('/profile');
+    try {
+      setStatus('pending');
+      const { data } = await apiClient.post(
+        '/user/login',
+        {
+          email: form.email,
+          password: form.password
+        },
+        {
+          baseURL: 'http://localhost:8000/api'
+        }
+      );
+
+      const displayName =
+        data?.name ||
+        data?.user?.name ||
+        data?.user?.fullName ||
+        form.email.split('@')[0] ||
+        'User';
+
+      dispatch(setName(displayName));
+      setForm(initialForm);
+      setStatus('completed');
+      navigate('/profile');
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Unable to sign in. Please verify your credentials.';
+      setError(message);
+      setStatus('failed');
+    }
   };
 
   return (
@@ -92,8 +122,8 @@ const SignIn = () => {
 
             {error && <p className="error">{error}</p>}
 
-            <button type="submit" className="cta-btn">
-              Sign In
+            <button type="submit" className="cta-btn" disabled={status === 'pending'}>
+              {status === 'pending' ? 'Signing In...' : 'Sign In'}
             </button>
             <button type="button" className="ghost-btn" onClick={() => navigate('/signup')}>
               Create account
