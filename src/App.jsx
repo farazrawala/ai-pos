@@ -9,6 +9,8 @@ import Loader from './components/Loader.jsx';
 import Dashboard from './routes/Dashboard.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
+import Footer from './components/Footer.jsx';
+import Category from './routes/Category/index.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -21,6 +23,7 @@ const App = () => {
       <>
         <Loader />
         <Routes>
+          <Route path="/categories" element={<Category />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -62,6 +65,7 @@ const App = () => {
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
           />
+          <Route path="/categories" element={<Category />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}
@@ -75,6 +79,7 @@ const App = () => {
             element={isAuthenticated ? <Profile /> : <Navigate to="/signin" replace />}
           />
         </Routes>
+        <Footer />
       </main>
     </div>
   );

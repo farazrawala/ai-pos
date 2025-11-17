@@ -1,4 +1,8 @@
 const Header = () => {
+  const firstSegment =
+    window.location.pathname.split('/')[1].charAt(0).toUpperCase() +
+    window.location.pathname.split('/')[1].slice(1);
+
   return (
     <nav
       className="navbar navbar-main navbar-expand-lg px-0 mx-4 shadow-none border-radius-xl z-index-sticky"
@@ -19,10 +23,10 @@ const Header = () => {
               </a>
             </li>
             <li className="breadcrumb-item text-sm text-white active" aria-current="page">
-              Default
+              {firstSegment}
             </li>
           </ol>
-          <h6 className="font-weight-bolder mb-0 text-white">Default</h6>
+          {/* <h6 className="font-weight-bolder mb-0 text-white">{firstSegment}</h6> */}
         </nav>
         <div className="sidenav-toggler sidenav-toggler-inner d-xl-block d-none">
           <a href="javascript:;" className="nav-link p-0">
