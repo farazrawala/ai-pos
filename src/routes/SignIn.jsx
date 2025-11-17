@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setName, setToken } from '../features/user/userSlice.js';
+import { setUser } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
 import { API_BASE_URL } from '../config/apiConfig.js';
 
@@ -51,20 +51,38 @@ const SignIn = () => {
         }
       );
 
-      const displayName =
-        data?.name ||
-        data?.user?.name ||
-        data?.user?.fullName ||
-        form.email.split('@')[0] ||
-        'User';
+      // Save complete user data from response
+      // The API returns user data in data.user or directly in data
+      const userData = data?.user || data;
 
-      // Store token if available in response
-      const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
-      if (token) {
-        dispatch(setToken(token));
+      if (userData) {
+        // Ensure token is included in user data
+        if (!userData.token) {
+          userData.token = data?.token || data?.access_token || data?.accessToken;
+        }
+
+        // Save complete user object to Redux and localStorage
+        dispatch(setUser(userData));
+      } else {
+        // Fallback: if user data structure is different, extract what we can
+        const displayName =
+          data?.name ||
+          data?.user?.name ||
+          data?.user?.fullName ||
+          form.email.split('@')[0] ||
+          'User';
+
+        const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
+
+        dispatch(
+          setUser({
+            name: displayName,
+            email: form.email,
+            token: token,
+          })
+        );
       }
 
-      dispatch(setName(displayName));
       setForm(initialForm);
       setStatus('completed');
       navigate('/profile');

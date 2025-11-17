@@ -8,6 +8,7 @@ import {
   clearUpdateStatus,
   clearCurrentCategory,
 } from '../../features/categories/categoriesSlice.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
 
 const CategoryEdit = () => {
   const dispatch = useDispatch();
@@ -25,6 +26,16 @@ const CategoryEdit = () => {
   const [errors, setErrors] = useState({});
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
+
+  // Get category permissions
+  const { canEdit } = usePermissions('category');
+
+  // Redirect if user doesn't have edit permission
+  useEffect(() => {
+    if (canEdit === false) {
+      navigate('/categories');
+    }
+  }, [canEdit, navigate]);
 
   // Fetch category data on mount
   useEffect(() => {

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createCategory } from '../../features/categories/categoriesSlice.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
 
 const CategoryAdd = () => {
   const dispatch = useDispatch();
@@ -134,6 +135,15 @@ const CategoryAdd = () => {
       setIsSubmitting(false);
     }
   };
+  // Get category permissions using the smart permission hook
+  const { canEdit, canView, canDelete, canCreate } = usePermissions('category');
+
+  // Redirect if user doesn't have create permission
+  useEffect(() => {
+    if (canCreate === false) {
+      navigate('/categories');
+    }
+  }, [canCreate, navigate]);
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>

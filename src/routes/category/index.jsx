@@ -12,6 +12,7 @@ import {
   setSort,
   clearDeleteStatus,
 } from '../../features/categories/categoriesSlice.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
 
 const Category = () => {
   const dispatch = useDispatch();
@@ -30,6 +31,16 @@ const Category = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const [togglingCategoryId, setTogglingCategoryId] = useState(null);
+
+  // Get category permissions
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('category');
+
+  // Redirect if user doesn't have view permission
+  useEffect(() => {
+    if (canView === false) {
+      navigate('/dashboard');
+    }
+  }, [canView, navigate]);
 
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
@@ -281,6 +292,10 @@ const Category = () => {
 
   // Cleanup timeouts on unmount
   useEffect(() => {
+    const { user } = useSelector((state) => state.user);
+
+    console.log('user_', user);
+
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
@@ -295,7 +310,6 @@ const Category = () => {
   // Calculate pagination info
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
-
   // Reusable Pagination Component
   const PaginationControls = () => {
     if (loading || error || pagination.total === 0) return null;
@@ -400,13 +414,15 @@ const Category = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => navigate('/categories/add')}
-                    >
-                      <i className="fas fa-plus me-1"></i>
-                      Add New Category
-                    </button>
+                    {canCreate && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => navigate('/categories/add')}
+                      >
+                        <i className="fas fa-plus me-1"></i>
+                        Add New Category
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -559,28 +575,37 @@ const Category = () => {
                                 {moment(item.updatedAt).fromNow()}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <button
-                                  className="btn btn-sm btn-primary me-1"
-                                  onClick={() =>
-                                    navigate(
-                                      `/categories/edit/${item._id || item.id || item.category_id}`
-                                    )
-                                  }
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() =>
-                                    handleDelete(
-                                      item._id || item.id || item.category_id,
-                                      item.name || item.category_name
-                                    )
-                                  }
-                                  disabled={deleteStatus === 'loading'}
-                                >
-                                  {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
-                                </button>
+                                <div className="d-flex gap-1">
+                                  {canEdit && (
+                                    <button
+                                      className="btn btn-sm btn-primary"
+                                      onClick={() =>
+                                        navigate(
+                                          `/categories/edit/${item._id || item.id || item.category_id}`
+                                        )
+                                      }
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                  {canDelete && (
+                                    <button
+                                      className="btn btn-sm btn-danger"
+                                      onClick={() =>
+                                        handleDelete(
+                                          item._id || item.id || item.category_id,
+                                          item.name || item.category_name
+                                        )
+                                      }
+                                      disabled={deleteStatus === 'loading'}
+                                    >
+                                      {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  )}
+                                  {!canEdit && !canDelete && (
+                                    <span className="text-muted text-sm">No actions available</span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
