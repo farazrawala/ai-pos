@@ -1,4 +1,6 @@
-const BASE_URL = 'http://localhost:8000/api/';
+import { API_BASE_URL } from '../../config/apiConfig.js';
+
+const BASE_URL = `${API_BASE_URL}/`;
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -177,7 +179,7 @@ export const updateCategoryRequest = async (categoryId, categoryData) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${BASE_URL}categories/update/${categoryId}`;
+  const url = `${BASE_URL}category/update/${categoryId}`;
 
   const response = await fetch(url, {
     method: 'PATCH',

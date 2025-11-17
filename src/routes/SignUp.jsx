@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setName } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
+import { API_BASE_URL } from '../config/apiConfig.js';
 
 const initialForm = {
   fullName: '',
@@ -11,7 +12,7 @@ const initialForm = {
   confirmPassword: '',
   companyName: '',
   address: '',
-  companyEmail: ''
+  companyEmail: '',
 };
 
 const SignUp = () => {
@@ -25,7 +26,7 @@ const SignUp = () => {
     const { name, value } = event.target;
     setForm((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     setError('');
   };
@@ -63,10 +64,10 @@ const SignUp = () => {
           password: form.password,
           company_name: form.companyName.trim(),
           address: form.address.trim(),
-          company_email: form.companyEmail
+          company_email: form.companyEmail,
         },
         {
-          baseURL: 'http://localhost:8000/api'
+          baseURL: API_BASE_URL,
         }
       );
 
@@ -76,9 +77,7 @@ const SignUp = () => {
       navigate('/profile');
     } catch (err) {
       const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Unable to sign up. Please try again.';
+        err?.response?.data?.message || err?.message || 'Unable to sign up. Please try again.';
       setError(message);
       setStatus('failed');
     }
@@ -188,4 +187,3 @@ const SignUp = () => {
 };
 
 export default SignUp;
-

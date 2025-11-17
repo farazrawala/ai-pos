@@ -1,12 +1,12 @@
 
 
 // Front End :
-Html Break,
-redux, navigation setup,
-Login
+
+
+//Global
 Navigate with permissions
 
 Categories
-    List of Categories
-    Edit Categories
-    Delete
+    parent category
+
+

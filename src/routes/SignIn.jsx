@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setName, setToken } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
+import { API_BASE_URL } from '../config/apiConfig.js';
 
 const initialForm = {
   email: '',
@@ -46,7 +47,7 @@ const SignIn = () => {
           password: form.password,
         },
         {
-          baseURL: 'http://localhost:8000/api',
+          baseURL: API_BASE_URL,
         }
       );
 
