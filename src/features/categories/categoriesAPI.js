@@ -110,3 +110,119 @@ export const fetchCategoriesRequest = async (params = {}) => {
     totalPages: 0,
   };
 };
+
+export const fetchCategoryByIdRequest = async (categoryId) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}category/get/${categoryId}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result;
+};
+
+export const createCategoryRequest = async (categoryData) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}category/create`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(categoryData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result;
+};
+
+export const updateCategoryRequest = async (categoryId, categoryData) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}categories/update/${categoryId}`;
+
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: headers,
+    body: JSON.stringify(categoryData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result;
+};
+
+export const deleteCategoryRequest = async (categoryId) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}category/delete/${categoryId}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  // Some APIs return data, some return empty body
+  try {
+    const result = await response.json();
+    return result;
+  } catch {
+    // If response is empty, return success
+    return { success: true };
+  }
+};

@@ -11,6 +11,8 @@ import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import Category from './routes/Category/index.jsx';
+import CategoryAdd from './routes/category/add.jsx';
+import CategoryEdit from './routes/category/edit.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -24,6 +26,8 @@ const App = () => {
         <Loader />
         <Routes>
           <Route path="/categories" element={<Category />} />
+          <Route path="/categories/add" element={<CategoryAdd />} />
+          <Route path="/categories/edit/:id" element={<CategoryEdit />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -66,6 +70,8 @@ const App = () => {
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
           />
           <Route path="/categories" element={<Category />} />
+          <Route path="/categories/add" element={<CategoryAdd />} />
+          <Route path="/categories/edit/:id" element={<CategoryEdit />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

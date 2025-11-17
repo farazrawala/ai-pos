@@ -1,16 +1,20 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchCategories,
+  deleteCategory,
   setSearch,
   setPage,
   setLimit,
   setSort,
+  clearDeleteStatus,
 } from '../../features/categories/categoriesSlice.js';
 
 const Category = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const {
     list: data,
     status,
@@ -18,6 +22,8 @@ const Category = () => {
     pagination,
     search: searchTerm,
     sort,
+    deleteStatus,
+    deleteError,
   } = useSelector((state) => state.categories);
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -110,10 +116,107 @@ const Category = () => {
     );
   };
 
+  // Handle delete category
+  const handleDelete = async (categoryId, categoryName) => {
+    const categoryNameDisplay = categoryName || 'this category';
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${categoryNameDisplay}"? This action cannot be undone.`
+      )
+    ) {
+      try {
+        await dispatch(deleteCategory(categoryId)).unwrap();
+        // Optionally refresh the list to get updated data from server
+        // Or the reducer already removes it from the list
+        const params = {
+          page: pagination.page,
+          limit: pagination.limit,
+        };
+        if (searchTerm) {
+          params.search = searchTerm;
+        }
+        if (sort.sortBy) {
+          params.sortBy = sort.sortBy;
+          params.sortOrder = sort.sortOrder;
+        }
+        dispatch(fetchCategories(params));
+      } catch (error) {
+        // Error is handled by Redux state
+        console.error('Delete error:', error);
+      }
+    }
+  };
+
   // Sync local search with Redux search term
   useEffect(() => {
     setLocalSearch(searchTerm || '');
   }, [searchTerm]);
+
+  // Show toast notifications for delete status
+  useEffect(() => {
+    if (deleteStatus === 'succeeded') {
+      const toastElement = document.getElementById('successToast');
+      if (toastElement) {
+        // Update time in toast
+        const timeElement = toastElement.querySelector('.toast-time');
+        if (timeElement) {
+          timeElement.textContent = moment().format('h:mm A');
+        }
+
+        // Use Bootstrap Toast API if available
+        if (window.bootstrap && window.bootstrap.Toast) {
+          const toast = new window.bootstrap.Toast(toastElement, {
+            autohide: true,
+            delay: 5000,
+          });
+          toast.show();
+        } else {
+          // Fallback: manually show toast
+          toastElement.classList.remove('hide');
+          toastElement.classList.add('show');
+          setTimeout(() => {
+            toastElement.classList.remove('show');
+            toastElement.classList.add('hide');
+          }, 5000);
+        }
+
+        // Clear status after toast is shown
+        setTimeout(() => {
+          dispatch(clearDeleteStatus());
+        }, 5500);
+      }
+    }
+  }, [deleteStatus, dispatch]);
+
+  useEffect(() => {
+    if (deleteError) {
+      const toastElement = document.getElementById('dangerToast');
+      if (toastElement) {
+        // Update time in toast
+        const timeElement = toastElement.querySelector('.toast-time');
+        if (timeElement) {
+          timeElement.textContent = moment().format('h:mm A');
+        }
+
+        // Use Bootstrap Toast API if available
+        if (window.bootstrap && window.bootstrap.Toast) {
+          const toast = new window.bootstrap.Toast(toastElement, {
+            autohide: true,
+            delay: 5000,
+          });
+          toast.show();
+        } else {
+          // Fallback: manually show toast
+          toastElement.classList.remove('hide');
+          toastElement.classList.add('show');
+          setTimeout(() => {
+            toastElement.classList.remove('show');
+            toastElement.classList.add('hide');
+          }, 5000);
+        }
+      }
+    }
+  }, [deleteError]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -222,18 +325,27 @@ const Category = () => {
                   </h5>
                   <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
                 </div>
-                <div className="col-md-6 text-end">
-                  <div className="input-group" style={{ maxWidth: '300px', marginLeft: 'auto' }}>
-                    <span className="input-group-text text-body">
-                      <i className="fas fa-search" aria-hidden="true"></i>
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Search categories..."
-                      value={localSearch}
-                      onChange={handleSearchChange}
-                    />
+                <div className="col-md-6">
+                  <div className="d-flex justify-content-end align-items-center gap-2">
+                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                      <span className="input-group-text text-body">
+                        <i className="fas fa-search" aria-hidden="true"></i>
+                      </span>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Search categories..."
+                        value={localSearch}
+                        onChange={handleSearchChange}
+                      />
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => navigate('/categories/add')}
+                    >
+                      <i className="fas fa-plus me-1"></i>
+                      Add New Category
+                    </button>
                   </div>
                 </div>
               </div>
@@ -295,7 +407,7 @@ const Category = () => {
                           onClick={() => handleSort('updatedAt')}
                           onDoubleClick={() => handleSort('updatedAt', true)}
                         >
-                          Updated At
+                          Last Updated At
                           {renderSortIcon('updatedAt')}
                         </th>
                         <th>Actions</th>
@@ -335,8 +447,28 @@ const Category = () => {
                                 {moment(item.updatedAt).fromNow()}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <button className="btn btn-sm btn-primary me-1">Edit</button>
-                                <button className="btn btn-sm btn-danger">Delete</button>
+                                <button
+                                  className="btn btn-sm btn-primary me-1"
+                                  onClick={() =>
+                                    navigate(
+                                      `/categories/edit/${item._id || item.id || item.category_id}`
+                                    )
+                                  }
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() =>
+                                    handleDelete(
+                                      item._id || item.id || item.category_id,
+                                      item.name || item.category_name
+                                    )
+                                  }
+                                  disabled={deleteStatus === 'loading'}
+                                >
+                                  {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
+                                </button>
                               </td>
                             </tr>
                           );
@@ -350,6 +482,55 @@ const Category = () => {
               {/* Pagination Controls - Bottom */}
               <PaginationControls />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Toast Notifications */}
+      <div className="position-fixed bottom-1 end-1 z-index-2">
+        {/* Success Toast */}
+        <div
+          className="toast fade hide p-2 bg-white"
+          role="alert"
+          aria-live="assertive"
+          id="successToast"
+          aria-atomic="true"
+        >
+          <div className="toast-header border-0">
+            <i className="ni ni-check-bold text-success me-2"></i>
+            <span className="me-auto font-weight-bold">Success</span>
+            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
+            <i
+              className="fas fa-times text-md ms-3 cursor-pointer"
+              data-bs-dismiss="toast"
+              aria-label="Close"
+            ></i>
+          </div>
+          <hr className="horizontal dark m-0" />
+          <div className="toast-body">Category deleted successfully!</div>
+        </div>
+
+        {/* Danger Toast */}
+        <div
+          className="toast fade hide p-2 mt-2 bg-white"
+          role="alert"
+          aria-live="assertive"
+          id="dangerToast"
+          aria-atomic="true"
+        >
+          <div className="toast-header border-0">
+            <i className="ni ni-notification-70 text-danger me-2"></i>
+            <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>
+            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
+            <i
+              className="fas fa-times text-md ms-3 cursor-pointer"
+              data-bs-dismiss="toast"
+              aria-label="Close"
+            ></i>
+          </div>
+          <hr className="horizontal dark m-0" />
+          <div className="toast-body">
+            {deleteError || 'An error occurred while deleting the category.'}
           </div>
         </div>
       </div>
