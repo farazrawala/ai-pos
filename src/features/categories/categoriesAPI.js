@@ -5,7 +5,7 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken') || '';
 };
 
-export const fetchCategoriesRequest = async () => {
+export const fetchCategoriesRequest = async (params = {}) => {
   const token = getAuthToken();
 
   const headers = {
@@ -16,7 +16,22 @@ export const fetchCategoriesRequest = async () => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}category/get-all-active`, {
+  // Build query string with pagination, search, and sort parameters
+  // API uses 'skip' instead of 'page' (skip = (page - 1) * limit)
+  const queryParams = new URLSearchParams();
+  if (params.page && params.limit) {
+    const skip = (params.page - 1) * params.limit;
+    queryParams.append('skip', skip);
+  }
+  if (params.limit) queryParams.append('limit', params.limit);
+  if (params.search) queryParams.append('search', params.search);
+  if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+  if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+  const queryString = queryParams.toString();
+  const url = `${BASE_URL}category/get-all-active${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetch(url, {
     method: 'GET',
     headers: headers,
   });
@@ -27,8 +42,71 @@ export const fetchCategoriesRequest = async () => {
 
   const result = await response.json();
 
-  // Handle different response formats
-  // If the API returns { data: [...] } or { categories: [...] } or just an array
-  const categories = result.data || result.categories || result || [];
-  return Array.isArray(categories) ? categories : [];
+  // Handle API response format with pagination object
+  // Expected format: { data: [...], pagination: { total, count, skip, limit } }
+  // Or: { categories: [...], pagination: { total, count, skip, limit } }
+  // Or: just an array (fallback)
+
+  // Check if response has pagination object (new format)
+  if (result.pagination && typeof result.pagination === 'object') {
+    const pagination = result.pagination;
+    const data = result.data || result.categories || [];
+
+    // Convert skip to page (page = skip / limit + 1)
+    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
+    const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
+
+    return {
+      data: Array.isArray(data) ? data : [],
+      total: pagination.total || 0,
+      page: page,
+      limit: pagination.limit || params.limit || 10,
+      totalPages: totalPages,
+    };
+  }
+
+  // Fallback: Check if response has data array
+  if (result.data && Array.isArray(result.data)) {
+    return {
+      data: result.data,
+      total: result.total || result.data.length,
+      page: result.page || params.page || 1,
+      limit: result.limit || result.per_page || params.limit || 10,
+      totalPages:
+        result.total_pages ||
+        Math.ceil(
+          (result.total || result.data.length) /
+            (result.limit || result.per_page || params.limit || 10)
+        ),
+    };
+  } else if (result.categories && Array.isArray(result.categories)) {
+    return {
+      data: result.categories,
+      total: result.total || result.categories.length,
+      page: result.page || params.page || 1,
+      limit: result.limit || result.per_page || params.limit || 10,
+      totalPages:
+        result.total_pages ||
+        Math.ceil(
+          (result.total || result.categories.length) /
+            (result.limit || result.per_page || params.limit || 10)
+        ),
+    };
+  } else if (Array.isArray(result)) {
+    return {
+      data: result,
+      total: result.length,
+      page: params.page || 1,
+      limit: params.limit || 10,
+      totalPages: Math.ceil(result.length / (params.limit || 10)),
+    };
+  }
+
+  return {
+    data: [],
+    total: 0,
+    page: params.page || 1,
+    limit: params.limit || 10,
+    totalPages: 0,
+  };
 };
