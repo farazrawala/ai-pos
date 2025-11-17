@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createCategory } from '../../features/categories/categoriesSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-
+// import {  } from 'react-redux';
 const CategoryAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -144,6 +144,14 @@ const CategoryAdd = () => {
       navigate('/categories');
     }
   }, [canCreate, navigate]);
+  const { user } = useSelector((state) => state.user);
+  useEffect(() => {
+    console.log('user', user);
+    console.log('canCreate', canCreate);
+    console.log('canEdit', canEdit);
+    console.log('canDelete', canDelete);
+    console.log('canView', canView);
+  }, [canCreate]);
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>

@@ -42,6 +42,12 @@ const Category = () => {
     }
   }, [canView, navigate]);
 
+  useEffect(() => {
+    console.log('canCreate', canCreate);
+    console.log('canEdit', canEdit);
+    console.log('canDelete', canDelete);
+    console.log('canView', canView);
+  }, [canCreate]);
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
     const params = {

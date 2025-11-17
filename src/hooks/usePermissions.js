@@ -9,6 +9,7 @@ import {
   canDelete,
   hasAnyPermission,
   getModulePermissionObject,
+  isAdmin,
 } from '../utils/permissions.js';
 
 /**
@@ -38,6 +39,8 @@ export const usePermissions = (module = null) => {
       canEdit: canEdit(state, module),
       canDelete: canDelete(state, module),
       hasAny: hasAnyPermission(state, module),
+      // Admin check
+      isAdmin: isAdmin(state),
       // Helper functions
       hasPermission: (action) => hasPermission(state, module, action),
     };
@@ -47,6 +50,8 @@ export const usePermissions = (module = null) => {
   return {
     // All permissions
     all: permissions,
+    // Admin check
+    isAdmin: isAdmin(state),
     // Helper functions
     getModulePermissions: (moduleName) => getModulePermissions(state, moduleName),
     hasPermission: (moduleName, action) => hasPermission(state, moduleName, action),

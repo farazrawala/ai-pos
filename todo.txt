@@ -6,6 +6,13 @@
 //Global
 Navigate with permissions
 
+
+P1. Users
+    CRUD with permissions
+
+P2. Products
+    CRUD
+
 Categories
     parent category
 

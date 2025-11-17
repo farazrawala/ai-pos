@@ -4,6 +4,19 @@
  */
 
 /**
+ * Check if user has ADMIN role
+ * @param {Object} state - Redux state
+ * @returns {boolean} - True if user has ADMIN role
+ */
+export const isAdmin = (state) => {
+  const user = state?.user?.user;
+  if (!user) return false;
+
+  const roles = user.role || [];
+  return Array.isArray(roles) && roles.includes('ADMIN');
+};
+
+/**
  * Get user permissions from Redux state
  * @param {Object} state - Redux state
  * @returns {Object|null} - Permissions object or null
@@ -27,10 +40,13 @@ export const getModulePermissions = (state, module) => {
  * Check if user has a specific permission
  * @param {Object} state - Redux state
  * @param {string} module - Module name
- * @param {string} action - Action name ('view', 'edit', 'delete')
+ * @param {string} action - Action name ('view', 'edit', 'delete', 'create')
  * @returns {boolean} - True if user has permission
  */
 export const hasPermission = (state, module, action) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
+
   const modulePermissions = getModulePermissions(state, module);
   if (!modulePermissions) return false;
 
@@ -45,6 +61,8 @@ export const hasPermission = (state, module, action) => {
  * @returns {boolean}
  */
 export const canView = (state, module) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
   return hasPermission(state, module, 'view');
 };
 
@@ -55,11 +73,9 @@ export const canView = (state, module) => {
  * @returns {boolean}
  */
 export const canCreate = (state, module) => {
-  const modulePermissions = getModulePermissions(state, module);
-  if (!modulePermissions) return false;
-
-  // Check for explicit 'create' permission first, fallback to 'edit' (edit typically includes create)
-  return Boolean(modulePermissions.create) || Boolean(modulePermissions.edit);
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
+  return hasPermission(state, module, 'add');
 };
 
 /**
@@ -69,6 +85,8 @@ export const canCreate = (state, module) => {
  * @returns {boolean}
  */
 export const canEdit = (state, module) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
   return hasPermission(state, module, 'edit');
 };
 
@@ -79,6 +97,8 @@ export const canEdit = (state, module) => {
  * @returns {boolean}
  */
 export const canDelete = (state, module) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
   return hasPermission(state, module, 'delete');
 };
 
@@ -89,6 +109,9 @@ export const canDelete = (state, module) => {
  * @returns {boolean}
  */
 export const hasAnyPermission = (state, module) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) return true;
+
   const modulePermissions = getModulePermissions(state, module);
   if (!modulePermissions) return false;
 
@@ -102,10 +125,20 @@ export const hasAnyPermission = (state, module) => {
  * @returns {Object} - Object with view, create, edit, delete boolean values
  */
 export const getModulePermissionObject = (state, module) => {
+  // Admin users have all permissions
+  if (isAdmin(state)) {
+    return {
+      view: true,
+      create: true,
+      edit: true,
+      delete: true,
+    };
+  }
+
   const modulePermissions = getModulePermissions(state, module);
   return {
     view: Boolean(modulePermissions?.view),
-    create: canCreate(state, module),
+    create: Boolean(modulePermissions?.add),
     edit: Boolean(modulePermissions?.edit),
     delete: Boolean(modulePermissions?.delete),
   };

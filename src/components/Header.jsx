@@ -1,7 +1,22 @@
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate, Link } from 'react-router-dom';
+import { clearUser } from '../features/user/userSlice.js';
+
 const Header = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { name, user } = useSelector((state) => state.user);
+  const isAuthenticated = Boolean(name || user);
+
   const firstSegment =
     window.location.pathname.split('/')[1].charAt(0).toUpperCase() +
     window.location.pathname.split('/')[1].slice(1);
+
+  const handleSignOut = (e) => {
+    e.preventDefault();
+    dispatch(clearUser());
+    navigate('/signin');
+  };
 
   return (
     <nav
@@ -47,12 +62,55 @@ const Header = () => {
             </div>
           </div>
           <ul className="navbar-nav justify-content-end">
-            <li className="nav-item d-flex align-items-center">
-              <a href="/signin" className="nav-link text-white font-weight-bold px-0">
-                <i className="fa fa-user me-sm-1"></i>
-                <span className="d-sm-inline d-none">Sign In</span>
-              </a>
-            </li>
+            {isAuthenticated ? (
+              <li className="nav-item dropdown pe-2 d-flex align-items-center">
+                <a
+                  href="javascript:;"
+                  className="nav-link text-white p-0"
+                  id="userDropdownMenuButton"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                >
+                  <div className="d-flex align-items-center">
+                    <i className="fa fa-user me-sm-1"></i>
+                    <span className="d-sm-inline d-none me-2">{name || user?.name || 'User'}</span>
+                    <i className="fa fa-chevron-down" style={{ fontSize: '0.75rem' }}></i>
+                  </div>
+                </a>
+                <ul
+                  className="dropdown-menu dropdown-menu-end px-2 py-3 me-sm-n4"
+                  aria-labelledby="userDropdownMenuButton"
+                >
+                  <li className="mb-2">
+                    <Link className="dropdown-item border-radius-md" to="/profile">
+                      <div className="d-flex align-items-center">
+                        <i className="fa fa-user me-2"></i>
+                        <span>Profile</span>
+                      </div>
+                    </Link>
+                  </li>
+                  <li>
+                    <a
+                      className="dropdown-item border-radius-md text-danger"
+                      href="javascript:;"
+                      onClick={handleSignOut}
+                    >
+                      <div className="d-flex align-items-center">
+                        <i className="fa fa-sign-out-alt me-2"></i>
+                        <span>Sign Out</span>
+                      </div>
+                    </a>
+                  </li>
+                </ul>
+              </li>
+            ) : (
+              <li className="nav-item d-flex align-items-center">
+                <a href="/signin" className="nav-link text-white font-weight-bold px-0">
+                  <i className="fa fa-user me-sm-1"></i>
+                  <span className="d-sm-inline d-none">Sign In</span>
+                </a>
+              </li>
+            )}
             <li className="nav-item d-xl-none ps-3 d-flex align-items-center">
               <a href="javascript:;" className="nav-link text-white p-0" id="iconNavbarSidenav">
                 <div className="sidenav-toggler-inner">
