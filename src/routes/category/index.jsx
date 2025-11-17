@@ -5,6 +5,7 @@ import moment from 'moment';
 import {
   fetchCategories,
   deleteCategory,
+  updateCategory,
   setSearch,
   setPage,
   setLimit,
@@ -28,6 +29,7 @@ const Category = () => {
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
+  const [togglingCategoryId, setTogglingCategoryId] = useState(null);
 
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
@@ -114,6 +116,65 @@ const Category = () => {
     ) : (
       <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
     );
+  };
+
+  // Handle toggle status
+  const handleToggleStatus = async (categoryId, currentStatus) => {
+    const newStatus = !currentStatus;
+    setTogglingCategoryId(categoryId);
+
+    try {
+      await dispatch(
+        updateCategory({
+          categoryId,
+          categoryData: { isActive: newStatus },
+        })
+      ).unwrap();
+
+      // Refresh the list to get updated data
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+      if (sort.sortBy) {
+        params.sortBy = sort.sortBy;
+        params.sortOrder = sort.sortOrder;
+      }
+      dispatch(fetchCategories(params));
+    } catch (error) {
+      console.error('Toggle status error:', error);
+      // Show error toast
+      const toastElement = document.getElementById('dangerToast');
+      if (toastElement) {
+        const timeElement = toastElement.querySelector('.toast-time');
+        if (timeElement) {
+          timeElement.textContent = moment().format('h:mm A');
+        }
+        const toastBody = toastElement.querySelector('.toast-body');
+        if (toastBody) {
+          toastBody.textContent = error?.message || 'Failed to update category status';
+        }
+        if (window.bootstrap && window.bootstrap.Toast) {
+          const toast = new window.bootstrap.Toast(toastElement, {
+            autohide: true,
+            delay: 5000,
+          });
+          toast.show();
+        } else {
+          toastElement.classList.remove('hide');
+          toastElement.classList.add('show');
+          setTimeout(() => {
+            toastElement.classList.remove('show');
+            toastElement.classList.add('hide');
+          }, 5000);
+        }
+      }
+    } finally {
+      setTogglingCategoryId(null);
+    }
   };
 
   // Handle delete category
@@ -432,11 +493,62 @@ const Category = () => {
                               </td>
                               <td className="text-sm font-weight-normal">{item.slug || '-'}</td>
                               <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${item.status === 'active' || item.status === 1 ? 'bg-success' : 'bg-secondary'}`}
-                                >
-                                  {item.isActive ? 'Active' : 'Inactive'}
-                                </span>
+                                <div className="d-flex align-items-center gap-2">
+                                  <div className="form-check form-switch mb-0">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`toggle-${item._id || item.id || item.category_id || index}`}
+                                      checked={
+                                        item.isActive ||
+                                        item.status === 'active' ||
+                                        item.status === 1
+                                      }
+                                      onChange={() =>
+                                        handleToggleStatus(
+                                          item._id || item.id || item.category_id,
+                                          item.isActive ||
+                                            item.status === 'active' ||
+                                            item.status === 1
+                                        )
+                                      }
+                                      disabled={
+                                        togglingCategoryId ===
+                                        (item._id || item.id || item.category_id)
+                                      }
+                                      style={{
+                                        width: '2.5rem',
+                                        height: '1.25rem',
+                                        cursor:
+                                          togglingCategoryId ===
+                                          (item._id || item.id || item.category_id)
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                      }}
+                                    />
+                                  </div>
+                                  {togglingCategoryId ===
+                                  (item._id || item.id || item.category_id) ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm text-primary"
+                                      role="status"
+                                      style={{ width: '1rem', height: '1rem' }}
+                                    >
+                                      <span className="visually-hidden">Loading...</span>
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`badge ${item.isActive || item.status === 'active' || item.status === 1 ? 'bg-success' : 'bg-secondary'}`}
+                                    >
+                                      {item.isActive ||
+                                      item.status === 'active' ||
+                                      item.status === 1
+                                        ? 'Active'
+                                        : 'Inactive'}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.createdAt
