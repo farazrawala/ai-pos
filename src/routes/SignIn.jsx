@@ -7,7 +7,7 @@ import apiClient from '../api/apiClient.js';
 const initialForm = {
   email: '',
   password: '',
-  remember: false
+  remember: false,
 };
 
 const SignIn = () => {
@@ -21,7 +21,7 @@ const SignIn = () => {
     const { name, value, type, checked } = event.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
     }));
     setError('');
   };
@@ -43,10 +43,10 @@ const SignIn = () => {
         '/user/login',
         {
           email: form.email,
-          password: form.password
+          password: form.password,
         },
         {
-          baseURL: 'http://localhost:8000/api'
+          baseURL: 'http://localhost:8000/api',
         }
       );
 
@@ -136,4 +136,3 @@ const SignIn = () => {
 };
 
 export default SignIn;
-

@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setName } from '../features/user/userSlice.js';
+import apiClient from '../api/apiClient.js';
 
 const initialForm = {
   fullName: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  companyName: '',
+  address: '',
+  companyEmail: ''
 };
 
 const SignUp = () => {
@@ -15,6 +19,7 @@ const SignUp = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('idle');
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -25,14 +30,22 @@ const SignUp = () => {
     setError('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!form.fullName.trim() || !form.email || !form.password || !form.confirmPassword) {
+    if (
+      !form.fullName.trim() ||
+      !form.email ||
+      !form.password ||
+      !form.confirmPassword ||
+      !form.companyName.trim() ||
+      !form.address.trim() ||
+      !form.companyEmail
+    ) {
       setError('Please complete all fields.');
       return;
     }
-    if (!form.email.includes('@')) {
-      setError('Enter a valid email address.');
+    if (!form.email.includes('@') || !form.companyEmail.includes('@')) {
+      setError('Enter valid email addresses.');
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -40,9 +53,35 @@ const SignUp = () => {
       return;
     }
 
-    dispatch(setName(form.fullName.trim()));
-    setForm(initialForm);
-    navigate('/profile');
+    try {
+      setStatus('pending');
+      await apiClient.post(
+        '/user/user_company',
+        {
+          name: form.fullName.trim(),
+          email: form.email,
+          password: form.password,
+          company_name: form.companyName.trim(),
+          address: form.address.trim(),
+          company_email: form.companyEmail
+        },
+        {
+          baseURL: 'http://localhost:8000/api'
+        }
+      );
+
+      dispatch(setName(form.fullName.trim()));
+      setForm(initialForm);
+      setStatus('completed');
+      navigate('/profile');
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Unable to sign up. Please try again.';
+      setError(message);
+      setStatus('failed');
+    }
   };
 
   return (
@@ -102,11 +141,41 @@ const SignUp = () => {
               onChange={handleChange}
               required
             />
+            <label htmlFor="companyName">Company name</label>
+            <input
+              id="companyName"
+              type="text"
+              name="companyName"
+              placeholder="Gmail 1"
+              value={form.companyName}
+              onChange={handleChange}
+              required
+            />
+            <label htmlFor="address">Address</label>
+            <input
+              id="address"
+              type="text"
+              name="address"
+              placeholder="New York"
+              value={form.address}
+              onChange={handleChange}
+              required
+            />
+            <label htmlFor="companyEmail">Company email</label>
+            <input
+              id="companyEmail"
+              type="email"
+              name="companyEmail"
+              placeholder="company@gmail.com"
+              value={form.companyEmail}
+              onChange={handleChange}
+              required
+            />
 
             {error && <p className="error">{error}</p>}
 
-            <button type="submit" className="cta-btn">
-              Sign Up
+            <button type="submit" className="cta-btn" disabled={status === 'pending'}>
+              {status === 'pending' ? 'Creating Account...' : 'Sign Up'}
             </button>
             <button type="button" className="ghost-btn" onClick={() => navigate('/signin')}>
               Already have an account?

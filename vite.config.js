@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
@@ -8,8 +9,12 @@ export default defineConfig({
     })
   ],
   server: {
-    port: 5173
+    port: 5173,
+    fs: {
+      allow: ['..']
+    }
   },
+  publicDir: 'public',
   esbuild: {
     loader: 'jsx',
     include: /src\/.*\.[jt]sx?$/,
@@ -21,6 +26,10 @@ export default defineConfig({
         '.js': 'jsx'
       }
     }
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
   }
 });
-
