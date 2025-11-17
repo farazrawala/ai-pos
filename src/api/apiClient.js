@@ -11,8 +11,8 @@ export const injectStore = (store) => {
 const apiClient = axios.create({
   baseURL: 'https://jsonplaceholder.typicode.com',
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 const startLoader = () => {
@@ -30,6 +30,13 @@ const stopLoader = () => {
 apiClient.interceptors.request.use(
   (config) => {
     startLoader();
+
+    // Add Bearer token to all requests if available
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
     return config;
   },
   (error) => {
@@ -50,4 +57,3 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-

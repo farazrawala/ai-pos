@@ -6,8 +6,14 @@ const getStoredName = () => {
   return localStorage.getItem('userName') || '';
 };
 
+const getStoredToken = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('authToken') || '';
+};
+
 const initialState = {
-  name: getStoredName()
+  name: getStoredName(),
+  token: getStoredToken(),
 };
 
 const userSlice = createSlice({
@@ -24,15 +30,26 @@ const userSlice = createSlice({
         }
       }
     },
+    setToken: (state, action) => {
+      state.token = action.payload;
+      if (typeof window !== 'undefined') {
+        if (action.payload) {
+          localStorage.setItem('authToken', action.payload);
+        } else {
+          localStorage.removeItem('authToken');
+        }
+      }
+    },
     clearUser: (state) => {
       state.name = '';
+      state.token = '';
       if (typeof window !== 'undefined') {
         localStorage.removeItem('userName');
+        localStorage.removeItem('authToken');
       }
-    }
-  }
+    },
+  },
 });
 
-export const { setName, clearUser } = userSlice.actions;
+export const { setName, setToken, clearUser } = userSlice.actions;
 export default userSlice.reducer;
-

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setName } from '../features/user/userSlice.js';
+import { setName, setToken } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
 
 const initialForm = {
@@ -56,6 +56,12 @@ const SignIn = () => {
         data?.user?.fullName ||
         form.email.split('@')[0] ||
         'User';
+
+      // Store token if available in response
+      const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
+      if (token) {
+        dispatch(setToken(token));
+      }
 
       dispatch(setName(displayName));
       setForm(initialForm);
