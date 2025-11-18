@@ -57,6 +57,9 @@ const ProductEdit = () => {
   const singleImageInputRef = useRef(null);
   const bulkImagesInputRef = useRef(null);
 
+  // Modal state for variations management
+  const [showVariationsModal, setShowVariationsModal] = useState(false);
+
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
 
@@ -1157,10 +1160,7 @@ const ProductEdit = () => {
                       <button
                         type="button"
                         className="btn btn-outline-primary btn-sm"
-                        onClick={() => {
-                          // TODO: Navigate to variations management page or open modal
-                          console.log('Manage variations for product:', id);
-                        }}
+                        onClick={() => setShowVariationsModal(true)}
                         disabled={isSubmitting}
                       >
                         <i className="fas fa-cog me-1"></i>
@@ -1248,6 +1248,78 @@ const ProductEdit = () => {
           <div className="toast-body">An error occurred while updating the product.</div>
         </div>
       </div>
+
+      {/* Variations Management Modal */}
+      {showVariationsModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            tabIndex="-1"
+            role="dialog"
+            aria-labelledby="variationsModalLabel"
+            aria-hidden="false"
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title" id="variationsModalLabel">
+                    <i className="fas fa-cog me-2"></i>
+                    Manage Product Variations
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowVariationsModal(false)}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted">
+                    Manage variations for: <strong>{form.name || 'Product'}</strong>
+                  </p>
+                  <div className="alert alert-info">
+                    <i className="fas fa-info-circle me-2"></i>
+                    Variations management feature will be implemented here. This will allow you to
+                    create and manage different variations of this product (e.g., different sizes,
+                    colors, etc.).
+                  </div>
+                  {/* TODO: Add variations management form/table here */}
+                  <div className="text-center py-4">
+                    <p className="text-muted">Variations management interface coming soon...</p>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowVariationsModal(false)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      // TODO: Save variations
+                      console.log('Save variations for product:', id);
+                      setShowVariationsModal(false);
+                    }}
+                  >
+                    <i className="fas fa-save me-1"></i>
+                    Save Variations
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            className="modal-backdrop fade show"
+            style={{ zIndex: 1050 }}
+            onClick={() => setShowVariationsModal(false)}
+          ></div>
+        </>
+      )}
     </div>
   );
 };
