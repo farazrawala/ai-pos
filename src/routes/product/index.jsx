@@ -3,18 +3,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
-  fetchCategories,
-  deleteCategory,
-  updateCategory,
+  fetchProducts,
+  deleteProduct,
+  updateProduct,
   setSearch,
   setPage,
   setLimit,
   setSort,
   clearDeleteStatus,
-} from '../../features/categories/categoriesSlice.js';
+} from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
-const Category = () => {
+const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -26,14 +26,14 @@ const Category = () => {
     sort,
     deleteStatus,
     deleteError,
-  } = useSelector((state) => state.categories);
+  } = useSelector((state) => state.products);
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
-  const [togglingCategoryId, setTogglingCategoryId] = useState(null);
+  const [togglingProductId, setTogglingProductId] = useState(null);
 
-  // Get category permissions
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('category');
+  // Get product permissions
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('product');
 
   // Redirect if user doesn't have view permission
   useEffect(() => {
@@ -42,12 +42,6 @@ const Category = () => {
     }
   }, [canView, navigate]);
 
-  // useEffect(() => {
-  //   console.log('canCreate', canCreate);
-  //   console.log('canEdit', canEdit);
-  //   console.log('canDelete', canDelete);
-  //   console.log('canView', canView);
-  // }, [canCreate]);
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
     const params = {
@@ -64,7 +58,7 @@ const Category = () => {
       params.sortOrder = sort.sortOrder;
     }
 
-    dispatch(fetchCategories(params));
+    dispatch(fetchProducts(params));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
 
   // Handle search input with debounce
@@ -73,15 +67,13 @@ const Category = () => {
       const value = e.target.value;
       setLocalSearch(value);
 
-      // Clear existing timeout
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
 
-      // Set new timeout for debounced search
       searchTimeoutRef.current = setTimeout(() => {
         dispatch(setSearch(value));
-      }, 500); // 500ms debounce
+      }, 500);
     },
     [dispatch]
   );
@@ -103,23 +95,19 @@ const Category = () => {
 
   const handleSort = (sortBy, isDoubleClick = false) => {
     if (isDoubleClick) {
-      // Clear the single click timeout if double-clicked
       if (sortClickTimeoutRef.current) {
         clearTimeout(sortClickTimeoutRef.current);
         sortClickTimeoutRef.current = null;
       }
-      // Clear sorting on double click
       dispatch(setSort({ sortBy: null, sortOrder: null }));
     } else {
-      // Delay single click to allow for double-click detection
       if (sortClickTimeoutRef.current) {
         clearTimeout(sortClickTimeoutRef.current);
       }
       sortClickTimeoutRef.current = setTimeout(() => {
-        // Toggle sort on single click
         dispatch(setSort({ sortBy }));
         sortClickTimeoutRef.current = null;
-      }, 200); // 200ms delay to detect double-click
+      }, 200);
     }
   };
 
@@ -136,19 +124,19 @@ const Category = () => {
   };
 
   // Handle toggle status
-  const handleToggleStatus = async (categoryId, currentStatus) => {
+  const handleToggleStatus = async (productId, currentStatus) => {
     const newStatus = !currentStatus;
-    setTogglingCategoryId(categoryId);
+    setTogglingProductId(productId);
 
     try {
       await dispatch(
-        updateCategory({
-          categoryId,
-          categoryData: { isActive: newStatus },
+        updateProduct({
+          productId,
+          productData: { isActive: newStatus },
+          images: [],
         })
       ).unwrap();
 
-      // Refresh the list to get updated data
       const params = {
         page: pagination.page,
         limit: pagination.limit,
@@ -160,10 +148,9 @@ const Category = () => {
         params.sortBy = sort.sortBy;
         params.sortOrder = sort.sortOrder;
       }
-      dispatch(fetchCategories(params));
+      dispatch(fetchProducts(params));
     } catch (error) {
       console.error('Toggle status error:', error);
-      // Show error toast
       const toastElement = document.getElementById('dangerToast');
       if (toastElement) {
         const timeElement = toastElement.querySelector('.toast-time');
@@ -172,7 +159,7 @@ const Category = () => {
         }
         const toastBody = toastElement.querySelector('.toast-body');
         if (toastBody) {
-          toastBody.textContent = error?.message || 'Failed to update category status';
+          toastBody.textContent = error?.message || 'Failed to update product status';
         }
         if (window.bootstrap && window.bootstrap.Toast) {
           const toast = new window.bootstrap.Toast(toastElement, {
@@ -190,22 +177,20 @@ const Category = () => {
         }
       }
     } finally {
-      setTogglingCategoryId(null);
+      setTogglingProductId(null);
     }
   };
 
-  // Handle delete category
-  const handleDelete = async (categoryId, categoryName) => {
-    const categoryNameDisplay = categoryName || 'this category';
+  // Handle delete product
+  const handleDelete = async (productId, productName) => {
+    const productNameDisplay = productName || 'this product';
     if (
       window.confirm(
-        `Are you sure you want to delete "${categoryNameDisplay}"? This action cannot be undone.`
+        `Are you sure you want to delete "${productNameDisplay}"? This action cannot be undone.`
       )
     ) {
       try {
-        await dispatch(deleteCategory(categoryId)).unwrap();
-        // Optionally refresh the list to get updated data from server
-        // Or the reducer already removes it from the list
+        await dispatch(deleteProduct(productId)).unwrap();
         const params = {
           page: pagination.page,
           limit: pagination.limit,
@@ -217,9 +202,8 @@ const Category = () => {
           params.sortBy = sort.sortBy;
           params.sortOrder = sort.sortOrder;
         }
-        dispatch(fetchCategories(params));
+        dispatch(fetchProducts(params));
       } catch (error) {
-        // Error is handled by Redux state
         console.error('Delete error:', error);
       }
     }
@@ -235,13 +219,11 @@ const Category = () => {
     if (deleteStatus === 'succeeded') {
       const toastElement = document.getElementById('successToast');
       if (toastElement) {
-        // Update time in toast
         const timeElement = toastElement.querySelector('.toast-time');
         if (timeElement) {
           timeElement.textContent = moment().format('h:mm A');
         }
 
-        // Use Bootstrap Toast API if available
         if (window.bootstrap && window.bootstrap.Toast) {
           const toast = new window.bootstrap.Toast(toastElement, {
             autohide: true,
@@ -249,7 +231,6 @@ const Category = () => {
           });
           toast.show();
         } else {
-          // Fallback: manually show toast
           toastElement.classList.remove('hide');
           toastElement.classList.add('show');
           setTimeout(() => {
@@ -258,7 +239,6 @@ const Category = () => {
           }, 5000);
         }
 
-        // Clear status after toast is shown
         setTimeout(() => {
           dispatch(clearDeleteStatus());
         }, 5500);
@@ -270,13 +250,11 @@ const Category = () => {
     if (deleteError) {
       const toastElement = document.getElementById('dangerToast');
       if (toastElement) {
-        // Update time in toast
         const timeElement = toastElement.querySelector('.toast-time');
         if (timeElement) {
           timeElement.textContent = moment().format('h:mm A');
         }
 
-        // Use Bootstrap Toast API if available
         if (window.bootstrap && window.bootstrap.Toast) {
           const toast = new window.bootstrap.Toast(toastElement, {
             autohide: true,
@@ -284,7 +262,6 @@ const Category = () => {
           });
           toast.show();
         } else {
-          // Fallback: manually show toast
           toastElement.classList.remove('hide');
           toastElement.classList.add('show');
           setTimeout(() => {
@@ -307,11 +284,13 @@ const Category = () => {
       }
     };
   }, []);
+
   const firstSegment = window.location.pathname.split('/')[1];
 
   // Calculate pagination info
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+
   // Reusable Pagination Component
   const PaginationControls = () => {
     if (loading || error || pagination.total === 0) return null;
@@ -411,7 +390,7 @@ const Category = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search categories..."
+                        placeholder="Search products..."
                         value={localSearch}
                         onChange={handleSearchChange}
                       />
@@ -419,10 +398,10 @@ const Category = () => {
                     {canCreate && (
                       <button
                         className="btn btn-primary btn-sm"
-                        onClick={() => navigate('/categories/add')}
+                        onClick={() => navigate('/products/add')}
                       >
                         <i className="fas fa-plus me-1"></i>
-                        Add New Category
+                        Add New Product
                       </button>
                     )}
                   </div>
@@ -430,13 +409,12 @@ const Category = () => {
               </div>
             </div>
             <div className="card-body pt-0">
-              {/* Pagination Controls - Top */}
               <PaginationControls />
 
               <div className="table-responsive">
                 {loading && (
                   <div className="text-center p-4">
-                    <p>Loading categories...</p>
+                    <p>Loading products...</p>
                   </div>
                 )}
                 {error && (
@@ -454,16 +432,31 @@ const Category = () => {
                           onClick={() => handleSort('name')}
                           onDoubleClick={() => handleSort('name', true)}
                         >
+                          Image
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('name')}
+                          onDoubleClick={() => handleSort('name', true)}
+                        >
                           Name
                           {renderSortIcon('name')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('slug')}
-                          onDoubleClick={() => handleSort('slug', true)}
+                          onClick={() => handleSort('price')}
+                          onDoubleClick={() => handleSort('price', true)}
                         >
-                          Slug
-                          {renderSortIcon('slug')}
+                          Price
+                          {renderSortIcon('price')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('stock')}
+                          onDoubleClick={() => handleSort('stock', true)}
+                        >
+                          Stock
+                          {renderSortIcon('stock')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -495,21 +488,66 @@ const Category = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
-                            No categories found
+                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                            No products found
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
-                          // Calculate series number accounting for pagination
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                          const mainImage =
+                            item.product_image ||
+                            (item.multi_images && item.multi_images.length > 0
+                              ? item.multi_images[0]
+                              : null) ||
+                            (item.images && item.images.length > 0 ? item.images[0] : null) ||
+                            item.image ||
+                            null;
                           return (
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
                               <td className="text-sm font-weight-normal">
-                                {item.name || item.category_name || '-'}
+                                {mainImage ? (
+                                  <img
+                                    src={mainImage}
+                                    alt={item.product_name || 'Product'}
+                                    style={{
+                                      width: '50px',
+                                      height: '50px',
+                                      objectFit: 'cover',
+                                      borderRadius: '4px',
+                                    }}
+                                    onError={(e) => {
+                                      e.target.src = '/assets/img/default.jpg';
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: '50px',
+                                      height: '50px',
+                                      backgroundColor: '#f0f0f0',
+                                      borderRadius: '4px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <i className="fas fa-image text-muted"></i>
+                                  </div>
+                                )}
                               </td>
-                              <td className="text-sm font-weight-normal">{item.slug || '-'}</td>
+                              <td className="text-sm font-weight-normal">
+                                {item.name || item.product_name || '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.price || item.product_price
+                                  ? `$${parseFloat(item.price || item.product_price || 0).toFixed(2)}`
+                                  : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.stock !== undefined ? item.stock : '-'}
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex align-items-center gap-2">
                                   <div className="form-check form-switch mb-0">
@@ -517,7 +555,7 @@ const Category = () => {
                                       className="form-check-input"
                                       type="checkbox"
                                       role="switch"
-                                      id={`toggle-${item._id || item.id || item.category_id || index}`}
+                                      id={`toggle-${item._id || item.id || item.product_id || index}`}
                                       checked={
                                         item.isActive ||
                                         item.status === 'active' ||
@@ -525,30 +563,29 @@ const Category = () => {
                                       }
                                       onChange={() =>
                                         handleToggleStatus(
-                                          item._id || item.id || item.category_id,
+                                          item._id || item.id || item.product_id,
                                           item.isActive ||
                                             item.status === 'active' ||
                                             item.status === 1
                                         )
                                       }
                                       disabled={
-                                        togglingCategoryId ===
-                                        (item._id || item.id || item.category_id)
+                                        togglingProductId ===
+                                        (item._id || item.id || item.product_id)
                                       }
                                       style={{
                                         width: '2.5rem',
                                         height: '1.25rem',
                                         cursor:
-                                          togglingCategoryId ===
-                                          (item._id || item.id || item.category_id)
+                                          togglingProductId ===
+                                          (item._id || item.id || item.product_id)
                                             ? 'not-allowed'
                                             : 'pointer',
                                       }}
                                     />
                                   </div>
-
-                                  {togglingCategoryId ===
-                                  (item._id || item.id || item.category_id) ? (
+                                  {togglingProductId ===
+                                  (item._id || item.id || item.product_id) ? (
                                     <span
                                       className="spinner-border spinner-border-sm text-primary"
                                       role="status"
@@ -563,8 +600,8 @@ const Category = () => {
                                       {item.isActive ||
                                       item.status === 'active' ||
                                       item.status === 1
-                                        ? 'Active 2....'
-                                        : 'Inactive 2'}
+                                        ? 'Active'
+                                        : 'Inactive'}
                                     </span>
                                   )}
                                 </div>
@@ -575,7 +612,7 @@ const Category = () => {
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {moment(item.updatedAt).fromNow()}
+                                {item.updatedAt ? moment(item.updatedAt).fromNow() : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex gap-1">
@@ -584,7 +621,7 @@ const Category = () => {
                                       className="btn btn-sm btn-primary"
                                       onClick={() =>
                                         navigate(
-                                          `/categories/edit/${item._id || item.id || item.category_id}`
+                                          `/products/edit/${item._id || item.id || item.product_id}`
                                         )
                                       }
                                     >
@@ -596,8 +633,8 @@ const Category = () => {
                                       className="btn btn-sm btn-danger"
                                       onClick={() =>
                                         handleDelete(
-                                          item._id || item.id || item.category_id,
-                                          item.name || item.category_name
+                                          item._id || item.id || item.product_id,
+                                          item.name || item.product_name || 'Product'
                                         )
                                       }
                                       disabled={deleteStatus === 'loading'}
@@ -619,7 +656,6 @@ const Category = () => {
                 )}
               </div>
 
-              {/* Pagination Controls - Bottom */}
               <PaginationControls />
             </div>
           </div>
@@ -628,7 +664,6 @@ const Category = () => {
 
       {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">
-        {/* Success Toast */}
         <div
           className="toast fade hide p-2 bg-white"
           role="alert"
@@ -647,10 +682,9 @@ const Category = () => {
             ></i>
           </div>
           <hr className="horizontal dark m-0" />
-          <div className="toast-body">Category deleted successfully!</div>
+          <div className="toast-body">Product deleted successfully!</div>
         </div>
 
-        {/* Danger Toast */}
         <div
           className="toast fade hide p-2 mt-2 bg-white"
           role="alert"
@@ -670,7 +704,7 @@ const Category = () => {
           </div>
           <hr className="horizontal dark m-0" />
           <div className="toast-body">
-            {deleteError || 'An error occurred while deleting the category.'}
+            {deleteError || 'An error occurred while deleting the product.'}
           </div>
         </div>
       </div>
@@ -678,4 +712,4 @@ const Category = () => {
   );
 };
 
-export default Category;
+export default Product;

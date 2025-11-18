@@ -13,9 +13,9 @@ const Footer = () => {
                 rel="noopener noreferrer"
               >
                 {' '}
-                Creative Tim
+                AI POS
               </a>{' '}
-              for a better web.
+              for a better POS system.
             </div>
           </div>
           <div className="col-lg-6">

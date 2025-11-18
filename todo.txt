@@ -7,11 +7,8 @@
 Navigate with permissions
 
 
-P1. Users
-    CRUD with permissions
-
-P2. Products
-    CRUD
+P1. Products
+    image/bulkproducts with all fields.
 
 Categories
     parent category

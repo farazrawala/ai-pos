@@ -3,6 +3,8 @@ import userReducer from '../features/user/userSlice.js';
 import postsReducer from '../features/posts/postsSlice.js';
 import loaderReducer from '../features/loader/loaderSlice.js';
 import categoriesReducer from '../features/categories/categoriesSlice.js';
+import productsReducer from '../features/products/productsSlice.js';
+import attributesReducer from '../features/attributes/attributesSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -11,6 +13,8 @@ const store = configureStore({
     posts: postsReducer,
     loader: loaderReducer,
     categories: categoriesReducer,
+    products: productsReducer,
+    attributes: attributesReducer,
   },
 });
 

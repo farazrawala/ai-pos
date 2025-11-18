@@ -13,6 +13,12 @@ import Footer from './components/Footer.jsx';
 import Category from './routes/Category/index.jsx';
 import CategoryAdd from './routes/category/add.jsx';
 import CategoryEdit from './routes/category/edit.jsx';
+import Product from './routes/product/index.jsx';
+import ProductAdd from './routes/product/add.jsx';
+import ProductEdit from './routes/product/edit.jsx';
+import Attribute from './routes/attribute/index.jsx';
+import AttributeAdd from './routes/attribute/add.jsx';
+import AttributeEdit from './routes/attribute/edit.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -28,6 +34,12 @@ const App = () => {
           <Route path="/categories" element={<Category />} />
           <Route path="/categories/add" element={<CategoryAdd />} />
           <Route path="/categories/edit/:id" element={<CategoryEdit />} />
+          <Route path="/products" element={<Product />} />
+          <Route path="/products/add" element={<ProductAdd />} />
+          <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/attributes" element={<Attribute />} />
+          <Route path="/attributes/add" element={<AttributeAdd />} />
+          <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -72,6 +84,12 @@ const App = () => {
           <Route path="/categories" element={<Category />} />
           <Route path="/categories/add" element={<CategoryAdd />} />
           <Route path="/categories/edit/:id" element={<CategoryEdit />} />
+          <Route path="/products" element={<Product />} />
+          <Route path="/products/add" element={<ProductAdd />} />
+          <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/attributes" element={<Attribute />} />
+          <Route path="/attributes/add" element={<AttributeAdd />} />
+          <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

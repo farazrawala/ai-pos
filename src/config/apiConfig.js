@@ -1,2 +1,3 @@
 // API Configuration
-export const API_BASE_URL = 'http://localhost:8000/api';
+// Use relative URL to leverage Vite proxy and avoid CORS issues
+export const API_BASE_URL = '/api';

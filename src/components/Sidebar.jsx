@@ -85,6 +85,35 @@ const Sidebar = () => {
           </li>
           <li className="nav-item mt-3">
             <h6 className="ps-4  ms-2 text-uppercase text-xs font-weight-bolder opacity-6">
+              MANAGEMENT
+            </h6>
+          </li>
+          <li className="nav-item">
+            <NavLink className="nav-link" to="/categories">
+              <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                <i className="ni ni-collection text-dark text-sm opacity-10"></i>
+              </div>
+              <span className="nav-link-text ms-1">Categories</span>
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink className="nav-link" to="/products">
+              <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                <i className="ni ni-box-2 text-dark text-sm opacity-10"></i>
+              </div>
+              <span className="nav-link-text ms-1">Products</span>
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink className="nav-link" to="/attributes">
+              <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                <i className="ni ni-tag text-dark text-sm opacity-10"></i>
+              </div>
+              <span className="nav-link-text ms-1">Attributes</span>
+            </NavLink>
+          </li>
+          <li className="nav-item mt-3">
+            <h6 className="ps-4  ms-2 text-uppercase text-xs font-weight-bolder opacity-6">
               PAGES
             </h6>
           </li>
