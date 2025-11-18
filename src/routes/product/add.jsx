@@ -476,6 +476,23 @@ const ProductAdd = () => {
                   {errors.product_type && (
                     <div className="invalid-feedback">{errors.product_type}</div>
                   )}
+                  {/* Manage Variations Button - Only show when Product Type is Variable */}
+                  {form.product_type === 'Variable' && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        disabled
+                        title="Variations can be managed after the product is created"
+                      >
+                        <i className="fas fa-cog me-1"></i>
+                        Manage Variations
+                      </button>
+                      <small className="text-muted d-block mt-1">
+                        Save the product first to manage variations
+                      </small>
+                    </div>
+                  )}
                 </div>
 
                 {/* Brand Field */}

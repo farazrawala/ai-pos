@@ -723,28 +723,6 @@ const ProductEdit = () => {
                   <small className="text-muted">Hold Ctrl/Cmd to select multiple categories</small>
                 </div>
 
-                {/* Product Type Field */}
-                <div className="mb-3">
-                  <label htmlFor="product_type" className="form-label">
-                    Product Type <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className={`form-select ${errors.product_type ? 'is-invalid' : ''}`}
-                    id="product_type"
-                    name="product_type"
-                    value={form.product_type}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting}
-                  >
-                    <option value="Single">Single</option>
-                    <option value="Variable">Variable</option>
-                  </select>
-                  {errors.product_type && (
-                    <div className="invalid-feedback">{errors.product_type}</div>
-                  )}
-                </div>
-
                 {/* Brand Field */}
                 <div className="mb-3">
                   <label htmlFor="brand_id" className="form-label">
@@ -1151,6 +1129,45 @@ const ProductEdit = () => {
                   <small className="text-muted">
                     Upload multiple additional images (max 10 images, 5MB each)
                   </small>
+                </div>
+
+                {/* Product Type Field */}
+                <div className="mb-4">
+                  <label htmlFor="product_type" className="form-label">
+                    Product Type <span className="text-danger">*</span>
+                  </label>
+                  <select
+                    className={`form-select ${errors.product_type ? 'is-invalid' : ''}`}
+                    id="product_type"
+                    name="product_type"
+                    value={form.product_type}
+                    onChange={handleChange}
+                    required
+                    disabled={isSubmitting}
+                  >
+                    <option value="Single">Single</option>
+                    <option value="Variable">Variable</option>
+                  </select>
+                  {errors.product_type && (
+                    <div className="invalid-feedback">{errors.product_type}</div>
+                  )}
+                  {/* Manage Variations Button - Only show when Product Type is Variable */}
+                  {form.product_type === 'Variable' && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => {
+                          // TODO: Navigate to variations management page or open modal
+                          console.log('Manage variations for product:', id);
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        <i className="fas fa-cog me-1"></i>
+                        Manage Variations
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Form Actions */}
