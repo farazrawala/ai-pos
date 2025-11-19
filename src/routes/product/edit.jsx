@@ -247,8 +247,10 @@ const ProductEdit = () => {
     };
     generateCombinations([], 0);
 
+    const productName = form.name || 'Product';
     return combinations.map((combo, idx) => {
-      const variationName = combo.map((v) => v.name || v).join(' - ');
+      const variationValues = combo.map((v) => v.name || v).join(' - ');
+      const variationName = `${productName} [${variationValues}]`;
       const variationSlug = generateSlug(variationName);
       return {
         id: `var_${idx}`,
@@ -315,8 +317,10 @@ const ProductEdit = () => {
     };
     generateCombinations([], 0);
 
+    const productName = form.name || 'Product';
     const newVariations = combinations.map((combo, idx) => {
-      const variationName = combo.map((v) => v.name || v).join(' - ');
+      const variationValues = combo.map((v) => v.name || v).join(' - ');
+      const variationName = `${productName} [${variationValues}]`;
       const variationSlug = generateSlug(variationName);
       return {
         id: `var_${idx}`,
@@ -1410,11 +1414,9 @@ const ProductEdit = () => {
                                 <label className="form-label small">Name</label>
                                 <input
                                   type="text"
-                                  className="form-control form-control-sm"
+                                  className="form-control form-control-sm bg-light"
                                   value={variation.name}
-                                  onChange={(e) =>
-                                    handleVariationChange(variation.id, 'name', e.target.value)
-                                  }
+                                  readOnly
                                   disabled={isSubmitting}
                                 />
                               </div>
@@ -1715,11 +1717,9 @@ const ProductEdit = () => {
                                   <label className="form-label small">Name</label>
                                   <input
                                     type="text"
-                                    className="form-control form-control-sm"
+                                    className="form-control form-control-sm bg-light"
                                     value={variation.name}
-                                    onChange={(e) =>
-                                      handleVariationChange(variation.id, 'name', e.target.value)
-                                    }
+                                    readOnly
                                   />
                                 </div>
 

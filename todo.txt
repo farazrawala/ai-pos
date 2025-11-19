@@ -8,7 +8,8 @@ Navigate with permissions
 
 
 P1. Products
-    image/bulkproducts with all fields.
+    manage variations insert 
+    edit .
 
 Categories
     parent category
