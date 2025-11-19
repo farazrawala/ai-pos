@@ -11,6 +11,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
+import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.js';
 
 const ProductEdit = () => {
   const dispatch = useDispatch();
@@ -59,6 +60,10 @@ const ProductEdit = () => {
 
   // Modal state for variations management
   const [showVariationsModal, setShowVariationsModal] = useState(false);
+  const [attributes, setAttributes] = useState([]);
+  const [loadingAttributes, setLoadingAttributes] = useState(false);
+  const [selectedAttributes, setSelectedAttributes] = useState({}); // { attributeId: [valueNames] }
+  const [variations, setVariations] = useState([]); // Array of variation objects
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
@@ -104,6 +109,24 @@ const ProductEdit = () => {
     };
     loadBrands();
   }, []);
+
+  // Fetch attributes when modal opens
+  useEffect(() => {
+    if (showVariationsModal) {
+      const loadAttributes = async () => {
+        setLoadingAttributes(true);
+        try {
+          const result = await fetchAttributesRequest({ page: 1, limit: 1000 });
+          setAttributes(result.data || []);
+        } catch (error) {
+          console.error('Failed to load attributes:', error);
+        } finally {
+          setLoadingAttributes(false);
+        }
+      };
+      loadAttributes();
+    }
+  }, [showVariationsModal]);
 
   // Fetch product data on mount
   useEffect(() => {
@@ -184,6 +207,165 @@ const ProductEdit = () => {
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  };
+
+  // Calculate all combinations of selected attribute values
+  const calculateCombinations = (selectedAttrs) => {
+    const attributeArrays = [];
+
+    // Get selected attributes with their values
+    Object.keys(selectedAttrs).forEach((attrId) => {
+      const selectedValues = selectedAttrs[attrId];
+      if (selectedValues && selectedValues.length > 0) {
+        const attribute = attributes.find((a) => (a._id || a.id) === attrId);
+        if (attribute) {
+          const values = attribute.attribute_values || [];
+          const filteredValues = values.filter((v) => selectedValues.includes(v.name || v));
+          if (filteredValues.length > 0) {
+            attributeArrays.push({
+              attributeId: attrId,
+              attributeName: attribute.name,
+              values: filteredValues,
+            });
+          }
+        }
+      }
+    });
+
+    if (attributeArrays.length === 0) return [];
+
+    // Calculate cartesian product
+    const combinations = [];
+    const generateCombinations = (current, index) => {
+      if (index === attributeArrays.length) {
+        combinations.push([...current]);
+        return;
+      }
+      attributeArrays[index].values.forEach((value) => {
+        generateCombinations([...current, value], index + 1);
+      });
+    };
+    generateCombinations([], 0);
+
+    return combinations.map((combo, idx) => {
+      const variationName = combo.map((v) => v.name || v).join(' - ');
+      const variationSlug = generateSlug(variationName);
+      return {
+        id: `var_${idx}`,
+        name: variationName,
+        slug: variationSlug,
+        price: '',
+        qty: '',
+        image: null,
+        imagePreview: null,
+        attributes: combo.map((v, i) => ({
+          attributeId: attributeArrays[i].attributeId,
+          attributeName: attributeArrays[i].attributeName,
+          value: v.name || v,
+        })),
+      };
+    });
+  };
+
+  // Handle attribute selection change with toggle support
+  const handleAttributeChange = (attributeId, selectedValues) => {
+    const newSelected = { ...selectedAttributes };
+    if (selectedValues.length === 0) {
+      delete newSelected[attributeId];
+    } else {
+      newSelected[attributeId] = selectedValues;
+    }
+    setSelectedAttributes(newSelected);
+
+    // Calculate and update variations using current attributes
+    const attributeArrays = [];
+    Object.keys(newSelected).forEach((attrId) => {
+      const values = newSelected[attrId];
+      if (values && values.length > 0) {
+        const attribute = attributes.find((a) => (a._id || a.id) === attrId);
+        if (attribute) {
+          const attrValues = attribute.attribute_values || [];
+          const filteredValues = attrValues.filter((v) => values.includes(v.name || v));
+          if (filteredValues.length > 0) {
+            attributeArrays.push({
+              attributeId: attrId,
+              attributeName: attribute.name,
+              values: filteredValues,
+            });
+          }
+        }
+      }
+    });
+
+    if (attributeArrays.length === 0) {
+      setVariations([]);
+      return;
+    }
+
+    // Calculate cartesian product
+    const combinations = [];
+    const generateCombinations = (current, index) => {
+      if (index === attributeArrays.length) {
+        combinations.push([...current]);
+        return;
+      }
+      attributeArrays[index].values.forEach((value) => {
+        generateCombinations([...current, value], index + 1);
+      });
+    };
+    generateCombinations([], 0);
+
+    const newVariations = combinations.map((combo, idx) => {
+      const variationName = combo.map((v) => v.name || v).join(' - ');
+      const variationSlug = generateSlug(variationName);
+      return {
+        id: `var_${idx}`,
+        name: variationName,
+        slug: variationSlug,
+        price: '',
+        qty: '',
+        image: null,
+        imagePreview: null,
+        attributes: combo.map((v, i) => ({
+          attributeId: attributeArrays[i].attributeId,
+          attributeName: attributeArrays[i].attributeName,
+          value: v.name || v,
+        })),
+      };
+    });
+    setVariations(newVariations);
+  };
+
+  // Handle variation field change
+  const handleVariationChange = (variationId, field, value) => {
+    setVariations((prev) => prev.map((v) => (v.id === variationId ? { ...v, [field]: value } : v)));
+  };
+
+  // Handle variation image change
+  const handleVariationImageChange = (variationId, file) => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setVariations((prev) =>
+          prev.map((v) =>
+            v.id === variationId ? { ...v, image: file, imagePreview: reader.result } : v
+          )
+        );
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Remove variation
+  const handleRemoveVariation = (variationId) => {
+    setVariations((prev) => prev.filter((v) => v.id !== variationId));
+  };
+
+  // Close modal and reset state (but keep variations)
+  const handleCloseModal = () => {
+    setShowVariationsModal(false);
+    // Keep variations and selectedAttributes so they persist on the main page
+    // Only close the modal
   };
 
   const handleChange = (e) => {
@@ -1170,6 +1352,127 @@ const ProductEdit = () => {
                   )}
                 </div>
 
+                {/* Variations Display Section - Show on main page */}
+                {form.product_type === 'Variable' && variations.length > 0 && (
+                  <div className="mb-4">
+                    <h6 className="mb-3">
+                      <i className="fas fa-list me-2"></i>
+                      Product Variations ({variations.length} total)
+                    </h6>
+                    <div className="row g-3">
+                      {variations.map((variation) => (
+                        <div key={variation.id} className="col-md-6 col-lg-4">
+                          <div className="card h-100 position-relative">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
+                              style={{ zIndex: 10 }}
+                              onClick={() => handleRemoveVariation(variation.id)}
+                              disabled={isSubmitting}
+                              title="Remove variation"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                            <div className="card-body">
+                              <h6 className="card-title text-primary mb-3">{variation.name}</h6>
+
+                              {/* Variation Image */}
+                              <div className="mb-3">
+                                <label className="form-label small">Image</label>
+                                <input
+                                  type="file"
+                                  className="form-control form-control-sm"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                      handleVariationImageChange(variation.id, file);
+                                    }
+                                  }}
+                                  disabled={isSubmitting}
+                                />
+                                {variation.imagePreview && (
+                                  <img
+                                    src={variation.imagePreview}
+                                    alt={variation.name}
+                                    className="img-thumbnail mt-2"
+                                    style={{
+                                      width: '100%',
+                                      maxHeight: '100px',
+                                      objectFit: 'cover',
+                                    }}
+                                  />
+                                )}
+                              </div>
+
+                              {/* Variation Name */}
+                              <div className="mb-2">
+                                <label className="form-label small">Name</label>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={variation.name}
+                                  onChange={(e) =>
+                                    handleVariationChange(variation.id, 'name', e.target.value)
+                                  }
+                                  disabled={isSubmitting}
+                                />
+                              </div>
+
+                              {/* Variation Slug */}
+                              <div className="mb-2">
+                                <label className="form-label small">Slug</label>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm bg-light"
+                                  value={variation.slug}
+                                  onChange={(e) =>
+                                    handleVariationChange(variation.id, 'slug', e.target.value)
+                                  }
+                                  disabled={isSubmitting}
+                                />
+                              </div>
+
+                              {/* Price and Quantity Row */}
+                              <div className="row g-2">
+                                <div className="col-6">
+                                  <label className="form-label small">Price</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="form-control form-control-sm"
+                                    placeholder="0.00"
+                                    value={variation.price}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'price', e.target.value)
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                                <div className="col-6">
+                                  <label className="form-label small">Quantity</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="form-control form-control-sm"
+                                    placeholder="0"
+                                    value={variation.qty}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'qty', e.target.value)
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Form Actions */}
                 <div className="d-flex justify-content-end gap-2">
                   <button
@@ -1260,7 +1563,10 @@ const ProductEdit = () => {
             aria-labelledby="variationsModalLabel"
             aria-hidden="false"
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div
+              className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"
+              role="document"
+            >
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title" id="variationsModalLabel">
@@ -1270,31 +1576,213 @@ const ProductEdit = () => {
                   <button
                     type="button"
                     className="btn-close"
-                    onClick={() => setShowVariationsModal(false)}
+                    onClick={handleCloseModal}
                     aria-label="Close"
                   ></button>
                 </div>
-                <div className="modal-body">
-                  <p className="text-muted">
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  <p className="text-muted mb-3">
                     Manage variations for: <strong>{form.name || 'Product'}</strong>
                   </p>
-                  <div className="alert alert-info">
-                    <i className="fas fa-info-circle me-2"></i>
-                    Variations management feature will be implemented here. This will allow you to
-                    create and manage different variations of this product (e.g., different sizes,
-                    colors, etc.).
+
+                  {/* Attribute Selection Section */}
+                  <div className="mb-4">
+                    <h6 className="mb-3">
+                      <i className="fas fa-tags me-2"></i>Select Attributes
+                    </h6>
+                    {loadingAttributes ? (
+                      <div className="text-center py-3">
+                        <div
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                        >
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="text-muted mt-2">Loading attributes...</p>
+                      </div>
+                    ) : attributes.length === 0 ? (
+                      <div className="alert alert-warning">
+                        <i className="fas fa-exclamation-triangle me-2"></i>
+                        No attributes available. Please create attributes first.
+                      </div>
+                    ) : (
+                      <div className="row g-3">
+                        {attributes.map((attribute) => {
+                          const attributeId = attribute._id || attribute.id;
+                          const selectedValues = selectedAttributes[attributeId] || [];
+                          const attributeValues = attribute.attribute_values || [];
+
+                          return (
+                            <div key={attributeId} className="col-md-6">
+                              <label className="form-label fw-bold">{attribute.name}</label>
+                              <div
+                                className="border rounded p-2"
+                                style={{
+                                  maxHeight: '200px',
+                                  overflowY: 'auto',
+                                  minHeight: '100px',
+                                }}
+                              >
+                                {attributeValues.map((value, idx) => {
+                                  const valueName = value.name || value;
+                                  const isSelected = selectedValues.includes(valueName);
+                                  return (
+                                    <div key={idx} className="form-check">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        id={`attr-${attributeId}-${idx}`}
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          const newValues = e.target.checked
+                                            ? [...selectedValues, valueName]
+                                            : selectedValues.filter((v) => v !== valueName);
+                                          handleAttributeChange(attributeId, newValues);
+                                        }}
+                                      />
+                                      <label
+                                        className="form-check-label"
+                                        htmlFor={`attr-${attributeId}-${idx}`}
+                                        style={{ cursor: 'pointer' }}
+                                      >
+                                        {valueName}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <small className="text-muted">Click to select/deselect values</small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {/* TODO: Add variations management form/table here */}
-                  <div className="text-center py-4">
-                    <p className="text-muted">Variations management interface coming soon...</p>
-                  </div>
+
+                  {/* Variations Display Section */}
+                  {variations.length > 0 && (
+                    <div className="mb-4">
+                      <h6 className="mb-3">
+                        <i className="fas fa-list me-2"></i>
+                        Variations ({variations.length} total)
+                      </h6>
+                      <div className="row g-3">
+                        {variations.map((variation) => (
+                          <div key={variation.id} className="col-md-6 col-lg-4">
+                            <div className="card h-100 position-relative">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
+                                style={{ zIndex: 10 }}
+                                onClick={() => handleRemoveVariation(variation.id)}
+                                title="Remove variation"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                              <div className="card-body">
+                                <h6 className="card-title text-primary mb-3">{variation.name}</h6>
+
+                                {/* Variation Image */}
+                                <div className="mb-3">
+                                  <label className="form-label small">Image</label>
+                                  <input
+                                    type="file"
+                                    className="form-control form-control-sm"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        handleVariationImageChange(variation.id, file);
+                                      }
+                                    }}
+                                  />
+                                  {variation.imagePreview && (
+                                    <img
+                                      src={variation.imagePreview}
+                                      alt={variation.name}
+                                      className="img-thumbnail mt-2"
+                                      style={{
+                                        width: '100%',
+                                        maxHeight: '100px',
+                                        objectFit: 'cover',
+                                      }}
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Variation Name */}
+                                <div className="mb-2">
+                                  <label className="form-label small">Name</label>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={variation.name}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'name', e.target.value)
+                                    }
+                                  />
+                                </div>
+
+                                {/* Variation Slug */}
+                                <div className="mb-2">
+                                  <label className="form-label small">Slug</label>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm bg-light"
+                                    value={variation.slug}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'slug', e.target.value)
+                                    }
+                                  />
+                                </div>
+
+                                {/* Price and Quantity Row */}
+                                <div className="row g-2">
+                                  <div className="col-6">
+                                    <label className="form-label small">Price</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      className="form-control form-control-sm"
+                                      placeholder="0.00"
+                                      value={variation.price}
+                                      onChange={(e) =>
+                                        handleVariationChange(variation.id, 'price', e.target.value)
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-6">
+                                    <label className="form-label small">Quantity</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      className="form-control form-control-sm"
+                                      placeholder="0"
+                                      value={variation.qty}
+                                      onChange={(e) =>
+                                        handleVariationChange(variation.id, 'qty', e.target.value)
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {variations.length === 0 && Object.keys(selectedAttributes).length > 0 && (
+                    <div className="alert alert-info">
+                      <i className="fas fa-info-circle me-2"></i>
+                      Select attribute values to generate variations.
+                    </div>
+                  )}
                 </div>
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowVariationsModal(false)}
-                  >
+                  <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                     Close
                   </button>
                   <button
@@ -1302,8 +1790,8 @@ const ProductEdit = () => {
                     className="btn btn-primary"
                     onClick={() => {
                       // TODO: Save variations
-                      console.log('Save variations for product:', id);
-                      setShowVariationsModal(false);
+                      console.log('Save variations for product:', id, variations);
+                      handleCloseModal();
                     }}
                   >
                     <i className="fas fa-save me-1"></i>
@@ -1316,7 +1804,7 @@ const ProductEdit = () => {
           <div
             className="modal-backdrop fade show"
             style={{ zIndex: 1050 }}
-            onClick={() => setShowVariationsModal(false)}
+            onClick={handleCloseModal}
           ></div>
         </>
       )}
