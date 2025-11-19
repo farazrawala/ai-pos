@@ -410,3 +410,4 @@ const AttributeEdit = () => {
 };
 
 export default AttributeEdit;
+

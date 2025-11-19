@@ -328,6 +328,11 @@ const ProductEdit = () => {
         slug: variationSlug,
         price: '',
         qty: '',
+        wholesale_price: '',
+        alert_qty: '',
+        barcode: '',
+        product_code: '',
+        sku: '',
         image: null,
         imagePreview: null,
         attributes: combo.map((v, i) => ({
@@ -1467,6 +1472,99 @@ const ProductEdit = () => {
                                   />
                                 </div>
                               </div>
+
+                              {/* Wholesale Price and Alert Qty Row */}
+                              <div className="row g-2">
+                                <div className="col-6">
+                                  <label className="form-label small">Wholesale Price</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="form-control form-control-sm"
+                                    placeholder="0.00"
+                                    value={variation.wholesale_price || ''}
+                                    onChange={(e) =>
+                                      handleVariationChange(
+                                        variation.id,
+                                        'wholesale_price',
+                                        e.target.value
+                                      )
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                                <div className="col-6">
+                                  <label className="form-label small">Alert Qty</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="form-control form-control-sm"
+                                    placeholder="0"
+                                    value={variation.alert_qty || ''}
+                                    onChange={(e) =>
+                                      handleVariationChange(
+                                        variation.id,
+                                        'alert_qty',
+                                        e.target.value
+                                      )
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Product Code and SKU Row */}
+                              <div className="row g-2">
+                                <div className="col-6">
+                                  <label className="form-label small">Product Code</label>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    placeholder="Product Code"
+                                    value={variation.product_code || ''}
+                                    onChange={(e) =>
+                                      handleVariationChange(
+                                        variation.id,
+                                        'product_code',
+                                        e.target.value
+                                      )
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                                <div className="col-6">
+                                  <label className="form-label small">SKU</label>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    placeholder="SKU"
+                                    value={variation.sku || ''}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'sku', e.target.value)
+                                    }
+                                    disabled={isSubmitting}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Barcode */}
+                              <div className="mb-2">
+                                <label className="form-label small">Barcode</label>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  placeholder="Barcode"
+                                  value={variation.barcode || ''}
+                                  onChange={(e) =>
+                                    handleVariationChange(variation.id, 'barcode', e.target.value)
+                                  }
+                                  disabled={isSubmitting}
+                                />
+                                <small className="text-muted">
+                                  Leave empty, it will automatically generate barcode for you.
+                                </small>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1765,6 +1863,94 @@ const ProductEdit = () => {
                                       }
                                     />
                                   </div>
+                                </div>
+
+                                {/* Wholesale Price and Alert Qty Row */}
+                                <div className="row g-2">
+                                  <div className="col-6">
+                                    <label className="form-label small">Wholesale Price</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      className="form-control form-control-sm"
+                                      placeholder="0.00"
+                                      value={variation.wholesale_price || ''}
+                                      onChange={(e) =>
+                                        handleVariationChange(
+                                          variation.id,
+                                          'wholesale_price',
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-6">
+                                    <label className="form-label small">Alert Qty</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      className="form-control form-control-sm"
+                                      placeholder="0"
+                                      value={variation.alert_qty || ''}
+                                      onChange={(e) =>
+                                        handleVariationChange(
+                                          variation.id,
+                                          'alert_qty',
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Product Code and SKU Row */}
+                                <div className="row g-2">
+                                  <div className="col-6">
+                                    <label className="form-label small">Product Code</label>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      placeholder="Product Code"
+                                      value={variation.product_code || ''}
+                                      onChange={(e) =>
+                                        handleVariationChange(
+                                          variation.id,
+                                          'product_code',
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-6">
+                                    <label className="form-label small">SKU</label>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      placeholder="SKU"
+                                      value={variation.sku || ''}
+                                      onChange={(e) =>
+                                        handleVariationChange(variation.id, 'sku', e.target.value)
+                                      }
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Barcode */}
+                                <div className="mb-2">
+                                  <label className="form-label small">Barcode</label>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    placeholder="Barcode"
+                                    value={variation.barcode || ''}
+                                    onChange={(e) =>
+                                      handleVariationChange(variation.id, 'barcode', e.target.value)
+                                    }
+                                  />
+                                  <small className="text-muted">
+                                    Leave empty, it will automatically generate barcode for you.
+                                  </small>
                                 </div>
                               </div>
                             </div>
