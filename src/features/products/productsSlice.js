@@ -2,8 +2,10 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchProductsRequest,
   fetchProductByIdRequest,
+  fetchProductVariationRequest,
   createProductRequest,
   updateProductRequest,
+  updateProductVariationRequest,
   deleteProductRequest,
   uploadProductImageRequest,
   uploadBulkProductImagesRequest,
@@ -33,6 +35,18 @@ export const fetchProductById = createAsyncThunk(
   }
 );
 
+export const fetchProductVariation = createAsyncThunk(
+  'products/fetchProductVariation',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const response = await fetchProductVariationRequest(productId);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch product with variations');
+    }
+  }
+);
+
 export const createProduct = createAsyncThunk(
   'products/createProduct',
   async ({ productData, images = [] }, { rejectWithValue }) => {
@@ -53,6 +67,23 @@ export const updateProduct = createAsyncThunk(
       return { productId, response };
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to update product');
+    }
+  }
+);
+
+export const updateProductVariation = createAsyncThunk(
+  'products/updateProductVariation',
+  async ({ productId, productData, variations = [], images = [] }, { rejectWithValue }) => {
+    try {
+      const response = await updateProductVariationRequest(
+        productId,
+        productData,
+        variations,
+        images
+      );
+      return { productId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to update product with variations');
     }
   }
 );
@@ -222,6 +253,21 @@ const productsSlice = createSlice({
         state.fetchError = action.payload || action.error.message || 'Failed to fetch product';
         state.currentProduct = null;
       })
+      .addCase(fetchProductVariation.pending, (state) => {
+        state.fetchStatus = 'loading';
+        state.fetchError = null;
+      })
+      .addCase(fetchProductVariation.fulfilled, (state, action) => {
+        state.fetchStatus = 'succeeded';
+        state.currentProduct = action.payload.data || action.payload;
+        state.fetchError = null;
+      })
+      .addCase(fetchProductVariation.rejected, (state, action) => {
+        state.fetchStatus = 'failed';
+        state.fetchError =
+          action.payload || action.error.message || 'Failed to fetch product with variations';
+        state.currentProduct = null;
+      })
       .addCase(updateProduct.pending, (state) => {
         state.updateStatus = 'loading';
         state.updateError = null;
@@ -240,6 +286,26 @@ const productsSlice = createSlice({
       .addCase(updateProduct.rejected, (state, action) => {
         state.updateStatus = 'failed';
         state.updateError = action.payload || action.error.message || 'Failed to update product';
+      })
+      .addCase(updateProductVariation.pending, (state) => {
+        state.updateStatus = 'loading';
+        state.updateError = null;
+      })
+      .addCase(updateProductVariation.fulfilled, (state, action) => {
+        state.updateStatus = 'succeeded';
+        state.updateError = null;
+        const productId = action.payload.productId;
+        const index = state.list.findIndex(
+          (item) => (item._id || item.id || item.product_id) === productId
+        );
+        if (index !== -1) {
+          state.list[index] = { ...state.list[index], ...action.payload.response.data };
+        }
+      })
+      .addCase(updateProductVariation.rejected, (state, action) => {
+        state.updateStatus = 'failed';
+        state.updateError =
+          action.payload || action.error.message || 'Failed to update product with variations';
       })
       .addCase(uploadProductImage.pending, (state) => {
         state.uploadImageStatus = 'loading';
@@ -281,4 +347,3 @@ export const {
   clearUploadImageStatus,
 } = productsSlice.actions;
 export default productsSlice.reducer;
-

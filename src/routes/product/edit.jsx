@@ -4,7 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchProductById,
+  fetchProductVariation,
   updateProduct,
+  updateProductVariation,
   clearUpdateStatus,
   clearCurrentProduct,
 } from '../../features/products/productsSlice.js';
@@ -128,10 +130,11 @@ const ProductEdit = () => {
     }
   }, [showVariationsModal]);
 
-  // Fetch product data on mount
+  // Fetch product data on mount - use variation endpoint for variable products
   useEffect(() => {
     if (id) {
-      dispatch(fetchProductById(id));
+      // Always use the variation endpoint as it works for both single and variable products
+      dispatch(fetchProductVariation(id));
     }
     return () => {
       dispatch(clearCurrentProduct());
@@ -196,7 +199,94 @@ const ProductEdit = () => {
       ) {
         setExistingBulkImages(currentProduct.multi_images);
       }
+
+      // Handle childproducts (variations) if product type is Variable
+      if (
+        currentProduct.product_type === 'Variable' &&
+        currentProduct.childproducts &&
+        Array.isArray(currentProduct.childproducts) &&
+        currentProduct.childproducts.length > 0
+      ) {
+        // Map childproducts to variations format
+        const mappedVariations = currentProduct.childproducts.map((child, idx) => {
+          // Get quantity from warehouse_inventory if available
+          let qty = 0;
+          if (
+            child.warehouse_inventory &&
+            Array.isArray(child.warehouse_inventory) &&
+            child.warehouse_inventory.length > 0
+          ) {
+            qty = child.warehouse_inventory.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+          }
+
+          return {
+            id: child._id || `var_${idx}`,
+            name: child.product_name || '',
+            slug: child.product_slug || '',
+            price: child.product_price || '',
+            qty: qty.toString(),
+            wholesale_price:
+              child.wholesale_price !== undefined ? child.wholesale_price.toString() : '',
+            alert_qty: child.alert_qty !== undefined ? child.alert_qty.toString() : '',
+            barcode: child.barcode || '',
+            product_code: child.product_code || '',
+            sku: child.sku || '',
+            weight: child.weight !== undefined ? child.weight.toString() : '',
+            length: child.length !== undefined ? child.length.toString() : '',
+            width: child.width !== undefined ? child.width.toString() : '',
+            height: child.height !== undefined ? child.height.toString() : '',
+            image: null,
+            imagePreview: null,
+            // Store the original child product ID for reference
+            childProductId: child._id,
+          };
+        });
+
+        setVariations(mappedVariations);
+
+        // Also set selected attributes based on variation names
+        // Extract attributes from variation names like "Product Name [medium - green]"
+        if (mappedVariations.length > 0 && attributes.length > 0) {
+          const extractedAttributes = {};
+          mappedVariations.forEach((variation) => {
+            const nameMatch = variation.name.match(/\[([^\]]+)\]/);
+            if (nameMatch) {
+              const valuesStr = nameMatch[1];
+              const values = valuesStr.split(' - ').map((v) => v.trim());
+
+              // Try to match values to attributes
+              attributes.forEach((attr) => {
+                const attrId = attr._id || attr.id;
+                const attrValues = attr.attribute_values || [];
+                const matchedValues = values.filter((val) =>
+                  attrValues.some((av) => (av.name || av) === val)
+                );
+
+                if (matchedValues.length > 0) {
+                  if (!extractedAttributes[attrId]) {
+                    extractedAttributes[attrId] = [];
+                  }
+                  matchedValues.forEach((val) => {
+                    if (!extractedAttributes[attrId].includes(val)) {
+                      extractedAttributes[attrId].push(val);
+                    }
+                  });
+                }
+              });
+            }
+          });
+
+          if (Object.keys(extractedAttributes).length > 0) {
+            setSelectedAttributes(extractedAttributes);
+          }
+        }
+      } else {
+        // Clear variations if product is not variable or has no childproducts
+        setVariations([]);
+        setSelectedAttributes({});
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProduct, fetchStatus]);
 
   // Auto-generate slug from name
@@ -612,32 +702,6 @@ const ProductEdit = () => {
     setErrors({});
 
     try {
-      const productData = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        price: parseFloat(form.price),
-        categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
-        sku: form.sku.trim(),
-        product_code: form.product_code.trim(),
-        alert_qty: form.alert_qty ? parseInt(form.alert_qty) : 0,
-        brand_id: form.brand_id || undefined,
-        unit: form.unit,
-        weight: form.weight ? parseFloat(form.weight) : undefined,
-        length: form.length ? parseFloat(form.length) : undefined,
-        width: form.width ? parseFloat(form.width) : undefined,
-        height: form.height ? parseFloat(form.height) : undefined,
-        dimension: form.dimension.trim() || undefined,
-        tax_rate: form.tax_rate ? parseFloat(form.tax_rate) : undefined,
-        barcode: form.barcode.trim() || undefined,
-        product_type: form.product_type,
-        wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
-      };
-
-      // Only include slug if it has a value
-      if (form.slug.trim()) {
-        productData.slug = form.slug.trim();
-      }
-
       // Prepare images array
       const images = [];
       if (singleImage) {
@@ -654,7 +718,104 @@ const ProductEdit = () => {
         images.push(...existingBulkImages);
       }
 
-      await dispatch(updateProduct({ productId: id, productData, images })).unwrap();
+      // Check if product has variations
+      const hasVariations = form.product_type === 'Variable' && variations.length > 0;
+
+      if (hasVariations) {
+        // Use update-product-variation endpoint
+        const productData = {
+          product_name: form.name.trim(),
+          product_description: form.description.trim(),
+          product_price: parseFloat(form.price),
+          category_id: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
+          alert_qty: form.alert_qty ? parseInt(form.alert_qty) : 0,
+          wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
+          quantity: 0, // Main product quantity (can be set if needed)
+          weight: form.weight ? parseFloat(form.weight) : undefined,
+          length: form.length ? parseFloat(form.length) : undefined,
+          width: form.width ? parseFloat(form.width) : undefined,
+          height: form.height ? parseFloat(form.height) : undefined,
+        };
+
+        // Map variations to the required format
+        const mappedVariations = variations.map((variation) => {
+          const mapped = {
+            product_name: variation.name || '',
+            product_code: variation.product_code || '',
+            product_price:
+              variation.price && variation.price !== '' ? parseFloat(variation.price) : 0,
+            quantity: variation.qty && variation.qty !== '' ? parseInt(variation.qty) : 0,
+            alert_qty:
+              variation.alert_qty && variation.alert_qty !== '' ? parseInt(variation.alert_qty) : 0,
+          };
+
+          // Optional fields - only include if they have values
+          if (variation.weight && variation.weight !== '') {
+            mapped.weight = parseFloat(variation.weight);
+          }
+          if (variation.length && variation.length !== '') {
+            mapped.length = parseFloat(variation.length);
+          }
+          if (variation.width && variation.width !== '') {
+            mapped.width = parseFloat(variation.width);
+          }
+          if (variation.height && variation.height !== '') {
+            mapped.height = parseFloat(variation.height);
+          }
+          if (variation.wholesale_price && variation.wholesale_price !== '') {
+            mapped.wholesale_price = parseFloat(variation.wholesale_price);
+          }
+          if (variation.barcode && variation.barcode !== '') {
+            mapped.barcode = variation.barcode;
+          }
+          if (variation.sku && variation.sku !== '') {
+            mapped.sku = variation.sku;
+          }
+          if (variation.image instanceof File) {
+            mapped.image = variation.image;
+          }
+
+          return mapped;
+        });
+
+        await dispatch(
+          updateProductVariation({
+            productId: id,
+            productData,
+            variations: mappedVariations,
+            images,
+          })
+        ).unwrap();
+      } else {
+        // Use regular update endpoint for single products
+        const productData = {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          price: parseFloat(form.price),
+          categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
+          sku: form.sku.trim(),
+          product_code: form.product_code.trim(),
+          alert_qty: form.alert_qty ? parseInt(form.alert_qty) : 0,
+          brand_id: form.brand_id || undefined,
+          unit: form.unit,
+          weight: form.weight ? parseFloat(form.weight) : undefined,
+          length: form.length ? parseFloat(form.length) : undefined,
+          width: form.width ? parseFloat(form.width) : undefined,
+          height: form.height ? parseFloat(form.height) : undefined,
+          dimension: form.dimension.trim() || undefined,
+          tax_rate: form.tax_rate ? parseFloat(form.tax_rate) : undefined,
+          barcode: form.barcode.trim() || undefined,
+          product_type: form.product_type,
+          wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
+        };
+
+        // Only include slug if it has a value
+        if (form.slug.trim()) {
+          productData.slug = form.slug.trim();
+        }
+
+        await dispatch(updateProduct({ productId: id, productData, images })).unwrap();
+      }
 
       const toastElement = document.getElementById('successToast');
       if (toastElement) {
@@ -1981,7 +2142,7 @@ const ProductEdit = () => {
                     }}
                   >
                     <i className="fas fa-save me-1"></i>
-                    Save Variations
+                    Generate Variations
                   </button>
                 </div>
               </div>

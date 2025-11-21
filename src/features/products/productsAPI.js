@@ -134,6 +134,33 @@ export const fetchProductByIdRequest = async (productId) => {
   return result;
 };
 
+export const fetchProductVariationRequest = async (productId) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}product/get-product-variation/${productId}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result;
+};
+
 export const createProductRequest = async (productData, images = []) => {
   const token = getAuthToken();
 
@@ -502,6 +529,150 @@ export const uploadBulkProductImagesRequest = async (productId, imageFiles) => {
 
   const response = await fetch(url, {
     method: 'POST',
+    headers: headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result;
+};
+
+export const updateProductVariationRequest = async (
+  productId,
+  productData,
+  variations = [],
+  images = []
+) => {
+  const token = getAuthToken();
+
+  const formData = new FormData();
+
+  // Add main product fields
+  if (productData.product_name !== undefined) {
+    formData.append('product_name', String(productData.product_name));
+  }
+  if (productData.product_price !== undefined) {
+    formData.append('product_price', String(productData.product_price));
+  }
+  if (productData.alert_qty !== undefined) {
+    formData.append('alert_qty', String(productData.alert_qty));
+  }
+  if (productData.product_description !== undefined) {
+    formData.append('product_description', String(productData.product_description));
+  }
+  if (productData.wholesale_price !== undefined) {
+    formData.append('wholesale_price', String(productData.wholesale_price));
+  }
+  if (productData.quantity !== undefined) {
+    formData.append('quantity', String(productData.quantity));
+  }
+  if (productData.weight !== undefined) {
+    formData.append('weight', String(productData.weight));
+  }
+  if (productData.length !== undefined) {
+    formData.append('length', String(productData.length));
+  }
+  if (productData.width !== undefined) {
+    formData.append('width', String(productData.width));
+  }
+  if (productData.height !== undefined) {
+    formData.append('height', String(productData.height));
+  }
+
+  // Add category_id array
+  if (productData.category_id && Array.isArray(productData.category_id)) {
+    productData.category_id.forEach((catId, idx) => {
+      formData.append(`category_id[${idx}]`, String(catId));
+    });
+  }
+
+  // Add variations
+  if (variations && Array.isArray(variations) && variations.length > 0) {
+    variations.forEach((variation, idx) => {
+      if (variation.product_name !== undefined) {
+        formData.append(`variations[${idx}][product_name]`, String(variation.product_name));
+      }
+      if (variation.product_description !== undefined) {
+        formData.append(
+          `variations[${idx}][product_description]`,
+          String(variation.product_description)
+        );
+      }
+      if (variation.product_code !== undefined) {
+        formData.append(`variations[${idx}][product_code]`, String(variation.product_code));
+      }
+      if (variation.product_price !== undefined) {
+        formData.append(`variations[${idx}][product_price]`, String(variation.product_price));
+      }
+      if (variation.quantity !== undefined) {
+        formData.append(`variations[${idx}][quantity]`, String(variation.quantity));
+      }
+      if (variation.alert_qty !== undefined) {
+        formData.append(`variations[${idx}][alert_qty]`, String(variation.alert_qty));
+      }
+      if (variation.weight !== undefined) {
+        formData.append(`variations[${idx}][weight]`, String(variation.weight));
+      }
+      if (variation.length !== undefined) {
+        formData.append(`variations[${idx}][length]`, String(variation.length));
+      }
+      if (variation.width !== undefined) {
+        formData.append(`variations[${idx}][width]`, String(variation.width));
+      }
+      if (variation.height !== undefined) {
+        formData.append(`variations[${idx}][height]`, String(variation.height));
+      }
+      if (variation.wholesale_price !== undefined) {
+        formData.append(`variations[${idx}][wholesale_price]`, String(variation.wholesale_price));
+      }
+      if (variation.barcode !== undefined) {
+        formData.append(`variations[${idx}][barcode]`, String(variation.barcode));
+      }
+      if (variation.sku !== undefined) {
+        formData.append(`variations[${idx}][sku]`, String(variation.sku));
+      }
+      // Add variation image if it's a File
+      if (variation.image instanceof File) {
+        formData.append(`variations[${idx}][image]`, variation.image);
+      }
+    });
+  }
+
+  // Handle main product images: first image as product_image, rest as multi_images
+  if (images && images.length > 0) {
+    const firstImage = images[0];
+    if (firstImage instanceof File) {
+      formData.append('product_image', firstImage);
+    } else if (typeof firstImage === 'string') {
+      formData.append('product_image', firstImage);
+    }
+  }
+
+  // Add remaining images as multi_images
+  if (images && images.length > 1) {
+    images.slice(1).forEach((image) => {
+      if (image instanceof File) {
+        formData.append('multi_images', image);
+      } else if (typeof image === 'string') {
+        formData.append('multi_images', image);
+      }
+    });
+  }
+
+  const headers = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}product/update-product-variation/${productId}`;
+
+  const response = await fetch(url, {
+    method: 'PATCH',
     headers: headers,
     body: formData,
   });
