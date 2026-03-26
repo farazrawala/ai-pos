@@ -14,3 +14,7 @@ P1. Products
 Categories
     parent category
 
+
+product edit/delete it will be in a tree..
+on edit you can update stock as well.
+on purchase : you will select 
