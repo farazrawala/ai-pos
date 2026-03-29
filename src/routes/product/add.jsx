@@ -32,6 +32,7 @@ const ProductAdd = () => {
     wholesale_price: '',
   });
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
@@ -65,6 +66,7 @@ const ProductAdd = () => {
         setCategories(result.data || []);
       } catch (error) {
         console.error('Failed to load categories:', error);
+        setSubmitError('Failed to load categories. Please refresh and try again.');
       } finally {
         setLoadingCategories(false);
       }
@@ -81,6 +83,7 @@ const ProductAdd = () => {
         setBrands(result.data || []);
       } catch (error) {
         console.error('Failed to load brands:', error);
+        setSubmitError('Failed to load brands. Please refresh and try again.');
       } finally {
         setLoadingBrands(false);
       }
@@ -241,8 +244,8 @@ const ProductAdd = () => {
       newErrors.price = 'Valid price is required';
     }
 
-    if (form.stock !== '' && (isNaN(form.stock) || parseInt(form.stock) < 0)) {
-      newErrors.stock = 'Stock must be a valid number';
+    if (form.alert_qty !== '' && (isNaN(form.alert_qty) || parseInt(form.alert_qty) < 0)) {
+      newErrors.alert_qty = 'Alert quantity must be a valid number';
     }
 
     if (!form.categoryId || (Array.isArray(form.categoryId) && form.categoryId.length === 0)) {
@@ -258,13 +261,30 @@ const ProductAdd = () => {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
 
-    if (!validateForm()) {
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      const fieldLabels = {
+        name: 'Product Name',
+        slug: 'Slug',
+        price: 'Product Price',
+        alert_qty: 'Alert Quantity',
+        categoryId: 'Categories',
+        unit: 'Unit',
+        product_type: 'Product Type',
+      };
+      const invalidFields = Object.keys(validationErrors).map((key) => fieldLabels[key] || key);
+      setSubmitError(
+        invalidFields.length > 0
+          ? `Please fill/fix: ${invalidFields.join(', ')}.`
+          : 'Please fix the highlighted fields and try again.'
+      );
       return;
     }
 
@@ -338,6 +358,7 @@ const ProductAdd = () => {
     } catch (error) {
       const errorMessage =
         error?.message || error || 'An error occurred while creating the product.';
+      setSubmitError(errorMessage);
 
       const toastElement = document.getElementById('dangerToast');
       if (toastElement) {
@@ -392,7 +413,13 @@ const ProductAdd = () => {
               </div>
             </div>
             <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
+                {submitError && (
+                  <div className="alert alert-danger text-white" role="alert">
+                    {submitError}
+                  </div>
+                )}
+
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">
@@ -401,6 +428,7 @@ const ProductAdd = () => {
                   <input
                     type="text"
                     className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                    style={errors.name ? { borderColor: '#dc3545' } : undefined}
                     id="name"
                     name="name"
                     placeholder="Enter product name"
@@ -408,7 +436,7 @@ const ProductAdd = () => {
                     onChange={handleChange}
                     required
                   />
-                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                  {errors.name && <div className="text-danger text-sm mt-1">{errors.name}</div>}
                 </div>
 
                 {/* Slug Field */}
@@ -419,13 +447,14 @@ const ProductAdd = () => {
                   <input
                     type="text"
                     className={`form-control bg-light ${errors.slug ? 'is-invalid' : ''}`}
+                    style={errors.slug ? { borderColor: '#dc3545' } : undefined}
                     id="slug"
                     name="slug"
                     placeholder="product-slug"
                     value={form.slug}
                     readOnly
                   />
-                  {errors.slug && <div className="invalid-feedback">{errors.slug}</div>}
+                  {errors.slug && <div className="text-danger text-sm mt-1">{errors.slug}</div>}
                   <small className="text-muted">
                     URL-friendly version of the name. Auto-generated from name.
                   </small>
@@ -438,6 +467,7 @@ const ProductAdd = () => {
                   </label>
                   <select
                     className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
+                    style={errors.categoryId ? { borderColor: '#dc3545' } : undefined}
                     id="categoryId"
                     name="categoryId"
                     multiple
@@ -453,7 +483,9 @@ const ProductAdd = () => {
                       </option>
                     ))}
                   </select>
-                  {errors.categoryId && <div className="invalid-feedback">{errors.categoryId}</div>}
+                  {errors.categoryId && (
+                    <div className="text-danger text-sm mt-1">{errors.categoryId}</div>
+                  )}
                   <small className="text-muted">Hold Ctrl/Cmd to select multiple categories</small>
                 </div>
 
@@ -464,6 +496,7 @@ const ProductAdd = () => {
                   </label>
                   <select
                     className={`form-select ${errors.product_type ? 'is-invalid' : ''}`}
+                    style={errors.product_type ? { borderColor: '#dc3545' } : undefined}
                     id="product_type"
                     name="product_type"
                     value={form.product_type}
@@ -474,7 +507,7 @@ const ProductAdd = () => {
                     <option value="Variable">Variable</option>
                   </select>
                   {errors.product_type && (
-                    <div className="invalid-feedback">{errors.product_type}</div>
+                    <div className="text-danger text-sm mt-1">{errors.product_type}</div>
                   )}
                   {/* Manage Variations Button - Only show when Product Type is Variable */}
                   {form.product_type === 'Variable' && (
@@ -528,6 +561,7 @@ const ProductAdd = () => {
                       step="0.01"
                       min="0"
                       className={`form-control ${errors.price ? 'is-invalid' : ''}`}
+                      style={errors.price ? { borderColor: '#dc3545' } : undefined}
                       id="price"
                       name="price"
                       placeholder="0.00"
@@ -535,7 +569,7 @@ const ProductAdd = () => {
                       onChange={handleChange}
                       required
                     />
-                    {errors.price && <div className="invalid-feedback">{errors.price}</div>}
+                    {errors.price && <div className="text-danger text-sm mt-1">{errors.price}</div>}
                   </div>
                   <div className="col-md-4 mb-3">
                     <label htmlFor="wholesale_price" className="form-label">
@@ -623,6 +657,7 @@ const ProductAdd = () => {
                   </label>
                   <select
                     className={`form-select ${errors.unit ? 'is-invalid' : ''}`}
+                    style={errors.unit ? { borderColor: '#dc3545' } : undefined}
                     id="unit"
                     name="unit"
                     value={form.unit}
@@ -640,7 +675,7 @@ const ProductAdd = () => {
                     <option value="Millimeter">Millimeter</option>
                     <option value="Others">Others</option>
                   </select>
-                  {errors.unit && <div className="invalid-feedback">{errors.unit}</div>}
+                  {errors.unit && <div className="text-danger text-sm mt-1">{errors.unit}</div>}
                 </div>
 
                 {/* Dimensions Row */}

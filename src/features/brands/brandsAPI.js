@@ -28,7 +28,7 @@ export const fetchBrandsRequest = async (params = {}) => {
   if (params.search) queryParams.append('search', params.search);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}brand/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}brands/get-all-active${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',
