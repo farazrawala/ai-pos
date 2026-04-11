@@ -3,18 +3,48 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createCategory } from '../../features/categories/categoriesSlice.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 // import {  } from 'react-redux';
 const CategoryAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [form, setForm] = useState({
+    parent_id: '',
     name: '',
     slug: '',
     description: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [parentCategories, setParentCategories] = useState([]);
+  const [parentListStatus, setParentListStatus] = useState('idle');
+
+  useEffect(() => {
+    let cancelled = false;
+    setParentListStatus('loading');
+    fetchCategoriesRequest({
+      page: 1,
+      limit: 1000,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+      .then((res) => {
+        if (!cancelled) {
+          setParentCategories(Array.isArray(res.data) ? res.data : []);
+          setParentListStatus('succeeded');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setParentCategories([]);
+          setParentListStatus('failed');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Auto-generate slug from name
   const generateSlug = (name) => {
@@ -68,7 +98,15 @@ const CategoryAdd = () => {
 
     setIsSubmitting(true);
     try {
-      await dispatch(createCategory(form)).unwrap();
+      const payload = {
+        name: form.name.trim(),
+        slug: form.slug.trim(),
+        description: form.description,
+      };
+      if (form.parent_id) {
+        payload.parent_id = form.parent_id;
+      }
+      await dispatch(createCategory(payload)).unwrap();
 
       // Show success toast
       const toastElement = document.getElementById('successToast');
@@ -175,6 +213,36 @@ const CategoryAdd = () => {
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
+                {/* Parent category */}
+                <div className="mb-3">
+                  <label htmlFor="parent_id" className="form-label">
+                    Parent category
+                  </label>
+                  <select
+                    className="form-select"
+                    id="parent_id"
+                    name="parent_id"
+                    value={form.parent_id}
+                    onChange={handleChange}
+                    disabled={parentListStatus === 'loading'}
+                  >
+                    <option value="">None (top-level)</option>
+                    {parentCategories.map((cat) => (
+                      <option key={cat._id} value={cat._id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  {parentListStatus === 'failed' && (
+                    <small className="text-danger d-block mt-1">
+                      Could not load categories for this list.
+                    </small>
+                  )}
+                  <small className="text-muted">
+                    Optional. Choose a parent to create a subcategory.
+                  </small>
+                </div>
+
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">

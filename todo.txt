@@ -9,7 +9,7 @@ Navigate with permissions
 
 P1. Products
     manage variations insert 
-    edit .
+    edit . (done.)
 
 Categories
     parent category

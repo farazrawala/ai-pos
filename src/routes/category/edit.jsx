@@ -8,7 +8,16 @@ import {
   clearUpdateStatus,
   clearCurrentCategory,
 } from '../../features/categories/categoriesSlice.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+
+const parentIdFromCategory = (cat) => {
+  if (!cat) return '';
+  const raw = cat.parent_id ?? cat.parent;
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && raw._id != null) return String(raw._id);
+  return String(raw);
+};
 
 const CategoryEdit = () => {
   const dispatch = useDispatch();
@@ -19,13 +28,42 @@ const CategoryEdit = () => {
   );
 
   const [form, setForm] = useState({
+    parent_id: '',
     name: '',
     slug: '',
     description: '',
   });
   const [errors, setErrors] = useState({});
+  const [parentCategories, setParentCategories] = useState([]);
+  const [parentListStatus, setParentListStatus] = useState('idle');
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
+
+  useEffect(() => {
+    let cancelled = false;
+    setParentListStatus('loading');
+    fetchCategoriesRequest({
+      page: 1,
+      limit: 1000,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+      .then((res) => {
+        if (!cancelled) {
+          setParentCategories(Array.isArray(res.data) ? res.data : []);
+          setParentListStatus('succeeded');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setParentCategories([]);
+          setParentListStatus('failed');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Get category permissions
   const { canEdit } = usePermissions('category');
@@ -52,6 +90,7 @@ const CategoryEdit = () => {
   useEffect(() => {
     if (currentCategory && fetchStatus === 'succeeded') {
       setForm({
+        parent_id: parentIdFromCategory(currentCategory),
         name: currentCategory.name || currentCategory.category_name || '',
         slug: currentCategory.slug || '',
         description: currentCategory.description || '',
@@ -110,7 +149,13 @@ const CategoryEdit = () => {
     }
 
     try {
-      await dispatch(updateCategory({ categoryId: id, categoryData: form })).unwrap();
+      const categoryData = {
+        name: form.name.trim(),
+        slug: form.slug.trim(),
+        description: form.description,
+        parent_id: form.parent_id || null,
+      };
+      await dispatch(updateCategory({ categoryId: id, categoryData })).unwrap();
 
       // Show success toast
       const toastElement = document.getElementById('successToast');
@@ -256,6 +301,38 @@ const CategoryEdit = () => {
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
+                {/* Parent category */}
+                <div className="mb-3">
+                  <label htmlFor="parent_id" className="form-label">
+                    Parent category
+                  </label>
+                  <select
+                    className="form-select"
+                    id="parent_id"
+                    name="parent_id"
+                    value={form.parent_id}
+                    onChange={handleChange}
+                    disabled={isSubmitting || parentListStatus === 'loading'}
+                  >
+                    <option value="">None (top-level)</option>
+                    {parentCategories
+                      .filter((cat) => String(cat._id) !== String(id))
+                      .map((cat) => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                  {parentListStatus === 'failed' && (
+                    <small className="text-danger d-block mt-1">
+                      Could not load categories for this list.
+                    </small>
+                  )}
+                  <small className="text-muted">
+                    Optional. Choose a parent for a subcategory, or none for top-level.
+                  </small>
+                </div>
+
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">
