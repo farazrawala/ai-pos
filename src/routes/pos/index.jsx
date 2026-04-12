@@ -14,6 +14,13 @@ import PosProducts from './PosProducts.jsx';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '' };
 
+const parsePosUnitPrice = (product) => {
+  const v = product?.price ?? product?.product_price;
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+};
+
 const Pos = () => {
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
@@ -30,6 +37,7 @@ const Pos = () => {
   const [categoriesError, setCategoriesError] = useState(null);
   const [shipping, setShipping] = useState('');
   const [extraDiscount, setExtraDiscount] = useState('');
+  const [cartLines, setCartLines] = useState([]);
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
@@ -114,6 +122,72 @@ const Pos = () => {
     const cap = 150;
     return { rows: list.slice(0, cap), capped: list.length > cap };
   }, [users, customerFilter]);
+
+  const addToCart = useCallback((product) => {
+    if (!product || typeof product !== 'object') return;
+    const productId = String(product._id ?? product.id ?? product.product_id ?? '');
+    if (!productId) return;
+    const name = product.name || product.product_name || 'Product';
+    const unitPrice = parsePosUnitPrice(product);
+
+    setCartLines((prev) => {
+      const i = prev.findIndex((l) => l.productId === productId);
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], quantity: next[i].quantity + 1 };
+        return next;
+      }
+      return [...prev, { productId, name, unitPrice, quantity: 1 }];
+    });
+  }, []);
+
+  const bumpCartQty = useCallback((productId, delta) => {
+    setCartLines((prev) =>
+      prev.flatMap((l) => {
+        if (l.productId !== productId) return [l];
+        const next = l.quantity + delta;
+        if (next < 1) return [];
+        return [{ ...l, quantity: next }];
+      })
+    );
+  }, []);
+
+  const setCartQty = useCallback((productId, raw) => {
+    const q = parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(q) || q < 1) {
+      setCartLines((prev) => prev.filter((l) => l.productId !== productId));
+      return;
+    }
+    setCartLines((prev) =>
+      prev.map((l) => (l.productId === productId ? { ...l, quantity: q } : l))
+    );
+  }, []);
+
+  const setCartUnitPrice = useCallback((productId, raw) => {
+    const n = parseFloat(String(raw).replace(/,/g, ''));
+    const unitPrice = Number.isFinite(n) && n >= 0 ? n : 0;
+    setCartLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
+  }, []);
+
+  const cartSubtotal = useMemo(
+    () => cartLines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0),
+    [cartLines]
+  );
+
+  const shippingNum = useMemo(() => {
+    const n = parseFloat(String(shipping).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }, [shipping]);
+
+  const extraDiscountNum = useMemo(() => {
+    const n = parseFloat(String(extraDiscount).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }, [extraDiscount]);
+
+  const grandTotal = useMemo(() => {
+    const v = cartSubtotal + shippingNum - extraDiscountNum;
+    return Number.isFinite(v) ? Math.max(0, v) : 0;
+  }, [cartSubtotal, shippingNum, extraDiscountNum]);
 
   const openAddCustomerModal = () => {
     setAddCustomerForm(ADD_CUSTOMER_INITIAL);
@@ -470,8 +544,11 @@ const Pos = () => {
                 })()}
               </p>
 
-              <div className="pos-cart-header rounded-top px-3 py-2 d-flex">
-                <div className="flex-grow-1">Products</div>
+              <div className="pos-cart-header rounded-top px-3 py-2 d-flex align-items-center text-xs fw-semibold">
+                <div className="flex-grow-1">Product</div>
+                <div style={{ width: 112 }} className="text-center flex-shrink-0">
+                  Qty
+                </div>
                 <div style={{ width: '22%' }} className="text-end">
                   Price
                 </div>
@@ -480,10 +557,70 @@ const Pos = () => {
                 </div>
               </div>
               <div
-                className="border border-top-0 rounded-bottom bg-white mb-3"
-                style={{ minHeight: 140 }}
+                className="border border-top-0 rounded-bottom bg-white mb-3 pos-cart-body"
+                style={{ minHeight: 140, maxHeight: 280, overflowY: 'auto' }}
               >
-                <div className="text-center text-muted text-sm py-5">No products in cart</div>
+                {cartLines.length === 0 ? (
+                  <div className="text-center text-muted text-sm py-5">No products in cart</div>
+                ) : (
+                  cartLines.map((line) => {
+                    const lineTotal = line.quantity * line.unitPrice;
+                    return (
+                      <div
+                        key={line.productId}
+                        className="d-flex align-items-center gap-1 px-2 py-2 border-bottom"
+                      >
+                        <div className="flex-grow-1 text-sm text-truncate" title={line.name}>
+                          {line.name}
+                        </div>
+                        <div
+                          className="d-flex align-items-center justify-content-center gap-0 flex-shrink-0"
+                          style={{ width: 112 }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary px-2 py-0"
+                            aria-label="Decrease quantity"
+                            onClick={() => bumpCartQty(line.productId, -1)}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            className="form-control form-control-sm text-center px-1"
+                            style={{ width: 44 }}
+                            value={line.quantity}
+                            onChange={(e) => setCartQty(line.productId, e.target.value)}
+                            aria-label={`Quantity for ${line.name}`}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary px-2 py-0"
+                            aria-label="Increase quantity"
+                            onClick={() => bumpCartQty(line.productId, 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                        <div style={{ width: '22%' }} className="flex-shrink-0">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            className="form-control form-control-sm text-end"
+                            value={line.unitPrice}
+                            onChange={(e) => setCartUnitPrice(line.productId, e.target.value)}
+                            aria-label={`Unit price for ${line.name}`}
+                          />
+                        </div>
+                        <div style={{ width: '22%' }} className="text-end text-sm flex-shrink-0">
+                          PKR {lineTotal.toFixed(2)}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               <div className="d-flex align-items-center gap-2 mb-2">
@@ -508,7 +645,7 @@ const Pos = () => {
               </div>
               <div className="d-flex justify-content-between align-items-baseline mb-3">
                 <span className="font-weight-bold">Grand Total</span>
-                <span className="pos-grand-total">PKR 0.00</span>
+                <span className="pos-grand-total">PKR {grandTotal.toFixed(2)}</span>
               </div>
 
               <div className="d-flex align-items-center gap-2 mb-3">
@@ -523,12 +660,6 @@ const Pos = () => {
                 />
                 <span className="text-xs text-nowrap text-muted">( PKR 0 )</span>
               </div>
-
-              <label className="form-label text-xs mb-1">Employee</label>
-              <select className="form-select form-select-sm mb-3">
-                <option>Aslam Qadri</option>
-                <option>Other staff</option>
-              </select>
 
               <div className="row g-2">
                 <div className="col-6">
@@ -564,6 +695,8 @@ const Pos = () => {
           categories={categories}
           categoriesStatus={categoriesStatus}
           categoriesError={categoriesError}
+          onAddToCart={addToCart}
+          orderTotal={grandTotal}
         />
       </div>
 

@@ -7,6 +7,71 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken') || '';
 };
 
+/** Shared shape: `{ data, total, page, limit, totalPages }` */
+const normalizeProductsListResponse = (result, params = {}) => {
+  if (result.pagination && typeof result.pagination === 'object') {
+    const pagination = result.pagination;
+    const data = result.data || result.products || [];
+
+    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
+    const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
+
+    return {
+      data: Array.isArray(data) ? data : [],
+      total: pagination.total || 0,
+      page: page,
+      limit: pagination.limit || params.limit || 10,
+      totalPages: totalPages,
+    };
+  }
+
+  if (result.data && Array.isArray(result.data)) {
+    return {
+      data: result.data,
+      total: result.total || result.data.length,
+      page: result.page || params.page || 1,
+      limit: result.limit || result.per_page || params.limit || 10,
+      totalPages:
+        result.total_pages ||
+        Math.ceil(
+          (result.total || result.data.length) /
+            (result.limit || result.per_page || params.limit || 10)
+        ),
+    };
+  }
+  if (result.products && Array.isArray(result.products)) {
+    return {
+      data: result.products,
+      total: result.total || result.products.length,
+      page: result.page || params.page || 1,
+      limit: result.limit || result.per_page || params.limit || 10,
+      totalPages:
+        result.total_pages ||
+        Math.ceil(
+          (result.total || result.products.length) /
+            (result.limit || result.per_page || params.limit || 10)
+        ),
+    };
+  }
+  if (Array.isArray(result)) {
+    return {
+      data: result,
+      total: result.length,
+      page: params.page || 1,
+      limit: params.limit || 10,
+      totalPages: Math.ceil(result.length / (params.limit || 10)),
+    };
+  }
+
+  return {
+    data: [],
+    total: 0,
+    page: params.page || 1,
+    limit: params.limit || 10,
+    totalPages: 0,
+  };
+};
+
 export const fetchProductsRequest = async (params = {}) => {
   const token = getAuthToken();
 
@@ -43,68 +108,55 @@ export const fetchProductsRequest = async (params = {}) => {
   }
 
   const result = await response.json();
+  return normalizeProductsListResponse(result, params);
+};
 
-  // Handle API response format with pagination
-  if (result.pagination && typeof result.pagination === 'object') {
-    const pagination = result.pagination;
-    const data = result.data || result.products || [];
+/**
+ * POS / search: `GET product/active?search=...&searchFields=product_name,sku,barcode`
+ */
+export const fetchProductActiveRequest = async (params = {}) => {
+  const token = getAuthToken();
 
-    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
-    const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
-
-    return {
-      data: Array.isArray(data) ? data : [],
-      total: pagination.total || 0,
-      page: page,
-      limit: pagination.limit || params.limit || 10,
-      totalPages: totalPages,
-    };
-  }
-
-  // Fallback formats
-  if (result.data && Array.isArray(result.data)) {
-    return {
-      data: result.data,
-      total: result.total || result.data.length,
-      page: result.page || params.page || 1,
-      limit: result.limit || result.per_page || params.limit || 10,
-      totalPages:
-        result.total_pages ||
-        Math.ceil(
-          (result.total || result.data.length) /
-            (result.limit || result.per_page || params.limit || 10)
-        ),
-    };
-  } else if (result.products && Array.isArray(result.products)) {
-    return {
-      data: result.products,
-      total: result.total || result.products.length,
-      page: result.page || params.page || 1,
-      limit: result.limit || result.per_page || params.limit || 10,
-      totalPages:
-        result.total_pages ||
-        Math.ceil(
-          (result.total || result.products.length) /
-            (result.limit || result.per_page || params.limit || 10)
-        ),
-    };
-  } else if (Array.isArray(result)) {
-    return {
-      data: result,
-      total: result.length,
-      page: params.page || 1,
-      limit: params.limit || 10,
-      totalPages: Math.ceil(result.length / (params.limit || 10)),
-    };
-  }
-
-  return {
-    data: [],
-    total: 0,
-    page: params.page || 1,
-    limit: params.limit || 10,
-    totalPages: 0,
+  const headers = {
+    'Content-Type': 'application/json',
   };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.search != null && String(params.search).trim() !== '') {
+    queryParams.set('search', String(params.search).trim());
+  }
+  const searchFields =
+    params.searchFields != null && String(params.searchFields).trim() !== ''
+      ? String(params.searchFields).trim()
+      : 'product_name,sku,barcode';
+  if (queryParams.has('search')) {
+    queryParams.set('searchFields', searchFields);
+  }
+  if (params.page && params.limit) {
+    const skip = (params.page - 1) * params.limit;
+    queryParams.append('skip', skip);
+  }
+  if (params.limit) queryParams.append('limit', params.limit);
+  if (params.categoryId) queryParams.append('categoryId', params.categoryId);
+
+  const queryString = queryParams.toString();
+  const url = `${BASE_URL}product/get-all-active${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return normalizeProductsListResponse(result, params);
 };
 
 export const fetchProductByIdRequest = async (productId) => {

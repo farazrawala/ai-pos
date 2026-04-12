@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchProductsRequest } from '../../features/products/productsAPI.js';
+import {
+  fetchProductsRequest,
+  fetchProductActiveRequest,
+} from '../../features/products/productsAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import PosPaymentModal, { openPosPaymentModal } from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
 
@@ -30,6 +34,10 @@ const PosProducts = ({
   categories,
   categoriesStatus,
   categoriesError,
+  onAddToCart,
+  orderTotal = 0,
+  onPaymentComplete,
+  onPaymentCompletePrint,
 }) => {
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
@@ -45,13 +53,20 @@ const PosProducts = ({
     setProductsStatus('loading');
     setProductsError(null);
     try {
-      const params = {
-        page: 1,
-        limit: 2000,
-        ...(debouncedQuery ? { search: debouncedQuery } : {}),
-        ...(categoryFilter !== 'All' ? { categoryId: categoryFilter } : {}),
-      };
-      const result = await fetchProductsRequest(params);
+      const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+      const result = debouncedQuery
+        ? await fetchProductActiveRequest({
+            search: debouncedQuery,
+            searchFields: 'product_name,sku,barcode',
+            page: 1,
+            limit: 2000,
+            ...(categoryId ? { categoryId } : {}),
+          })
+        : await fetchProductsRequest({
+            page: 1,
+            limit: 2000,
+            ...(categoryId ? { categoryId } : {}),
+          });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setProducts(arr);
       setProductsStatus('succeeded');
@@ -69,6 +84,11 @@ const PosProducts = ({
 
   return (
     <div className="col-lg-7 col-xl-8">
+      <PosPaymentModal
+        orderTotal={orderTotal}
+        onPayNow={onPaymentComplete}
+        onPayNowPrint={onPaymentCompletePrint}
+      />
       <div className="card shadow-sm border-0 h-100 d-flex flex-column">
         <div className="card-body p-3 flex-grow-1 d-flex flex-column">
           <div className="row g-2 mb-3">
@@ -137,7 +157,18 @@ const PosProducts = ({
                   const imgUrl = getProductImageUrl(p);
                   return (
                     <div className="col" key={id}>
-                      <div className="pos-product-card p-2 h-100 d-flex flex-column">
+                      <div
+                        className="pos-product-card p-2 h-100 d-flex flex-column"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onAddToCart?.(p)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onAddToCart?.(p);
+                          }
+                        }}
+                      >
                         <div className="rounded overflow-hidden mb-2 flex-shrink-0">
                           {imgUrl ? (
                             <img
@@ -155,7 +186,9 @@ const PosProducts = ({
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-center pos-product-name flex-grow-1">{name}</div>
+                        <div className="text-xs text-center pos-product-name flex-grow-1">
+                          {name}
+                        </div>
                       </div>
                     </div>
                   );
@@ -169,7 +202,11 @@ const PosProducts = ({
               <i className="fas fa-save me-2"></i>
               Draft
             </button>
-            <button type="button" className="btn btn-pay px-4 py-2">
+            <button
+              type="button"
+              className="btn btn-pay px-4 py-2"
+              onClick={() => openPosPaymentModal()}
+            >
               <i className="fas fa-money-bill-wave me-2"></i>
               Payment
             </button>
