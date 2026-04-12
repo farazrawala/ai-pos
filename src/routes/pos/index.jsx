@@ -9,36 +9,10 @@ import {
   resolvePosCustomerEmail,
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
+import PosProducts from './PosProducts.jsx';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '' };
-
-const SAMPLE_PRODUCTS = [
-  'SAEED GHANI FACE WASH 100 ML',
-  'ARIEL',
-  'BADAM 50GMS SA',
-  'BAJRA',
-  'BAKE PARLOUR SAWAYYAN 100G',
-  'COLGATE MAX FRESH',
-  'DAAL CHANA 500G',
-  'DETTOL SOAP',
-  'EVA HAIR COLOR',
-  'FAIR & LOVELY 25G',
-  'GREE YOGURT',
-  'HALEEB MILK 1L',
-  'KNOOR CUBE',
-  'LUX SOAP',
-  'MAGGI NOODLES',
-  'NESTLE MILKPAK',
-  'OLPERS CREAM',
-  'PEPSI 500ML',
-  'QARSHI JAM-E-SHIRIN',
-  'RAITA MASALA',
-  'SHAN BIRYANI',
-  'TAPAL DANEDAR',
-  'UNILEVER SURF',
-  'VITAL TEA',
-  'WAVES WAFER',
-];
 
 const Pos = () => {
   const [users, setUsers] = useState([]);
@@ -51,6 +25,9 @@ const Pos = () => {
 
   const [productQuery, setProductQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categories, setCategories] = useState([]);
+  const [categoriesStatus, setCategoriesStatus] = useState('idle');
+  const [categoriesError, setCategoriesError] = useState(null);
   const [shipping, setShipping] = useState('');
   const [extraDiscount, setExtraDiscount] = useState('');
 
@@ -84,9 +61,29 @@ const Pos = () => {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    setCategoriesStatus('loading');
+    setCategoriesError(null);
+    try {
+      const result = await fetchCategoriesRequest({ page: 1, limit: 2000 });
+      const arr = Array.isArray(result?.data) ? result.data : [];
+      setCategories(arr);
+      setCategoriesStatus('succeeded');
+    } catch (err) {
+      console.error('[POS] Failed to load categories', err);
+      setCategories([]);
+      setCategoriesError(err?.message || 'Could not load categories');
+      setCategoriesStatus('failed');
+    }
+  }, []);
+
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -559,75 +556,15 @@ const Pos = () => {
           </div>
         </div>
 
-        {/* Right: products */}
-        <div className="col-lg-7 col-xl-8">
-          <div className="card shadow-sm border-0 h-100 d-flex flex-column">
-            <div className="card-body p-3 flex-grow-1 d-flex flex-column">
-              <div className="row g-2 mb-3">
-                <div className="col">
-                  <div className="input-group">
-                    <span className="input-group-text bg-white">
-                      <i className="fas fa-barcode text-muted"></i>
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Enter Product name, code or scan barcode"
-                      value={productQuery}
-                      onChange={(e) => setProductQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="col-auto" style={{ minWidth: 140 }}>
-                  <select
-                    className="form-select"
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                  >
-                    <option>All</option>
-                    <option>Groceries</option>
-                    <option>Personal Care</option>
-                    <option>Beverages</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pos-product-grid flex-grow-1">
-                <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-6 g-2">
-                  {SAMPLE_PRODUCTS.map((name) => (
-                    <div className="col" key={name}>
-                      <div className="pos-product-card p-2 h-100 d-flex flex-column">
-                        <div className="rounded overflow-hidden mb-2 flex-shrink-0">
-                          <div className="pos-product-img w-100 d-flex align-items-center justify-content-center">
-                            <i className="fas fa-image text-muted opacity-50 fa-2x"></i>
-                          </div>
-                        </div>
-                        <div className="text-xs text-center pos-product-name flex-grow-1">
-                          {name}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pos-footer-actions border-top pt-3 mt-2 d-flex flex-wrap justify-content-end gap-2">
-                <button type="button" className="btn btn-draft px-4 py-2">
-                  <i className="fas fa-save me-2"></i>
-                  Draft
-                </button>
-                <button type="button" className="btn btn-pay px-4 py-2">
-                  <i className="fas fa-money-bill-wave me-2"></i>
-                  Payment
-                </button>
-                <button type="button" className="btn btn-card px-4 py-2">
-                  <i className="far fa-credit-card me-2"></i>
-                  Card
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PosProducts
+          productQuery={productQuery}
+          setProductQuery={setProductQuery}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          categories={categories}
+          categoriesStatus={categoriesStatus}
+          categoriesError={categoriesError}
+        />
       </div>
 
       <div
