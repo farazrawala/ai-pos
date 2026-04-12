@@ -20,6 +20,7 @@ import Attribute from './routes/attribute/index.jsx';
 import AttributeAdd from './routes/attribute/add.jsx';
 import AttributeEdit from './routes/attribute/edit.jsx';
 import Pos from './routes/pos/index.jsx';
+import PosInvoice from './routes/pos/invoice.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -42,6 +43,8 @@ const App = () => {
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
           <Route path="/pos" element={<Pos />} />
+          <Route path="/pos/invoice" element={<PosInvoice />} />
+          <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -93,6 +96,8 @@ const App = () => {
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
           <Route path="/pos" element={<Pos />} />
+          <Route path="/pos/invoice" element={<PosInvoice />} />
+          <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

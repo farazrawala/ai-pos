@@ -1,0 +1,573 @@
+import { useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
+
+/** Demo payload — replace with API data later */
+const DEMO_INVOICE = {
+  shopName: 'DISCOUNT SHOP',
+  invoiceNo: '42693',
+  reference: '',
+  grossAmount: 922.5,
+  billTo: {
+    name: 'Walk-in Client',
+    phone: '+92 300 0000000',
+    email: 'example@example.com',
+  },
+  invoiceDate: '11-04-2026',
+  dueDate: '11-04-2026',
+  terms: 'Payment On Receipt',
+  lines: [
+    {
+      description: 'SUGAR-01',
+      rate: 145,
+      qtyLabel: '5.00kg',
+      tax: { amount: 0, pct: 0 },
+      discount: { amount: 0, pct: 0 },
+      amount: 725,
+    },
+    {
+      description: 'MASH-33',
+      rate: 395,
+      qtyLabel: '0.50kg',
+      tax: { amount: 0, pct: 0 },
+      discount: { amount: 0, pct: 0 },
+      amount: 197.5,
+    },
+  ],
+  summary: {
+    subTotal: 922.5,
+    tax: 0,
+    discount: 0,
+    shipping: 0,
+    total: 922.5,
+    paymentMade: 922.5,
+    balanceDue: 0,
+  },
+  paymentStatus: 'Paid',
+  paymentMethod: 'Cash',
+  note: '',
+  authorizedPerson: {
+    name: 'Aslam Qadri',
+    title: 'Sales Manager',
+  },
+  creditRows: [
+    {
+      date: '2026-04-11',
+      method: 'Cash',
+      debit: 0,
+      credit: 922.5,
+      note: '#42693-Cash',
+    },
+  ],
+  publicUrl: 'https://example.com/invoice/view/abc123token',
+  termsBody: [
+    'Payment On Receipt',
+    'Early payment discounts may apply as per store policy.',
+    'Late payments may incur fees after the due date.',
+  ],
+};
+
+const fmt = (n) =>
+  `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const PosInvoice = () => {
+  const { invoiceId } = useParams();
+  const data = {
+    ...DEMO_INVOICE,
+    invoiceNo: invoiceId || DEMO_INVOICE.invoiceNo,
+  };
+
+  const handleThermalPrint = useCallback(() => {
+    openThermalReceiptPrint(
+      {
+        ...DEMO_INVOICE,
+        invoiceNo: invoiceId || DEMO_INVOICE.invoiceNo,
+      },
+      { documentTitlePrefix: 'Receipt POS' }
+    );
+  }, [invoiceId]);
+
+  const handlePdfPrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  return (
+    <div className="pos-invoice-page container-fluid py-3 px-2 px-lg-4">
+      <style>{`
+        .pos-invoice-page {
+          font-family: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
+          max-width: 1100px;
+          margin: 0 auto;
+        }
+        .pos-inv-actions {
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .pos-inv-actions .btn {
+          border-radius: 0.5rem;
+          font-weight: 600;
+          font-size: 0.8rem;
+          padding: 0.45rem 0.85rem;
+        }
+        .pos-inv-btn-blue { background: #5e72e4; border-color: #5e72e4; color: #fff; }
+        .pos-inv-btn-blue:hover { background: #4c63d2; border-color: #4c63d2; color: #fff; }
+        .pos-inv-btn-orange { background: #fb6340; border-color: #fb6340; color: #fff; }
+        .pos-inv-btn-orange:hover { background: #ea4c2a; border-color: #ea4c2a; color: #fff; }
+        .pos-inv-btn-cyan { background: #11cdef; border-color: #11cdef; color: #fff; }
+        .pos-inv-btn-cyan:hover { background: #0eb8d6; border-color: #0eb8d6; color: #fff; }
+        .pos-inv-btn-navy { background: #344767; border-color: #344767; color: #fff; }
+        .pos-inv-btn-navy:hover { background: #2a3a54; border-color: #2a3a54; color: #fff; }
+        .pos-inv-btn-sms { background: #4299e1; border-color: #4299e1; color: #fff; }
+        .pos-inv-btn-sms:hover { background: #3182ce; border-color: #3182ce; color: #fff; }
+        .pos-inv-btn-green { background: #2dce89; border-color: #2dce89; color: #fff; }
+        .pos-inv-btn-green:hover { background: #26b87a; border-color: #26b87a; color: #fff; }
+        .pos-inv-btn-grey { background: #8898aa; border-color: #8898aa; color: #fff; }
+        .pos-inv-btn-grey:hover { background: #768696; border-color: #768696; color: #fff; }
+        .pos-inv-btn-pink { background: #f5365c; border-color: #f5365c; color: #fff; }
+        .pos-inv-btn-pink:hover { background: #e01e4a; border-color: #e01e4a; color: #fff; }
+        .pos-inv-btn-teal { background: #17a2b8; border-color: #17a2b8; color: #fff; }
+        .pos-inv-btn-teal:hover { background: #138496; border-color: #138496; color: #fff; }
+        .pos-inv-paper {
+          background: #fff;
+          border: 1px solid #e9ecef;
+          border-radius: 0.5rem;
+          box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,.06);
+        }
+        .pos-inv-title {
+          font-size: 2rem;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          color: #212529;
+        }
+        .pos-inv-gross {
+          font-size: 1.1rem;
+          font-weight: 700;
+        }
+        .pos-inv-client-name {
+          color: #11cdef;
+          font-weight: 700;
+        }
+        .pos-inv-underline {
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .pos-inv-table th {
+          background: #f8f9fa;
+          font-size: 0.75rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          color: #495057;
+          border-color: #dee2e6 !important;
+        }
+        .pos-inv-table td {
+          border-color: #dee2e6 !important;
+          vertical-align: middle;
+          font-size: 0.875rem;
+        }
+        .pos-inv-summary-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.25rem 0;
+          font-size: 0.9rem;
+        }
+        .pos-inv-summary-total {
+          font-weight: 700;
+          border-top: 1px solid #dee2e6;
+          margin-top: 0.35rem;
+          padding-top: 0.5rem;
+        }
+        .pos-inv-payment-made {
+          color: #dc3545;
+          font-weight: 600;
+        }
+        .pos-inv-sig-box {
+          width: 140px;
+          height: 56px;
+          border: 2px dashed #ced4da;
+          border-radius: 0.25rem;
+          background: #fafafa;
+        }
+        .pos-inv-file-btn {
+          background: #11cdef;
+          border: none;
+          color: #fff;
+          font-weight: 600;
+          padding: 0.65rem 1.25rem;
+          border-radius: 0.375rem;
+        }
+        .pos-inv-file-btn:hover {
+          background: #0eb8d6;
+          color: #fff;
+        }
+        @media print {
+          .pos-inv-no-print {
+            display: none !important;
+          }
+          .pos-invoice-page {
+            max-width: 100%;
+          }
+          .pos-inv-paper {
+            box-shadow: none;
+            border: none;
+          }
+        }
+      `}</style>
+
+      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pos-inv-no-print">
+        <Link to="/pos" className="btn btn-sm btn-outline-secondary">
+          <i className="fas fa-arrow-left me-1"></i> Back to POS
+        </Link>
+      </div>
+
+      {/* Top action bar */}
+      <div className="d-flex pos-inv-actions mb-4 pos-inv-no-print">
+        <div className="dropdown">
+          <button
+            className="btn pos-inv-btn-blue dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            POS Print
+          </button>
+          <ul className="dropdown-menu shadow-sm">
+            <li>
+              <button type="button" className="dropdown-item" onClick={handlePdfPrint}>
+                PDF Print
+              </button>
+            </li>
+            <li>
+              <button type="button" className="dropdown-item" onClick={handleThermalPrint}>
+                Thermal Print
+              </button>
+            </li>
+          </ul>
+        </div>
+        <button type="button" className="btn pos-inv-btn-orange">
+          <i className="fas fa-pencil-alt me-1"></i> Edit Invoice
+        </button>
+        <button type="button" className="btn pos-inv-btn-cyan">
+          <i className="fas fa-money-bill-wave me-1"></i> Make Payment
+        </button>
+        <div className="dropdown">
+          <button
+            className="btn pos-inv-btn-navy dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i className="fas fa-envelope me-1"></i> Email
+          </button>
+          <ul className="dropdown-menu shadow-sm">
+            <li>
+              <button type="button" className="dropdown-item">
+                Send to customer
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div className="dropdown">
+          <button
+            className="btn pos-inv-btn-sms dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i className="fas fa-mobile-alt me-1"></i> SMS
+          </button>
+          <ul className="dropdown-menu shadow-sm">
+            <li>
+              <button type="button" className="dropdown-item">
+                Send SMS
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div className="dropdown">
+          <button
+            className="btn pos-inv-btn-green dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i className="fas fa-print me-1"></i> Print
+          </button>
+          <ul className="dropdown-menu shadow-sm">
+            <li>
+              <button type="button" className="dropdown-item">
+                A4
+              </button>
+            </li>
+          </ul>
+        </div>
+        <button type="button" className="btn pos-inv-btn-grey">
+          <i className="fas fa-eye me-1"></i> Preview
+        </button>
+        <button type="button" className="btn pos-inv-btn-cyan">
+          <i className="fas fa-sync-alt me-1"></i> Change Status
+        </button>
+        <button type="button" className="btn pos-inv-btn-pink">
+          <i className="fas fa-times me-1"></i> Cancel
+        </button>
+        <div className="dropdown">
+          <button
+            className="btn pos-inv-btn-teal dropdown-toggle"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i className="fas fa-plus me-1"></i> Extra
+          </button>
+          <ul className="dropdown-menu shadow-sm">
+            <li>
+              <button type="button" className="dropdown-item">
+                Add note
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="pos-inv-paper p-4 p-md-5 mb-4">
+        {/* Header */}
+        <div className="row align-items-start mb-4 pb-3 border-bottom">
+          <div className="col-md-6 mb-3 mb-md-0">
+            <div className="d-flex align-items-center gap-3">
+              <div
+                className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
+                style={{ width: 72, height: 72 }}
+              >
+                <span className="text-muted small text-center px-1">LOGO</span>
+              </div>
+              <div>
+                <div
+                  className="fw-bold text-uppercase text-secondary"
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  {data.shopName}
+                </div>
+                <div className="h5 mb-0 fw-semibold">{data.shopName}</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6 text-md-end">
+            <div className="pos-inv-title mb-2">INVOICE</div>
+            <div className="mb-1">
+              <span className="text-muted">POS# </span>
+              <span className="fw-bold">{data.invoiceNo}</span>
+            </div>
+            <div className="small text-muted mb-2">Reference: {data.reference || '—'}</div>
+            <div className="pos-inv-gross">Gross Amount: {fmt(data.grossAmount)}</div>
+          </div>
+        </div>
+
+        {/* Bill to + dates */}
+        <div className="row mb-4">
+          <div className="col-md-6 mb-3 mb-md-0">
+            <div className="text-uppercase text-muted small fw-bold mb-2">Bill To</div>
+            <div className="pos-inv-client-name mb-1">{data.billTo.name}</div>
+            <div className="small text-secondary">{data.billTo.phone}</div>
+            <div className="small text-secondary">{data.billTo.email}</div>
+          </div>
+          <div className="col-md-6 text-md-end">
+            <div className="small mb-2">
+              <span className="text-muted me-2">Invoice Date:</span>
+              <span className="fw-semibold">{data.invoiceDate}</span>
+            </div>
+            <div className="small mb-2">
+              <span className="text-muted me-2">Due Date:</span>
+              <span className="fw-semibold">{data.dueDate}</span>
+            </div>
+            <div className="small">
+              <span className="text-muted me-2">Terms:</span>
+              <span className="fw-semibold">{data.terms}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Line items */}
+        <div className="table-responsive mb-4">
+          <table className="table table-bordered pos-inv-table mb-0">
+            <thead>
+              <tr>
+                <th style={{ width: '48px' }}>#</th>
+                <th>Description</th>
+                <th className="text-end" style={{ width: '110px' }}>
+                  Rate
+                </th>
+                <th className="text-end" style={{ width: '100px' }}>
+                  Qty
+                </th>
+                <th className="text-end" style={{ width: '130px' }}>
+                  Tax
+                </th>
+                <th className="text-end" style={{ width: '130px' }}>
+                  Discount
+                </th>
+                <th className="text-end" style={{ width: '120px' }}>
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.lines.map((line, i) => (
+                <tr key={i}>
+                  <td className="text-center">{i + 1}</td>
+                  <td>{line.description}</td>
+                  <td className="text-end">{fmt(line.rate)}</td>
+                  <td className="text-end">{line.qtyLabel}</td>
+                  <td className="text-end">
+                    {fmt(line.tax.amount)} ({line.tax.pct.toFixed(2)}%)
+                  </td>
+                  <td className="text-end">
+                    {fmt(line.discount.amount)} ({line.discount.pct.toFixed(2)}%)
+                  </td>
+                  <td className="text-end fw-semibold">{fmt(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Payment + summary */}
+        <div className="row mb-4">
+          <div className="col-md-6 mb-4 mb-md-0">
+            <div className="small mb-2">
+              <span className="text-muted">Payment Status: </span>
+              <span className="pos-inv-underline fw-semibold">{data.paymentStatus}</span>
+            </div>
+            <div className="small mb-3">
+              <span className="text-muted">Payment Method: </span>
+              <span className="pos-inv-underline fw-semibold">{data.paymentMethod}</span>
+            </div>
+            <label className="form-label small text-muted mb-1">Note</label>
+            <textarea
+              className="form-control form-control-sm"
+              rows={4}
+              placeholder="Add a note…"
+              defaultValue={data.note}
+              readOnly
+            />
+          </div>
+          <div className="col-md-6">
+            <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
+            <div className="border rounded p-3 bg-light">
+              <div className="pos-inv-summary-row">
+                <span className="text-muted">Sub Total</span>
+                <span className="fw-semibold">{fmt(data.summary.subTotal)}</span>
+              </div>
+              <div className="pos-inv-summary-row">
+                <span className="text-muted">Tax</span>
+                <span>{fmt(data.summary.tax)}</span>
+              </div>
+              <div className="pos-inv-summary-row">
+                <span className="text-muted">Discount</span>
+                <span>{fmt(data.summary.discount)}</span>
+              </div>
+              <div className="pos-inv-summary-row">
+                <span className="text-muted">Shipping</span>
+                <span>{fmt(data.summary.shipping)}</span>
+              </div>
+              <div className="pos-inv-summary-row pos-inv-summary-total">
+                <span>Total</span>
+                <span>{fmt(data.summary.total)}</span>
+              </div>
+              <div className="pos-inv-summary-row pos-inv-payment-made">
+                <span>Payment Made</span>
+                <span>(-) {fmt(data.summary.paymentMade)}</span>
+              </div>
+              <div className="pos-inv-summary-row fw-bold">
+                <span>Balance Due</span>
+                <span>{fmt(data.summary.balanceDue)}</span>
+              </div>
+            </div>
+            <div className="mt-4 text-md-end">
+              <div className="small text-muted mb-1">Authorized Person</div>
+              <div className="d-inline-flex flex-column align-items-md-end align-items-start">
+                <div className="pos-inv-sig-box mb-2 align-self-md-end" aria-hidden="true" />
+                <div className="fw-semibold">{data.authorizedPerson.name}</div>
+                <div className="small text-muted">{data.authorizedPerson.title}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Credit transactions */}
+        <div className="mb-4">
+          <div className="fw-semibold mb-2">Credit Transactions:</div>
+          <div className="table-responsive">
+            <table className="table table-bordered pos-inv-table mb-0">
+              <thead>
+                <tr>
+                  <th style={{ width: '90px' }}></th>
+                  <th>Date</th>
+                  <th>Method</th>
+                  <th className="text-end">Debit</th>
+                  <th className="text-end">Credit</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.creditRows.map((row, i) => (
+                  <tr key={i}>
+                    <td>
+                      <button type="button" className="btn btn-sm btn-primary py-0 px-2">
+                        Print
+                      </button>
+                    </td>
+                    <td>{row.date}</td>
+                    <td>{row.method}</td>
+                    <td className="text-end">{fmt(row.debit)}</td>
+                    <td className="text-end">{fmt(row.credit)}</td>
+                    <td className="small">{row.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-top pt-4">
+          <div className="fw-semibold mb-2">Terms &amp; Condition</div>
+          <ol className="small text-secondary ps-3 mb-4">
+            {data.termsBody.map((t, i) => (
+              <li key={i} className="mb-1">
+                {t}
+              </li>
+            ))}
+          </ol>
+          <div className="mb-2 small text-muted">Public Access URL</div>
+          <input
+            type="text"
+            className="form-control form-control-sm mb-4 font-monospace"
+            readOnly
+            value={data.publicUrl}
+          />
+          <div className="fw-semibold mb-2">Files</div>
+          <p className="small text-muted mb-2">
+            Allowed: PDF, JPG, PNG, DOC, DOCX (max 10MB each — adjust as needed)
+          </p>
+          <label
+            htmlFor="pos-inv-files"
+            className="pos-inv-file-btn d-inline-block mb-0"
+            style={{ cursor: 'pointer' }}
+          >
+            <i className="fas fa-folder-open me-2"></i>
+            Select files…
+          </label>
+          <input
+            id="pos-inv-files"
+            type="file"
+            className="d-none"
+            multiple
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PosInvoice;
