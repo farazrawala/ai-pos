@@ -112,6 +112,14 @@ const Sidebar = () => {
               <span className="nav-link-text ms-1">Attributes</span>
             </NavLink>
           </li>
+          <li className="nav-item">
+            <NavLink className="nav-link" to="/pos">
+              <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                <i className="fas fa-cash-register text-dark text-sm opacity-10"></i>
+              </div>
+              <span className="nav-link-text ms-1">POS</span>
+            </NavLink>
+          </li>
           <li className="nav-item mt-3">
             <h6 className="ps-4  ms-2 text-uppercase text-xs font-weight-bolder opacity-6">
               PAGES
