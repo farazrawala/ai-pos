@@ -7,7 +7,10 @@ import {
   deleteCategoryRequest,
   isCategoryUploadFilePart,
 } from './categoriesAPI.js';
-import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
+import {
+  appendProjectDevLog,
+  CATEGORY_IMAGE_UPLOAD_META,
+} from '../../utils/projectDevLog.js';
 
 export const fetchCategories = createAsyncThunk(
   'categories/fetchCategories',
@@ -79,18 +82,22 @@ export const createCategory = createAsyncThunk(
         legacyDispatchKeys: categoryFields === undefined ? Object.keys(rootArg) : null,
       });
       if (isCategoryUploadFilePart(image)) {
-        logCategoryUploadErrorToFile('createCategory.thunk', {
-          message,
-          errorName: error?.name,
-          stack: error?.stack,
-          error,
-          requestMode: 'multipart',
-          imageMeta: { name: image.name, size: image.size, type: image.type },
-          categoryFieldsKeys:
-            categoryFields != null && typeof categoryFields === 'object'
-              ? Object.keys(categoryFields)
-              : null,
-        });
+        appendProjectDevLog(
+          'createCategory.thunk',
+          {
+            message,
+            errorName: error?.name,
+            stack: error?.stack,
+            error,
+            requestMode: 'multipart',
+            imageMeta: { name: image.name, size: image.size, type: image.type },
+            categoryFieldsKeys:
+              categoryFields != null && typeof categoryFields === 'object'
+                ? Object.keys(categoryFields)
+                : null,
+          },
+          CATEGORY_IMAGE_UPLOAD_META
+        );
       }
       return rejectWithValue(message);
     }
@@ -108,14 +115,18 @@ export const updateCategory = createAsyncThunk(
     } catch (error) {
       const message = error?.message || String(error) || 'Failed to update category';
       if (isCategoryUploadFilePart(image)) {
-        logCategoryUploadErrorToFile('updateCategory.thunk', {
-          message,
-          categoryId,
-          errorName: error?.name,
-          stack: error?.stack,
-          error,
-          imageMeta: { name: image.name, size: image.size, type: image.type },
-        });
+        appendProjectDevLog(
+          'updateCategory.thunk',
+          {
+            message,
+            categoryId,
+            errorName: error?.name,
+            stack: error?.stack,
+            error,
+            imageMeta: { name: image.name, size: image.size, type: image.type },
+          },
+          CATEGORY_IMAGE_UPLOAD_META
+        );
       }
       return rejectWithValue(message);
     }

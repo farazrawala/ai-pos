@@ -14,6 +14,7 @@ The Category Module is a complete CRUD (Create, Read, Update, Delete) implementa
 6. [Features](#features)
 7. [Usage Examples](#usage-examples)
 8. [Configuration](#configuration)
+9. [Project dev log file (errors)](#project-dev-log-file-errors)
 
 ---
 
@@ -32,9 +33,17 @@ src/
 │       ├── index.jsx             # List/Index page
 │       ├── add.jsx               # Create page
 │       └── edit.jsx              # Edit page
+├── utils/
+│   └── projectDevLog.js          # Project-wide dev log helper (category image errors use CATEGORY_IMAGE_UPLOAD_META)
 └── config/
     └── apiConfig.js              # Global API configuration
 ```
+
+**Build / dev server (repo root):**
+
+- `vite-plugin-project-dev-log.js` — Vite middleware that appends client log lines to the project log file during `npm run dev` / `npm run preview` (when enabled).
+
+---
 
 ---
 
@@ -607,6 +616,8 @@ When something goes wrong, the category module logs details to the **browser dev
 
 Open **DevTools → Console** to inspect these logs alongside the on-screen toasts and error banners.
 
+Category **image upload** errors are also written to the project log file during dev; see [Project dev log file (errors)](#project-dev-log-file-errors).
+
 ### Form Validation Errors
 
 - Client-side validation before submission
@@ -625,6 +636,47 @@ Open **DevTools → Console** to inspect these logs alongside the on-screen toas
 5. **Handle edge cases** like empty lists, network errors, etc.
 6. **Use debouncing** for search inputs to reduce API calls
 7. **Clear Redux state** when navigating away from pages
+8. **Category image upload errors:** use `appendProjectDevLog(operation, details, CATEGORY_IMAGE_UPLOAD_META)` for any new upload-related failure path (see [Project dev log file (errors)](#project-dev-log-file-errors))
+
+---
+
+## Project dev log file (errors)
+
+### Rule (category image upload)
+
+Any **error related to category image upload** (multipart create/update, thunk failures when a file is attached, add/edit form failures when a file was selected, refetch/verification failures after create) must be recorded with **`appendProjectDevLog(operation, details, CATEGORY_IMAGE_UPLOAD_META)`** from `src/utils/projectDevLog.js`. That preserves the console prefix **`[Category module] [upload error]`** and appends a matching line to the **project log file** when the Vite dev (or configured preview) server is running.
+
+### Project-wide utility (not category-only)
+
+| Item | Purpose |
+|------|---------|
+| `appendProjectDevLog(operation, details, meta?)` | Generic helper for any feature; default `meta` uses tag `[app]` and label `dev-log`. |
+| `CATEGORY_IMAGE_UPLOAD_META` | Fixed `meta` for category uploads: `tag: '[Category module]'`, `label: 'upload error'`, `kind: 'category_image_upload'`. |
+| `shouldAppendProjectDevLog()` | `true` in `import.meta.env.DEV`, or when `VITE_PROJECT_DEV_LOG` or legacy `VITE_FILE_UPLOAD_LOG` is `1` or `true` (e.g. preview). |
+
+### Log file path
+
+- Default file name: **`logs.txt`** at the **repository root** (same folder as `vite.config.js`).
+- Override with **`.env`**: `VITE_PROJECT_DEV_LOG_FILE` (for example `dev-client.log` or `logs/app.log`). Loaded in `vite.config.js` via `loadEnv` and passed to `projectDevLogPlugin({ logFile })`.
+
+### How it works
+
+1. The browser cannot write to disk directly. In **development** (and **preview** if env flags are set), the app `POST`s JSON to **`/__project-dev-log`**.
+2. **`vite-plugin-project-dev-log.js`** handles that route and **appends** one human-readable line per event (the `consoleLine` field, prefixed with a server timestamp) to the configured file.
+3. **Static production hosting** (no Vite server) does not receive `POST /__project-dev-log`; file logging is inactive unless you add a backend endpoint.
+
+### Category module call sites
+
+Keep using **`CATEGORY_IMAGE_UPLOAD_META`** for any **new** category upload-related error paths:
+
+- `src/features/categories/categoriesAPI.js` — multipart `createCategoryRequest` / `updateCategoryRequest` (network, HTTP error, invalid JSON body).
+- `src/features/categories/categoriesSlice.js` — `createCategory` / `updateCategory` thunk `catch` when a file part was sent.
+- `src/routes/category/add.jsx` — refetch after create when create omitted image, missing image after create+GET, form submit error when a file was selected.
+- `src/routes/category/edit.jsx` — update form submit error when a file was selected.
+
+### Convention
+
+Use a stable **`operation`** string (e.g. `createCategoryRequest.multipart.network`, `addCategory.formSubmit`) so the log file stays easy to search.
 
 ---
 
@@ -646,6 +698,8 @@ Potential improvements for the category module:
 ### Debugging with console logs
 
 Filter the browser console for **`[Category module]`** to see structured error output (HTTP status, server payload, category IDs) when list fetch, create, update, delete, or form helpers fail.
+
+For **image upload** failures, also check the project **`logs.txt`** (or `VITE_PROJECT_DEV_LOG_FILE`) after reproducing the issue with **`npm run dev`** running; lines match **`[Category module] [upload error]`** plus JSON context.
 
 ### CORS Issues
 
@@ -686,5 +740,5 @@ For issues or questions regarding the Category Module:
 
 ---
 
-**Last Updated:** 2024
-**Version:** 1.0.0
+**Last Updated:** 2026
+**Version:** 1.1.0

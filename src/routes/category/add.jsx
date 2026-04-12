@@ -8,7 +8,10 @@ import {
   fetchCategoryByIdRequest,
   isCategoryUploadFilePart,
 } from '../../features/categories/categoriesAPI.js';
-import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
+import {
+  appendProjectDevLog,
+  CATEGORY_IMAGE_UPLOAD_META,
+} from '../../utils/projectDevLog.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
 /** Normalize create API payloads like `{ data: { ... } }` or plain category object. */
@@ -272,9 +275,11 @@ const CategoryAdd = () => {
           '[Category module] Image was sent but create and GET-by-id responses still have no image URL.',
           { categoryId }
         );
-        logCategoryUploadErrorToFile('addCategory.noImageUrlAfterCreateAndGet', {
-          categoryId,
-        });
+        appendProjectDevLog(
+          'addCategory.noImageUrlAfterCreateAndGet',
+          { categoryId },
+          CATEGORY_IMAGE_UPLOAD_META
+        );
       }
 
       // Show success toast
@@ -332,18 +337,22 @@ const CategoryAdd = () => {
         },
       });
       if (isCategoryUploadFilePart(imageFile)) {
-        logCategoryUploadErrorToFile('addCategory.formSubmit', {
-          message: normalizedMessage,
-          error: typeof error === 'string' ? undefined : error,
-          imageFileState: imageFile
-            ? {
-                name: imageFile.name,
-                size: imageFile.size,
-                type: imageFile.type,
-              }
-            : null,
-          formSummary: { slug: form.slug },
-        });
+        appendProjectDevLog(
+          'addCategory.formSubmit',
+          {
+            message: normalizedMessage,
+            error: typeof error === 'string' ? undefined : error,
+            imageFileState: imageFile
+              ? {
+                  name: imageFile.name,
+                  size: imageFile.size,
+                  type: imageFile.type,
+                }
+              : null,
+            formSummary: { slug: form.slug },
+          },
+          CATEGORY_IMAGE_UPLOAD_META
+        );
       }
 
       // Extract error message

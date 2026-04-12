@@ -1,5 +1,8 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
-import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
+import {
+  appendProjectDevLog,
+  CATEGORY_IMAGE_UPLOAD_META,
+} from '../../utils/projectDevLog.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -276,7 +279,7 @@ export const createCategoryRequest = async (categoryData = {}) => {
         error: err,
       };
       logCategoryModuleError('createCategoryRequest network error (multipart)', detail);
-      logCategoryUploadErrorToFile('createCategoryRequest.multipart.network', detail);
+      appendProjectDevLog('createCategoryRequest.multipart.network', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw err;
     }
 
@@ -291,7 +294,7 @@ export const createCategoryRequest = async (categoryData = {}) => {
         ...details,
       };
       logCategoryModuleError('createCategoryRequest failed (multipart)', detail);
-      logCategoryUploadErrorToFile('createCategoryRequest.multipart.httpError', detail);
+      appendProjectDevLog('createCategoryRequest.multipart.httpError', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw new Error(details.message);
     }
 
@@ -304,7 +307,7 @@ export const createCategoryRequest = async (categoryData = {}) => {
         error: parseErr,
       };
       logCategoryModuleError('createCategoryRequest success body is not valid JSON (multipart)', detail);
-      logCategoryUploadErrorToFile('createCategoryRequest.multipart.invalidJsonBody', detail);
+      appendProjectDevLog('createCategoryRequest.multipart.invalidJsonBody', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw parseErr;
     }
   }
@@ -392,7 +395,7 @@ export const updateCategoryRequest = async (categoryId, categoryData = {}) => {
         error: err,
       };
       logCategoryModuleError('updateCategoryRequest network error (multipart)', detail);
-      logCategoryUploadErrorToFile('updateCategoryRequest.multipart.network', detail);
+      appendProjectDevLog('updateCategoryRequest.multipart.network', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw err;
     }
 
@@ -406,7 +409,7 @@ export const updateCategoryRequest = async (categoryId, categoryData = {}) => {
         ...details,
       };
       logCategoryModuleError('updateCategoryRequest failed (multipart)', detail);
-      logCategoryUploadErrorToFile('updateCategoryRequest.multipart.httpError', detail);
+      appendProjectDevLog('updateCategoryRequest.multipart.httpError', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw new Error(details.message);
     }
 
@@ -423,7 +426,7 @@ export const updateCategoryRequest = async (categoryId, categoryData = {}) => {
         'updateCategoryRequest success body is not valid JSON (multipart)',
         detail
       );
-      logCategoryUploadErrorToFile('updateCategoryRequest.multipart.invalidJsonBody', detail);
+      appendProjectDevLog('updateCategoryRequest.multipart.invalidJsonBody', detail, CATEGORY_IMAGE_UPLOAD_META);
       throw parseErr;
     }
   }

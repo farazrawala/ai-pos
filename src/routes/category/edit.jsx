@@ -12,7 +12,10 @@ import {
   fetchCategoriesRequest,
   isCategoryUploadFilePart,
 } from '../../features/categories/categoriesAPI.js';
-import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
+import {
+  appendProjectDevLog,
+  CATEGORY_IMAGE_UPLOAD_META,
+} from '../../utils/projectDevLog.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 
@@ -261,19 +264,23 @@ const CategoryEdit = () => {
     } catch (error) {
       console.error('[Category module] Failed to update category', { categoryId: id, error });
       if (isCategoryUploadFilePart(imageFile)) {
-        logCategoryUploadErrorToFile('editCategory.formSubmit', {
-          categoryId: id,
-          message:
-            typeof error === 'string'
-              ? error
-              : error?.message || (error && String(error)) || 'Update failed',
-          error: typeof error === 'string' ? undefined : error,
-          imageFileState: {
-            name: imageFile.name,
-            size: imageFile.size,
-            type: imageFile.type,
+        appendProjectDevLog(
+          'editCategory.formSubmit',
+          {
+            categoryId: id,
+            message:
+              typeof error === 'string'
+                ? error
+                : error?.message || (error && String(error)) || 'Update failed',
+            error: typeof error === 'string' ? undefined : error,
+            imageFileState: {
+              name: imageFile.name,
+              size: imageFile.size,
+              type: imageFile.type,
+            },
           },
-        });
+          CATEGORY_IMAGE_UPLOAD_META
+        );
       }
 
       // Extract error message
