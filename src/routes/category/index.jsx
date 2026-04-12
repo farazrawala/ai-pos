@@ -13,6 +13,13 @@ import {
   clearDeleteStatus,
 } from '../../features/categories/categoriesSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+
+const categoryImageSrc = (cat) => {
+  if (!cat) return '';
+  const raw = cat.image ?? cat.category_image ?? cat.categoryImage ?? '';
+  return resolveCategoryMediaUrl(raw);
+};
 
 const Category = () => {
   const dispatch = useDispatch();
@@ -162,7 +169,7 @@ const Category = () => {
       }
       dispatch(fetchCategories(params));
     } catch (error) {
-      console.error('Toggle status error:', error);
+      console.error('[Category module] Failed to toggle category status', { categoryId, error });
       // Show error toast
       const toastElement = document.getElementById('dangerToast');
       if (toastElement) {
@@ -225,6 +232,12 @@ const Category = () => {
     }
   };
 
+  useEffect(() => {
+    if (error) {
+      console.error('[Category module] Failed to fetch category list', error);
+    }
+  }, [error]);
+
   // Sync local search with Redux search term
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -268,6 +281,7 @@ const Category = () => {
 
   useEffect(() => {
     if (deleteError) {
+      console.error('[Category module] Delete category error (Redux)', deleteError);
       const toastElement = document.getElementById('dangerToast');
       if (toastElement) {
         // Update time in toast
@@ -449,6 +463,9 @@ const Category = () => {
                     <thead className="thead-light">
                       <tr>
                         <th>S.No</th>
+                        <th className="text-center" style={{ width: '72px' }}>
+                          Image
+                        </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('name')}
@@ -495,7 +512,7 @@ const Category = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="8" className="text-center text-sm font-weight-normal p-4">
                             No categories found
                           </td>
                         </tr>
@@ -503,9 +520,28 @@ const Category = () => {
                         data.map((item, index) => {
                           // Calculate series number accounting for pagination
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                          const imageSrc = categoryImageSrc(item);
+                          const displayName = item.name || item.category_name || 'Category';
                           return (
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                              <td className="text-sm font-weight-normal align-middle text-center">
+                                {imageSrc ? (
+                                  <img
+                                    src={imageSrc}
+                                    alt={displayName}
+                                    className="rounded border"
+                                    style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      objectFit: 'cover',
+                                      verticalAlign: 'middle',
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-muted">—</span>
+                                )}
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 {item.name || item.category_name || '-'}
                               </td>

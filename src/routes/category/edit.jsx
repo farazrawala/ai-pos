@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import moment from 'moment';
@@ -8,8 +8,13 @@ import {
   clearUpdateStatus,
   clearCurrentCategory,
 } from '../../features/categories/categoriesSlice.js';
-import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
+import {
+  fetchCategoriesRequest,
+  isCategoryUploadFilePart,
+} from '../../features/categories/categoriesAPI.js';
+import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 
 const parentIdFromCategory = (cat) => {
   if (!cat) return '';
@@ -17,6 +22,12 @@ const parentIdFromCategory = (cat) => {
   if (raw == null || raw === '') return '';
   if (typeof raw === 'object' && raw._id != null) return String(raw._id);
   return String(raw);
+};
+
+const categoryImageSrc = (cat) => {
+  if (!cat) return '';
+  const raw = cat.image ?? cat.category_image ?? cat.categoryImage ?? '';
+  return resolveCategoryMediaUrl(raw);
 };
 
 const CategoryEdit = () => {
@@ -36,6 +47,9 @@ const CategoryEdit = () => {
   const [errors, setErrors] = useState({});
   const [parentCategories, setParentCategories] = useState([]);
   const [parentListStatus, setParentListStatus] = useState('idle');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const imageInputRef = useRef(null);
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
 
@@ -54,7 +68,8 @@ const CategoryEdit = () => {
           setParentListStatus('succeeded');
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[Category module] Failed to load parent categories for edit form', err);
         if (!cancelled) {
           setParentCategories([]);
           setParentListStatus('failed');
@@ -65,6 +80,47 @@ const CategoryEdit = () => {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setImagePreview((prev) => {
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, image: 'Only image uploads are allowed (e.g. PNG, JPEG, WebP).' }));
+      e.target.value = '';
+      return;
+    }
+    setErrors((prev) => ({ ...prev, image: '' }));
+    setImageFile(file);
+    setImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearNewImage = () => {
+    setImageFile(null);
+    setImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setErrors((prev) => ({ ...prev, image: '' }));
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
+
   // Get category permissions
   const { canEdit } = usePermissions('category');
 
@@ -74,6 +130,12 @@ const CategoryEdit = () => {
       navigate('/categories');
     }
   }, [canEdit, navigate]);
+
+  useEffect(() => {
+    if (fetchStatus === 'failed' && fetchError) {
+      console.error('[Category module] Failed to load category for edit', { categoryId: id, fetchError });
+    }
+  }, [fetchStatus, fetchError, id]);
 
   // Fetch category data on mount
   useEffect(() => {
@@ -149,13 +211,19 @@ const CategoryEdit = () => {
     }
 
     try {
-      const categoryData = {
+      const categoryFields = {
         name: form.name.trim(),
         slug: form.slug.trim(),
         description: form.description,
         parent_id: form.parent_id || null,
       };
-      await dispatch(updateCategory({ categoryId: id, categoryData })).unwrap();
+      await dispatch(
+        updateCategory({
+          categoryId: id,
+          categoryFields,
+          image: isCategoryUploadFilePart(imageFile) ? imageFile : undefined,
+        })
+      ).unwrap();
 
       // Show success toast
       const toastElement = document.getElementById('successToast');
@@ -191,6 +259,23 @@ const CategoryEdit = () => {
         navigate('/categories');
       }, 1000);
     } catch (error) {
+      console.error('[Category module] Failed to update category', { categoryId: id, error });
+      if (isCategoryUploadFilePart(imageFile)) {
+        logCategoryUploadErrorToFile('editCategory.formSubmit', {
+          categoryId: id,
+          message:
+            typeof error === 'string'
+              ? error
+              : error?.message || (error && String(error)) || 'Update failed',
+          error: typeof error === 'string' ? undefined : error,
+          imageFileState: {
+            name: imageFile.name,
+            size: imageFile.size,
+            type: imageFile.type,
+          },
+        });
+      }
+
       // Extract error message
       const errorMessage =
         error?.message || error || 'An error occurred while updating the category.';
@@ -393,6 +478,46 @@ const CategoryEdit = () => {
                     disabled={isSubmitting}
                   />
                   <small className="text-muted">A brief description of this category.</small>
+                </div>
+
+                {/* Category image */}
+                <div className="mb-4">
+                  <label htmlFor="category_image" className="form-label">
+                    Image
+                  </label>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    className={`form-control ${errors.image ? 'is-invalid' : ''}`}
+                    id="category_image"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    disabled={isSubmitting}
+                  />
+                  {errors.image && <div className="invalid-feedback d-block">{errors.image}</div>}
+                  <small className="text-muted d-block">
+                    Optional. Replace the current image — images only (PNG, JPEG, GIF, WebP, etc.).
+                  </small>
+                  {(imagePreview || categoryImageSrc(currentCategory)) && (
+                    <div className="mt-3 d-flex align-items-start gap-2">
+                      <img
+                        src={imagePreview || categoryImageSrc(currentCategory)}
+                        alt="Category"
+                        className="rounded border"
+                        style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
+                      />
+                      {imagePreview && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={clearNewImage}
+                          disabled={isSubmitting}
+                        >
+                          Discard new image
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Form Actions */}

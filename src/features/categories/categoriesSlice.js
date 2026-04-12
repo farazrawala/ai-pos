@@ -5,7 +5,9 @@ import {
   createCategoryRequest,
   updateCategoryRequest,
   deleteCategoryRequest,
+  isCategoryUploadFilePart,
 } from './categoriesAPI.js';
+import { logCategoryUploadErrorToFile } from '../../utils/categoryUploadFileLog.js';
 
 export const fetchCategories = createAsyncThunk(
   'categories/fetchCategories',
@@ -33,24 +35,89 @@ export const fetchCategoryById = createAsyncThunk(
 
 export const createCategory = createAsyncThunk(
   'categories/createCategory',
-  async (categoryData, { rejectWithValue }) => {
+  async (arg, { rejectWithValue }) => {
+    const safe = arg || {};
+    const { categoryFields, image } = safe;
     try {
-      const response = await createCategoryRequest(categoryData);
+      const payload =
+        categoryFields !== undefined
+          ? { ...categoryFields, ...(isCategoryUploadFilePart(image) ? { image } : {}) }
+          : { ...safe };
+      const response = await createCategoryRequest(payload);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to create category');
+      const rootArg = safe;
+      const message = error?.message || String(error) || 'Failed to create category';
+      const hadImageFieldNested =
+        rootArg.categoryFields &&
+        typeof rootArg.categoryFields === 'object' &&
+        rootArg.categoryFields.image != null;
+      console.error('[Category module] createCategory thunk error', {
+        message,
+        errorName: error?.name,
+        stack: error?.stack,
+        error,
+        requestMode: isCategoryUploadFilePart(image) ? 'multipart' : 'json',
+        imageArgPresent: image != null,
+        imageArgAccepted: isCategoryUploadFilePart(image),
+        hadImageOnArgRoot: rootArg.image != null,
+        hadImageInsideCategoryFields: Boolean(hadImageFieldNested),
+        imageArgDebug:
+          image != null && !isCategoryUploadFilePart(image)
+            ? {
+                typeof: typeof image,
+                constructorName: image?.constructor?.name,
+                ownKeys: typeof image === 'object' ? Object.keys(image) : [],
+              }
+            : isCategoryUploadFilePart(image)
+              ? { name: image.name, size: image.size, type: image.type }
+              : null,
+        categoryFieldsKeys:
+          categoryFields != null && typeof categoryFields === 'object'
+            ? Object.keys(categoryFields)
+            : null,
+        legacyDispatchKeys: categoryFields === undefined ? Object.keys(rootArg) : null,
+      });
+      if (isCategoryUploadFilePart(image)) {
+        logCategoryUploadErrorToFile('createCategory.thunk', {
+          message,
+          errorName: error?.name,
+          stack: error?.stack,
+          error,
+          requestMode: 'multipart',
+          imageMeta: { name: image.name, size: image.size, type: image.type },
+          categoryFieldsKeys:
+            categoryFields != null && typeof categoryFields === 'object'
+              ? Object.keys(categoryFields)
+              : null,
+        });
+      }
+      return rejectWithValue(message);
     }
   }
 );
 
 export const updateCategory = createAsyncThunk(
   'categories/updateCategory',
-  async ({ categoryId, categoryData }, { rejectWithValue }) => {
+  async ({ categoryId, categoryData, categoryFields, image }, { rejectWithValue }) => {
     try {
-      const response = await updateCategoryRequest(categoryId, categoryData);
+      const base = categoryFields ?? categoryData ?? {};
+      const payload = { ...base, ...(isCategoryUploadFilePart(image) ? { image } : {}) };
+      const response = await updateCategoryRequest(categoryId, payload);
       return { categoryId, response };
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update category');
+      const message = error?.message || String(error) || 'Failed to update category';
+      if (isCategoryUploadFilePart(image)) {
+        logCategoryUploadErrorToFile('updateCategory.thunk', {
+          message,
+          categoryId,
+          errorName: error?.name,
+          stack: error?.stack,
+          error,
+          imageMeta: { name: image.name, size: image.size, type: image.type },
+        });
+      }
+      return rejectWithValue(message);
     }
   }
 );

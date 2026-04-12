@@ -151,14 +151,17 @@ Manages application state using Redux Toolkit.
 
 **Form Fields:**
 
+- **Parent category** (optional) - Dropdown of existing categories for a subcategory
 - **Name** (required) - Category name
 - **Slug** (required) - URL-friendly identifier (auto-generated)
 - **Description** (optional) - Category description
+- **Image** (optional) - File upload only; `accept="image/*"` with client-side check that the file is an image (PNG, JPEG, WebP, etc.)
 
 **Validation:**
 
 - Name: Required, non-empty
 - Slug: Required, lowercase letters, numbers, and hyphens only
+- Image: If provided, must be an image MIME type
 
 #### Category Edit (`src/routes/category/edit.jsx`)
 
@@ -174,7 +177,7 @@ Manages application state using Redux Toolkit.
 
 **Form Fields:**
 
-- Same as Add form
+- Same as Add form (including parent category and optional image upload to replace the stored image)
 - Slug auto-updates when name changes (if slug was auto-generated)
 
 ---
@@ -226,6 +229,7 @@ GET /category/get/:categoryId
     "name": "Category Name",
     "slug": "category-slug",
     "description": "...",
+    "image": "https://example.com/path-or-relative-url",
     "isActive": true,
     "createdAt": "...",
     "updatedAt": "..."
@@ -239,15 +243,18 @@ GET /category/get/:categoryId
 POST /category/create
 ```
 
-**Request Body:**
+**Request body (no file):** `Content-Type: application/json`
 
 ```json
 {
   "name": "Category Name",
   "slug": "category-slug",
-  "description": "Optional description"
+  "description": "Optional description",
+  "parent_id": "optional-parent-category-id"
 }
 ```
+
+**Request body (with image):** `multipart/form-data` with the same fields as strings plus a file field named **`image`**. The frontend sends multipart only when the user selects an image; otherwise it uses JSON.
 
 ### Update Category
 
@@ -255,13 +262,14 @@ POST /category/create
 PATCH /category/update/:categoryId
 ```
 
-**Request Body:**
+**Request body:** Same as create — JSON when no new image is uploaded; **`multipart/form-data`** with an **`image`** file part when replacing the category image. Other fields (`name`, `slug`, `description`, `parent_id`, etc.) are sent as form fields alongside `image` when using multipart.
 
 ```json
 {
   "name": "Updated Name",
   "slug": "updated-slug",
-  "description": "Updated description"
+  "description": "Updated description",
+  "parent_id": null
 }
 ```
 
@@ -292,7 +300,12 @@ dispatch(fetchCategories({ page: 1, limit: 10, search: 'term', sortBy: 'name' })
 ```javascript
 import { createCategory } from '../features/categories/categoriesSlice';
 
-dispatch(createCategory({ name: 'New Category', slug: 'new-category' }))
+// Text fields only (JSON request)
+dispatch(
+  createCategory({
+    categoryFields: { name: 'New Category', slug: 'new-category', description: '' },
+  })
+)
   .unwrap()
   .then(() => {
     // Success
@@ -300,6 +313,14 @@ dispatch(createCategory({ name: 'New Category', slug: 'new-category' }))
   .catch((error) => {
     // Error handling
   });
+
+// With optional image file (multipart request)
+dispatch(
+  createCategory({
+    categoryFields: { name: 'New Category', slug: 'new-category', parent_id: '...' },
+    image: fileFromInput, // File from <input type="file" accept="image/*" />
+  })
+);
 ```
 
 **Update Category:**
@@ -310,13 +331,16 @@ import { updateCategory } from '../features/categories/categoriesSlice';
 dispatch(
   updateCategory({
     categoryId: '123',
-    categoryData: { name: 'Updated Name' },
+    categoryFields: { name: 'Updated Name' },
+    image: optionalNewImageFile, // omit or undefined to keep existing image (JSON update)
   })
 )
   .unwrap()
   .then(() => {
     // Success
   });
+
+// Partial updates may still pass `categoryData` (e.g. { isActive: true }) instead of `categoryFields`.
 ```
 
 **Delete Category:**
@@ -572,6 +596,17 @@ The category routes are configured in `src/App.jsx`:
 - Network errors are handled gracefully
 - HTTP status codes are checked before processing responses
 
+### Console logging (debugging)
+
+When something goes wrong, the category module logs details to the **browser developer console** so you can trace failures without guessing.
+
+- **Prefix:** All messages use the tag `[Category module]` (search the console filter for that text).
+- **`categoriesAPI.js`:** Failed HTTP responses log the operation name (e.g. `fetchCategoriesRequest failed`, `createCategoryRequest failed`), `status`, optional `errorData` from the server, and `message`. Network failures (no response) are logged for list and get-by-id requests.
+- **List page (`index.jsx`):** Logs when the category list fails to load, when status toggle or delete throws, when Redux reports a delete error, and includes `categoryId` where relevant.
+- **Add / edit:** Logs create/update failures and failures loading the parent-category dropdown; edit also logs when loading a single category for the form fails.
+
+Open **DevTools → Console** to inspect these logs alongside the on-screen toasts and error banners.
+
 ### Form Validation Errors
 
 - Client-side validation before submission
@@ -597,18 +632,20 @@ The category routes are configured in `src/App.jsx`:
 
 Potential improvements for the category module:
 
-1. **Parent Categories** - Support for hierarchical category structure
-2. **Bulk Operations** - Select multiple categories for bulk delete/update
-3. **Category Images** - Upload and manage category images
-4. **Export/Import** - CSV export and import functionality
-5. **Advanced Filters** - Filter by status, date range, etc.
-6. **Category Statistics** - Display product count per category
-7. **Drag & Drop Sorting** - Reorder categories visually
-8. **Category Templates** - Pre-defined category templates
+1. **Bulk Operations** - Select multiple categories for bulk delete/update
+2. **Export/Import** - CSV export and import functionality
+3. **Advanced Filters** - Filter by status, date range, etc.
+4. **Category Statistics** - Display product count per category
+5. **Drag & Drop Sorting** - Reorder categories visually
+6. **Category Templates** - Pre-defined category templates
 
 ---
 
 ## Troubleshooting
+
+### Debugging with console logs
+
+Filter the browser console for **`[Category module]`** to see structured error output (HTTP status, server payload, category IDs) when list fetch, create, update, delete, or form helpers fail.
 
 ### CORS Issues
 

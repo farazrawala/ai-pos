@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "vite",
+    "dev": "vite",
     "build": "vite build",
     "test": "echo \"No tests specified\" && exit 0",
     "lint": "echo \"Linting not configured\" && exit 0",
