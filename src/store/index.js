@@ -6,6 +6,7 @@ import categoriesReducer from '../features/categories/categoriesSlice.js';
 import productsReducer from '../features/products/productsSlice.js';
 import attributesReducer from '../features/attributes/attributesSlice.js';
 import logsReducer from '../features/logs/logsSlice.js';
+import usersReducer from '../features/users/usersSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -17,6 +18,7 @@ const store = configureStore({
     products: productsReducer,
     attributes: attributesReducer,
     logs: logsReducer,
+    users: usersReducer,
   },
 });
 

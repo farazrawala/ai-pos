@@ -37,7 +37,7 @@ export const fetchLogsRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}logs/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}logs/get-all-active${queryString ? `?${queryString}` : ''}&created_by=true`;
 
   let response;
   try {
@@ -68,10 +68,8 @@ export const fetchLogsRequest = async (params = {}) => {
     const pagination = result.pagination;
     const data = result.data || result.logs || [];
 
-    const page =
-      pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
-    const totalPages =
-      pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
+    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
+    const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
 
     return {
       data: Array.isArray(data) ? data : [],

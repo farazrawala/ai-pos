@@ -2,10 +2,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
+import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
-const Logs = () => {
+const permissionActionBadgeClass = (enabled) =>
+  enabled ? 'badge bg-gradient-success me-1 mb-1' : 'badge bg-gradient-secondary me-1 mb-1';
+
+const Users = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -15,13 +18,13 @@ const Logs = () => {
     pagination,
     search: searchTerm,
     sort,
-  } = useSelector((state) => state.logs);
+  } = useSelector((state) => state.users);
+
+  const { canView, canCreate, canEdit } = usePermissions('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-
-  const { canView } = usePermissions('logs');
 
   useEffect(() => {
     if (canView === false) {
@@ -39,8 +42,19 @@ const Logs = () => {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    dispatch(fetchLogs(params));
+    dispatch(fetchUsers(params));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  useEffect(() => {
+    setLocalSearch(searchTerm || '');
+  }, [searchTerm]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
+    };
+  }, []);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -71,13 +85,14 @@ const Logs = () => {
         sortClickTimeoutRef.current = null;
       }
       dispatch(setSort({ sortBy: null, sortOrder: null }));
-    } else {
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-      sortClickTimeoutRef.current = setTimeout(() => {
-        dispatch(setSort({ sortBy }));
-        sortClickTimeoutRef.current = null;
-      }, 200);
+      return;
     }
+
+    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
+    sortClickTimeoutRef.current = setTimeout(() => {
+      dispatch(setSort({ sortBy }));
+      sortClickTimeoutRef.current = null;
+    }, 200);
   };
 
   const renderSortIcon = (columnName) => {
@@ -91,29 +106,39 @@ const Logs = () => {
     );
   };
 
-  useEffect(() => {
-    if (error) {
-      console.error('[Logs module] Failed to fetch logs list', error);
-    }
-  }, [error]);
-
-  useEffect(() => {
-    setLocalSearch(searchTerm || '');
-  }, [searchTerm]);
-
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    };
-  }, []);
-
-  const firstSegment = window.location.pathname.split('/')[1] || 'logs';
-  const title =
-    firstSegment.length > 0 ? firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1) : 'Logs';
-
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+
+  const renderRoleCell = (role) => {
+    const roles = Array.isArray(role) ? role : role ? [role] : [];
+    if (roles.length === 0) return <span className="text-muted">-</span>;
+    return roles.map((item) => (
+      <span key={item} className="badge bg-gradient-info me-1 mb-1">
+        {item}
+      </span>
+    ));
+  };
+
+  const renderPermissionsCell = (permissions) => {
+    if (!permissions || typeof permissions !== 'object') {
+      return <span className="text-muted">-</span>;
+    }
+
+    const modules = Object.entries(permissions);
+    if (modules.length === 0) {
+      return <span className="text-muted">-</span>;
+    }
+
+    return modules.map(([moduleName, actions]) => (
+      <div key={moduleName} className="mb-1">
+        <span className="text-xs fw-bold text-uppercase me-1">{moduleName}:</span>
+        <span className={permissionActionBadgeClass(Boolean(actions?.view))}>V</span>
+        <span className={permissionActionBadgeClass(Boolean(actions?.add))}>A</span>
+        <span className={permissionActionBadgeClass(Boolean(actions?.edit))}>E</span>
+        <span className={permissionActionBadgeClass(Boolean(actions?.delete))}>D</span>
+      </div>
+    ));
+  };
 
   const PaginationControls = () => {
     if (loading || error || pagination.total === 0) return null;
@@ -197,13 +222,17 @@ const Logs = () => {
             <div className="card-header pb-0">
               <div className="row align-items-center">
                 <div className="col-md-6">
-                  <h5 className="mb-0">{title}</h5>
-                  <p className="text-sm mb-0">
-                    Audit log entries (read-only). Server-side pagination.
-                  </p>
+                  <h5 className="mb-0">Users</h5>
+                  <p className="text-sm mb-0">User list with role and permissions details.</p>
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-end align-items-center gap-2">
+                    {canCreate && (
+                      <button className="btn btn-primary btn-sm mb-0" onClick={() => navigate('/users/add')}>
+                        <i className="fas fa-plus me-1"></i>
+                        Add User
+                      </button>
+                    )}
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
                         <i className="fas fa-search" aria-hidden="true"></i>
@@ -211,7 +240,7 @@ const Logs = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search logs..."
+                        placeholder="Search users..."
                         value={localSearch}
                         onChange={handleSearchChange}
                       />
@@ -225,12 +254,12 @@ const Logs = () => {
               <div className="table-responsive">
                 {loading && (
                   <div className="text-center p-4">
-                    <p>Loading logs...</p>
+                    <p>Loading users...</p>
                   </div>
                 )}
                 {error && (
                   <div className="alert alert-danger m-3" role="alert">
-                    Error loading data: {error}
+                    Error loading users: {error}
                   </div>
                 )}
                 {!loading && !error && (
@@ -240,28 +269,22 @@ const Logs = () => {
                         <th>S.No</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('action')}
-                          onDoubleClick={() => handleSort('action', true)}
+                          onClick={() => handleSort('name')}
+                          onDoubleClick={() => handleSort('name', true)}
                         >
-                          User
+                          Name
+                          {renderSortIcon('name')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('url')}
-                          onDoubleClick={() => handleSort('url', true)}
+                          onClick={() => handleSort('email')}
+                          onDoubleClick={() => handleSort('email', true)}
                         >
-                          URL
-                          {renderSortIcon('url')}
+                          Email
+                          {renderSortIcon('email')}
                         </th>
-                        {/* <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('description')}
-                          onDoubleClick={() => handleSort('description', true)}
-                        >
-                          Description
-                          {renderSortIcon('description')}
-                        </th> */}
-                        <th>Tags</th>
+                        <th>Role</th>
+                        <th>Permissions</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('status')}
@@ -275,66 +298,53 @@ const Logs = () => {
                           onClick={() => handleSort('createdAt')}
                           onDoubleClick={() => handleSort('createdAt', true)}
                         >
-                          Created at
+                          Created At
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
-                            No log entries found
+                          <td colSpan="8" className="text-center text-sm font-weight-normal p-4">
+                            No users found
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const tags = Array.isArray(item.tags) ? item.tags : [];
-                          const creatorName =
-                            item?.created_by?.name ||
-                            item?.createdBy?.name ||
-                            item?.user?.name ||
-                            item?.created_by_name ||
-                            item?.createdByName ||
-                            item?.userName ||
-                            (typeof item?.created_by === 'string' ? item.created_by : '') ||
-                            (typeof item?.createdBy === 'string' ? item.createdBy : '') ||
-                            '—';
+                          const key = item._id || item.id || index;
+                          const status = item.status || '-';
+                          const isActive = String(status).toLowerCase() === 'active';
                           return (
-                            <tr key={item._id || index}>
+                            <tr key={key}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{creatorName}</td>
-                              <td className="text-sm font-weight-normal text-break">
-                                <code className="text-xs">{item.url || '—'}</code>
-                              </td>
-                              {/* <td className="text-sm font-weight-normal text-break">
-                                {item.description || '—'}
-                              </td> */}
+                              <td className="text-sm font-weight-normal">{item.name || '-'}</td>
+                              <td className="text-sm font-weight-normal">{item.email || '-'}</td>
+                              <td className="text-sm font-weight-normal">{renderRoleCell(item.role)}</td>
                               <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-wrap gap-1">
-                                  {tags.length === 0 ? (
-                                    <span className="text-muted">—</span>
-                                  ) : (
-                                    tags.map((t) => (
-                                      <span key={t} className="badge bg-gradient-secondary">
-                                        {t}
-                                      </span>
-                                    ))
-                                  )}
-                                </div>
+                                {renderPermissionsCell(item.permissions)}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
-                                >
-                                  {item.status || '—'}
+                                <span className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}>
+                                  {status}
                                 </span>
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '—'}
+                                {item.createdAt ? moment(item.createdAt).format('MM-DD-YYYY h:mm a') : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {canEdit ? (
+                                  <button
+                                    className="btn btn-outline-info btn-sm mb-0"
+                                    onClick={() => navigate(`/users/edit/${item._id || item.id}`)}
+                                  >
+                                    Edit
+                                  </button>
+                                ) : (
+                                  '-'
+                                )}
                               </td>
                             </tr>
                           );
@@ -353,4 +363,4 @@ const Logs = () => {
   );
 };
 
-export default Logs;
+export default Users;
