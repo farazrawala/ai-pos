@@ -2,8 +2,7 @@
 
 // Front End :
 logs (done)
-
-users
+users (done)
 
 warehouse
 brandches

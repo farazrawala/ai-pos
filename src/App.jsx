@@ -25,6 +25,9 @@ import Logs from './routes/logs/index.jsx';
 import Users from './routes/users/index.jsx';
 import UsersAdd from './routes/users/add.jsx';
 import UsersEdit from './routes/users/edit.jsx';
+import Warehouse from './routes/warehouse/index.jsx';
+import WarehouseAdd from './routes/warehouse/add.jsx';
+import WarehouseEdit from './routes/warehouse/edit.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -53,6 +56,9 @@ const App = () => {
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
+          <Route path="/warehouse" element={<Warehouse />} />
+          <Route path="/warehouse/add" element={<WarehouseAdd />} />
+          <Route path="/warehouse/edit/:id" element={<WarehouseEdit />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -110,6 +116,9 @@ const App = () => {
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
+          <Route path="/warehouse" element={<Warehouse />} />
+          <Route path="/warehouse/add" element={<WarehouseAdd />} />
+          <Route path="/warehouse/edit/:id" element={<WarehouseEdit />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}
