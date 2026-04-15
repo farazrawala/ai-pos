@@ -63,7 +63,8 @@ const AddUser = () => {
     if (!form.email.trim()) nextErrors.email = 'Email is required';
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = 'Valid email is required';
     if (!form.password.trim()) nextErrors.password = 'Password is required';
-    if (!Array.isArray(form.role) || form.role.length === 0) nextErrors.role = 'Select at least one role';
+    if (!Array.isArray(form.role) || form.role.length === 0)
+      nextErrors.role = 'Select at least one role';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -71,7 +72,9 @@ const AddUser = () => {
   const handleRoleToggle = (roleName) => {
     setForm((prev) => {
       const hasRole = prev.role.includes(roleName);
-      const nextRole = hasRole ? prev.role.filter((item) => item !== roleName) : [...prev.role, roleName];
+      const nextRole = hasRole
+        ? prev.role.filter((item) => item !== roleName)
+        : [...prev.role, roleName];
       return { ...prev, role: nextRole };
     });
   };
@@ -94,6 +97,11 @@ const AddUser = () => {
     if (!validateForm()) return;
 
     try {
+      console.log('[Users module] create payload debug', {
+        company_id: form.company_id || null,
+        role: form.role,
+        email: form.email?.trim?.() || '',
+      });
       await dispatch(
         createUser({
           name: form.name.trim(),
@@ -124,7 +132,10 @@ const AddUser = () => {
                 <h5 className="mb-0">Add User</h5>
                 <p className="text-sm mb-0">Create a user with roles and module permissions.</p>
               </div>
-              <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/users')}>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => navigate('/users')}
+              >
                 Back to List
               </button>
             </div>
@@ -267,7 +278,12 @@ const AddUser = () => {
       </div>
 
       <div className="position-fixed bottom-1 end-1 z-index-2">
-        <div className="toast fade hide p-2 bg-white" role="alert" id="successToast" aria-atomic="true">
+        <div
+          className="toast fade hide p-2 bg-white"
+          role="alert"
+          id="successToast"
+          aria-atomic="true"
+        >
           <div className="toast-header border-0">
             <i className="ni ni-check-bold text-success me-2"></i>
             <span className="me-auto font-weight-bold">Success</span>
@@ -276,7 +292,12 @@ const AddUser = () => {
           <hr className="horizontal dark m-0" />
           <div className="toast-body">User created successfully.</div>
         </div>
-        <div className="toast fade hide p-2 mt-2 bg-white" role="alert" id="dangerToast" aria-atomic="true">
+        <div
+          className="toast fade hide p-2 mt-2 bg-white"
+          role="alert"
+          id="dangerToast"
+          aria-atomic="true"
+        >
           <div className="toast-header border-0">
             <i className="ni ni-notification-70 text-danger me-2"></i>
             <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>

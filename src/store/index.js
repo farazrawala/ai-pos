@@ -8,6 +8,7 @@ import attributesReducer from '../features/attributes/attributesSlice.js';
 import logsReducer from '../features/logs/logsSlice.js';
 import usersReducer from '../features/users/usersSlice.js';
 import warehouseReducer from '../features/warehouse/warehouseSlice.js';
+import branchReducer from '../features/branch/branchSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -21,6 +22,7 @@ const store = configureStore({
     logs: logsReducer,
     users: usersReducer,
     warehouse: warehouseReducer,
+    branch: branchReducer,
   },
 });
 

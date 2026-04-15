@@ -1,13 +1,12 @@
-
-
 // Front End :
 logs (done)
 users (done)
-
+branches
 warehouse
-brandches
-purchase order
+
 orders
+purchase order
+
 
 
 //Global

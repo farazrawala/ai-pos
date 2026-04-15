@@ -129,6 +129,12 @@ const EditUser = () => {
     e.preventDefault();
     if (!validateForm()) return;
     try {
+      console.log('[Users module] update payload debug', {
+        userId: id,
+        company_id: form.company_id || null,
+        role: form.role,
+        email: form.email?.trim?.() || '',
+      });
       await dispatch(
         updateUser({
           userId: id,
