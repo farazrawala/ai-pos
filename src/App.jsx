@@ -31,6 +31,7 @@ import WarehouseEdit from './routes/warehouse/edit.jsx';
 import Branch from './routes/branch/index.jsx';
 import BranchAdd from './routes/branch/add.jsx';
 import BranchEdit from './routes/branch/edit.jsx';
+import Accounts from './routes/accounts/index.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -65,6 +66,7 @@ const App = () => {
           <Route path="/branch" element={<Branch />} />
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
+          <Route path="/accounts" element={<Accounts />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -128,6 +130,7 @@ const App = () => {
           <Route path="/branch" element={<Branch />} />
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
+          <Route path="/accounts" element={<Accounts />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}
