@@ -7,17 +7,91 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken') || '';
 };
 
-const getHeaders = () => {
+/**
+ * @param {{ json?: boolean }} [options] Use `json: false` on GET (no JSON body).
+ */
+const getHeaders = (options = {}) => {
+  const useJsonContentType = options.json !== false;
   const token = getAuthToken();
-  const headers = { 'Content-Type': 'application/json' };
+  /** @type {Record<string, string>} */
+  const headers = {};
+  if (useJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  } else {
+    headers.Accept = 'application/json';
+  }
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 };
 
+function stringifyValidationErrors(errors) {
+  if (errors == null) return '';
+  if (typeof errors === 'string') return errors;
+  if (Array.isArray(errors)) {
+    return errors
+      .map((e) => (e && typeof e === 'object' ? e.message || e.msg : String(e)))
+      .join('; ');
+  }
+  if (typeof errors !== 'object') return String(errors);
+  const parts = [];
+  for (const [k, v] of Object.entries(errors)) {
+    if (Array.isArray(v)) parts.push(`${k}: ${v.join(', ')}`);
+    else if (v != null && typeof v === 'object') parts.push(`${k}: ${JSON.stringify(v)}`);
+    else if (v != null) parts.push(`${k}: ${v}`);
+  }
+  return parts.join('; ') || '';
+}
+
+/**
+ * Readable message from a failed fetch (JSON envelope, validation errors, or plain/HTML text).
+ */
+async function getErrorMessageFromResponse(response) {
+  const status = response.status;
+  const text = await response.text().catch(() => '');
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return status === 500
+      ? 'HTTP 500 — server returned an empty body (check API logs / Laravel storage/logs).'
+      : `HTTP ${status}`;
+  }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const json = JSON.parse(trimmed);
+      if (json && typeof json === 'object' && !Array.isArray(json)) {
+        if (typeof json.message === 'string' && json.message) return json.message;
+        if (
+          json.error &&
+          typeof json.error === 'object' &&
+          typeof json.error.message === 'string'
+        ) {
+          return json.error.message;
+        }
+        if (typeof json.error === 'string' && json.error) return json.error;
+        if (typeof json.msg === 'string' && json.msg) return json.msg;
+        if (typeof json.detail === 'string' && json.detail) return json.detail;
+        if (json.data && typeof json.data === 'object' && typeof json.data.message === 'string') {
+          return json.data.message;
+        }
+        const fromErrors = stringifyValidationErrors(json.errors);
+        if (fromErrors) return fromErrors;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  if (trimmed.startsWith('<')) {
+    return `HTTP ${status} (HTML response — server error; check API logs).`;
+  }
+  const oneLine = trimmed.replace(/\s+/g, ' ');
+  return oneLine.length > 500 ? `${oneLine.slice(0, 500)}…` : oneLine;
+}
+
 /** All order reads go through this route (paginated list without `order_item_id`, or one order when `order_item_id` is set). */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
+
+const ORDER_INVOICE_UPDATE_PATH = 'order/invoice-update';
 
 /**
  * True if `o` looks like one **order** record, not an `order_item` line or a `product` subdoc.
@@ -48,7 +122,7 @@ const isOrderShape = (o) => {
       has('orderItems') ||
       o.no_of_items != null ||
       o.noOfItems != null ||
-      ((o._id != null || o.id != null) && (o.email != null || o.phone != null)),
+      ((o._id != null || o.id != null) && (o.email != null || o.phone != null))
   );
 };
 
@@ -133,11 +207,10 @@ export async function fetchOrdersRequest(params = {}) {
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}${queryString ? `?${queryString}` : ''}`;
-  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    throw new Error(await getErrorMessageFromResponse(response));
   }
 
   const result = await response.json();
@@ -184,11 +257,10 @@ export async function fetchOrderByOrderItemRequest(orderItemId) {
   query.set('order_item_id', id);
 
   const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}?${query.toString()}`;
-  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    throw new Error(await getErrorMessageFromResponse(response));
   }
 
   const result = await response.json().catch(() => ({}));
@@ -200,13 +272,23 @@ export function extractOrderFromApiJson(result) {
   const root = maybeParseJsonString(result);
   if (!root || typeof root !== 'object') return null;
   if (isOrderShape(root)) return root;
-  if (root.data && typeof root.data === 'object' && !Array.isArray(root.data) && isOrderShape(root.data)) {
+  if (
+    root.data &&
+    typeof root.data === 'object' &&
+    !Array.isArray(root.data) &&
+    isOrderShape(root.data)
+  ) {
     return root.data;
   }
   if (Array.isArray(root.data) && root.data.length === 1 && isOrderShape(root.data[0])) {
     return root.data[0];
   }
-  if (root.order && typeof root.order === 'object' && !Array.isArray(root.order) && isOrderShape(root.order)) {
+  if (
+    root.order &&
+    typeof root.order === 'object' &&
+    !Array.isArray(root.order) &&
+    isOrderShape(root.order)
+  ) {
     return root.order;
   }
   return extractOrderDeep(root, 0);
@@ -233,10 +315,9 @@ export async function fetchOrderForInvoiceRequest(slug) {
     try {
       const q = new URLSearchParams(params);
       const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}?${q.toString()}`;
-      const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+      const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
       if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        const err = new Error(errBody.message || `HTTP ${response.status}`);
+        const err = new Error(await getErrorMessageFromResponse(response));
         err.status = response.status;
         throw err;
       }
@@ -253,6 +334,32 @@ export async function fetchOrderForInvoiceRequest(slug) {
     }
   }
   throw lastError || new Error('Could not load order');
+}
+
+/**
+ * PATCH `order/invoice-update/:orderId` — sync/persist invoice (payload depends on your backend).
+ */
+export async function updateOrderInvoiceRequest(orderId, payload = {}) {
+  const id = String(orderId || '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+  const response = await fetch(
+    `${BASE_URL}${ORDER_INVOICE_UPDATE_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(payload && typeof payload === 'object' ? payload : {}),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
 }
 
 /** Pick a stable id for the POS invoice URL from an order object. Prefer human-readable `order_no`. */

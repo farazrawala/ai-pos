@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
-import { fetchOrderForInvoiceRequest, getOrderLineItems } from '../../features/orders/ordersAPI.js';
+import {
+  fetchOrderForInvoiceRequest,
+  getOrderLineItems,
+  updateOrderInvoiceRequest,
+} from '../../features/orders/ordersAPI.js';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -167,12 +171,17 @@ const PosInvoice = () => {
   const [view, setView] = useState(() => (invoiceId ? null : { ...DEMO_INVOICE, shopName }));
   const [fetchStatus, setFetchStatus] = useState(() => (invoiceId ? 'loading' : 'succeeded'));
   const [fetchError, setFetchError] = useState(null);
+  const [sourceOrder, setSourceOrder] = useState(null);
+  const [invoiceSaving, setInvoiceSaving] = useState(false);
+  const [invoiceSaveMessage, setInvoiceSaveMessage] = useState({ type: null, text: '' });
 
   useEffect(() => {
     if (!invoiceId) {
+      setSourceOrder(null);
       setView({ ...DEMO_INVOICE, shopName });
       setFetchStatus('succeeded');
       setFetchError(null);
+      setInvoiceSaveMessage({ type: null, text: '' });
       return undefined;
     }
 
@@ -180,11 +189,14 @@ const PosInvoice = () => {
     setFetchStatus('loading');
     setFetchError(null);
     setView(null);
+    setSourceOrder(null);
+    setInvoiceSaveMessage({ type: null, text: '' });
 
     (async () => {
       try {
         const order = await fetchOrderForInvoiceRequest(invoiceId);
         if (cancelled) return;
+        setSourceOrder(order);
         setView(mapOrderToInvoiceView(order));
         setFetchStatus('succeeded');
       } catch (e) {
@@ -192,6 +204,7 @@ const PosInvoice = () => {
         setFetchError(e?.message || 'Failed to load invoice');
         setFetchStatus('failed');
         setView(null);
+        setSourceOrder(null);
       }
     })();
 
@@ -228,6 +241,35 @@ const PosInvoice = () => {
   const handlePdfPrint = useCallback(() => {
     window.print();
   }, []);
+
+  const buildInvoiceUpdatePayload = useCallback((order) => {
+    if (!order || typeof order !== 'object') return {};
+    const out = {};
+    if (order.name != null) out.name = order.name;
+    if (order.email != null) out.email = order.email;
+    if (order.phone != null) out.phone = order.phone;
+    if (order.address != null) out.address = order.address;
+    if (order.status != null) out.status = order.status;
+    return out;
+  }, []);
+
+  const handleUpdateInvoice = useCallback(async () => {
+    const oid = sourceOrder?._id ?? sourceOrder?.id;
+    if (!oid) return;
+    setInvoiceSaving(true);
+    setInvoiceSaveMessage({ type: null, text: '' });
+    try {
+      await updateOrderInvoiceRequest(String(oid), buildInvoiceUpdatePayload(sourceOrder));
+      setInvoiceSaveMessage({ type: 'success', text: 'Invoice updated successfully.' });
+    } catch (e) {
+      setInvoiceSaveMessage({ type: 'danger', text: e?.message || 'Could not update invoice.' });
+    } finally {
+      setInvoiceSaving(false);
+    }
+  }, [sourceOrder, buildInvoiceUpdatePayload]);
+
+  const canUpdateInvoice =
+    Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
 
   if (fetchStatus === 'loading') {
     return (
@@ -383,6 +425,15 @@ const PosInvoice = () => {
         </Link>
       </div>
 
+      {invoiceSaveMessage.type && invoiceSaveMessage.text ? (
+        <div
+          className={`alert alert-${invoiceSaveMessage.type === 'success' ? 'success' : 'danger'} py-2 px-3 mb-3 pos-inv-no-print`}
+          role="alert"
+        >
+          {invoiceSaveMessage.text}
+        </div>
+      ) : null}
+
       {/* Top action bar */}
       <div className="d-flex pos-inv-actions mb-4 pos-inv-no-print">
         <div className="dropdown">
@@ -407,8 +458,23 @@ const PosInvoice = () => {
             </li>
           </ul>
         </div>
-        <button type="button" className="btn pos-inv-btn-orange">
-          <i className="fas fa-pencil-alt me-1"></i> Edit Invoice
+        <button
+          type="button"
+          className="btn pos-inv-btn-orange"
+          disabled={!canUpdateInvoice || invoiceSaving}
+          onClick={handleUpdateInvoice}
+          title={canUpdateInvoice ? 'PATCH invoice to server' : 'Load an order from the URL first'}
+        >
+          {invoiceSaving ? (
+            <>
+              <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+              Updating…
+            </>
+          ) : (
+            <>
+              <i className="fas fa-save me-1"></i> Update invoice
+            </>
+          )}
         </button>
         <button type="button" className="btn pos-inv-btn-cyan">
           <i className="fas fa-money-bill-wave me-1"></i> Make Payment
@@ -732,6 +798,31 @@ const PosInvoice = () => {
             multiple
             accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
           />
+        </div>
+
+        <div className="border-top pt-4 mt-3 pos-inv-no-print d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3">
+          <p className="small text-muted mb-0">
+            Push the latest customer details to the server for this order.
+          </p>
+          <button
+            type="button"
+            className="btn pos-inv-btn-orange align-self-stretch align-self-md-center"
+            style={{ minWidth: '200px' }}
+            disabled={!canUpdateInvoice || invoiceSaving}
+            onClick={handleUpdateInvoice}
+          >
+            {invoiceSaving ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                Updating…
+              </>
+            ) : (
+              <>
+                <i className="fas fa-cloud-upload-alt me-2"></i>
+                Update invoice
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
