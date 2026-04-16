@@ -118,7 +118,7 @@ const Orders = () => {
       let invoiceId = pickInvoiceRouteId(row);
 
       if (invoiceId && getOrderLineItems(row).length > 0) {
-        navigate(`/pos/invoice/${encodeURIComponent(invoiceId)}`);
+        navigate(`/pos/invoice/${rowKey}`);
         return;
       }
 

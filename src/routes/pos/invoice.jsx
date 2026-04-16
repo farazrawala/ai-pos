@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
+import { fetchOrderForInvoiceRequest, getOrderLineItems } from '../../features/orders/ordersAPI.js';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -70,26 +71,188 @@ const DEMO_INVOICE = {
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const PosInvoice = () => {
-  const { invoiceId } = useParams();
-  const data = {
+const shopName =
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
+    ? String(import.meta.env.VITE_SHOP_NAME)
+    : 'Store';
+
+const formatInvoiceDate = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+/** Map API order (`data` payload) into the invoice UI shape used by this page. */
+const mapOrderToInvoiceView = (order) => {
+  if (!order || typeof order !== 'object') {
+    return {
+      ...DEMO_INVOICE,
+      shopName,
+      lines: [],
+      creditRows: [],
+      termsBody: DEMO_INVOICE.termsBody || [],
+    };
+  }
+
+  const items = getOrderLineItems(order);
+  const lines = [];
+  let subTotal = 0;
+  let taxTotal = 0;
+
+  items.forEach((line) => {
+    if (!line || typeof line !== 'object') return;
+    const qtyNum = parseFloat(String(line.qty ?? '0').replace(/,/g, '')) || 0;
+    const rate = Number(line.price) || 0;
+    const product = line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
+    const description = product?.product_name || product?.product_code || line.name || 'Item';
+    const unit = product?.unit ? String(product.unit) : '';
+    const qtyLabel = unit ? `${line.qty ?? qtyNum} ${unit}`.trim() : String(line.qty ?? qtyNum);
+    const taxPct = Number(product?.tax_rate) || 0;
+    const lineSub = qtyNum * rate;
+    const taxAmount = (lineSub * taxPct) / 100;
+    subTotal += lineSub;
+    taxTotal += taxAmount;
+    lines.push({
+      description,
+      rate,
+      qtyLabel,
+      tax: { amount: taxAmount, pct: taxPct },
+      discount: { amount: 0, pct: 0 },
+      amount: lineSub + taxAmount,
+    });
+  });
+
+  const total = subTotal + taxTotal;
+  const orderId = order._id != null ? order._id : order.id;
+
+  return {
     ...DEMO_INVOICE,
-    invoiceNo: invoiceId || DEMO_INVOICE.invoiceNo,
+    shopName,
+    invoiceNo: order.order_no || order.orderNo || (orderId != null ? String(orderId) : ''),
+    reference: orderId != null ? String(orderId) : '',
+    grossAmount: total,
+    billTo: {
+      name: order.name || '—',
+      phone: order.phone || '—',
+      email: order.email || '—',
+    },
+    invoiceDate: formatInvoiceDate(order.createdAt),
+    dueDate: formatInvoiceDate(order.updatedAt || order.createdAt),
+    terms: 'Payment On Receipt',
+    lines,
+    summary: {
+      subTotal,
+      tax: taxTotal,
+      discount: 0,
+      shipping: 0,
+      total,
+      paymentMade: 0,
+      balanceDue: total,
+    },
+    paymentStatus: order.status || '—',
+    paymentMethod: '—',
+    note: order.address ? `Address: ${order.address}` : '',
+    authorizedPerson: { name: '—', title: 'Authorized signatory' },
+    creditRows: [],
+    publicUrl: typeof window !== 'undefined' ? window.location.href : '',
+    termsBody: DEMO_INVOICE.termsBody,
   };
+};
+
+const PosInvoice = () => {
+  const { invoiceId: invoiceIdParam } = useParams();
+  const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
+
+  const [view, setView] = useState(() => (invoiceId ? null : { ...DEMO_INVOICE, shopName }));
+  const [fetchStatus, setFetchStatus] = useState(() => (invoiceId ? 'loading' : 'succeeded'));
+  const [fetchError, setFetchError] = useState(null);
+
+  useEffect(() => {
+    if (!invoiceId) {
+      setView({ ...DEMO_INVOICE, shopName });
+      setFetchStatus('succeeded');
+      setFetchError(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setFetchStatus('loading');
+    setFetchError(null);
+    setView(null);
+
+    (async () => {
+      try {
+        const order = await fetchOrderForInvoiceRequest(invoiceId);
+        if (cancelled) return;
+        setView(mapOrderToInvoiceView(order));
+        setFetchStatus('succeeded');
+      } catch (e) {
+        if (cancelled) return;
+        setFetchError(e?.message || 'Failed to load invoice');
+        setFetchStatus('failed');
+        setView(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceId]);
+
+  const data = (() => {
+    const base = view || {
+      ...DEMO_INVOICE,
+      shopName,
+      invoiceNo: invoiceId || DEMO_INVOICE.invoiceNo,
+    };
+    const lines = Array.isArray(base.lines) ? base.lines : [];
+    const termsBody = Array.isArray(base.termsBody) ? base.termsBody : DEMO_INVOICE.termsBody || [];
+    const billTo =
+      base.billTo && typeof base.billTo === 'object' ? base.billTo : DEMO_INVOICE.billTo;
+    const summary =
+      base.summary && typeof base.summary === 'object' ? base.summary : DEMO_INVOICE.summary;
+    const authorizedPerson =
+      base.authorizedPerson && typeof base.authorizedPerson === 'object'
+        ? base.authorizedPerson
+        : DEMO_INVOICE.authorizedPerson;
+    return { ...base, lines, termsBody, billTo, summary, authorizedPerson };
+  })();
 
   const handleThermalPrint = useCallback(() => {
-    openThermalReceiptPrint(
-      {
-        ...DEMO_INVOICE,
-        invoiceNo: invoiceId || DEMO_INVOICE.invoiceNo,
-      },
-      { documentTitlePrefix: 'Receipt POS' }
-    );
-  }, [invoiceId]);
+    if (view) {
+      openThermalReceiptPrint(view, { documentTitlePrefix: 'Receipt POS' });
+    }
+  }, [view]);
 
   const handlePdfPrint = useCallback(() => {
     window.print();
   }, []);
+
+  if (fetchStatus === 'loading') {
+    return (
+      <div className="container-fluid py-5 px-3 text-center">
+        <div className="spinner-border text-primary" role="status" aria-label="Loading" />
+        <p className="mt-3 text-muted mb-3">Loading invoice…</p>
+        <Link to="/pos" className="btn btn-sm btn-outline-secondary">
+          <i className="fas fa-arrow-left me-1"></i> Back to POS
+        </Link>
+      </div>
+    );
+  }
+
+  if (fetchStatus === 'failed') {
+    return (
+      <div className="container-fluid py-4 px-3">
+        <Link to="/pos" className="btn btn-sm btn-outline-secondary mb-3">
+          <i className="fas fa-arrow-left me-1"></i> Back to POS
+        </Link>
+        <div className="alert alert-danger mb-0" role="alert">
+          {fetchError || 'Could not load this invoice.'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pos-invoice-page container-fluid py-3 px-2 px-lg-4">
@@ -418,10 +581,11 @@ const PosInvoice = () => {
                   <td className="text-end">{fmt(line.rate)}</td>
                   <td className="text-end">{line.qtyLabel}</td>
                   <td className="text-end">
-                    {fmt(line.tax.amount)} ({line.tax.pct.toFixed(2)}%)
+                    {fmt(line.tax?.amount ?? 0)} ({Number(line.tax?.pct ?? 0).toFixed(2)}%)
                   </td>
                   <td className="text-end">
-                    {fmt(line.discount.amount)} ({line.discount.pct.toFixed(2)}%)
+                    {fmt(line.discount?.amount ?? 0)} ({Number(line.discount?.pct ?? 0).toFixed(2)}
+                    %)
                   </td>
                   <td className="text-end fw-semibold">{fmt(line.amount)}</td>
                 </tr>
@@ -482,50 +646,54 @@ const PosInvoice = () => {
                 <span>{fmt(data.summary.balanceDue)}</span>
               </div>
             </div>
-            <div className="mt-4 text-md-end">
+            {/* <div className="mt-4 text-md-end">
               <div className="small text-muted mb-1">Authorized Person</div>
               <div className="d-inline-flex flex-column align-items-md-end align-items-start">
                 <div className="pos-inv-sig-box mb-2 align-self-md-end" aria-hidden="true" />
                 <div className="fw-semibold">{data.authorizedPerson.name}</div>
                 <div className="small text-muted">{data.authorizedPerson.title}</div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
         {/* Credit transactions */}
         <div className="mb-4">
           <div className="fw-semibold mb-2">Credit Transactions:</div>
-          <div className="table-responsive">
-            <table className="table table-bordered pos-inv-table mb-0">
-              <thead>
-                <tr>
-                  <th style={{ width: '90px' }}></th>
-                  <th>Date</th>
-                  <th>Method</th>
-                  <th className="text-end">Debit</th>
-                  <th className="text-end">Credit</th>
-                  <th>Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.creditRows.map((row, i) => (
-                  <tr key={i}>
-                    <td>
-                      <button type="button" className="btn btn-sm btn-primary py-0 px-2">
-                        Print
-                      </button>
-                    </td>
-                    <td>{row.date}</td>
-                    <td>{row.method}</td>
-                    <td className="text-end">{fmt(row.debit)}</td>
-                    <td className="text-end">{fmt(row.credit)}</td>
-                    <td className="small">{row.note}</td>
+          {Array.isArray(data.creditRows) && data.creditRows.length > 0 ? (
+            <div className="table-responsive">
+              <table className="table table-bordered pos-inv-table mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ width: '90px' }}></th>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th className="text-end">Debit</th>
+                    <th className="text-end">Credit</th>
+                    <th>Note</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.creditRows.map((row, i) => (
+                    <tr key={i}>
+                      <td>
+                        <button type="button" className="btn btn-sm btn-primary py-0 px-2">
+                          Print
+                        </button>
+                      </td>
+                      <td>{row.date}</td>
+                      <td>{row.method}</td>
+                      <td className="text-end">{fmt(row.debit)}</td>
+                      <td className="text-end">{fmt(row.credit)}</td>
+                      <td className="small">{row.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="small text-muted mb-0">No credit transactions.</p>
+          )}
         </div>
 
         {/* Footer */}
@@ -546,7 +714,7 @@ const PosInvoice = () => {
             value={data.publicUrl}
           />
           <div className="fw-semibold mb-2">Files</div>
-          <p className="small text-muted mb-2">
+          {/* <p className="small text-muted mb-2">
             Allowed: PDF, JPG, PNG, DOC, DOCX (max 10MB each — adjust as needed)
           </p>
           <label
@@ -556,7 +724,7 @@ const PosInvoice = () => {
           >
             <i className="fas fa-folder-open me-2"></i>
             Select files…
-          </label>
+          </label> */}
           <input
             id="pos-inv-files"
             type="file"

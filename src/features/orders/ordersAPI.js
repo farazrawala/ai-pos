@@ -19,15 +19,85 @@ const getHeaders = () => {
 /** All order reads go through this route (paginated list without `order_item_id`, or one order when `order_item_id` is set). */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
 
-/** True if `o` looks like one order record (matches get-order-by-order-item payload). */
-const isOrderShape = (o) =>
-  o &&
-  typeof o === 'object' &&
-  !Array.isArray(o) &&
-  (Boolean(o._id) ||
-    Boolean(o.order_no) ||
-    Array.isArray(o.order_items) ||
-    o.no_of_items != null);
+/**
+ * True if `o` looks like one **order** record, not an `order_item` line or a `product` subdoc.
+ * (Previously any Mongo doc with `_id` matched, so deep extraction returned the first line item and broke the invoice.)
+ */
+const isOrderShape = (o) => {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+
+  const has = (k) => Object.prototype.hasOwnProperty.call(o, k);
+  const looksLikeOrderLine =
+    has('order_id') &&
+    !has('order_items') &&
+    !has('orderItems') &&
+    (has('product_id') || has('qty') || has('price'));
+  if (looksLikeOrderLine) return false;
+
+  const looksLikeProduct =
+    (has('product_name') || has('product_code')) &&
+    !has('order_items') &&
+    !has('orderItems') &&
+    !(o.order_no || o.orderNo);
+  if (looksLikeProduct) return false;
+
+  return Boolean(
+    o.order_no ||
+      o.orderNo ||
+      has('order_items') ||
+      has('orderItems') ||
+      o.no_of_items != null ||
+      o.noOfItems != null ||
+      ((o._id != null || o.id != null) && (o.email != null || o.phone != null)),
+  );
+};
+
+/** Keys that commonly wrap a single entity in API envelopes. */
+const ORDER_JSON_NEST_KEYS = [
+  'data',
+  'order',
+  'result',
+  'payload',
+  'record',
+  'document',
+  'response',
+  'body',
+];
+
+const maybeParseJsonString = (value) => {
+  if (typeof value !== 'string') return value;
+  const t = value.trim();
+  if (!t.startsWith('{') && !t.startsWith('[')) return value;
+  try {
+    return JSON.parse(t);
+  } catch {
+    return value;
+  }
+};
+
+/**
+ * Walk nested objects / arrays to find the first value that looks like an order.
+ * Handles `{ data: { order: {...} } }`, double `data`, stringified JSON, and `data: [ order ]`.
+ */
+const extractOrderDeep = (candidate, depth = 0) => {
+  const o = maybeParseJsonString(candidate);
+  if (depth > 10 || o == null) return null;
+  if (typeof o !== 'object') return null;
+  if (isOrderShape(o)) return o;
+  if (Array.isArray(o)) {
+    for (const el of o) {
+      const found = extractOrderDeep(el, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  for (const k of ORDER_JSON_NEST_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(o, k) || o[k] == null) continue;
+    const found = extractOrderDeep(o[k], depth + 1);
+    if (found) return found;
+  }
+  return null;
+};
 
 /**
  * Normalize list API JSON to an array of orders.
@@ -122,18 +192,67 @@ export async function fetchOrderByOrderItemRequest(orderItemId) {
   }
 
   const result = await response.json().catch(() => ({}));
-  if (!result || typeof result !== 'object') return null;
-  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data) && isOrderShape(result.data)) {
-    return result.data;
+  return extractOrderFromApiJson(result);
+}
+
+/** Unwrap `{ data: { … } }` (and variants) to a single order object. */
+export function extractOrderFromApiJson(result) {
+  const root = maybeParseJsonString(result);
+  if (!root || typeof root !== 'object') return null;
+  if (isOrderShape(root)) return root;
+  if (root.data && typeof root.data === 'object' && !Array.isArray(root.data) && isOrderShape(root.data)) {
+    return root.data;
   }
-  if (Array.isArray(result.data) && result.data.length === 1 && isOrderShape(result.data[0])) {
-    return result.data[0];
+  if (Array.isArray(root.data) && root.data.length === 1 && isOrderShape(root.data[0])) {
+    return root.data[0];
   }
-  if (result.order && typeof result.order === 'object' && !Array.isArray(result.order) && isOrderShape(result.order)) {
-    return result.order;
+  if (root.order && typeof root.order === 'object' && !Array.isArray(root.order) && isOrderShape(root.order)) {
+    return root.order;
   }
-  if (isOrderShape(result)) return result;
-  return null;
+  return extractOrderDeep(root, 0);
+}
+
+/**
+ * Load one order for the POS invoice screen from `order/get-order-by-order-item`.
+ * Tries query params in order: for Mongo-like ids → `order_id`, then `order_item_id`; otherwise `order_no` then `order_item_id`.
+ * Adjust param names in `attempts` if your backend uses different keys.
+ */
+export async function fetchOrderForInvoiceRequest(slug) {
+  const id = decodeURIComponent(String(slug || '').trim());
+  if (!id) {
+    throw new Error('Missing order reference');
+  }
+
+  const isLikelyMongoId = /^[a-f0-9]{24}$/i.test(id);
+  const attempts = isLikelyMongoId
+    ? [{ order_id: id }, { order_item_id: id }]
+    : [{ order_no: id }, { order_item_id: id }];
+
+  let lastError = null;
+  for (const params of attempts) {
+    try {
+      const q = new URLSearchParams(params);
+      const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}?${q.toString()}`;
+      const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        const err = new Error(errBody.message || `HTTP ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
+      const result = await response.json().catch(() => ({}));
+      const order = extractOrderFromApiJson(result);
+      if (order) return order;
+      const hint =
+        result && typeof result === 'object' && !Array.isArray(result)
+          ? ` (top-level keys: ${Object.keys(result).join(', ')})`
+          : '';
+      throw new Error(`Invalid order response format${hint}`);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('Could not load order');
 }
 
 /** Pick a stable id for the POS invoice URL from an order object. Prefer human-readable `order_no`. */
