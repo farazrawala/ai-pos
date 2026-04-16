@@ -32,6 +32,7 @@ import Branch from './routes/branch/index.jsx';
 import BranchAdd from './routes/branch/add.jsx';
 import BranchEdit from './routes/branch/edit.jsx';
 import Accounts from './routes/accounts/index.jsx';
+import AccountsEdit from './routes/accounts/edit.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -67,6 +68,7 @@ const App = () => {
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -131,6 +133,7 @@ const App = () => {
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

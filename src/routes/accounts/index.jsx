@@ -3,10 +3,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import {
   fetchAccounts,
+  deleteAccount,
   setSearch,
   setPage,
   setLimit,
   setSort,
+  clearDeleteStatus,
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useNavigate } from 'react-router-dom';
@@ -21,8 +23,10 @@ const Accounts = () => {
     pagination,
     search: searchTerm,
     sort,
+    deleteStatus,
+    deleteError,
   } = useSelector((state) => state.accounts);
-  const { canView } = usePermissions('accounts');
+  const { canView, canEdit, canDelete } = usePermissions('accounts');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
@@ -83,6 +87,21 @@ const Accounts = () => {
       sortClickTimeoutRef.current = null;
     }, 200);
   };
+
+  const handleDelete = async (accountId, accountName) => {
+    if (!accountId) return;
+    if (window.confirm(`Delete "${accountName || 'this account'}"?`)) {
+      await dispatch(deleteAccount(accountId));
+    }
+  };
+
+  useEffect(() => {
+    if (deleteStatus === 'succeeded') {
+      const timeoutId = setTimeout(() => dispatch(clearDeleteStatus()), 3000);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [deleteStatus, dispatch]);
 
   const renderSortIcon = (columnName) => {
     if (sort.sortBy !== columnName) {
@@ -201,22 +220,6 @@ const Accounts = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('company_id')}
-                          onDoubleClick={() => handleSort('company_id', true)}
-                        >
-                          Company ID
-                          {renderSortIcon('company_id')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('created_by')}
-                          onDoubleClick={() => handleSort('created_by', true)}
-                        >
-                          Created By
-                          {renderSortIcon('created_by')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('status')}
                           onDoubleClick={() => handleSort('status', true)}
                         >
@@ -239,6 +242,7 @@ const Accounts = () => {
                           Updated At
                           {renderSortIcon('updatedAt')}
                         </th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -261,8 +265,6 @@ const Accounts = () => {
                                 {item.name || item.accountName || '-'}
                               </td>
                               <td className="text-sm font-weight-normal">{item.account_type || '-'}</td>
-                              <td className="text-sm font-weight-normal">{item.company_id || '-'}</td>
-                              <td className="text-sm font-weight-normal">{item.created_by || '-'}</td>
                               <td className="text-sm font-weight-normal">
                                 <span className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}>
                                   {statusValue}
@@ -274,6 +276,28 @@ const Accounts = () => {
                               <td className="text-sm font-weight-normal">
                                 {item.updatedAt ? moment(item.updatedAt).format('MM-DD-YYYY h:mm a') : '-'}
                               </td>
+                              <td className="text-sm font-weight-normal">
+                                <div className="d-flex gap-1">
+                                  {canEdit && (
+                                    <button
+                                      className="btn btn-outline-info btn-sm mb-0"
+                                      onClick={() => navigate(`/accounts/edit/${item._id || item.id}`)}
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                  {canDelete && (
+                                    <button
+                                      className="btn btn-outline-danger btn-sm mb-0"
+                                      onClick={() => handleDelete(item._id || item.id, item.name)}
+                                      disabled={deleteStatus === 'loading'}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                  {!canEdit && !canDelete && '-'}
+                                </div>
+                              </td>
                             </tr>
                           );
                         })
@@ -282,6 +306,7 @@ const Accounts = () => {
                   </table>
                 )}
               </div>
+              {deleteError && <div className="alert alert-danger mt-3 mb-0">{deleteError}</div>}
             </div>
           </div>
         </div>

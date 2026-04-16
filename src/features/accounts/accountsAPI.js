@@ -2,6 +2,9 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 const ACCOUNT_LIST_PATH = 'account/get-all-active';
+const ACCOUNT_GET_PATH = 'account/get';
+const ACCOUNT_UPDATE_PATH = 'account/update';
+const ACCOUNT_DELETE_PATH = 'account/delete';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -73,4 +76,62 @@ export async function fetchAccountsRequest(params = {}) {
     limit: fallbackLimit,
     totalPages: fallbackLimit > 0 ? Math.ceil(fallbackTotal / fallbackLimit) : 0,
   };
+}
+
+const normalizeSingleAccountPayload = (result) => {
+  if (!result || typeof result !== 'object') return null;
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data))
+    return result.data;
+  if (result.account && typeof result.account === 'object' && !Array.isArray(result.account)) {
+    return result.account;
+  }
+  if (result._id || result.id) return result;
+  return null;
+};
+
+export async function fetchAccountByIdRequest(accountId) {
+  const response = await fetch(`${BASE_URL}${ACCOUNT_GET_PATH}/${accountId}`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  const result = await response.json().catch(() => ({}));
+  const account = normalizeSingleAccountPayload(result);
+  if (!account) {
+    throw new Error('Invalid account response format');
+  }
+  return account;
+}
+
+export async function updateAccountRequest(accountId, accountData = {}) {
+  const response = await fetch(`${BASE_URL}${ACCOUNT_UPDATE_PATH}/${accountId}`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify(accountData),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  const result = await response.json().catch(() => ({}));
+  return normalizeSingleAccountPayload(result) || result;
+}
+
+export async function deleteAccountRequest(accountId) {
+  const response = await fetch(`${BASE_URL}${ACCOUNT_DELETE_PATH}/${accountId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
 }
