@@ -467,7 +467,11 @@ const PosInvoice = () => {
         >
           {invoiceSaving ? (
             <>
-              <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+              <span
+                className="spinner-border spinner-border-sm me-1"
+                role="status"
+                aria-hidden="true"
+              />
               Updating…
             </>
           ) : (
@@ -628,12 +632,12 @@ const PosInvoice = () => {
                 <th className="text-end" style={{ width: '100px' }}>
                   Qty
                 </th>
-                <th className="text-end" style={{ width: '130px' }}>
+                {/* <th className="text-end" style={{ width: '130px' }}>
                   Tax
-                </th>
-                <th className="text-end" style={{ width: '130px' }}>
+                </th> */}
+                {/* <th className="text-end" style={{ width: '130px' }}>
                   Discount
-                </th>
+                </th> */}
                 <th className="text-end" style={{ width: '120px' }}>
                   Amount
                 </th>
@@ -646,13 +650,13 @@ const PosInvoice = () => {
                   <td>{line.description}</td>
                   <td className="text-end">{fmt(line.rate)}</td>
                   <td className="text-end">{line.qtyLabel}</td>
-                  <td className="text-end">
+                  {/* <td className="text-end">
                     {fmt(line.tax?.amount ?? 0)} ({Number(line.tax?.pct ?? 0).toFixed(2)}%)
-                  </td>
-                  <td className="text-end">
+                  </td> */}
+                  {/* <td className="text-end">
                     {fmt(line.discount?.amount ?? 0)} ({Number(line.discount?.pct ?? 0).toFixed(2)}
                     %)
-                  </td>
+                  </td> */}
                   <td className="text-end fw-semibold">{fmt(line.amount)}</td>
                 </tr>
               ))}
@@ -813,7 +817,11 @@ const PosInvoice = () => {
           >
             {invoiceSaving ? (
               <>
-                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                <span
+                  className="spinner-border spinner-border-sm me-2"
+                  role="status"
+                  aria-hidden="true"
+                />
                 Updating…
               </>
             ) : (

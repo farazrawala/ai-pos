@@ -5,30 +5,21 @@ branches
 warehouse
 Account
 
+Pos 
+    - add discount,subamount in db
+    - product image hove bring complete name.
+Orders 
+    - total amount display in table.
+Invoice Edit
+    - integration done.  / modify api to complete 
+    
 
-orders  :: api/order/get-order-by-order-item
-invoice edit
-stock transfer
-
-// accounts
+    
+stock transfer :: 
 purchase order :: 
 Purchase return ::
 sales return ::
+Navigate with Permissions ::
 
-
-
-//Global
-Navigate with permissions
-
-
-P1. Products
-    manage variations insert 
-    edit . (done.)
-
-Categories
-    parent category
-
-
-product edit/delete it will be in a tree..
-on edit you can update stock as well.
-on purchase : you will select 
+// generic 
+- add order_by to all-active and make order

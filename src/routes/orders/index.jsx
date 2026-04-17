@@ -17,6 +17,26 @@ import {
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
+const getOrderStatusDisplay = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const v = row.order_status ?? row.orderStatus;
+  if (v == null || String(v).trim() === '') return '';
+  return String(v).trim();
+};
+
+const getOrderItemsTotalDisplay = (row) => {
+  if (!row || typeof row !== 'object') return '—';
+  const raw =
+    row.order_items_total ??
+    row.orderItemsTotal ??
+    row.items_total ??
+    row.itemsTotal;
+  if (raw == null || raw === '') return '—';
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return String(raw);
+  return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 const firstOrderItemId = (row) => {
   if (!row || typeof row !== 'object') return '';
   if (row.order_item_id) return String(row.order_item_id);
@@ -274,6 +294,23 @@ const Orders = () => {
                           {renderSortIcon('no_of_items')}
                         </th>
                         <th
+                          className="text-end"
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('order_items_total')}
+                          onDoubleClick={() => handleSort('order_items_total', true)}
+                        >
+                          Total
+                          {renderSortIcon('order_items_total')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('order_status')}
+                          onDoubleClick={() => handleSort('order_status', true)}
+                        >
+                          Order status
+                          {renderSortIcon('order_status')}
+                        </th>
+                        <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('status')}
                           onDoubleClick={() => handleSort('status', true)}
@@ -295,7 +332,7 @@ const Orders = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="11" className="text-center text-sm font-weight-normal p-4">
                             No orders found
                           </td>
                         </tr>
@@ -306,6 +343,10 @@ const Orders = () => {
                           const orderNo = item.order_no || item.orderNo || '-';
                           const statusValue = item.status || '-';
                           const isActive = String(statusValue).toLowerCase() === 'active';
+                          const orderStatusRaw = getOrderStatusDisplay(item);
+                          const orderStatusLabel = orderStatusRaw || '—';
+                          const orderStatusActive =
+                            String(orderStatusRaw).toLowerCase() === 'active';
                           const rowKey = String(item._id || item.id || index);
                           const isRowLoading = editLoadingId === rowKey;
                           return (
@@ -317,6 +358,22 @@ const Orders = () => {
                               <td className="text-sm font-weight-normal">{item.phone || '-'}</td>
                               <td className="text-sm font-weight-normal">
                                 {getNoOfItemsDisplay(item)}
+                              </td>
+                              <td className="text-sm font-weight-normal text-end">
+                                {getOrderItemsTotalDisplay(item)}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {orderStatusRaw ? (
+                                  <span
+                                    className={`badge ${
+                                      orderStatusActive ? 'bg-success' : 'bg-secondary'
+                                    }`}
+                                  >
+                                    {orderStatusLabel}
+                                  </span>
+                                ) : (
+                                  orderStatusLabel
+                                )}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <span

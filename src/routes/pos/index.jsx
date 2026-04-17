@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import moment from 'moment';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -10,6 +11,7 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
+import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
 import PosProducts from './PosProducts.jsx';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '' };
@@ -43,6 +45,25 @@ const Pos = () => {
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
+  const [orderSaving, setOrderSaving] = useState(false);
+  const [orderError, setOrderError] = useState('');
+
+  const showToast = (toastId, body) => {
+    const toastElement = document.getElementById(toastId);
+    if (!toastElement) return;
+    const timeElement = toastElement.querySelector('.toast-time');
+    if (timeElement) {
+      timeElement.textContent = moment().format('h:mm A');
+    }
+    if (body) {
+      const toastBody = toastElement.querySelector('.toast-body');
+      if (toastBody) toastBody.textContent = body;
+    }
+    if (window.bootstrap?.Toast) {
+      const toast = new window.bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
+      toast.show();
+    }
+  };
 
   const loadUsers = useCallback(async (selectAfter) => {
     setUsersStatus('loading');
@@ -188,6 +209,56 @@ const Pos = () => {
     const v = cartSubtotal + shippingNum - extraDiscountNum;
     return Number.isFinite(v) ? Math.max(0, v) : 0;
   }, [cartSubtotal, shippingNum, extraDiscountNum]);
+
+  const handlePaymentComplete = useCallback(
+    async (payment) => {
+      if (!cartLines || cartLines.length === 0) {
+        alert('Cart is empty. Add at least one product before payment.');
+        return;
+      }
+
+      setOrderError('');
+      setOrderSaving(true);
+      try {
+        const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
+        const name =
+          customer?.name ||
+          customer?.fullName ||
+          customer?.username ||
+          'Walk-in Client';
+        const email = customer?.email || 'test@gmail.com';
+        const phone =
+          customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
+        const address = ''; // adjust if you have an address field
+
+        const lines = cartLines.map((line) => ({
+          productId: line.productId,
+          qty: line.quantity,
+          price: line.unitPrice,
+        }));
+
+        await createPosOrderRequest({
+          name,
+          email,
+          phone,
+          address,
+          lines,
+          discount: extraDiscountNum || 0,
+          order_status: 'active',
+          amount_received: payment?.paid ?? grandTotal,
+          change_given: payment?.change ?? 0,
+        });
+        showToast('successToast', 'Order saved successfully.');
+        setCartLines([]);
+      } catch (e) {
+        console.error('[POS] Failed to save order', e);
+        setOrderError(e?.message || 'Could not save order');
+      } finally {
+        setOrderSaving(false);
+      }
+    },
+    [cartLines, users, selectedCustomerId, extraDiscountNum, grandTotal]
+  );
 
   const openAddCustomerModal = () => {
     setAddCustomerForm(ADD_CUSTOMER_INITIAL);
@@ -683,6 +754,21 @@ const Pos = () => {
                   </button>
                 </div>
               </div>
+              {orderSaving && (
+                <p className="text-xs text-muted mt-2 mb-0">
+                  <span
+                    className="spinner-border spinner-border-sm me-1"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Saving order…
+                </p>
+              )}
+              {orderError && !orderSaving && (
+                <p className="text-xs text-danger mt-2 mb-0" role="alert">
+                  {orderError}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -697,6 +783,7 @@ const Pos = () => {
           categoriesError={categoriesError}
           onAddToCart={addToCart}
           orderTotal={grandTotal}
+          onPaymentComplete={handlePaymentComplete}
         />
       </div>
 
@@ -818,6 +905,23 @@ const Pos = () => {
               </div>
             </form>
           </div>
+        </div>
+      </div>
+
+      <div className="position-fixed bottom-1 end-1 z-index-2">
+        <div
+          className="toast fade hide p-2 bg-white"
+          role="alert"
+          id="successToast"
+          aria-atomic="true"
+        >
+          <div className="toast-header border-0">
+            <i className="ni ni-check-bold text-success me-2"></i>
+            <span className="me-auto font-weight-bold">Success</span>
+            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
+          </div>
+          <hr className="horizontal dark m-0" />
+          <div className="toast-body">Order saved successfully.</div>
         </div>
       </div>
     </div>

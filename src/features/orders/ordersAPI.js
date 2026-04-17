@@ -426,3 +426,59 @@ export function getNoOfItemsDisplay(order) {
   const fromLines = countOrderItems(order);
   return fromLines > 0 ? fromLines : '—';
 }
+
+/**
+ * Create POS order from cart.
+ * Backend: POST /api/order/order_save
+ */
+export async function createPosOrderRequest(payload = {}) {
+  const form = new FormData();
+
+  if (payload.name != null) form.append('name', String(payload.name));
+  if (payload.email != null) form.append('email', String(payload.email));
+  if (payload.phone != null) form.append('phone', String(payload.phone));
+  if (payload.address != null) form.append('address', String(payload.address));
+
+  const lines = Array.isArray(payload.lines) ? payload.lines : [];
+  lines.forEach((line, idx) => {
+    if (!line || typeof line !== 'object') return;
+    if (line.productId != null) {
+      form.append(`product_id[${idx}]`, String(line.productId));
+    }
+    if (line.qty != null) {
+      form.append(`qty[${idx}]`, String(line.qty));
+    }
+    if (line.price != null) {
+      form.append(`price[${idx}]`, String(line.price));
+    }
+  });
+
+  if (payload.discount != null) {
+    form.append('discount', String(payload.discount));
+  }
+  if (payload.order_status != null) {
+    form.append('order_status', String(payload.order_status));
+  }
+  if (payload.amount_received != null) {
+    form.append('amount_received', String(payload.amount_received));
+  }
+  if (payload.change_given != null) {
+    form.append('change_given', String(payload.change_given));
+  }
+
+  const response = await fetch(`${BASE_URL}order/order_save`, {
+    method: 'POST',
+    headers: getHeaders({ json: false }),
+    body: form,
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+}

@@ -96,7 +96,7 @@ export const fetchProductsRequest = async (params = {}) => {
   if (params.categoryId) queryParams.append('categoryId', params.categoryId);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}product/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',
@@ -144,7 +144,7 @@ export const fetchProductActiveRequest = async (params = {}) => {
   if (params.categoryId) queryParams.append('categoryId', params.categoryId);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}product/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',

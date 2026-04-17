@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 
 const MODAL_ID = 'posPaymentModal';
 
@@ -24,22 +25,64 @@ const closePosPaymentModal = () => {
 /**
  * “Make Payment” dialog — amount, method, balance, change, account, pay actions.
  */
-const PosPaymentModal = ({
-  orderTotal = 0,
-  onPayNow,
-  onPayNowPrint,
-}) => {
+const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
   const [amount, setAmount] = useState('0.00');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('sales-123456');
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsStatus, setPaymentMethodsStatus] = useState('idle');
+  const [paymentMethodsError, setPaymentMethodsError] = useState('');
 
   const total = Number.isFinite(orderTotal) ? Math.max(0, orderTotal) : 0;
+  const selectedPaymentMethod = useMemo(
+    () =>
+      paymentMethods.find((item) => String(item._id ?? item.id ?? '') === String(paymentMethod)) ||
+      null,
+    [paymentMethods, paymentMethod]
+  );
+
+  const loadPaymentMethods = useCallback(async () => {
+    setPaymentMethodsStatus('loading');
+    setPaymentMethodsError('');
+    try {
+      const result = await fetchAccountsRequest({ limit: 2000, skip: 0 });
+      const list = Array.isArray(result?.data) ? result.data : [];
+      setPaymentMethods(list);
+      setPaymentMethodsStatus('succeeded');
+      setPaymentMethod((prev) => {
+        if (prev && list.some((item) => String(item._id ?? item.id ?? '') === String(prev))) {
+          return prev;
+        }
+        const firstId = list[0]?._id ?? list[0]?.id ?? '';
+        return firstId ? String(firstId) : '';
+      });
+    } catch (error) {
+      console.error('[POS] Failed to load payment methods', error);
+      setPaymentMethods([]);
+      setPaymentMethodsError(error?.message || 'Could not load payment methods');
+      setPaymentMethodsStatus('failed');
+      setPaymentMethod('');
+    }
+  }, []);
 
   const syncAmountFromTotal = useCallback(() => {
     setAmount(total.toFixed(2));
-    setPaymentMethod('cash');
+    setPaymentMethod((prev) => {
+      if (
+        prev &&
+        paymentMethods.some((item) => String(item._id ?? item.id ?? '') === String(prev))
+      ) {
+        return prev;
+      }
+      const firstId = paymentMethods[0]?._id ?? paymentMethods[0]?.id ?? '';
+      return firstId ? String(firstId) : '';
+    });
     setAccount('sales-123456');
-  }, [total]);
+  }, [paymentMethods, total]);
+
+  useEffect(() => {
+    loadPaymentMethods();
+  }, [loadPaymentMethods]);
 
   useEffect(() => {
     const el = document.getElementById(MODAL_ID);
@@ -55,12 +98,28 @@ const PosPaymentModal = ({
   const change = Math.max(0, paid - total);
 
   const handlePayNow = () => {
-    onPayNow?.({ total, paid, paymentMethod, account, balanceDue, change });
+    onPayNow?.({
+      total,
+      paid,
+      paymentMethod: selectedPaymentMethod?.name || '',
+      paymentMethodId: paymentMethod,
+      account,
+      balanceDue,
+      change,
+    });
     closePosPaymentModal();
   };
 
   const handlePayNowPrint = () => {
-    onPayNowPrint?.({ total, paid, paymentMethod, account, balanceDue, change });
+    onPayNowPrint?.({
+      total,
+      paid,
+      paymentMethod: selectedPaymentMethod?.name || '',
+      paymentMethodId: paymentMethod,
+      account,
+      balanceDue,
+      change,
+    });
     closePosPaymentModal();
   };
 
@@ -154,10 +213,25 @@ const PosPaymentModal = ({
                     className="form-select"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
+                    disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="bank">Bank transfer</option>
+                    {paymentMethodsStatus === 'loading' && (
+                      <option value="">Loading payment methods...</option>
+                    )}
+                    {paymentMethodsStatus !== 'loading' && paymentMethods.length === 0 && (
+                      <option value="">
+                        {paymentMethodsError || 'No payment methods available'}
+                      </option>
+                    )}
+                    {paymentMethods.map((method) => {
+                      const methodId = String(method._id ?? method.id ?? '');
+                      if (!methodId) return null;
+                      return (
+                        <option key={methodId} value={methodId}>
+                          {method.name || 'Unnamed account'}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -189,7 +263,7 @@ const PosPaymentModal = ({
                 </div>
               </div>
 
-              <div className="mb-4">
+              {/* <div className="mb-4">
                 <label className="pos-pay-label d-block" htmlFor="posPayAccount">
                   Account
                 </label>
@@ -202,7 +276,7 @@ const PosPaymentModal = ({
                   <option value="sales-123456">Sales Account / 123456</option>
                   <option value="pos-cash">POS Cash / 789012</option>
                 </select>
-              </div>
+              </div> */}
 
               <div className="d-grid gap-2">
                 <button
@@ -213,14 +287,14 @@ const PosPaymentModal = ({
                   <i className="fas fa-arrow-circle-right"></i>
                   Pay now
                 </button>
-                <button
+                {/* <button
                   type="button"
                   className="btn pos-pay-btn-print rounded-3 d-flex align-items-center justify-content-center gap-2"
                   onClick={handlePayNowPrint}
                 >
                   <i className="fas fa-print"></i>
                   Pay now + Print
-                </button>
+                </button> */}
               </div>
             </div>
           </div>
