@@ -9,12 +9,11 @@ Pos
     - add discount,subamount in db
     - product image hove bring complete name.
 Orders 
-    - total amount display in table.
 Invoice Edit
-    - integration done.  / modify api to complete 
-    
+    - integration done / modify api to complete 
 
     
+
 stock transfer :: 
 purchase order :: 
 Purchase return ::

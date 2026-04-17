@@ -4,7 +4,7 @@ import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/in
 import {
   fetchOrderForInvoiceRequest,
   getOrderLineItems,
-  updateOrderInvoiceRequest,
+  updatePosOrderRequest,
 } from '../../features/orders/ordersAPI.js';
 
 /** Demo payload — replace with API data later */
@@ -85,6 +85,16 @@ const formatInvoiceDate = (iso) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const lineProductIdFromOrderLine = (line) => {
+  if (!line || typeof line !== 'object') return '';
+  const p = line.product_id;
+  if (p && typeof p === 'object') {
+    return String(p._id ?? p.id ?? '').trim();
+  }
+  if (p != null && String(p).trim() !== '') return String(p).trim();
+  return String(line.productId ?? line.product_id_str ?? '').trim();
 };
 
 /** Map API order (`data` payload) into the invoice UI shape used by this page. */
@@ -242,15 +252,58 @@ const PosInvoice = () => {
     window.print();
   }, []);
 
-  const buildInvoiceUpdatePayload = useCallback((order) => {
-    if (!order || typeof order !== 'object') return {};
-    const out = {};
-    if (order.name != null) out.name = order.name;
-    if (order.email != null) out.email = order.email;
-    if (order.phone != null) out.phone = order.phone;
-    if (order.address != null) out.address = order.address;
-    if (order.status != null) out.status = order.status;
-    return out;
+  const buildOrderUpdatePayload = useCallback((order) => {
+    if (!order || typeof order !== 'object') {
+      return {
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        lines: [],
+        discount: 0,
+        order_status: 'active',
+        amount_received: '',
+        change_given: '',
+      };
+    }
+    const items = getOrderLineItems(order);
+    const lines = items
+      .map((line) => {
+        const productId = lineProductIdFromOrderLine(line);
+        const qtyRaw = line.qty ?? line.quantity;
+        const qtyNum = parseFloat(String(qtyRaw ?? '0').replace(/,/g, ''));
+        const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+        const priceNum = parseFloat(String(line.price ?? line.unit_price ?? '0').replace(/,/g, ''));
+        const price = Number.isFinite(priceNum) ? priceNum : 0;
+        return { productId, qty, price };
+      })
+      .filter((l) => l.productId);
+
+    const discountRaw = order.discount ?? order.discount_amount ?? 0;
+    const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
+    const discount = Number.isFinite(discountNum) ? discountNum : 0;
+
+    const order_status =
+      order.order_status ?? order.orderStatus ?? order.status ?? 'active';
+
+    const amount_received =
+      order.amount_received != null && order.amount_received !== ''
+        ? order.amount_received
+        : '';
+    const change_given =
+      order.change_given != null && order.change_given !== '' ? order.change_given : '';
+
+    return {
+      name: order.name ?? '',
+      email: order.email ?? '',
+      phone: order.phone ?? '',
+      address: order.address ?? '',
+      lines,
+      discount,
+      order_status,
+      amount_received,
+      change_given,
+    };
   }, []);
 
   const handleUpdateInvoice = useCallback(async () => {
@@ -259,14 +312,18 @@ const PosInvoice = () => {
     setInvoiceSaving(true);
     setInvoiceSaveMessage({ type: null, text: '' });
     try {
-      await updateOrderInvoiceRequest(String(oid), buildInvoiceUpdatePayload(sourceOrder));
+      const payload = buildOrderUpdatePayload(sourceOrder);
+      await updatePosOrderRequest(String(oid), payload);
+      const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
+      setSourceOrder(refreshed);
+      setView(mapOrderToInvoiceView(refreshed));
       setInvoiceSaveMessage({ type: 'success', text: 'Invoice updated successfully.' });
     } catch (e) {
       setInvoiceSaveMessage({ type: 'danger', text: e?.message || 'Could not update invoice.' });
     } finally {
       setInvoiceSaving(false);
     }
-  }, [sourceOrder, buildInvoiceUpdatePayload]);
+  }, [sourceOrder, buildOrderUpdatePayload, invoiceId]);
 
   const canUpdateInvoice =
     Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
