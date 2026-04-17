@@ -126,6 +126,51 @@ const isOrderShape = (o) => {
   );
 };
 
+/**
+ * Normalized line-item array for an order (list or detail).
+ * Defined early so order extraction can compare payloads by line count.
+ */
+export function getOrderLineItems(order) {
+  if (!order || typeof order !== 'object') return [];
+  let v =
+    order.order_items ??
+    order.orderItems ??
+    order.items ??
+    order.line_items ??
+    order.order?.order_items ??
+    order.order?.orderItems;
+  if (typeof v === 'string' && v.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) v = parsed;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const vals = Object.values(v);
+    if (vals.length === 0) return [];
+    const looksLikeLineRows = vals.every((el) => el != null && typeof el === 'object');
+    if (looksLikeLineRows) return vals;
+  }
+  return [];
+}
+
+/** Count line items from whatever shape the API returned. */
+export function countOrderItems(order) {
+  return getOrderLineItems(order).length;
+}
+
+/** When multiple objects match `isOrderShape`, prefer the one with the most line items (fixes invoice showing a partial order). */
+const pickRichestOrder = (...candidates) => {
+  const list = candidates.filter((c) => c != null && typeof c === 'object' && isOrderShape(c));
+  if (!list.length) return null;
+  return list.reduce((best, cur) =>
+    getOrderLineItems(cur).length > getOrderLineItems(best).length ? cur : best
+  );
+};
+
 /** Keys that commonly wrap a single entity in API envelopes. */
 const ORDER_JSON_NEST_KEYS = [
   'data',
@@ -159,18 +204,20 @@ const extractOrderDeep = (candidate, depth = 0) => {
   if (typeof o !== 'object') return null;
   if (isOrderShape(o)) return o;
   if (Array.isArray(o)) {
+    const fromArray = [];
     for (const el of o) {
       const found = extractOrderDeep(el, depth + 1);
-      if (found) return found;
+      if (found) fromArray.push(found);
     }
-    return null;
+    return pickRichestOrder(...fromArray);
   }
+  const fromKeys = [];
   for (const k of ORDER_JSON_NEST_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(o, k) || o[k] == null) continue;
     const found = extractOrderDeep(o[k], depth + 1);
-    if (found) return found;
+    if (found) fromKeys.push(found);
   }
-  return null;
+  return pickRichestOrder(...fromKeys);
 };
 
 /**
@@ -272,16 +319,19 @@ export function extractOrderFromApiJson(result) {
   const root = maybeParseJsonString(result);
   if (!root || typeof root !== 'object') return null;
   if (isOrderShape(root)) return root;
-  if (
-    root.data &&
-    typeof root.data === 'object' &&
-    !Array.isArray(root.data) &&
-    isOrderShape(root.data)
-  ) {
-    return root.data;
-  }
-  if (Array.isArray(root.data) && root.data.length === 1 && isOrderShape(root.data[0])) {
-    return root.data[0];
+  if (root.data != null && typeof root.data === 'object') {
+    const d = root.data;
+    if (Array.isArray(d)) {
+      const shapes = d.filter((el) => el && isOrderShape(el));
+      if (shapes.length) return pickRichestOrder(...shapes);
+    } else if (isOrderShape(d)) {
+      return pickRichestOrder(
+        d,
+        d.order && typeof d.order === 'object' && !Array.isArray(d.order) ? d.order : null,
+        d.result && typeof d.result === 'object' && !Array.isArray(d.result) ? d.result : null,
+        d.record && typeof d.record === 'object' && !Array.isArray(d.record) ? d.record : null
+      );
+    }
   }
   if (
     root.order &&
@@ -376,36 +426,6 @@ export function pickInvoiceRouteId(order) {
   ];
   const found = candidates.find((v) => v != null && String(v).trim() !== '');
   return found != null ? String(found).trim() : '';
-}
-
-/**
- * Normalized line-item array for an order (list or detail).
- * Handles `order_items`, camelCase `orderItems`, `items`, `line_items`, and plain objects of subdocs.
- */
-export function getOrderLineItems(order) {
-  if (!order || typeof order !== 'object') return [];
-  let v = order.order_items ?? order.orderItems ?? order.items ?? order.line_items;
-  if (typeof v === 'string' && v.trim().startsWith('[')) {
-    try {
-      const parsed = JSON.parse(v);
-      if (Array.isArray(parsed)) v = parsed;
-    } catch {
-      /* ignore */
-    }
-  }
-  if (Array.isArray(v)) return v;
-  if (v && typeof v === 'object' && !Array.isArray(v)) {
-    const vals = Object.values(v);
-    if (vals.length === 0) return [];
-    const looksLikeLineRows = vals.every((el) => el != null && typeof el === 'object');
-    if (looksLikeLineRows) return vals;
-  }
-  return [];
-}
-
-/** Count line items from whatever shape the API returned. */
-export function countOrderItems(order) {
-  return getOrderLineItems(order).length;
 }
 
 /**

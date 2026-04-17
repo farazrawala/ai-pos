@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import {
@@ -97,6 +97,12 @@ const lineProductIdFromOrderLine = (line) => {
   return String(line.productId ?? line.product_id_str ?? '').trim();
 };
 
+const describeOrderLineItem = (line) => {
+  if (!line || typeof line !== 'object') return 'Item';
+  const product = line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
+  return product?.product_name || product?.product_code || line.name || 'Item';
+};
+
 /** Map API order (`data` payload) into the invoice UI shape used by this page. */
 const mapOrderToInvoiceView = (order) => {
   if (!order || typeof order !== 'object') {
@@ -184,6 +190,26 @@ const PosInvoice = () => {
   const [sourceOrder, setSourceOrder] = useState(null);
   const [invoiceSaving, setInvoiceSaving] = useState(false);
   const [invoiceSaveMessage, setInvoiceSaveMessage] = useState({ type: null, text: '' });
+  /** Editable qty / rate (price) per API line item, aligned with `getOrderLineItems(sourceOrder)` */
+  const [invoiceLineEdits, setInvoiceLineEdits] = useState([]);
+
+  useLayoutEffect(() => {
+    if (!sourceOrder) {
+      setInvoiceLineEdits([]);
+      return;
+    }
+    const items = getOrderLineItems(sourceOrder);
+    setInvoiceLineEdits(
+      items.map((line) => {
+        const qty = parseFloat(String(line.qty ?? line.quantity ?? '0').replace(/,/g, ''));
+        const rate = parseFloat(String(line.price ?? line.unit_price ?? '0').replace(/,/g, ''));
+        return {
+          qty: Number.isFinite(qty) ? String(qty) : '0',
+          rate: Number.isFinite(rate) ? String(rate) : '0',
+        };
+      })
+    );
+  }, [sourceOrder]);
 
   useEffect(() => {
     if (!invoiceId) {
@@ -252,7 +278,7 @@ const PosInvoice = () => {
     window.print();
   }, []);
 
-  const buildOrderUpdatePayload = useCallback((order) => {
+  const buildOrderUpdatePayload = useCallback((order, lineEdits = []) => {
     if (!order || typeof order !== 'object') {
       return {
         name: '',
@@ -268,13 +294,25 @@ const PosInvoice = () => {
     }
     const items = getOrderLineItems(order);
     const lines = items
-      .map((line) => {
+      .map((line, idx) => {
         const productId = lineProductIdFromOrderLine(line);
-        const qtyRaw = line.qty ?? line.quantity;
-        const qtyNum = parseFloat(String(qtyRaw ?? '0').replace(/,/g, ''));
-        const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-        const priceNum = parseFloat(String(line.price ?? line.unit_price ?? '0').replace(/,/g, ''));
-        const price = Number.isFinite(priceNum) ? priceNum : 0;
+        const edit = lineEdits[idx];
+        let qty;
+        let price;
+        if (edit != null) {
+          const qtyNum = parseFloat(String(edit.qty ?? '0').replace(/,/g, ''));
+          const rateNum = parseFloat(String(edit.rate ?? '0').replace(/,/g, ''));
+          qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+          price = Number.isFinite(rateNum) ? rateNum : 0;
+        } else {
+          const qtyRaw = line.qty ?? line.quantity;
+          const qtyNum = parseFloat(String(qtyRaw ?? '0').replace(/,/g, ''));
+          qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+          const priceNum = parseFloat(
+            String(line.price ?? line.unit_price ?? '0').replace(/,/g, '')
+          );
+          price = Number.isFinite(priceNum) ? priceNum : 0;
+        }
         return { productId, qty, price };
       })
       .filter((l) => l.productId);
@@ -312,7 +350,7 @@ const PosInvoice = () => {
     setInvoiceSaving(true);
     setInvoiceSaveMessage({ type: null, text: '' });
     try {
-      const payload = buildOrderUpdatePayload(sourceOrder);
+      const payload = buildOrderUpdatePayload(sourceOrder, invoiceLineEdits);
       await updatePosOrderRequest(String(oid), payload);
       const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
       setSourceOrder(refreshed);
@@ -323,10 +361,56 @@ const PosInvoice = () => {
     } finally {
       setInvoiceSaving(false);
     }
-  }, [sourceOrder, buildOrderUpdatePayload, invoiceId]);
+  }, [sourceOrder, buildOrderUpdatePayload, invoiceId, invoiceLineEdits]);
 
   const canUpdateInvoice =
     Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
+
+  const handleInvoiceLineEdit = useCallback((index, field, rawValue) => {
+    setInvoiceLineEdits((prev) => {
+      const next = [...prev];
+      if (!next[index]) next[index] = { qty: '0', rate: '0' };
+      next[index] = { ...next[index], [field]: rawValue };
+      return next;
+    });
+  }, []);
+
+  const liveSummaryFromEdits = useMemo(() => {
+    if (!sourceOrder || !view?.summary || invoiceLineEdits.length === 0) return null;
+    const items = getOrderLineItems(sourceOrder);
+    if (items.length !== invoiceLineEdits.length) return null;
+    let subTotal = 0;
+    let taxTotal = 0;
+    items.forEach((line, i) => {
+      const edit = invoiceLineEdits[i];
+      const qtyNum = parseFloat(String(edit?.qty ?? '0').replace(/,/g, ''));
+      const rateNum = parseFloat(String(edit?.rate ?? '0').replace(/,/g, ''));
+      const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+      const rate = Number.isFinite(rateNum) ? rateNum : 0;
+      const product = line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
+      const taxPct = Number(product?.tax_rate) || 0;
+      const lineSub = qty * rate;
+      const taxAmount = (lineSub * taxPct) / 100;
+      subTotal += lineSub;
+      taxTotal += taxAmount;
+    });
+    const total = subTotal + taxTotal;
+    const paymentMade = Number(view.summary.paymentMade) || 0;
+    const discount = Number(view.summary.discount) || 0;
+    const shipping = Number(view.summary.shipping) || 0;
+    return {
+      subTotal,
+      tax: taxTotal,
+      discount,
+      shipping,
+      total,
+      paymentMade,
+      balanceDue: Math.max(0, total - paymentMade),
+    };
+  }, [sourceOrder, invoiceLineEdits, view]);
+
+  const summaryDisplay = liveSummaryFromEdits || data.summary;
+  const grossDisplay = liveSummaryFromEdits ? liveSummaryFromEdits.total : data.grossAmount;
 
   if (fetchStatus === 'loading') {
     return (
@@ -648,7 +732,7 @@ const PosInvoice = () => {
               <span className="fw-bold">{data.invoiceNo}</span>
             </div>
             <div className="small text-muted mb-2">Reference: {data.reference || '—'}</div>
-            <div className="pos-inv-gross">Gross Amount: {fmt(data.grossAmount)}</div>
+            <div className="pos-inv-gross">Gross Amount: {fmt(grossDisplay)}</div>
           </div>
         </div>
 
@@ -678,45 +762,81 @@ const PosInvoice = () => {
 
         {/* Line items */}
         <div className="table-responsive mb-4">
+          {canUpdateInvoice && invoiceLineEdits.length > 0 && (
+            <p className="small text-muted mb-2 pos-inv-no-print">
+              Edit <strong>Qty</strong> and <strong>Rate</strong> below, then use <strong>Update invoice</strong> to save.
+            </p>
+          )}
           <table className="table table-bordered pos-inv-table mb-0">
             <thead>
               <tr>
                 <th style={{ width: '48px' }}>#</th>
                 <th>Description</th>
-                <th className="text-end" style={{ width: '110px' }}>
+                <th className="text-end" style={{ width: '120px' }}>
                   Rate
                 </th>
-                <th className="text-end" style={{ width: '100px' }}>
+                <th className="text-end" style={{ width: '120px' }}>
                   Qty
                 </th>
-                {/* <th className="text-end" style={{ width: '130px' }}>
-                  Tax
-                </th> */}
-                {/* <th className="text-end" style={{ width: '130px' }}>
-                  Discount
-                </th> */}
                 <th className="text-end" style={{ width: '120px' }}>
                   Amount
                 </th>
               </tr>
             </thead>
             <tbody>
-              {data.lines.map((line, i) => (
-                <tr key={i}>
-                  <td className="text-center">{i + 1}</td>
-                  <td>{line.description}</td>
-                  <td className="text-end">{fmt(line.rate)}</td>
-                  <td className="text-end">{line.qtyLabel}</td>
-                  {/* <td className="text-end">
-                    {fmt(line.tax?.amount ?? 0)} ({Number(line.tax?.pct ?? 0).toFixed(2)}%)
-                  </td> */}
-                  {/* <td className="text-end">
-                    {fmt(line.discount?.amount ?? 0)} ({Number(line.discount?.pct ?? 0).toFixed(2)}
-                    %)
-                  </td> */}
-                  <td className="text-end fw-semibold">{fmt(line.amount)}</td>
-                </tr>
-              ))}
+              {canUpdateInvoice && invoiceLineEdits.length > 0
+                ? getOrderLineItems(sourceOrder).map((line, i) => {
+                    const edit = invoiceLineEdits[i] || { qty: '0', rate: '0' };
+                    const qtyNum = parseFloat(String(edit.qty ?? '0').replace(/,/g, ''));
+                    const rateNum = parseFloat(String(edit.rate ?? '0').replace(/,/g, ''));
+                    const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+                    const rate = Number.isFinite(rateNum) ? rateNum : 0;
+                    const product =
+                      line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
+                    const taxPct = Number(product?.tax_rate) || 0;
+                    const lineSub = qty * rate;
+                    const taxAmount = (lineSub * taxPct) / 100;
+                    const amount = lineSub + taxAmount;
+                    const rowKey = line._id ?? line.id ?? i;
+                    return (
+                      <tr key={rowKey}>
+                        <td className="text-center">{i + 1}</td>
+                        <td>{describeOrderLineItem(line)}</td>
+                        <td className="text-end align-middle">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            className="form-control form-control-sm text-end"
+                            aria-label={`Rate for line ${i + 1}`}
+                            value={edit.rate}
+                            onChange={(e) => handleInvoiceLineEdit(i, 'rate', e.target.value)}
+                          />
+                        </td>
+                        <td className="text-end align-middle">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            className="form-control form-control-sm text-end"
+                            aria-label={`Quantity for line ${i + 1}`}
+                            value={edit.qty}
+                            onChange={(e) => handleInvoiceLineEdit(i, 'qty', e.target.value)}
+                          />
+                        </td>
+                        <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
+                      </tr>
+                    );
+                  })
+                : data.lines.map((line, i) => (
+                    <tr key={i}>
+                      <td className="text-center">{i + 1}</td>
+                      <td>{line.description}</td>
+                      <td className="text-end">{fmt(line.rate)}</td>
+                      <td className="text-end">{line.qtyLabel}</td>
+                      <td className="text-end fw-semibold">{fmt(line.amount)}</td>
+                    </tr>
+                  ))}
             </tbody>
           </table>
         </div>
@@ -746,31 +866,31 @@ const PosInvoice = () => {
             <div className="border rounded p-3 bg-light">
               <div className="pos-inv-summary-row">
                 <span className="text-muted">Sub Total</span>
-                <span className="fw-semibold">{fmt(data.summary.subTotal)}</span>
+                <span className="fw-semibold">{fmt(summaryDisplay.subTotal)}</span>
               </div>
               <div className="pos-inv-summary-row">
                 <span className="text-muted">Tax</span>
-                <span>{fmt(data.summary.tax)}</span>
+                <span>{fmt(summaryDisplay.tax)}</span>
               </div>
               <div className="pos-inv-summary-row">
                 <span className="text-muted">Discount</span>
-                <span>{fmt(data.summary.discount)}</span>
+                <span>{fmt(summaryDisplay.discount)}</span>
               </div>
               <div className="pos-inv-summary-row">
                 <span className="text-muted">Shipping</span>
-                <span>{fmt(data.summary.shipping)}</span>
+                <span>{fmt(summaryDisplay.shipping)}</span>
               </div>
               <div className="pos-inv-summary-row pos-inv-summary-total">
                 <span>Total</span>
-                <span>{fmt(data.summary.total)}</span>
+                <span>{fmt(summaryDisplay.total)}</span>
               </div>
               <div className="pos-inv-summary-row pos-inv-payment-made">
                 <span>Payment Made</span>
-                <span>(-) {fmt(data.summary.paymentMade)}</span>
+                <span>(-) {fmt(summaryDisplay.paymentMade)}</span>
               </div>
               <div className="pos-inv-summary-row fw-bold">
                 <span>Balance Due</span>
-                <span>{fmt(data.summary.balanceDue)}</span>
+                <span>{fmt(summaryDisplay.balanceDue)}</span>
               </div>
             </div>
             {/* <div className="mt-4 text-md-end">
