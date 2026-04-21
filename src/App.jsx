@@ -34,6 +34,9 @@ import BranchEdit from './routes/branch/edit.jsx';
 import Accounts from './routes/accounts/index.jsx';
 import AccountsEdit from './routes/accounts/edit.jsx';
 import Orders from './routes/orders/index.jsx';
+import PurchaseOrderLookup from './routes/purchase_order/index.jsx';
+import PurchaseOrderAdd from './routes/purchase_order/add.jsx';
+import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -71,6 +74,9 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
+          <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
+          <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -137,6 +143,9 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
+          <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
+          <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

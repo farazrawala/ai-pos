@@ -47,7 +47,7 @@ function stringifyValidationErrors(errors) {
 /**
  * Readable message from a failed fetch (JSON envelope, validation errors, or plain/HTML text).
  */
-async function getErrorMessageFromResponse(response) {
+export async function getErrorMessageFromResponse(response) {
   const status = response.status;
   const text = await response.text().catch(() => '');
   const trimmed = text.trim();

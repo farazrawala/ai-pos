@@ -6,6 +6,7 @@ import {
   getOrderLineItems,
   updatePosOrderRequest,
 } from '../../features/orders/ordersAPI.js';
+import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -103,6 +104,42 @@ const describeOrderLineItem = (line) => {
   return product?.product_name || product?.product_code || line.name || 'Item';
 };
 
+const productPickerLabel = (p) => {
+  if (!p || typeof p !== 'object') return 'Product';
+  return p.product_name || p.name || p.product_code || 'Product';
+};
+
+const productPickerUnitPrice = (p) => {
+  if (!p || typeof p !== 'object') return 0;
+  const v = p.product_price ?? p.price;
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Matches backend `order_status` enum (default on server: placed). */
+const ORDER_STATUS_OPTIONS = [
+  'active',
+  'placed',
+  'confirmed',
+  'shipped',
+  'delivered',
+  'drafted',
+  'pending',
+  'completed',
+  'cancelled',
+  'refunded',
+  'failed',
+];
+
+const DEFAULT_ORDER_STATUS = 'placed';
+
+const normalizeOrderStatus = (value) => {
+  if (value == null || value === '') return DEFAULT_ORDER_STATUS;
+  const s = String(value).trim().toLowerCase();
+  return ORDER_STATUS_OPTIONS.includes(s) ? s : DEFAULT_ORDER_STATUS;
+};
+
 /** Map API order (`data` payload) into the invoice UI shape used by this page. */
 const mapOrderToInvoiceView = (order) => {
   if (!order || typeof order !== 'object') {
@@ -190,20 +227,35 @@ const PosInvoice = () => {
   const [sourceOrder, setSourceOrder] = useState(null);
   const [invoiceSaving, setInvoiceSaving] = useState(false);
   const [invoiceSaveMessage, setInvoiceSaveMessage] = useState({ type: null, text: '' });
-  /** Editable qty / rate (price) per API line item, aligned with `getOrderLineItems(sourceOrder)` */
-  const [invoiceLineEdits, setInvoiceLineEdits] = useState([]);
+  /** Editable invoice lines: qty, rate, optional add/remove; synced from order on load. */
+  const [invoiceDraftLines, setInvoiceDraftLines] = useState([]);
+  const [addProductQuery, setAddProductQuery] = useState('');
+  const [addProductResults, setAddProductResults] = useState([]);
+  const [addProductLoading, setAddProductLoading] = useState(false);
+  const [addProductError, setAddProductError] = useState('');
+  const [invoiceOrderStatus, setInvoiceOrderStatus] = useState(DEFAULT_ORDER_STATUS);
 
   useLayoutEffect(() => {
     if (!sourceOrder) {
-      setInvoiceLineEdits([]);
+      setInvoiceDraftLines([]);
+      setInvoiceOrderStatus(DEFAULT_ORDER_STATUS);
       return;
     }
+    const rawStatus = sourceOrder.order_status ?? sourceOrder.orderStatus ?? sourceOrder.status;
+    setInvoiceOrderStatus(normalizeOrderStatus(rawStatus));
     const items = getOrderLineItems(sourceOrder);
-    setInvoiceLineEdits(
-      items.map((line) => {
+    setInvoiceDraftLines(
+      items.map((line, idx) => {
+        const product =
+          line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
         const qty = parseFloat(String(line.qty ?? line.quantity ?? '0').replace(/,/g, ''));
         const rate = parseFloat(String(line.price ?? line.unit_price ?? '0').replace(/,/g, ''));
+        const pid = lineProductIdFromOrderLine(line);
         return {
+          key: String(line._id ?? line.id ?? `row-${idx}-${pid || 'x'}`),
+          productId: pid,
+          label: describeOrderLineItem(line),
+          taxPct: Number(product?.tax_rate) || 0,
           qty: Number.isFinite(qty) ? String(qty) : '0',
           rate: Number.isFinite(rate) ? String(rate) : '0',
         };
@@ -278,7 +330,7 @@ const PosInvoice = () => {
     window.print();
   }, []);
 
-  const buildOrderUpdatePayload = useCallback((order, lineEdits = []) => {
+  const buildOrderUpdatePayload = useCallback((order, draftLines = [], orderStatus = null) => {
     if (!order || typeof order !== 'object') {
       return {
         name: '',
@@ -287,32 +339,18 @@ const PosInvoice = () => {
         address: '',
         lines: [],
         discount: 0,
-        order_status: 'active',
+        order_status: normalizeOrderStatus(orderStatus),
         amount_received: '',
         change_given: '',
       };
     }
-    const items = getOrderLineItems(order);
-    const lines = items
-      .map((line, idx) => {
-        const productId = lineProductIdFromOrderLine(line);
-        const edit = lineEdits[idx];
-        let qty;
-        let price;
-        if (edit != null) {
-          const qtyNum = parseFloat(String(edit.qty ?? '0').replace(/,/g, ''));
-          const rateNum = parseFloat(String(edit.rate ?? '0').replace(/,/g, ''));
-          qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-          price = Number.isFinite(rateNum) ? rateNum : 0;
-        } else {
-          const qtyRaw = line.qty ?? line.quantity;
-          const qtyNum = parseFloat(String(qtyRaw ?? '0').replace(/,/g, ''));
-          qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-          const priceNum = parseFloat(
-            String(line.price ?? line.unit_price ?? '0').replace(/,/g, '')
-          );
-          price = Number.isFinite(priceNum) ? priceNum : 0;
-        }
+    const lines = (draftLines || [])
+      .map((d) => {
+        const productId = String(d?.productId ?? '').trim();
+        const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
+        const rateNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
+        const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+        const price = Number.isFinite(rateNum) ? rateNum : 0;
         return { productId, qty, price };
       })
       .filter((l) => l.productId);
@@ -321,13 +359,12 @@ const PosInvoice = () => {
     const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
     const discount = Number.isFinite(discountNum) ? discountNum : 0;
 
-    const order_status =
-      order.order_status ?? order.orderStatus ?? order.status ?? 'active';
+    const order_status = normalizeOrderStatus(
+      orderStatus ?? order.order_status ?? order.orderStatus ?? order.status
+    );
 
     const amount_received =
-      order.amount_received != null && order.amount_received !== ''
-        ? order.amount_received
-        : '';
+      order.amount_received != null && order.amount_received !== '' ? order.amount_received : '';
     const change_given =
       order.change_given != null && order.change_given !== '' ? order.change_given : '';
 
@@ -347,10 +384,18 @@ const PosInvoice = () => {
   const handleUpdateInvoice = useCallback(async () => {
     const oid = sourceOrder?._id ?? sourceOrder?.id;
     if (!oid) return;
+    const hasLines = invoiceDraftLines.some((d) => String(d?.productId ?? '').trim());
+    if (!hasLines) {
+      setInvoiceSaveMessage({
+        type: 'danger',
+        text: 'Add at least one product line before updating.',
+      });
+      return;
+    }
     setInvoiceSaving(true);
     setInvoiceSaveMessage({ type: null, text: '' });
     try {
-      const payload = buildOrderUpdatePayload(sourceOrder, invoiceLineEdits);
+      const payload = buildOrderUpdatePayload(sourceOrder, invoiceDraftLines, invoiceOrderStatus);
       await updatePosOrderRequest(String(oid), payload);
       const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
       setSourceOrder(refreshed);
@@ -361,34 +406,98 @@ const PosInvoice = () => {
     } finally {
       setInvoiceSaving(false);
     }
-  }, [sourceOrder, buildOrderUpdatePayload, invoiceId, invoiceLineEdits]);
+  }, [sourceOrder, buildOrderUpdatePayload, invoiceId, invoiceDraftLines, invoiceOrderStatus]);
 
   const canUpdateInvoice =
     Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
 
-  const handleInvoiceLineEdit = useCallback((index, field, rawValue) => {
-    setInvoiceLineEdits((prev) => {
-      const next = [...prev];
-      if (!next[index]) next[index] = { qty: '0', rate: '0' };
-      next[index] = { ...next[index], [field]: rawValue };
-      return next;
-    });
+  const invoiceHasSaveableLines = useMemo(
+    () => invoiceDraftLines.some((d) => String(d?.productId ?? '').trim()),
+    [invoiceDraftLines]
+  );
+
+  useEffect(() => {
+    if (!canUpdateInvoice) {
+      setAddProductResults([]);
+      setAddProductError('');
+      return undefined;
+    }
+    const q = addProductQuery.trim();
+    if (q.length < 2) {
+      setAddProductResults([]);
+      setAddProductError('');
+      return undefined;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setAddProductLoading(true);
+      setAddProductError('');
+      try {
+        const res = await fetchProductActiveRequest({ search: q, page: 1, limit: 30 });
+        if (cancelled) return;
+        setAddProductResults(Array.isArray(res?.data) ? res.data : []);
+      } catch (e) {
+        if (!cancelled) {
+          setAddProductError(e?.message || 'Search failed');
+          setAddProductResults([]);
+        }
+      } finally {
+        if (!cancelled) setAddProductLoading(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [addProductQuery, canUpdateInvoice]);
+
+  const handleDraftLineEdit = useCallback((key, field, rawValue) => {
+    setInvoiceDraftLines((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row))
+    );
   }, []);
 
-  const liveSummaryFromEdits = useMemo(() => {
-    if (!sourceOrder || !view?.summary || invoiceLineEdits.length === 0) return null;
-    const items = getOrderLineItems(sourceOrder);
-    if (items.length !== invoiceLineEdits.length) return null;
+  const removeDraftLine = useCallback((key) => {
+    setInvoiceDraftLines((prev) => prev.filter((row) => row.key !== key));
+  }, []);
+
+  const appendDraftProduct = useCallback((product) => {
+    if (!product || typeof product !== 'object') return;
+    const id = String(product._id ?? product.id ?? '').trim();
+    if (!id) return;
+    const rate = productPickerUnitPrice(product);
+    const taxPct = Number(product.tax_rate) || 0;
+    setInvoiceDraftLines((prev) => [
+      ...prev,
+      {
+        key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        productId: id,
+        label: productPickerLabel(product),
+        taxPct,
+        qty: '1',
+        rate: String(rate),
+      },
+    ]);
+    setAddProductQuery('');
+    setAddProductResults([]);
+    setAddProductError('');
+  }, []);
+
+  const liveSummaryFromDraft = useMemo(() => {
+    const hasOrder =
+      sourceOrder &&
+      typeof sourceOrder === 'object' &&
+      (sourceOrder._id != null || sourceOrder.id != null);
+    if (!hasOrder || !view?.summary) return null;
     let subTotal = 0;
     let taxTotal = 0;
-    items.forEach((line, i) => {
-      const edit = invoiceLineEdits[i];
-      const qtyNum = parseFloat(String(edit?.qty ?? '0').replace(/,/g, ''));
-      const rateNum = parseFloat(String(edit?.rate ?? '0').replace(/,/g, ''));
+    invoiceDraftLines.forEach((d) => {
+      if (!String(d?.productId ?? '').trim()) return;
+      const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
+      const rateNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
       const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
       const rate = Number.isFinite(rateNum) ? rateNum : 0;
-      const product = line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
-      const taxPct = Number(product?.tax_rate) || 0;
+      const taxPct = Number(d.taxPct) || 0;
       const lineSub = qty * rate;
       const taxAmount = (lineSub * taxPct) / 100;
       subTotal += lineSub;
@@ -407,10 +516,10 @@ const PosInvoice = () => {
       paymentMade,
       balanceDue: Math.max(0, total - paymentMade),
     };
-  }, [sourceOrder, invoiceLineEdits, view]);
+  }, [sourceOrder, invoiceDraftLines, view]);
 
-  const summaryDisplay = liveSummaryFromEdits || data.summary;
-  const grossDisplay = liveSummaryFromEdits ? liveSummaryFromEdits.total : data.grossAmount;
+  const summaryDisplay = liveSummaryFromDraft ?? data.summary;
+  const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
 
   if (fetchStatus === 'loading') {
     return (
@@ -602,9 +711,15 @@ const PosInvoice = () => {
         <button
           type="button"
           className="btn pos-inv-btn-orange"
-          disabled={!canUpdateInvoice || invoiceSaving}
+          disabled={!canUpdateInvoice || invoiceSaving || !invoiceHasSaveableLines}
           onClick={handleUpdateInvoice}
-          title={canUpdateInvoice ? 'PATCH invoice to server' : 'Load an order from the URL first'}
+          title={
+            !canUpdateInvoice
+              ? 'Load an order from the URL first'
+              : !invoiceHasSaveableLines
+                ? 'Add at least one product line'
+                : 'PATCH invoice to server'
+          }
         >
           {invoiceSaving ? (
             <>
@@ -762,10 +877,75 @@ const PosInvoice = () => {
 
         {/* Line items */}
         <div className="table-responsive mb-4">
-          {canUpdateInvoice && invoiceLineEdits.length > 0 && (
-            <p className="small text-muted mb-2 pos-inv-no-print">
-              Edit <strong>Qty</strong> and <strong>Rate</strong> below, then use <strong>Update invoice</strong> to save.
-            </p>
+          {canUpdateInvoice && (
+            <>
+              <p className="small text-muted mb-2 pos-inv-no-print">
+                Edit <strong>Qty</strong> and <strong>Rate</strong>, add or remove lines, then use{' '}
+                <strong>Update invoice</strong> to save.
+              </p>
+              <div className="mb-3 pos-inv-no-print">
+                <label className="form-label small text-muted mb-1" htmlFor="pos-inv-order-status">
+                  Order status
+                </label>
+                <select
+                  id="pos-inv-order-status"
+                  className="form-select form-select-sm"
+                  style={{ maxWidth: '280px' }}
+                  value={invoiceOrderStatus}
+                  onChange={(e) => setInvoiceOrderStatus(e.target.value)}
+                >
+                  {ORDER_STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-3 position-relative pos-inv-no-print">
+                <label className="form-label small text-muted mb-1" htmlFor="pos-inv-add-product">
+                  Add product
+                </label>
+                <input
+                  id="pos-inv-add-product"
+                  type="search"
+                  className="form-control form-control-sm"
+                  placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                  value={addProductQuery}
+                  onChange={(e) => setAddProductQuery(e.target.value)}
+                  autoComplete="off"
+                />
+                {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
+                {addProductError ? (
+                  <div className="text-danger small mt-1" role="alert">
+                    {addProductError}
+                  </div>
+                ) : null}
+                {addProductResults.length > 0 ? (
+                  <ul
+                    className="list-group position-absolute w-100 shadow-sm mt-1"
+                    style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                  >
+                    {addProductResults.map((p) => {
+                      const pk = String(p._id ?? p.id ?? '');
+                      return (
+                        <li key={pk} className="list-group-item p-0">
+                          <button
+                            type="button"
+                            className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
+                            onClick={() => appendDraftProduct(p)}
+                          >
+                            <span className="fw-semibold">{productPickerLabel(p)}</span>
+                            <span className="text-muted ms-2">
+                              {fmt(productPickerUnitPrice(p))}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </div>
+            </>
           )}
           <table className="table table-bordered pos-inv-table mb-0">
             <thead>
@@ -781,27 +961,42 @@ const PosInvoice = () => {
                 <th className="text-end" style={{ width: '120px' }}>
                   Amount
                 </th>
+                {canUpdateInvoice ? (
+                  <th className="text-center pos-inv-no-print" style={{ width: '72px' }}>
+                    {' '}
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
-              {canUpdateInvoice && invoiceLineEdits.length > 0
-                ? getOrderLineItems(sourceOrder).map((line, i) => {
-                    const edit = invoiceLineEdits[i] || { qty: '0', rate: '0' };
-                    const qtyNum = parseFloat(String(edit.qty ?? '0').replace(/,/g, ''));
-                    const rateNum = parseFloat(String(edit.rate ?? '0').replace(/,/g, ''));
+              {canUpdateInvoice ? (
+                invoiceDraftLines.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center text-muted py-4">
+                      No line items. Use <strong>Add product</strong> above to add rows.
+                    </td>
+                  </tr>
+                ) : (
+                  invoiceDraftLines.map((row, i) => {
+                    const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
+                    const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
                     const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
                     const rate = Number.isFinite(rateNum) ? rateNum : 0;
-                    const product =
-                      line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
-                    const taxPct = Number(product?.tax_rate) || 0;
+                    const taxPct = Number(row.taxPct) || 0;
                     const lineSub = qty * rate;
                     const taxAmount = (lineSub * taxPct) / 100;
                     const amount = lineSub + taxAmount;
-                    const rowKey = line._id ?? line.id ?? i;
                     return (
-                      <tr key={rowKey}>
+                      <tr key={row.key}>
                         <td className="text-center">{i + 1}</td>
-                        <td>{describeOrderLineItem(line)}</td>
+                        <td>
+                          <div>{row.label}</div>
+                          {!String(row.productId || '').trim() ? (
+                            <div className="small text-warning">
+                              Missing product id — remove or fix.
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="text-end align-middle">
                           <input
                             type="number"
@@ -809,8 +1004,8 @@ const PosInvoice = () => {
                             step="0.01"
                             className="form-control form-control-sm text-end"
                             aria-label={`Rate for line ${i + 1}`}
-                            value={edit.rate}
-                            onChange={(e) => handleInvoiceLineEdit(i, 'rate', e.target.value)}
+                            value={row.rate}
+                            onChange={(e) => handleDraftLineEdit(row.key, 'rate', e.target.value)}
                           />
                         </td>
                         <td className="text-end align-middle">
@@ -820,23 +1015,36 @@ const PosInvoice = () => {
                             step="0.01"
                             className="form-control form-control-sm text-end"
                             aria-label={`Quantity for line ${i + 1}`}
-                            value={edit.qty}
-                            onChange={(e) => handleInvoiceLineEdit(i, 'qty', e.target.value)}
+                            value={row.qty}
+                            onChange={(e) => handleDraftLineEdit(row.key, 'qty', e.target.value)}
                           />
                         </td>
                         <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
+                        <td className="text-center align-middle pos-inv-no-print">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger py-0 px-2"
+                            aria-label={`Remove line ${i + 1}`}
+                            onClick={() => removeDraftLine(row.key)}
+                          >
+                            <i className="fas fa-trash-alt" aria-hidden="true" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })
-                : data.lines.map((line, i) => (
-                    <tr key={i}>
-                      <td className="text-center">{i + 1}</td>
-                      <td>{line.description}</td>
-                      <td className="text-end">{fmt(line.rate)}</td>
-                      <td className="text-end">{line.qtyLabel}</td>
-                      <td className="text-end fw-semibold">{fmt(line.amount)}</td>
-                    </tr>
-                  ))}
+                )
+              ) : (
+                data.lines.map((line, i) => (
+                  <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td>{line.description}</td>
+                    <td className="text-end">{fmt(line.rate)}</td>
+                    <td className="text-end">{line.qtyLabel}</td>
+                    <td className="text-end fw-semibold">{fmt(line.amount)}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -844,10 +1052,10 @@ const PosInvoice = () => {
         {/* Payment + summary */}
         <div className="row mb-4">
           <div className="col-md-6 mb-4 mb-md-0">
-            <div className="small mb-2">
+            {/* <div className="small mb-2">
               <span className="text-muted">Payment Status: </span>
               <span className="pos-inv-underline fw-semibold">{data.paymentStatus}</span>
-            </div>
+            </div> */}
             <div className="small mb-3">
               <span className="text-muted">Payment Method: </span>
               <span className="pos-inv-underline fw-semibold">{data.paymentMethod}</span>
@@ -904,45 +1112,6 @@ const PosInvoice = () => {
           </div>
         </div>
 
-        {/* Credit transactions */}
-        <div className="mb-4">
-          <div className="fw-semibold mb-2">Credit Transactions:</div>
-          {Array.isArray(data.creditRows) && data.creditRows.length > 0 ? (
-            <div className="table-responsive">
-              <table className="table table-bordered pos-inv-table mb-0">
-                <thead>
-                  <tr>
-                    <th style={{ width: '90px' }}></th>
-                    <th>Date</th>
-                    <th>Method</th>
-                    <th className="text-end">Debit</th>
-                    <th className="text-end">Credit</th>
-                    <th>Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.creditRows.map((row, i) => (
-                    <tr key={i}>
-                      <td>
-                        <button type="button" className="btn btn-sm btn-primary py-0 px-2">
-                          Print
-                        </button>
-                      </td>
-                      <td>{row.date}</td>
-                      <td>{row.method}</td>
-                      <td className="text-end">{fmt(row.debit)}</td>
-                      <td className="text-end">{fmt(row.credit)}</td>
-                      <td className="small">{row.note}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="small text-muted mb-0">No credit transactions.</p>
-          )}
-        </div>
-
         {/* Footer */}
         <div className="border-top pt-4">
           <div className="fw-semibold mb-2">Terms &amp; Condition</div>
@@ -989,7 +1158,7 @@ const PosInvoice = () => {
             type="button"
             className="btn pos-inv-btn-orange align-self-stretch align-self-md-center"
             style={{ minWidth: '200px' }}
-            disabled={!canUpdateInvoice || invoiceSaving}
+            disabled={!canUpdateInvoice || invoiceSaving || !invoiceHasSaveableLines}
             onClick={handleUpdateInvoice}
           >
             {invoiceSaving ? (

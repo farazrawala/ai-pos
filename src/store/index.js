@@ -11,6 +11,7 @@ import warehouseReducer from '../features/warehouse/warehouseSlice.js';
 import branchReducer from '../features/branch/branchSlice.js';
 import accountsReducer from '../features/accounts/accountsSlice.js';
 import ordersReducer from '../features/orders/ordersSlice.js';
+import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -27,6 +28,7 @@ const store = configureStore({
     branch: branchReducer,
     accounts: accountsReducer,
     orders: ordersReducer,
+    purchaseOrders: purchaseOrdersReducer,
   },
 });
 
