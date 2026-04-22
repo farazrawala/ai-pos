@@ -11,14 +11,15 @@ Pos
 Orders 
 Invoice Edit
     - integration done / modify api to complete 
-
+purchase order :: 
     
+//
 
 stock transfer :: 
-purchase order :: 
+Navigate with Permissions ::
+
 Purchase return ::
 sales return ::
-Navigate with Permissions ::
 
 // generic 
 - add order_by to all-active and make order
