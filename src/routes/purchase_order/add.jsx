@@ -190,6 +190,13 @@ const PurchaseOrderAdd = () => {
 
   const hasVendor = Boolean(String(form.supplier_id ?? '').trim());
 
+  const submitDisabled = isSubmitting || !hasSaveableLines || !hasVendor;
+  const submitButtonTitle = !hasVendor
+    ? 'Select a vendor'
+    : !hasSaveableLines
+      ? 'Add at least one product line'
+      : undefined;
+
   const buildPayload = () => {
     const itemRows = lines
       .map((d) => {
@@ -320,14 +327,8 @@ const PurchaseOrderAdd = () => {
             type="submit"
             form="po-add-form"
             className="btn btn-primary"
-            disabled={isSubmitting || !hasSaveableLines || !hasVendor}
-            title={
-              !hasVendor
-                ? 'Select a vendor'
-                : !hasSaveableLines
-                  ? 'Add at least one product line'
-                  : undefined
-            }
+            disabled={submitDisabled}
+            title={submitButtonTitle}
           >
             {isSubmitting ? (
               <>
@@ -616,6 +617,27 @@ const PurchaseOrderAdd = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="d-flex flex-wrap justify-content-end gap-2 pt-3 mt-3 border-top po-add-actions">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={submitDisabled}
+              title={submitButtonTitle}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save me-1" aria-hidden="true" />
+                  Create purchase order
+                </>
+              )}
+            </button>
           </div>
         </div>
       </form>

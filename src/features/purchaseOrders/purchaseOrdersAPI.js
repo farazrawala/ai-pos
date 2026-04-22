@@ -55,7 +55,6 @@ const getMultipartPostHeaders = () => {
   return headers;
 };
 
-
 /** First non-empty array found on an object (common list wrappers). */
 const firstArrayDeep = (obj, depth = 0) => {
   if (obj == null || typeof obj !== 'object' || depth > 4) return null;
@@ -95,11 +94,7 @@ export const normalizePurchaseOrderByItemPayload = (json) => {
   if (typeof json !== 'object') return json;
 
   const direct =
-    json.data ??
-    json.purchase_order ??
-    json.purchaseOrder ??
-    json.result ??
-    json.record;
+    json.data ?? json.purchase_order ?? json.purchaseOrder ?? json.result ?? json.record;
 
   if (Array.isArray(direct)) return direct;
   if (direct != null && typeof direct === 'object') {
@@ -213,7 +208,12 @@ export function normalizePurchaseOrdersListResponse(result, params = {}) {
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 10);
 
-  if (result && typeof result === 'object' && result.pagination && typeof result.pagination === 'object') {
+  if (
+    result &&
+    typeof result === 'object' &&
+    result.pagination &&
+    typeof result.pagination === 'object'
+  ) {
     const pagination = result.pagination;
     const raw =
       result.data ||
@@ -307,26 +307,22 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
 export function unwrapPurchaseOrderRecord(result) {
   if (result == null) return null;
   if (typeof result !== 'object' || Array.isArray(result)) return result;
-  const r =
-    result.data ??
-    result.purchase_order ??
-    result.purchaseOrder ??
-    result.record ??
-    result;
+  const r = result.data ?? result.purchase_order ?? result.purchaseOrder ?? result.record ?? result;
   if (r && typeof r === 'object' && !Array.isArray(r)) return r;
   return result;
 }
 
 /**
- * GET `purchase_order/get/:id`
+ * GET `purchase_order/get-purchase-order-by-purchase-item/:id`
+ * (purchase order id in path). Response shape: `{ data: [ purchaseOrder ], ... }`.
  */
 export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
   const id = String(purchaseOrderId ?? '').trim();
   if (!id) throw new Error('Purchase order id is required');
-  const url = `${BASE_URL}purchase_order/get/${encodeURIComponent(id)}`;
+  const url = `${BASE_URL}${ENDPOINT_PATH}/${encodeURIComponent(id)}`;
   let response;
   try {
-    response = await fetch(url, { method: 'GET', headers: getJsonWriteHeaders() });
+    response = await fetch(url, { method: 'GET', headers: getJsonReadHeaders() });
   } catch (err) {
     logPurchaseOrderModuleError('fetchPurchaseOrderByIdRequest network error', { url, err });
     throw err;
@@ -340,7 +336,19 @@ export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
     });
     throw new Error(message);
   }
-  return response.json().catch(() => ({}));
+  const json = await response.json().catch(() => null);
+  if (json && typeof json === 'object' && Array.isArray(json.data)) {
+    if (json.data.length === 0) {
+      const err = new Error('Purchase order not found');
+      err.status = 404;
+      throw err;
+    }
+    const first = json.data[0];
+    if (first && typeof first === 'object') return first;
+  }
+  const unwrapped = unwrapPurchaseOrderRecord(json);
+  if (unwrapped && typeof unwrapped === 'object') return unwrapped;
+  return json ?? {};
 }
 
 /**
@@ -401,25 +409,95 @@ export async function createPurchaseOrderRequest(payload = {}) {
   }
   if (!response.ok) {
     const message = await getErrorMessageFromResponse(response);
-    logPurchaseOrderModuleError('createPurchaseOrderRequest failed', { status: response.status, message });
+    logPurchaseOrderModuleError('createPurchaseOrderRequest failed', {
+      status: response.status,
+      message,
+    });
     throw new Error(message);
   }
   return response.json().catch(() => ({}));
 }
 
 /**
- * PATCH `purchase_order/update/:id` — JSON body.
+ * PATCH `purchase_order/purchase_order_update/:id` — multipart form fields:
+ * `name`, `email`, `phone`, `address`, `vendor_id`, `description`, `ref_no`,
+ * `product_id[n]`, `qty[n]`, `price[n]`, `discount`, `order_status`,
+ * `amount_received`, `change_given` (same line-item shape as create).
  */
 export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) {
   const id = String(purchaseOrderId ?? '').trim();
   if (!id) throw new Error('Purchase order id is required');
-  const url = `${BASE_URL}purchase_order/update/${encodeURIComponent(id)}`;
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const form = new FormData();
+
+  const appendTrimmed = (key, val) => {
+    if (val == null) return;
+    const s = String(val).trim();
+    if (s !== '') form.append(key, s);
+  };
+
+  appendTrimmed('name', body.name);
+  appendTrimmed('email', body.email);
+  appendTrimmed('phone', body.phone);
+  appendTrimmed('address', body.address);
+
+  const vendorId = String(body.vendor_id ?? body.supplier_id ?? '').trim();
+  if (vendorId) form.append('vendor_id', vendorId);
+
+  const description = body.description ?? body.notes;
+  if (description != null && String(description).trim() !== '') {
+    form.append('description', String(description));
+  }
+
+  const refNo = body.ref_no ?? body.purchase_order_no;
+  if (refNo != null && String(refNo).trim() !== '') {
+    form.append('ref_no', String(refNo).trim());
+  }
+
+  if (body.discount != null && String(body.discount).trim() !== '') {
+    form.append('discount', String(body.discount).trim());
+  }
+
+  if (body.order_status != null && String(body.order_status).trim() !== '') {
+    form.append('order_status', String(body.order_status).trim());
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'amount_received')) {
+    form.append(
+      'amount_received',
+      body.amount_received == null ? '' : String(body.amount_received)
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'change_given')) {
+    form.append('change_given', body.change_given == null ? '' : String(body.change_given));
+  }
+
+  const rawLines = Array.isArray(body.lines)
+    ? body.lines
+    : Array.isArray(body.items)
+      ? body.items
+      : [];
+
+  let idx = 0;
+  rawLines.forEach((line) => {
+    if (!line || typeof line !== 'object') return;
+    const productId = String(line.productId ?? line.product_id ?? '').trim();
+    if (!productId) return;
+    const qty = line.qty;
+    const price = line.price ?? line.rate;
+    form.append(`product_id[${idx}]`, productId);
+    if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
+    if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
+    idx += 1;
+  });
+
+  const url = `${BASE_URL}purchase_order/purchase_order_update/${encodeURIComponent(id)}`;
   let response;
   try {
     response = await fetch(url, {
       method: 'PATCH',
-      headers: getJsonWriteHeaders(),
-      body: JSON.stringify(payload && typeof payload === 'object' ? payload : {}),
+      headers: getMultipartPostHeaders(),
+      body: form,
     });
   } catch (err) {
     logPurchaseOrderModuleError('updatePurchaseOrderRequest network error', { url, err });
@@ -436,4 +514,3 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
   }
   return response.json().catch(() => ({}));
 }
-

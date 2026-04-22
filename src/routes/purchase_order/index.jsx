@@ -248,7 +248,17 @@ const PurchaseOrders = () => {
             <div className="card-header pb-0">
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
-                  <h5 className="mb-0">Purchase orders</h5>
+                  <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+                    <h5 className="mb-0">Purchase orders</h5>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm flex-shrink-0"
+                      onClick={() => navigate('/purchase-orders/add')}
+                    >
+                      <i className="fas fa-plus me-1" aria-hidden="true" />
+                      Create purchase order
+                    </button>
+                  </div>
                   <p className="text-sm mb-0 text-muted">
                     Server-side pagination and search —{' '}
                     <code className="small">GET /purchase_order/get-purchase-order-by-purchase-item</code>
@@ -256,14 +266,6 @@ const PurchaseOrders = () => {
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => navigate('/purchase-orders/add')}
-                    >
-                      <i className="fas fa-plus me-1" aria-hidden="true" />
-                      Add purchase order
-                    </button>
                     <div className="input-group input-group-sm" style={{ maxWidth: '100%' }}>
                       <span className="input-group-text text-body">
                         <i className="fas fa-search" aria-hidden="true" />
@@ -353,8 +355,18 @@ const PurchaseOrders = () => {
                       {data.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="text-center text-sm p-4 text-muted">
-                            No purchase orders found. Try adjusting search or optional purchase item
-                            filter.
+                            <p className="mb-3">
+                              No purchase orders found. Try adjusting search or optional purchase item
+                              filter.
+                            </p>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => navigate('/purchase-orders/add')}
+                            >
+                              <i className="fas fa-plus me-1" aria-hidden="true" />
+                              Create purchase order
+                            </button>
                           </td>
                         </tr>
                       ) : (
