@@ -37,6 +37,7 @@ import Orders from './routes/orders/index.jsx';
 import PurchaseOrderLookup from './routes/purchase_order/index.jsx';
 import PurchaseOrderAdd from './routes/purchase_order/add.jsx';
 import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
+import Transactions from './routes/transactions/index.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -74,6 +75,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
@@ -143,6 +145,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
