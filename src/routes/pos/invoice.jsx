@@ -7,6 +7,12 @@ import {
   updatePosOrderRequest,
 } from '../../features/orders/ordersAPI.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import {
+  fetchUsersListRequest,
+  formatUserOptionLabel,
+  getUserOptionValue,
+} from '../../features/users/usersAPI.js';
+import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -180,8 +186,35 @@ const mapOrderToInvoiceView = (order) => {
     });
   });
 
-  const total = subTotal + taxTotal;
+  const totalBeforeAdjust = subTotal + taxTotal;
+  const discountRaw = order.discount ?? order.discount_amount ?? 0;
+  const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
+  const discount = Number.isFinite(discountNum) ? discountNum : 0;
+  const shipRaw = order.shipping ?? order.shipment ?? 0;
+  const shipNum = parseFloat(String(shipRaw).replace(/,/g, ''));
+  const shipping = Number.isFinite(shipNum) ? shipNum : 0;
+  const total = Math.max(0, totalBeforeAdjust - discount + shipping);
   const orderId = order._id != null ? order._id : order.id;
+
+  const rawPayAccount = order.payment_method_accounts_id;
+  const payMethodId = String(
+    (rawPayAccount && typeof rawPayAccount === 'object'
+      ? rawPayAccount._id ?? rawPayAccount.id
+      : rawPayAccount) ??
+      order.posPayMethod ??
+      order.payment_method_id ??
+      order.account_id ??
+      ''
+  ).trim();
+  let paymentMethodLabel = '—';
+  if (order.payment_method && typeof order.payment_method === 'object') {
+    paymentMethodLabel =
+      order.payment_method.name || order.payment_method.accountName || paymentMethodLabel;
+  } else if (order.paymentMethodName) {
+    paymentMethodLabel = String(order.paymentMethodName);
+  } else if (payMethodId) {
+    paymentMethodLabel = payMethodId;
+  }
 
   return {
     ...DEMO_INVOICE,
@@ -201,14 +234,14 @@ const mapOrderToInvoiceView = (order) => {
     summary: {
       subTotal,
       tax: taxTotal,
-      discount: 0,
-      shipping: 0,
+      discount,
+      shipping,
       total,
       paymentMade: 0,
       balanceDue: total,
     },
     paymentStatus: order.status || '—',
-    paymentMethod: '—',
+    paymentMethod: paymentMethodLabel,
     note: order.address ? `Address: ${order.address}` : '',
     authorizedPerson: { name: '—', title: 'Authorized signatory' },
     creditRows: [],
@@ -234,6 +267,16 @@ const PosInvoice = () => {
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
   const [invoiceOrderStatus, setInvoiceOrderStatus] = useState(DEFAULT_ORDER_STATUS);
+  const [invoiceDiscountInput, setInvoiceDiscountInput] = useState('');
+  const [invoiceShippingInput, setInvoiceShippingInput] = useState('');
+  const [invoiceCustomerId, setInvoiceCustomerId] = useState('');
+  const [invoicePosPayMethod, setInvoicePosPayMethod] = useState('');
+  const [users, setUsers] = useState([]);
+  const [usersStatus, setUsersStatus] = useState('idle');
+  const [usersError, setUsersError] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsStatus, setPaymentMethodsStatus] = useState('idle');
+  const [paymentMethodsError, setPaymentMethodsError] = useState('');
 
   useLayoutEffect(() => {
     if (!sourceOrder) {
@@ -262,6 +305,80 @@ const PosInvoice = () => {
       })
     );
   }, [sourceOrder]);
+
+  useEffect(() => {
+    if (!sourceOrder || typeof sourceOrder !== 'object') return;
+    const disc = sourceOrder.discount ?? sourceOrder.discount_amount ?? 0;
+    const d = parseFloat(String(disc).replace(/,/g, ''));
+    setInvoiceDiscountInput(String(Number.isFinite(d) ? d : 0));
+    const shipRaw = sourceOrder.shipping ?? sourceOrder.shipment ?? 0;
+    const s = parseFloat(String(shipRaw).replace(/,/g, ''));
+    setInvoiceShippingInput(String(Number.isFinite(s) ? s : 0));
+    const cid = sourceOrder.customer_id ?? sourceOrder.customerId ?? '';
+    setInvoiceCustomerId(cid != null && String(cid).trim() !== '' ? String(cid).trim() : '');
+    const rawPm = sourceOrder.payment_method_accounts_id;
+    const pm =
+      (rawPm && typeof rawPm === 'object' ? rawPm._id ?? rawPm.id : rawPm) ??
+      sourceOrder.posPayMethod ??
+      sourceOrder.payment_method_id ??
+      sourceOrder.account_id ??
+      '';
+    setInvoicePosPayMethod(pm != null && String(pm).trim() !== '' ? String(pm).trim() : '');
+  }, [sourceOrder]);
+
+  useEffect(() => {
+    if (!invoiceId) return undefined;
+    let cancelled = false;
+    setUsersStatus('loading');
+    setUsersError(null);
+    (async () => {
+      try {
+        const list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
+        if (cancelled) return;
+        setUsers(Array.isArray(list) ? list : []);
+        setUsersStatus('succeeded');
+      } catch (e) {
+        if (!cancelled) {
+          setUsers([]);
+          setUsersError(e?.message || 'Could not load customers');
+          setUsersStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceId]);
+
+  useEffect(() => {
+    if (!invoiceId) return undefined;
+    let cancelled = false;
+    setPaymentMethodsStatus('loading');
+    setPaymentMethodsError('');
+    (async () => {
+      try {
+        const result = await fetchAccountsRequest({
+          limit: 2000,
+          skip: 0,
+          account_type: 'current_asset',
+          sortBy: 'createdAt',
+          sortOrder: 'asc',
+        });
+        if (cancelled) return;
+        setPaymentMethods(Array.isArray(result?.data) ? result.data : []);
+        setPaymentMethodsStatus('succeeded');
+      } catch (e) {
+        if (!cancelled) {
+          setPaymentMethods([]);
+          setPaymentMethodsError(e?.message || 'Could not load accounts');
+          setPaymentMethodsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceId]);
 
   useEffect(() => {
     if (!invoiceId) {
@@ -395,7 +512,27 @@ const PosInvoice = () => {
     setInvoiceSaving(true);
     setInvoiceSaveMessage({ type: null, text: '' });
     try {
-      const payload = buildOrderUpdatePayload(sourceOrder, invoiceDraftLines, invoiceOrderStatus);
+      const base = buildOrderUpdatePayload(sourceOrder, invoiceDraftLines, invoiceOrderStatus);
+      const discNum = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
+      const shipNum = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
+      const discount = Number.isFinite(discNum) ? discNum : 0;
+      const shipping = Number.isFinite(shipNum) ? shipNum : 0;
+      const customer = invoiceCustomerId
+        ? users.find((u) => getUserOptionValue(u) === invoiceCustomerId)
+        : null;
+      const payload = {
+        ...base,
+        name: customer?.name || customer?.fullName || customer?.username || base.name,
+        email: customer?.email || base.email,
+        phone: customer?.mobile || customer?.phone || customer?.phoneNumber || base.phone,
+        discount,
+        shipping,
+        shipment: shipping,
+        customer_id: invoiceCustomerId || undefined,
+        posPayMethod: invoicePosPayMethod || undefined,
+        payment_method_id: invoicePosPayMethod || undefined,
+        payment_method_accounts_id: invoicePosPayMethod || undefined,
+      };
       await updatePosOrderRequest(String(oid), payload);
       const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
       setSourceOrder(refreshed);
@@ -406,10 +543,45 @@ const PosInvoice = () => {
     } finally {
       setInvoiceSaving(false);
     }
-  }, [sourceOrder, buildOrderUpdatePayload, invoiceId, invoiceDraftLines, invoiceOrderStatus]);
+  }, [
+    sourceOrder,
+    buildOrderUpdatePayload,
+    invoiceId,
+    invoiceDraftLines,
+    invoiceOrderStatus,
+    invoiceDiscountInput,
+    invoiceShippingInput,
+    invoiceCustomerId,
+    invoicePosPayMethod,
+    users,
+  ]);
 
   const canUpdateInvoice =
     Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
+
+  const billToDisplay = useMemo(() => {
+    const fallback =
+      view?.billTo && typeof view.billTo === 'object' ? view.billTo : DEMO_INVOICE.billTo;
+    if (!canUpdateInvoice) return fallback;
+    if (!invoiceCustomerId) {
+      const o = sourceOrder;
+      if (o) {
+        return {
+          name: o.name || '—',
+          phone: o.phone || '—',
+          email: o.email || '—',
+        };
+      }
+      return fallback;
+    }
+    const u = users.find((row) => getUserOptionValue(row) === invoiceCustomerId);
+    if (!u) return fallback;
+    return {
+      name: u.name || u.fullName || u.username || fallback.name,
+      phone: u.mobile || u.phone || u.phoneNumber || fallback.phone,
+      email: u.email || fallback.email,
+    };
+  }, [canUpdateInvoice, invoiceCustomerId, users, sourceOrder, view]);
 
   const invoiceHasSaveableLines = useMemo(
     () => invoiceDraftLines.some((d) => String(d?.productId ?? '').trim()),
@@ -503,10 +675,17 @@ const PosInvoice = () => {
       subTotal += lineSub;
       taxTotal += taxAmount;
     });
-    const total = subTotal + taxTotal;
+    const totalBeforeAdjust = subTotal + taxTotal;
+    const discountParsed = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
+    const discount = Number.isFinite(discountParsed)
+      ? discountParsed
+      : Number(view.summary.discount) || 0;
+    const shippingParsed = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
+    const shipping = Number.isFinite(shippingParsed)
+      ? shippingParsed
+      : Number(view.summary.shipping) || 0;
+    const total = Math.max(0, totalBeforeAdjust - discount + shipping);
     const paymentMade = Number(view.summary.paymentMade) || 0;
-    const discount = Number(view.summary.discount) || 0;
-    const shipping = Number(view.summary.shipping) || 0;
     return {
       subTotal,
       tax: taxTotal,
@@ -516,7 +695,7 @@ const PosInvoice = () => {
       paymentMade,
       balanceDue: Math.max(0, total - paymentMade),
     };
-  }, [sourceOrder, invoiceDraftLines, view]);
+  }, [sourceOrder, invoiceDraftLines, view, invoiceDiscountInput, invoiceShippingInput]);
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
   const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
@@ -855,9 +1034,38 @@ const PosInvoice = () => {
         <div className="row mb-4">
           <div className="col-md-6 mb-3 mb-md-0">
             <div className="text-uppercase text-muted small fw-bold mb-2">Bill To</div>
-            <div className="pos-inv-client-name mb-1">{data.billTo.name}</div>
-            <div className="small text-secondary">{data.billTo.phone}</div>
-            <div className="small text-secondary">{data.billTo.email}</div>
+            {canUpdateInvoice ? (
+              <div className="pos-inv-no-print mb-3">
+                <label className="form-label small text-muted mb-1" htmlFor="posInvCustomer">
+                  Customer
+                </label>
+                <select
+                  id="posInvCustomer"
+                  className="form-select form-select-sm"
+                  value={invoiceCustomerId}
+                  onChange={(e) => setInvoiceCustomerId(e.target.value)}
+                  disabled={usersStatus === 'loading'}
+                >
+                  <option value="">Walk In (no customer)</option>
+                  {users
+                    .filter((u) => getUserOptionValue(u))
+                    .map((u) => {
+                      const v = getUserOptionValue(u);
+                      return (
+                        <option key={v} value={v}>
+                          {formatUserOptionLabel(u)}
+                        </option>
+                      );
+                    })}
+                </select>
+                {usersError ? (
+                  <div className="small text-danger mt-1">{usersError}</div>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="pos-inv-client-name mb-1">{billToDisplay.name}</div>
+            <div className="small text-secondary">{billToDisplay.phone}</div>
+            <div className="small text-secondary">{billToDisplay.email}</div>
           </div>
           <div className="col-md-6 text-md-end">
             <div className="small mb-2">
@@ -1056,6 +1264,34 @@ const PosInvoice = () => {
               <span className="text-muted">Payment Status: </span>
               <span className="pos-inv-underline fw-semibold">{data.paymentStatus}</span>
             </div> */}
+            {canUpdateInvoice ? (
+              <div className="mb-3 pos-inv-no-print">
+                <label className="form-label small text-muted mb-1" htmlFor="posInvReceiveAccount">
+                  Receive in account
+                </label>
+                <select
+                  id="posInvReceiveAccount"
+                  className="form-select form-select-sm"
+                  value={invoicePosPayMethod}
+                  onChange={(e) => setInvoicePosPayMethod(e.target.value)}
+                  disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
+                >
+                  <option value="">— Select account —</option>
+                  {paymentMethods.map((method) => {
+                    const methodId = String(method._id ?? method.id ?? '');
+                    if (!methodId) return null;
+                    return (
+                      <option key={methodId} value={methodId}>
+                        {method.name || 'Unnamed account'}
+                      </option>
+                    );
+                  })}
+                </select>
+                {paymentMethodsError ? (
+                  <div className="small text-danger mt-1">{paymentMethodsError}</div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="small mb-3">
               <span className="text-muted">Payment Method: </span>
               <span className="pos-inv-underline fw-semibold">{data.paymentMethod}</span>
@@ -1080,13 +1316,47 @@ const PosInvoice = () => {
                 <span className="text-muted">Tax</span>
                 <span>{fmt(summaryDisplay.tax)}</span>
               </div>
-              <div className="pos-inv-summary-row">
+              <div className="pos-inv-summary-row align-items-center">
                 <span className="text-muted">Discount</span>
-                <span>{fmt(summaryDisplay.discount)}</span>
+                {canUpdateInvoice ? (
+                  <>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm text-end pos-inv-no-print"
+                      style={{ maxWidth: 140 }}
+                      inputMode="decimal"
+                      value={invoiceDiscountInput}
+                      onChange={(e) => setInvoiceDiscountInput(e.target.value)}
+                      aria-label="Discount amount"
+                    />
+                    <span className="d-none d-print-inline-block fw-semibold">
+                      {fmt(summaryDisplay.discount)}
+                    </span>
+                  </>
+                ) : (
+                  <span>{fmt(summaryDisplay.discount)}</span>
+                )}
               </div>
-              <div className="pos-inv-summary-row">
+              <div className="pos-inv-summary-row align-items-center">
                 <span className="text-muted">Shipping</span>
-                <span>{fmt(summaryDisplay.shipping)}</span>
+                {canUpdateInvoice ? (
+                  <>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm text-end pos-inv-no-print"
+                      style={{ maxWidth: 140 }}
+                      inputMode="decimal"
+                      value={invoiceShippingInput}
+                      onChange={(e) => setInvoiceShippingInput(e.target.value)}
+                      aria-label="Shipping amount"
+                    />
+                    <span className="d-none d-print-inline-block fw-semibold">
+                      {fmt(summaryDisplay.shipping)}
+                    </span>
+                  </>
+                ) : (
+                  <span>{fmt(summaryDisplay.shipping)}</span>
+                )}
               </div>
               <div className="pos-inv-summary-row pos-inv-summary-total">
                 <span>Total</span>
