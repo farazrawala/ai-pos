@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchAccountsRequest,
   fetchAccountByIdRequest,
+  createAccountRequest,
   updateAccountRequest,
   deleteAccountRequest,
 } from './accountsAPI.js';
@@ -40,6 +41,18 @@ export const updateAccount = createAsyncThunk(
   }
 );
 
+export const createAccount = createAsyncThunk(
+  'accounts/createAccount',
+  async (accountData, { rejectWithValue }) => {
+    try {
+      const response = await createAccountRequest(accountData);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to create account');
+    }
+  }
+);
+
 export const deleteAccount = createAsyncThunk(
   'accounts/deleteAccount',
   async (accountId, { rejectWithValue }) => {
@@ -72,6 +85,8 @@ const initialState = {
   fetchError: null,
   updateStatus: 'idle',
   updateError: null,
+  createStatus: 'idle',
+  createError: null,
   deleteStatus: 'idle',
   deleteError: null,
 };
@@ -112,6 +127,10 @@ const accountsSlice = createSlice({
     clearUpdateStatus: (state) => {
       state.updateStatus = 'idle';
       state.updateError = null;
+    },
+    clearCreateStatus: (state) => {
+      state.createStatus = 'idle';
+      state.createError = null;
     },
     clearDeleteStatus: (state) => {
       state.deleteStatus = 'idle';
@@ -170,6 +189,18 @@ const accountsSlice = createSlice({
         state.updateStatus = 'failed';
         state.updateError = action.payload || action.error.message || 'Failed to update account';
       })
+      .addCase(createAccount.pending, (state) => {
+        state.createStatus = 'loading';
+        state.createError = null;
+      })
+      .addCase(createAccount.fulfilled, (state) => {
+        state.createStatus = 'succeeded';
+        state.createError = null;
+      })
+      .addCase(createAccount.rejected, (state, action) => {
+        state.createStatus = 'failed';
+        state.createError = action.payload || action.error.message || 'Failed to create account';
+      })
       .addCase(deleteAccount.pending, (state) => {
         state.deleteStatus = 'loading';
         state.deleteError = null;
@@ -195,6 +226,7 @@ export const {
   setSort,
   clearCurrentAccount,
   clearUpdateStatus,
+  clearCreateStatus,
   clearDeleteStatus,
 } = accountsSlice.actions;
 export default accountsSlice.reducer;

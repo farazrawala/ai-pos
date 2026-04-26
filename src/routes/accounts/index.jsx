@@ -3,17 +3,30 @@ import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import {
   fetchAccounts,
+  createAccount,
   deleteAccount,
   setSearch,
   setPage,
   setLimit,
   setSort,
+  clearCreateStatus,
   clearDeleteStatus,
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useNavigate } from 'react-router-dom';
 
 const Accounts = () => {
+  const ACCOUNT_TYPE_OPTIONS = [
+    { value: 'current_asset', label: 'Current Asset' },
+    { value: 'fixed_asset', label: 'Fixed Asset' },
+    { value: 'revenue', label: 'Revenue' },
+    { value: 'cost of goods sold', label: 'Cost of Goods Sold' },
+    { value: 'operating expense', label: 'Operating Expense' },
+    { value: 'other expense', label: 'Other Expense' },
+    { value: 'equity', label: 'Equity' },
+    { value: 'liability', label: 'Liability' },
+    { value: 'other', label: 'Other' },
+  ];
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -23,14 +36,23 @@ const Accounts = () => {
     pagination,
     search: searchTerm,
     sort,
+    createStatus,
+    createError,
     deleteStatus,
     deleteError,
   } = useSelector((state) => state.accounts);
   const { canView, canEdit, canDelete } = usePermissions('accounts');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    account_type: '',
+    status: 'active',
+  });
+  const [createFormError, setCreateFormError] = useState('');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+  const isCreating = createStatus === 'loading';
 
   useEffect(() => {
     if (canView === false) navigate('/dashboard');
@@ -103,6 +125,58 @@ const Accounts = () => {
     return undefined;
   }, [deleteStatus, dispatch]);
 
+  useEffect(() => {
+    if (createStatus !== 'succeeded') return undefined;
+    setCreateForm({ name: '', account_type: '', status: 'active' });
+    setCreateFormError('');
+    const modalEl = document.getElementById('addAccountModal');
+    if (modalEl && window.bootstrap?.Modal) {
+      window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    }
+    dispatch(clearCreateStatus());
+    dispatch(
+      fetchAccounts({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: searchTerm || undefined,
+        sortBy: sort.sortBy || undefined,
+        sortOrder: sort.sortBy ? sort.sortOrder : undefined,
+      })
+    );
+    return undefined;
+  }, [
+    createStatus,
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
+
+  const handleCreateAccount = async () => {
+    setCreateFormError('');
+    if (!createForm.name.trim()) {
+      setCreateFormError('Name is required.');
+      return;
+    }
+    if (!createForm.account_type.trim()) {
+      setCreateFormError('Account type is required.');
+      return;
+    }
+    try {
+      await dispatch(
+        createAccount({
+          name: createForm.name.trim(),
+          account_type: createForm.account_type.trim(),
+          status: createForm.status,
+        })
+      ).unwrap();
+    } catch (err) {
+      setCreateFormError(err?.message || err || 'Failed to create account');
+    }
+  };
+
   const renderSortIcon = (columnName) => {
     if (sort.sortBy !== columnName) {
       return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
@@ -126,10 +200,22 @@ const Accounts = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Accounts</h5>
-                  <p className="text-sm mb-0">Account list with server-side pagination and search.</p>
+                  <p className="text-sm mb-0">
+                    Account list with server-side pagination and search.
+                  </p>
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-end align-items-center gap-2">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary mb-0"
+                        data-bs-toggle="modal"
+                        data-bs-target="#addAccountModal"
+                      >
+                        Add Account
+                      </button>
+                    )}
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
                         <i className="fas fa-search" aria-hidden="true"></i>
@@ -255,7 +341,8 @@ const Accounts = () => {
                       ) : (
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const statusValue = item.status || (item.isActive ? 'active' : 'inactive');
+                          const statusValue =
+                            item.status || (item.isActive ? 'active' : 'inactive');
                           const isActive = String(statusValue).toLowerCase() === 'active';
                           return (
                             <tr key={item._id || item.id || index}>
@@ -264,24 +351,34 @@ const Accounts = () => {
                               <td className="text-sm font-weight-normal">
                                 {item.name || item.accountName || '-'}
                               </td>
-                              <td className="text-sm font-weight-normal">{item.account_type || '-'}</td>
                               <td className="text-sm font-weight-normal">
-                                <span className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}>
+                                {item.account_type || '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                <span
+                                  className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}
+                                >
                                   {statusValue}
                                 </span>
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {item.createdAt ? moment(item.createdAt).format('MM-DD-YYYY h:mm a') : '-'}
+                                {item.createdAt
+                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {item.updatedAt ? moment(item.updatedAt).format('MM-DD-YYYY h:mm a') : '-'}
+                                {item.updatedAt
+                                  ? moment(item.updatedAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex gap-1">
                                   {canEdit && (
                                     <button
                                       className="btn btn-outline-info btn-sm mb-0"
-                                      onClick={() => navigate(`/accounts/edit/${item._id || item.id}`)}
+                                      onClick={() =>
+                                        navigate(`/accounts/edit/${item._id || item.id}`)
+                                      }
                                     >
                                       Edit
                                     </button>
@@ -307,6 +404,91 @@ const Accounts = () => {
                 )}
               </div>
               {deleteError && <div className="alert alert-danger mt-3 mb-0">{deleteError}</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        className="modal fade"
+        id="addAccountModal"
+        tabIndex="-1"
+        aria-labelledby="addAccountModalLabel"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="addAccountModalLabel">
+                Add Account
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+                disabled={isCreating}
+              />
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">
+                  Name <span className="text-danger">*</span>
+                </label>
+                <input
+                  className="form-control"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
+                  disabled={isCreating}
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label">
+                  Account Type <span className="text-danger">*</span>
+                </label>
+                <select
+                  className="form-select"
+                  value={createForm.account_type}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, account_type: e.target.value }))
+                  }
+                  disabled={isCreating}
+                >
+                  <option value="">Select account type</option>
+                  {ACCOUNT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Status</label>
+                <select
+                  className="form-select"
+                  value={createForm.status}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, status: e.target.value }))}
+                  disabled={isCreating}
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </div>
+              {(createFormError || createError) && (
+                <div className="alert alert-danger py-2 mb-0">{createFormError || createError}</div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                data-bs-dismiss="modal"
+                disabled={isCreating}
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={handleCreateAccount}>
+                {isCreating ? 'Creating...' : 'Create Account'}
+              </button>
             </div>
           </div>
         </div>

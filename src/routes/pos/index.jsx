@@ -144,6 +144,15 @@ const Pos = () => {
     return { rows: list.slice(0, cap), capped: list.length > cap };
   }, [users, customerFilter]);
 
+  useEffect(() => {
+    const firstCustomerId = users.map((u) => getUserOptionValue(u)).find(Boolean) || '';
+    if (!firstCustomerId) return;
+    const selectedStillExists = users.some((u) => getUserOptionValue(u) === selectedCustomerId);
+    if (!selectedCustomerId || !selectedStillExists) {
+      setSelectedCustomerId(firstCustomerId);
+    }
+  }, [users, selectedCustomerId]);
+
   const addToCart = useCallback((product) => {
     if (!product || typeof product !== 'object') return;
     const productId = String(product._id ?? product.id ?? product.product_id ?? '');
@@ -221,14 +230,9 @@ const Pos = () => {
       setOrderSaving(true);
       try {
         const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
-        const name =
-          customer?.name ||
-          customer?.fullName ||
-          customer?.username ||
-          'Walk-in Client';
+        const name = customer?.name || customer?.fullName || customer?.username || 'Walk-in Client';
         const email = customer?.email || 'test@gmail.com';
-        const phone =
-          customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
+        const phone = customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
         const address = ''; // adjust if you have an address field
 
         const lines = cartLines.map((line) => ({
@@ -243,10 +247,15 @@ const Pos = () => {
           phone,
           address,
           lines,
+          shipping: shippingNum || 0,
+          shipment: shippingNum || 0,
           discount: extraDiscountNum || 0,
           order_status: 'active',
-          amount_received: payment?.paid ?? grandTotal,
+          amount_received: payment?.paid ?? 0,
           change_given: payment?.change ?? 0,
+          posPayMethod: payment?.paymentMethodId || undefined,
+          payment_method_id: payment?.paymentMethodId || undefined,
+          customer_id: selectedCustomerId || undefined,
         });
         showToast('successToast', 'Order saved successfully.');
         setCartLines([]);
@@ -257,7 +266,7 @@ const Pos = () => {
         setOrderSaving(false);
       }
     },
-    [cartLines, users, selectedCustomerId, extraDiscountNum, grandTotal]
+    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum, grandTotal]
   );
 
   const openAddCustomerModal = () => {

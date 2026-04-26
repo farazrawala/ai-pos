@@ -45,7 +45,13 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
     setPaymentMethodsStatus('loading');
     setPaymentMethodsError('');
     try {
-      const result = await fetchAccountsRequest({ limit: 2000, skip: 0 });
+      const result = await fetchAccountsRequest({
+        limit: 2000,
+        skip: 0,
+        account_type: 'current_asset',
+        sortBy: 'createdAt',
+        sortOrder: 'asc',
+      });
       const list = Array.isArray(result?.data) ? result.data : [];
       setPaymentMethods(list);
       setPaymentMethodsStatus('succeeded');
@@ -285,7 +291,7 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
                   onClick={handlePayNow}
                 >
                   <i className="fas fa-arrow-circle-right"></i>
-                  Pay now
+                  Save Order
                 </button>
                 {/* <button
                   type="button"

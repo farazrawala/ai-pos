@@ -23,3 +23,13 @@ sales return ::
 
 // generic 
 - add order_by to all-active and make order
+
+
+
+
+pos transction sample.
+
+cash 75
+discount 75 
+    sales 100 
+    shipment 50

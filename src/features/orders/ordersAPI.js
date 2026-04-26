@@ -476,6 +476,12 @@ export async function createPosOrderRequest(payload = {}) {
   if (payload.discount != null) {
     form.append('discount', String(payload.discount));
   }
+  if (payload.shipping != null) {
+    form.append('shipping', String(payload.shipping));
+  }
+  if (payload.shipment != null) {
+    form.append('shipment', String(payload.shipment));
+  }
   if (payload.order_status != null) {
     form.append('order_status', String(payload.order_status));
   }
@@ -484,6 +490,15 @@ export async function createPosOrderRequest(payload = {}) {
   }
   if (payload.change_given != null) {
     form.append('change_given', String(payload.change_given));
+  }
+  if (payload.posPayMethod != null) {
+    form.append('posPayMethod', String(payload.posPayMethod));
+  }
+  if (payload.payment_method_id != null) {
+    form.append('payment_method_id', String(payload.payment_method_id));
+  }
+  if (payload.customer_id != null) {
+    form.append('customer_id', String(payload.customer_id));
   }
 
   const response = await fetch(`${BASE_URL}order/order_save`, {

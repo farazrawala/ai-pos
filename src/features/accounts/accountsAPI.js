@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 const BASE_URL = `${API_BASE_URL}/`;
 const ACCOUNT_LIST_PATH = 'account/get-all-active';
 const ACCOUNT_GET_PATH = 'account/get';
+const ACCOUNT_CREATE_PATH = 'account/create';
 const ACCOUNT_UPDATE_PATH = 'account/update';
 const ACCOUNT_DELETE_PATH = 'account/delete';
 
@@ -38,6 +39,7 @@ export async function fetchAccountsRequest(params = {}) {
   }
   if (params.limit != null) query.set('limit', String(params.limit));
   if (params.search) query.set('search', String(params.search));
+  if (params.account_type) query.set('account_type', String(params.account_type));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
@@ -109,6 +111,20 @@ export async function fetchAccountByIdRequest(accountId) {
 export async function updateAccountRequest(accountId, accountData = {}) {
   const response = await fetch(`${BASE_URL}${ACCOUNT_UPDATE_PATH}/${accountId}`, {
     method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify(accountData),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  const result = await response.json().catch(() => ({}));
+  return normalizeSingleAccountPayload(result) || result;
+}
+
+export async function createAccountRequest(accountData = {}) {
+  const response = await fetch(`${BASE_URL}${ACCOUNT_CREATE_PATH}`, {
+    method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify(accountData),
   });

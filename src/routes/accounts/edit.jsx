@@ -9,6 +9,18 @@ import {
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: 'current_asset', label: 'Current Asset' },
+  { value: 'fixed_asset', label: 'Fixed Asset' },
+  { value: 'revenue', label: 'Revenue' },
+  { value: 'cost of goods sold', label: 'Cost of Goods Sold' },
+  { value: 'operating expense', label: 'Operating Expense' },
+  { value: 'other expense', label: 'Other Expense' },
+  { value: 'equity', label: 'Equity' },
+  { value: 'liability', label: 'Liability' },
+  { value: 'other', label: 'Other' },
+];
+
 const EditAccount = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -101,7 +113,10 @@ const EditAccount = () => {
                   <h5 className="mb-0">Edit Account</h5>
                   <p className="text-sm mb-0">Update account details.</p>
                 </div>
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/accounts')}>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => navigate('/accounts')}
+                >
                   Back to List
                 </button>
               </div>
@@ -125,13 +140,22 @@ const EditAccount = () => {
                   <label className="form-label">
                     Account Type <span className="text-danger">*</span>
                   </label>
-                  <input
-                    className={`form-control ${errors.account_type ? 'is-invalid' : ''}`}
+                  <select
+                    className={`form-select ${errors.account_type ? 'is-invalid' : ''}`}
                     value={form.account_type}
                     onChange={(e) => setForm((prev) => ({ ...prev, account_type: e.target.value }))}
                     disabled={isSubmitting}
-                  />
-                  {errors.account_type && <div className="invalid-feedback">{errors.account_type}</div>}
+                  >
+                    <option value="">Select account type</option>
+                    {ACCOUNT_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.account_type && (
+                    <div className="invalid-feedback">{errors.account_type}</div>
+                  )}
                 </div>
 
                 <div className="mb-4">
