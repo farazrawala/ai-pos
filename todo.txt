@@ -30,10 +30,4 @@ Pos
     Remaining ammount will be default in a/c receivable.
     no a/c receivable will be shown in accounts dropdown.
 
-
-pos transction sample.
-
-cash 75
-discount 75 
-    sales 100 
-    shipment 50
+Barcode printing module.

@@ -259,6 +259,8 @@ const Pos = () => {
         });
         showToast('successToast', 'Order saved successfully.');
         setCartLines([]);
+        setShipping('');
+        setExtraDiscount('');
       } catch (e) {
         console.error('[POS] Failed to save order', e);
         setOrderError(e?.message || 'Could not save order');

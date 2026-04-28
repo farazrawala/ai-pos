@@ -3,8 +3,8 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 const BASE_URL = `${API_BASE_URL}/`;
 const ACCOUNT_LIST_PATH = 'account/get-all-active';
 const ACCOUNT_GET_PATH = 'account/get';
-const ACCOUNT_CREATE_PATH = 'account/create';
-const ACCOUNT_UPDATE_PATH = 'account/update';
+const ACCOUNT_CREATE_PATH = 'account/custom-create';
+const ACCOUNT_UPDATE_PATH = 'account/custom-update';
 const ACCOUNT_DELETE_PATH = 'account/delete';
 
 const getAuthToken = () => {

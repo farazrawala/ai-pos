@@ -34,6 +34,7 @@ const EditAccount = () => {
     name: '',
     account_type: '',
     status: 'active',
+    initial_balance: '',
   });
   const [errors, setErrors] = useState({});
   const isSubmitting = updateStatus === 'loading';
@@ -52,10 +53,17 @@ const EditAccount = () => {
 
   useEffect(() => {
     if (!currentAccount) return;
+    const ibRaw =
+      currentAccount.initial_balance ??
+      currentAccount.initialBalance ??
+      currentAccount.opening_balance ??
+      '';
     setForm({
       name: currentAccount.name || '',
       account_type: currentAccount.account_type || '',
       status: currentAccount.status || 'active',
+      initial_balance:
+        ibRaw === '' || ibRaw == null ? '' : String(ibRaw).replace(/,/g, ''),
     });
   }, [currentAccount]);
 
@@ -70,6 +78,8 @@ const EditAccount = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    const balanceParsed = parseFloat(String(form.initial_balance).replace(/,/g, ''));
+    const initial_balance = Number.isFinite(balanceParsed) ? balanceParsed : 0;
     try {
       await dispatch(
         updateAccount({
@@ -78,6 +88,7 @@ const EditAccount = () => {
             name: form.name.trim(),
             account_type: form.account_type.trim(),
             status: form.status,
+            initial_balance,
           },
         })
       ).unwrap();
@@ -156,6 +167,21 @@ const EditAccount = () => {
                   {errors.account_type && (
                     <div className="invalid-feedback">{errors.account_type}</div>
                   )}
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Initial balance</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={form.initial_balance}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, initial_balance: e.target.value }))
+                    }
+                    disabled={isSubmitting}
+                  />
                 </div>
 
                 <div className="mb-4">

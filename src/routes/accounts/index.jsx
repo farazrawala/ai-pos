@@ -48,6 +48,7 @@ const Accounts = () => {
     name: '',
     account_type: '',
     status: 'active',
+    initial_balance: '',
   });
   const [createFormError, setCreateFormError] = useState('');
   const searchTimeoutRef = useRef(null);
@@ -127,7 +128,7 @@ const Accounts = () => {
 
   useEffect(() => {
     if (createStatus !== 'succeeded') return undefined;
-    setCreateForm({ name: '', account_type: '', status: 'active' });
+    setCreateForm({ name: '', account_type: '', status: 'active', initial_balance: '' });
     setCreateFormError('');
     const modalEl = document.getElementById('addAccountModal');
     if (modalEl && window.bootstrap?.Modal) {
@@ -164,12 +165,15 @@ const Accounts = () => {
       setCreateFormError('Account type is required.');
       return;
     }
+    const balanceParsed = parseFloat(String(createForm.initial_balance).replace(/,/g, ''));
+    const initial_balance = Number.isFinite(balanceParsed) ? balanceParsed : 0;
     try {
       await dispatch(
         createAccount({
           name: createForm.name.trim(),
           account_type: createForm.account_type.trim(),
           status: createForm.status,
+          initial_balance,
         })
       ).unwrap();
     } catch (err) {
@@ -460,6 +464,20 @@ const Accounts = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Initial balance</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={createForm.initial_balance}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, initial_balance: e.target.value }))
+                  }
+                  disabled={isCreating}
+                />
               </div>
               <div className="mb-3">
                 <label className="form-label">Status</label>

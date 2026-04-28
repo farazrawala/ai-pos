@@ -1,0 +1,114 @@
+🧾 1. Basic POS System – What You Need
+
+Think of POS as: sell → record → update stock → create accounting entry
+
+Core Modules
+Products
+Name, SKU, barcode
+Cost price, sale price
+Category
+Stock quantity
+Customers
+Walk-in customer (default)
+Registered customers (credit, history)
+Suppliers
+For purchase tracking
+Inventory / Stock
+Stock in (purchase)
+Stock out (sales)
+Adjustments
+Sales (Main POS Screen)
+Add products (search/barcode)
+Quantity + price
+Discount (item / total)
+Tax (optional)
+Payment method:
+Cash
+Bank
+Credit (receivable)
+Purchases
+Purchase order
+Purchase invoice
+Supplier payable
+Returns
+Sales return
+Purchase return
+Payments
+Receive from customer
+Pay to supplier
+Reports
+Daily sales
+Profit report
+Stock report
+Customer ledger
+Supplier ledger
+🔁 2. Transactions (VERY IMPORTANT)
+
+Every POS action should create double-entry accounting records.
+
+Example: Sale (Cash)
+Debit → Cash
+Credit → Sales
+Debit → Cost of Goods Sold
+Credit → Inventory
+📊 3. Chart of Accounts (COA)
+
+This is your accounting structure.
+
+🟢 Assets
+Cash
+Bank
+Accounts Receivable (Customers)
+Inventory
+Fixed Assets (optional)
+🔵 Liabilities
+Accounts Payable (Suppliers)
+Loans
+Expenses Payable
+🟡 Equity
+Owner Capital
+Retained Earnings
+🔴 Income
+Sales
+Sales Return (contra income)
+Discount Given
+🟣 Expenses
+Cost of Goods Sold (COGS)
+Rent Expense
+Utility Expense
+Salary Expense
+Misc Expense
+🧠 4. Mapping POS → Accounts (CRITICAL)
+Action Debit Credit
+Cash Sale Cash Sales
+Credit Sale Accounts Receivable Sales
+Purchase Inventory Accounts Payable
+Cash Purchase Inventory Cash
+Expense Paid Expense Cash
+Customer Payment Cash Accounts Receivable
+Supplier Payment Accounts Payable Cash
+Sales Return Sales Return Cash / AR
+Purchase Return Accounts Payable Inventory
+⚙️ 5. Database Tables (Simplified)
+
+You already started this—good direction 👍
+
+Core Tables
+accounts
+transactions
+transaction_entries (debit/credit lines)
+products
+stock_movements
+sales
+sale_items
+purchases
+purchase_items
+🔄 6. Flow Example (Sale)
+User creates sale in POS
+Save sale + items
+Reduce stock
+Create transaction:
+Entry 1: Debit Cash
+Entry 2: Credit Sales
+Entry 3: Debit COGS
+Entry 4: Credit Inventory
