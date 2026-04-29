@@ -353,7 +353,10 @@ export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
 
 /**
  * POST `purchase_order/purchase_order_create` — multipart form fields:
- * `vendor_id`, `description`, `ref_no`, `product_id[n]`, `qty[n]`, `price[n]`
+ * `vendor_id`, `description`, `ref_no`, `discount`, `shipment`, `account_id`,
+ * `payment_method_accounts_id`, `amount_paid` (from UI `amount_received` / `amount_paid`),
+ * `remaining_amount`, `total_amount`, `expected_delivery_date`,
+ * `product_id[n]`, `qty[n]`, `price[n]`
  * (same line-item shape as POS `order/order_save`).
  *
  * UI may still send `supplier_id`, `purchase_order_no`, `notes`, and `items[]`
@@ -374,6 +377,53 @@ export async function createPurchaseOrderRequest(payload = {}) {
   const refNo = body.ref_no ?? body.purchase_order_no;
   if (refNo != null && String(refNo).trim() !== '') {
     form.append('ref_no', String(refNo).trim());
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'discount')) {
+    const d = body.discount == null ? '0' : String(body.discount).trim();
+    form.append('discount', d === '' ? '0' : d);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'shipment') || Object.prototype.hasOwnProperty.call(body, 'shipping')) {
+    const shipmentVal = body.shipment ?? body.shipping;
+    const s =
+      shipmentVal == null || String(shipmentVal).trim() === '' ? '0' : String(shipmentVal).trim();
+    form.append('shipment', s);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'expected_delivery_date') &&
+    body.expected_delivery_date != null &&
+    String(body.expected_delivery_date).trim() !== ''
+  ) {
+    form.append('expected_delivery_date', String(body.expected_delivery_date).trim());
+  }
+
+  const paymentMethodAccountId = String(
+    body.payment_method_accounts_id ?? body.account_id ?? ''
+  ).trim();
+  if (paymentMethodAccountId) {
+    form.append('payment_method_accounts_id', paymentMethodAccountId);
+    form.append('account_id', paymentMethodAccountId);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'amount_paid') ||
+    Object.prototype.hasOwnProperty.call(body, 'amount_received')
+  ) {
+    const v = body.amount_paid ?? body.amount_received;
+    form.append('amount_paid', v == null ? '' : String(v));
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'remaining_amount')) {
+    const r = body.remaining_amount == null ? '0' : String(body.remaining_amount).trim();
+    form.append('remaining_amount', r === '' ? '0' : r);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'total_amount') || Object.prototype.hasOwnProperty.call(body, 'total')) {
+    const t = body.total_amount ?? body.total;
+    const s = t == null || String(t).trim() === '' ? '0' : String(t).trim();
+    form.append('total_amount', s);
   }
 
   const rawLines = Array.isArray(body.lines)
@@ -421,8 +471,10 @@ export async function createPurchaseOrderRequest(payload = {}) {
 /**
  * PATCH `purchase_order/purchase_order_update/:id` — multipart form fields:
  * `name`, `email`, `phone`, `address`, `vendor_id`, `description`, `ref_no`,
- * `product_id[n]`, `qty[n]`, `price[n]`, `discount`, `order_status`,
- * `amount_received`, `change_given` (same line-item shape as create).
+ * `product_id[n]`, `qty[n]`, `price[n]`, `discount`, `shipment`, `account_id`,
+ * `payment_method_accounts_id`,
+ * `order_status`, `amount_paid` (from UI `amount_received` / `amount_paid`), `remaining_amount`, `total_amount`
+ * (same line-item shape as create).
  */
 export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) {
   const id = String(purchaseOrderId ?? '').trim();
@@ -458,16 +510,42 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     form.append('discount', String(body.discount).trim());
   }
 
+  const shipmentVal = body.shipment ?? body.shipping;
+  if (shipmentVal != null && String(shipmentVal).trim() !== '') {
+    form.append('shipment', String(shipmentVal).trim());
+  }
+
+  const paymentMethodAccountId = String(
+    body.payment_method_accounts_id ?? body.account_id ?? ''
+  ).trim();
+  if (paymentMethodAccountId) {
+    form.append('payment_method_accounts_id', paymentMethodAccountId);
+    form.append('account_id', paymentMethodAccountId);
+  }
+
   if (body.order_status != null && String(body.order_status).trim() !== '') {
     form.append('order_status', String(body.order_status).trim());
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, 'amount_received')) {
-    form.append(
-      'amount_received',
-      body.amount_received == null ? '' : String(body.amount_received)
-    );
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'amount_paid') ||
+    Object.prototype.hasOwnProperty.call(body, 'amount_received')
+  ) {
+    const v = body.amount_paid ?? body.amount_received;
+    form.append('amount_paid', v == null ? '' : String(v));
   }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'remaining_amount')) {
+    const r = body.remaining_amount == null ? '0' : String(body.remaining_amount).trim();
+    form.append('remaining_amount', r === '' ? '0' : r);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'total_amount') || Object.prototype.hasOwnProperty.call(body, 'total')) {
+    const t = body.total_amount ?? body.total;
+    const s = t == null || String(t).trim() === '' ? '0' : String(t).trim();
+    form.append('total_amount', s);
+  }
+
   if (Object.prototype.hasOwnProperty.call(body, 'change_given')) {
     form.append('change_given', body.change_given == null ? '' : String(body.change_given));
   }

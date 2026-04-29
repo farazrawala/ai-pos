@@ -13,7 +13,21 @@ import {
   formatUserOptionLabel,
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
+import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { PO_STATUS_OPTIONS } from './poFormConstants.js';
+
+const accountOptionLabel = (a) => {
+  if (!a || typeof a !== 'object') return 'Account';
+  const name = a.name ?? a.accountName ?? '';
+  const type = a.account_type ?? a.accountType ?? '';
+  const bits = [name, type].filter(Boolean);
+  return bits.length ? bits.join(' — ') : 'Account';
+};
+
+const accountOptionValue = (a) => {
+  if (!a || typeof a !== 'object') return '';
+  return String(a._id ?? a.id ?? '').trim();
+};
 
 const shopName =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
@@ -22,6 +36,26 @@ const shopName =
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const roundMoney2 = (n) => {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+};
+
+const parseMoneyInput = (raw) => {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? roundMoney2(n) : 0;
+};
+
+const totalToAmountPaidString = (total) => roundMoney2(total).toFixed(2);
+
+const localDateInputValue = (d = new Date()) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 const formatDisplayDate = (yyyyMmDd) => {
   if (!yyyyMmDd || String(yyyyMmDd).length < 10) return '—';
@@ -106,17 +140,27 @@ const recordToForm = (po) => ({
   notes: po?.notes ?? po?.remarks ?? po?.description ?? '',
   expected_delivery_date: (() => {
     const raw = po?.expected_delivery_date ?? po?.expectedDeliveryDate ?? '';
-    if (!raw) return '';
+    if (raw == null || String(raw).trim() === '') return localDateInputValue();
     const s = String(raw);
     return s.length >= 10 ? s.slice(0, 10) : s;
   })(),
-  name: po?.name ?? po?.customer_name ?? po?.contact_name ?? '',
-  email: po?.email ?? '',
-  phone: po?.phone ?? po?.phone_number ?? '',
-  address: po?.address ?? '',
   discount: po?.discount != null && po?.discount !== '' ? String(po.discount) : '',
-  amount_received: po?.amount_received != null && po?.amount_received !== '' ? String(po.amount_received) : '',
-  change_given: po?.change_given != null && po?.change_given !== '' ? String(po.change_given) : '',
+  shipment: (() => {
+    const v = po?.shipment ?? po?.shipping;
+    if (v == null || v === '') return '';
+    return String(v);
+  })(),
+  account_id: (() => {
+    const raw = po?.account_id ?? po?.payment_method_accounts_id;
+    if (raw == null || raw === '') return '';
+    if (typeof raw === 'object' && raw._id != null) return String(raw._id);
+    return String(raw).trim();
+  })(),
+  amount_received: (() => {
+    const paid = po?.amount_paid ?? po?.amount_received;
+    if (paid != null && String(paid).trim() !== '') return String(paid);
+    return '';
+  })(),
 });
 
 const PurchaseOrderEdit = () => {
@@ -136,6 +180,10 @@ const PurchaseOrderEdit = () => {
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
+  const [accounts, setAccounts] = useState([]);
+  const [accountsStatus, setAccountsStatus] = useState('idle');
+  const [accountsError, setAccountsError] = useState(null);
+  const [amountPaidDirty, setAmountPaidDirty] = useState(false);
   const isSubmitting = updateStatus === 'loading';
 
   useEffect(() => {
@@ -165,6 +213,35 @@ const PurchaseOrderEdit = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    setAccountsStatus('loading');
+    setAccountsError(null);
+    (async () => {
+      try {
+        const result = await fetchAccountsRequest({
+          limit: 2000,
+          skip: 0,
+        });
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (!cancelled) {
+          setAccounts(list);
+          setAccountsStatus('succeeded');
+        }
+      } catch (err) {
+        console.error('[Purchase order edit] Failed to load accounts', err);
+        if (!cancelled) {
+          setAccounts([]);
+          setAccountsError(err?.message || 'Could not load accounts');
+          setAccountsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (id) dispatch(fetchPurchaseOrderById(id));
     return () => {
       dispatch(clearCurrentPurchaseOrder());
@@ -176,6 +253,7 @@ const PurchaseOrderEdit = () => {
     if (currentPurchaseOrder) {
       setForm(recordToForm(currentPurchaseOrder));
       setLines(linesFromPurchaseOrder(currentPurchaseOrder));
+      setAmountPaidDirty(false);
     }
   }, [currentPurchaseOrder]);
 
@@ -228,6 +306,18 @@ const PurchaseOrderEdit = () => {
     !form.supplier_id ||
     supplierOptions.some((u) => getUserOptionValue(u) === String(form.supplier_id));
 
+  const accountOptions = useMemo(
+    () =>
+      [...accounts]
+        .filter((a) => accountOptionValue(a))
+        .sort((x, y) => accountOptionLabel(x).localeCompare(accountOptionLabel(y))),
+    [accounts]
+  );
+
+  const accountIdInList =
+    !form.account_id ||
+    accountOptions.some((a) => accountOptionValue(a) === String(form.account_id));
+
   const handleLineEdit = useCallback((key, field, rawValue) => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
@@ -266,10 +356,26 @@ const PurchaseOrderEdit = () => {
       const rate = Number.isFinite(rateNum) ? rateNum : 0;
       subTotal += qty * rate;
     });
+    const shipNum = parseFloat(String(form.shipment ?? '').replace(/,/g, ''));
     const discNum = parseFloat(String(form.discount ?? '').replace(/,/g, ''));
+    const shipment = Number.isFinite(shipNum) ? shipNum : 0;
     const discount = Number.isFinite(discNum) ? discNum : 0;
-    return { subTotal, discount, total: Math.max(0, subTotal - discount) };
-  }, [lines, form.discount]);
+    const total = Math.max(0, subTotal + shipment - discount);
+    return { subTotal, shipment, discount, total };
+  }, [lines, form.shipment, form.discount]);
+
+  useEffect(() => {
+    if (amountPaidDirty) return;
+    const next = totalToAmountPaidString(summary.total);
+    setForm((p) => (p.amount_received === next ? p : { ...p, amount_received: next }));
+  }, [summary.total, amountPaidDirty]);
+
+  const amountPaidNum = useMemo(() => parseMoneyInput(form.amount_received), [form.amount_received]);
+  const paymentRemaining = useMemo(() => {
+    const t = roundMoney2(summary.total);
+    const p = roundMoney2(amountPaidNum);
+    return Math.max(0, t - p);
+  }, [summary.total, amountPaidNum]);
 
   const hasSaveableLines = useMemo(
     () => lines.some((d) => String(d?.productId ?? '').trim()),
@@ -297,18 +403,23 @@ const PurchaseOrderEdit = () => {
       })
       .filter((l) => l.product_id);
 
+    const totalRounded = roundMoney2(summary.total);
+    const paidRounded = roundMoney2(parseMoneyInput(form.amount_received));
+    const remainingAmount = Math.max(0, totalRounded - paidRounded);
+    const accountStr = String(form.account_id ?? '').trim();
+
     return {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      address: form.address.trim(),
       supplier_id: form.supplier_id.trim(),
       purchase_order_no: form.purchase_order_no.trim(),
       notes: form.notes.trim(),
       order_status: form.order_status || 'placed',
       discount: form.discount.trim(),
+      shipment: form.shipment.trim() || undefined,
+      account_id: accountStr === '' ? undefined : accountStr,
+      payment_method_accounts_id: accountStr === '' ? undefined : accountStr,
       amount_received: form.amount_received,
-      change_given: form.change_given,
+      remaining_amount: String(remainingAmount),
+      total_amount: String(totalRounded),
       items: itemRows,
     };
   };
@@ -339,6 +450,7 @@ const PurchaseOrderEdit = () => {
   };
 
   const supplierSelectDisabled = isSubmitting || usersStatus === 'loading';
+  const accountSelectDisabled = isSubmitting || accountsStatus === 'loading';
 
   if (fetchStatus === 'loading') {
     return (
@@ -493,7 +605,7 @@ const PurchaseOrderEdit = () => {
           </div>
 
           <div className="row mb-4">
-            <div className="col-lg-6 mb-3 mb-lg-0">
+            <div className="col-12 col-lg-6">
               <div className="text-uppercase text-muted small fw-bold mb-2">Supplier</div>
               <div className="po-add-supplier-name mb-2">{supplierLabel}</div>
               <label className="form-label small text-muted mb-1" htmlFor="po-edit-supplier">
@@ -524,64 +636,6 @@ const PurchaseOrderEdit = () => {
                   );
                 })}
               </select>
-            </div>
-            <div className="col-lg-6">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Contact</div>
-              <div className="row g-2">
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-name">
-                    Name
-                  </label>
-                  <input
-                    id="po-edit-name"
-                    className="form-control form-control-sm"
-                    value={form.name}
-                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                    disabled={isSubmitting}
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-email">
-                    Email
-                  </label>
-                  <input
-                    id="po-edit-email"
-                    type="email"
-                    className="form-control form-control-sm"
-                    value={form.email}
-                    onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                    disabled={isSubmitting}
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-phone">
-                    Phone
-                  </label>
-                  <input
-                    id="po-edit-phone"
-                    className="form-control form-control-sm"
-                    value={form.phone}
-                    onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                    disabled={isSubmitting}
-                    autoComplete="tel"
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-address">
-                    Address
-                  </label>
-                  <input
-                    id="po-edit-address"
-                    className="form-control form-control-sm"
-                    value={form.address}
-                    onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                    disabled={isSubmitting}
-                    autoComplete="street-address"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -776,13 +830,25 @@ const PurchaseOrderEdit = () => {
               />
             </div>
             <div className="col-md-6">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Summary and payment</div>
-              <div className="border rounded p-3 bg-light mb-3">
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Sub total</span>
-                  <span className="fw-semibold">{fmt(summary.subTotal)}</span>
+              <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
+              <div className="row g-2 mb-3">
+                <div className="col-12 col-sm-6">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-shipment">
+                    Shipment
+                  </label>
+                  <input
+                    id="po-edit-shipment"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="form-control form-control-sm text-end"
+                    placeholder="0.00"
+                    value={form.shipment}
+                    onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
                 </div>
-                <div className="mb-2 mt-2">
+                <div className="col-12 col-sm-6">
                   <label className="form-label small text-muted mb-1" htmlFor="po-edit-discount">
                     Discount
                   </label>
@@ -791,42 +857,92 @@ const PurchaseOrderEdit = () => {
                     type="number"
                     min={0}
                     step="0.01"
-                    className="form-control form-control-sm"
+                    className="form-control form-control-sm text-end"
+                    placeholder="0.00"
                     value={form.discount}
                     onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
                     disabled={isSubmitting}
                   />
                 </div>
+                <div className="col-12">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-account">
+                    Mode of payment
+                  </label>
+                  {accountsStatus === 'failed' && accountsError ? (
+                    <div className="alert alert-warning py-2 mb-2" role="alert">
+                      {accountsError}
+                    </div>
+                  ) : null}
+                  <select
+                    id="po-edit-account"
+                    className="form-select form-select-sm"
+                    value={form.account_id}
+                    onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}
+                    disabled={accountSelectDisabled}
+                  >
+                    <option value="">None</option>
+                    {!accountIdInList && form.account_id ? (
+                      <option value={form.account_id}>Payment id: {form.account_id}</option>
+                    ) : null}
+                    {accountOptions.map((a) => {
+                      const value = accountOptionValue(a);
+                      return (
+                        <option key={value} value={value}>
+                          {accountOptionLabel(a)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+              <div className="border rounded p-3 bg-light mb-3">
+                <div className="po-add-summary-row">
+                  <span className="text-muted">Sub total</span>
+                  <span className="fw-semibold">{fmt(summary.subTotal)}</span>
+                </div>
+                <div className="po-add-summary-row">
+                  <span className="text-muted">Shipment</span>
+                  <span className="fw-semibold">{fmt(summary.shipment)}</span>
+                </div>
+                <div className="po-add-summary-row">
+                  <span className="text-muted">Discount</span>
+                  <span className="fw-semibold">−{fmt(summary.discount)}</span>
+                </div>
                 <div className="po-add-summary-row po-add-summary-total">
-                  <span>Total (after discount)</span>
+                  <span>Total</span>
                   <span>{fmt(summary.total)}</span>
                 </div>
               </div>
+              <div className="text-uppercase text-muted small fw-bold mb-2">Payment</div>
               <div className="row g-2">
                 <div className="col-md-6">
                   <label className="form-label small text-muted mb-1" htmlFor="po-edit-received">
-                    Amount received
+                    Amount paid
                   </label>
                   <input
                     id="po-edit-received"
                     type="text"
                     className="form-control form-control-sm"
                     value={form.amount_received}
-                    onChange={(e) => setForm((p) => ({ ...p, amount_received: e.target.value }))}
+                    onChange={(e) => {
+                      setAmountPaidDirty(true);
+                      setForm((p) => ({ ...p, amount_received: e.target.value }));
+                    }}
                     disabled={isSubmitting}
                   />
                 </div>
                 <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-change">
-                    Change given
+                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-remaining">
+                    Remaining
                   </label>
                   <input
-                    id="po-edit-change"
+                    id="po-edit-remaining"
                     type="text"
-                    className="form-control form-control-sm"
-                    value={form.change_given}
-                    onChange={(e) => setForm((p) => ({ ...p, change_given: e.target.value }))}
-                    disabled={isSubmitting}
+                    readOnly
+                    tabIndex={-1}
+                    className="form-control form-control-sm bg-body-secondary"
+                    value={fmt(paymentRemaining)}
+                    aria-live="polite"
                   />
                 </div>
               </div>

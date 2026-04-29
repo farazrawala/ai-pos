@@ -8,6 +8,7 @@ import {
   formatUserOptionLabel,
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
+import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { PO_STATUS_OPTIONS } from './poFormConstants.js';
 
 const shopName =
@@ -17,6 +18,19 @@ const shopName =
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const roundMoney2 = (n) => {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+};
+
+const parseMoneyInput = (raw) => {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? roundMoney2(n) : 0;
+};
+
+const totalToAmountPaidString = (total) => roundMoney2(total).toFixed(2);
 
 const localDateInputValue = (d = new Date()) => {
   const y = d.getFullYear();
@@ -53,12 +67,29 @@ const emptyForm = () => ({
   order_status: 'placed',
   notes: '',
   expected_delivery_date: localDateInputValue(),
+  shipment: '',
+  discount: '',
+  account_id: '',
+  amount_received: '',
 });
+
+const accountOptionLabel = (a) => {
+  if (!a || typeof a !== 'object') return 'Account';
+  const name = a.name ?? a.accountName ?? '';
+  const type = a.account_type ?? a.accountType ?? '';
+  const bits = [name, type].filter(Boolean);
+  return bits.length ? bits.join(' — ') : 'Account';
+};
+
+const accountOptionValue = (a) => {
+  if (!a || typeof a !== 'object') return '';
+  return String(a._id ?? a.id ?? '').trim();
+};
 
 const PurchaseOrderAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => emptyForm());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
@@ -70,6 +101,11 @@ const PurchaseOrderAdd = () => {
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
+
+  const [accounts, setAccounts] = useState([]);
+  const [accountsStatus, setAccountsStatus] = useState('idle');
+  const [accountsError, setAccountsError] = useState(null);
+  const [amountPaidDirty, setAmountPaidDirty] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +125,35 @@ const PurchaseOrderAdd = () => {
           setUsers([]);
           setUsersError(err?.message || 'Could not load users');
           setUsersStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAccountsStatus('loading');
+    setAccountsError(null);
+    (async () => {
+      try {
+        const result = await fetchAccountsRequest({
+          limit: 2000,
+          skip: 0,
+        });
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (!cancelled) {
+          setAccounts(list);
+          setAccountsStatus('succeeded');
+        }
+      } catch (err) {
+        console.error('[Purchase order add] Failed to load accounts', err);
+        if (!cancelled) {
+          setAccounts([]);
+          setAccountsError(err?.message || 'Could not load accounts');
+          setAccountsStatus('failed');
         }
       }
     })();
@@ -142,6 +207,14 @@ const PurchaseOrderAdd = () => {
     return u ? formatUserOptionLabel(u) : `Supplier #${id}`;
   }, [form.supplier_id, supplierOptions]);
 
+  const accountOptions = useMemo(
+    () =>
+      [...accounts]
+        .filter((a) => accountOptionValue(a))
+        .sort((x, y) => accountOptionLabel(x).localeCompare(accountOptionLabel(y))),
+    [accounts]
+  );
+
   const handleLineEdit = useCallback((key, field, rawValue) => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
@@ -180,8 +253,26 @@ const PurchaseOrderAdd = () => {
       const rate = Number.isFinite(rateNum) ? rateNum : 0;
       subTotal += qty * rate;
     });
-    return { subTotal, total: subTotal };
-  }, [lines]);
+    const shipNum = parseFloat(String(form.shipment ?? '').replace(/,/g, ''));
+    const discNum = parseFloat(String(form.discount ?? '').replace(/,/g, ''));
+    const shipment = Number.isFinite(shipNum) ? shipNum : 0;
+    const discount = Number.isFinite(discNum) ? discNum : 0;
+    const total = Math.max(0, subTotal + shipment - discount);
+    return { subTotal, shipment, discount, total };
+  }, [lines, form.shipment, form.discount]);
+
+  useEffect(() => {
+    if (amountPaidDirty) return;
+    const next = totalToAmountPaidString(summary.total);
+    setForm((p) => (p.amount_received === next ? p : { ...p, amount_received: next }));
+  }, [summary.total, amountPaidDirty]);
+
+  const amountPaidNum = useMemo(() => parseMoneyInput(form.amount_received), [form.amount_received]);
+  const paymentRemaining = useMemo(() => {
+    const t = roundMoney2(summary.total);
+    const p = roundMoney2(amountPaidNum);
+    return Math.max(0, t - p);
+  }, [summary.total, amountPaidNum]);
 
   const hasSaveableLines = useMemo(
     () => lines.some((d) => String(d?.productId ?? '').trim()),
@@ -209,11 +300,25 @@ const PurchaseOrderAdd = () => {
       })
       .filter((l) => l.product_id);
 
+    const shipmentStr = String(form.shipment ?? '').trim();
+    const discountStr = String(form.discount ?? '').trim();
+    const accountStr = String(form.account_id ?? '').trim();
+    const totalRounded = roundMoney2(summary.total);
+    const paidRounded = roundMoney2(parseMoneyInput(form.amount_received));
+    const remainingAmount = Math.max(0, totalRounded - paidRounded);
+
     const payload = {
       purchase_order_no: form.purchase_order_no.trim(),
       supplier_id: form.supplier_id.trim() || undefined,
       order_status: form.order_status || 'placed',
       notes: form.notes.trim() || undefined,
+      shipment: shipmentStr === '' ? '0' : shipmentStr,
+      discount: discountStr === '' ? '0' : discountStr,
+      account_id: accountStr === '' ? undefined : accountStr,
+      payment_method_accounts_id: accountStr === '' ? undefined : accountStr,
+      amount_received: form.amount_received ?? '',
+      remaining_amount: String(remainingAmount),
+      total_amount: String(totalRounded),
       /** Line items → `product_id[n]`, `qty[n]`, `price[n]` on `POST purchase_order/purchase_order_create`. */
       items: itemRows,
     };
@@ -221,9 +326,10 @@ const PurchaseOrderAdd = () => {
       payload.expected_delivery_date = form.expected_delivery_date;
     }
     return Object.fromEntries(
-      Object.entries(payload).filter(([, v]) => {
-        if (v === undefined || v === '') return false;
+      Object.entries(payload).filter(([key, v]) => {
+        if (v === undefined) return false;
         if (Array.isArray(v)) return v.length > 0;
+        if (v === '' && key !== 'amount_received') return false;
         return true;
       })
     );
@@ -255,6 +361,7 @@ const PurchaseOrderAdd = () => {
   };
 
   const supplierSelectDisabled = isSubmitting || usersStatus === 'loading';
+  const accountSelectDisabled = isSubmitting || accountsStatus === 'loading';
 
   return (
     <div className="po-add-page container-fluid py-3 px-2 px-lg-4">
@@ -606,14 +713,116 @@ const PurchaseOrderAdd = () => {
             </div>
             <div className="col-md-6">
               <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
+              <div className="row g-2 mb-3">
+                <div className="col-12 col-sm-6">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-add-shipment">
+                    Shipment
+                  </label>
+                  <input
+                    id="po-add-shipment"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="form-control form-control-sm text-end"
+                    placeholder="0.00"
+                    value={form.shipment}
+                    onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="col-12 col-sm-6">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-add-discount">
+                    Discount
+                  </label>
+                  <input
+                    id="po-add-discount"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="form-control form-control-sm text-end"
+                    placeholder="0.00"
+                    value={form.discount}
+                    onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="col-12">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-add-account">
+                    Mode of payment
+                  </label>
+                  {accountsStatus === 'failed' && accountsError ? (
+                    <div className="alert alert-warning py-2 mb-2" role="alert">
+                      {accountsError}
+                    </div>
+                  ) : null}
+                  <select
+                    id="po-add-account"
+                    className="form-select form-select-sm"
+                    value={form.account_id}
+                    onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}
+                    disabled={accountSelectDisabled}
+                  >
+                    <option value="">None</option>
+                    {accountOptions.map((a) => {
+                      const value = accountOptionValue(a);
+                      return (
+                        <option key={value} value={value}>
+                          {accountOptionLabel(a)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
               <div className="border rounded p-3 bg-light">
                 <div className="po-add-summary-row">
                   <span className="text-muted">Sub total</span>
                   <span className="fw-semibold">{fmt(summary.subTotal)}</span>
                 </div>
+                <div className="po-add-summary-row">
+                  <span className="text-muted">Shipment</span>
+                  <span className="fw-semibold">{fmt(summary.shipment)}</span>
+                </div>
+                <div className="po-add-summary-row">
+                  <span className="text-muted">Discount</span>
+                  <span className="fw-semibold">−{fmt(summary.discount)}</span>
+                </div>
                 <div className="po-add-summary-row po-add-summary-total">
                   <span>Total</span>
                   <span>{fmt(summary.total)}</span>
+                </div>
+              </div>
+              <div className="text-uppercase text-muted small fw-bold mb-2 mt-3">Payment</div>
+              <div className="row g-2">
+                <div className="col-md-6">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-add-received">
+                    Amount paid
+                  </label>
+                  <input
+                    id="po-add-received"
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={form.amount_received}
+                    onChange={(e) => {
+                      setAmountPaidDirty(true);
+                      setForm((p) => ({ ...p, amount_received: e.target.value }));
+                    }}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label small text-muted mb-1" htmlFor="po-add-remaining">
+                    Remaining
+                  </label>
+                  <input
+                    id="po-add-remaining"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    className="form-control form-control-sm bg-body-secondary"
+                    value={fmt(paymentRemaining)}
+                    aria-live="polite"
+                  />
                 </div>
               </div>
             </div>
