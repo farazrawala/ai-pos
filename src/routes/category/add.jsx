@@ -308,7 +308,7 @@ const CategoryAdd = () => {
 
       // Navigate back to category list after a short delay
       setTimeout(() => {
-        // navigate('/categories');
+        navigate('/categories');
       }, 1000);
     } catch (error) {
       const normalizedMessage =

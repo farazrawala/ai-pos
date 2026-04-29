@@ -7,6 +7,46 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken') || '';
 };
 
+const buildApiErrorMessage = (errorData, status) => {
+  if (!errorData || typeof errorData !== 'object') {
+    return `HTTP error! status: ${status}`;
+  }
+
+  if (typeof errorData.message === 'string' && errorData.message.trim() !== '') {
+    return errorData.message;
+  }
+
+  if (typeof errorData.error === 'string' && errorData.error.trim() !== '') {
+    return errorData.error;
+  }
+
+  if (Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+    return errorData.errors
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        if (entry && typeof entry === 'object') {
+          if (entry.msg) return String(entry.msg);
+          if (entry.message) return String(entry.message);
+        }
+        return JSON.stringify(entry);
+      })
+      .join('\n');
+  }
+
+  if (errorData.errors && typeof errorData.errors === 'object') {
+    const details = Object.entries(errorData.errors)
+      .map(([field, value]) => {
+        if (Array.isArray(value)) return `${field}: ${value.join(', ')}`;
+        if (value && typeof value === 'object') return `${field}: ${JSON.stringify(value)}`;
+        return `${field}: ${String(value)}`;
+      })
+      .join('\n');
+    if (details) return details;
+  }
+
+  return `HTTP error! status: ${status}`;
+};
+
 /** Shared shape: `{ data, total, page, limit, totalPages }` */
 const normalizeProductsListResponse = (result, params = {}) => {
   if (result.pagination && typeof result.pagination === 'object') {
@@ -470,7 +510,7 @@ export const updateProductRequest = async (productId, productData, images = []) 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(buildApiErrorMessage(errorData, response.status));
     }
 
     const result = await response.json();
@@ -495,7 +535,7 @@ export const updateProductRequest = async (productId, productData, images = []) 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(buildApiErrorMessage(errorData, response.status));
     }
 
     const result = await response.json();
@@ -731,7 +771,7 @@ export const updateProductVariationRequest = async (
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    throw new Error(buildApiErrorMessage(errorData, response.status));
   }
 
   const result = await response.json();

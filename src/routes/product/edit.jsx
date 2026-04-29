@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import moment from 'moment';
 import {
   fetchProductById,
   fetchProductVariation,
@@ -14,6 +13,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.js';
+import { toast } from '../../utils/toast.js';
 
 const ProductEdit = () => {
   const dispatch = useDispatch();
@@ -79,6 +79,12 @@ const ProductEdit = () => {
       navigate('/products');
     }
   }, [canEdit, navigate]);
+
+  useEffect(() => {
+    if (updateStatus === 'failed' && updateError) {
+      toast.error(updateError, { delay: 10000 });
+    }
+  }, [updateStatus, updateError]);
 
   // Fetch categories for dropdown
   useEffect(() => {
@@ -668,33 +674,7 @@ const ProductEdit = () => {
       });
       const errorMessage = `Please fix the following errors:\n${errorMessages.join('\n')}`;
 
-      const toastElement = document.getElementById('dangerToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-
-        const toastBody = toastElement.querySelector('.toast-body');
-        if (toastBody) {
-          toastBody.textContent = errorMessage;
-        }
-
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 8000,
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 8000);
-        }
-      }
+      toast.error(errorMessage, { delay: 8000 });
       return;
     }
 
@@ -817,28 +797,7 @@ const ProductEdit = () => {
         await dispatch(updateProduct({ productId: id, productData, images })).unwrap();
       }
 
-      const toastElement = document.getElementById('successToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 5000,
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 5000);
-        }
-      }
+      toast.success('Product updated successfully!', { delay: 5000 });
 
       setTimeout(() => {
         dispatch(clearUpdateStatus());
@@ -907,40 +866,7 @@ const ProductEdit = () => {
         }
       }
 
-      // Show error toast
-      const toastElement = document.getElementById('dangerToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-
-        const toastBody = toastElement.querySelector('.toast-body');
-        if (toastBody) {
-          // Format error message for display (handle newlines)
-          const formattedMessage = errorMessage.replace(/\n/g, '<br>');
-          toastBody.innerHTML = formattedMessage;
-        }
-
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 10000, // Show longer for detailed errors
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 10000);
-        }
-      } else {
-        // Fallback: alert if toast element not found
-        console.error('Toast element not found, showing alert:', errorMessage);
-        alert(`Error: ${errorMessage}`);
-      }
+      toast.error(errorMessage, { delay: 10000 });
 
       setTimeout(() => {
         dispatch(clearUpdateStatus());
@@ -1014,7 +940,7 @@ const ProductEdit = () => {
               </div>
             </div>
             <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">
@@ -1765,51 +1691,6 @@ const ProductEdit = () => {
               </form>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Toast Notifications */}
-      <div className="position-fixed bottom-1 end-1 z-index-2">
-        <div
-          className="toast fade hide p-2 bg-white"
-          role="alert"
-          aria-live="assertive"
-          id="successToast"
-          aria-atomic="true"
-        >
-          <div className="toast-header border-0">
-            <i className="ni ni-check-bold text-success me-2"></i>
-            <span className="me-auto font-weight-bold">Success</span>
-            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
-          </div>
-          <hr className="horizontal dark m-0" />
-          <div className="toast-body">Product updated successfully!</div>
-        </div>
-
-        <div
-          className="toast fade hide p-2 mt-2 bg-white"
-          role="alert"
-          aria-live="assertive"
-          id="dangerToast"
-          aria-atomic="true"
-        >
-          <div className="toast-header border-0">
-            <i className="ni ni-notification-70 text-danger me-2"></i>
-            <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>
-            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
-          </div>
-          <hr className="horizontal dark m-0" />
-          <div className="toast-body">An error occurred while updating the product.</div>
         </div>
       </div>
 

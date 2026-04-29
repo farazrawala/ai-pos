@@ -460,6 +460,14 @@ const Product = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('product_type')}
+                          onDoubleClick={() => handleSort('product_type', true)}
+                        >
+                          Product Type
+                          {renderSortIcon('product_type')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('isActive')}
                           onDoubleClick={() => handleSort('isActive', true)}
                         >
@@ -488,7 +496,7 @@ const Product = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
                             No products found
                           </td>
                         </tr>
@@ -547,6 +555,9 @@ const Product = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.stock !== undefined ? item.stock : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.product_type || item.productType || '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex align-items-center gap-2">

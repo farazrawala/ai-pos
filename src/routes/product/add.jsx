@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import moment from 'moment';
 import { createProduct } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
+import { toast } from '../../utils/toast.js';
 
 const ProductAdd = () => {
   const dispatch = useDispatch();
@@ -32,7 +32,6 @@ const ProductAdd = () => {
     wholesale_price: '',
   });
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
@@ -66,7 +65,7 @@ const ProductAdd = () => {
         setCategories(result.data || []);
       } catch (error) {
         console.error('Failed to load categories:', error);
-        setSubmitError('Failed to load categories. Please refresh and try again.');
+        toast.error('Failed to load categories. Please refresh and try again.');
       } finally {
         setLoadingCategories(false);
       }
@@ -83,7 +82,7 @@ const ProductAdd = () => {
         setBrands(result.data || []);
       } catch (error) {
         console.error('Failed to load brands:', error);
-        setSubmitError('Failed to load brands. Please refresh and try again.');
+        toast.error('Failed to load brands. Please refresh and try again.');
       } finally {
         setLoadingBrands(false);
       }
@@ -266,7 +265,6 @@ const ProductAdd = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitError('');
 
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
@@ -280,7 +278,7 @@ const ProductAdd = () => {
         product_type: 'Product Type',
       };
       const invalidFields = Object.keys(validationErrors).map((key) => fieldLabels[key] || key);
-      setSubmitError(
+      toast.error(
         invalidFields.length > 0
           ? `Please fill/fix: ${invalidFields.join(', ')}.`
           : 'Please fix the highlighted fields and try again.'
@@ -328,29 +326,7 @@ const ProductAdd = () => {
 
       await dispatch(createProduct({ productData, images })).unwrap();
 
-      // Show success toast
-      const toastElement = document.getElementById('successToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 5000,
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 5000);
-        }
-      }
+      toast.success('Product created successfully!', { delay: 5000 });
 
       setTimeout(() => {
         navigate('/products');
@@ -358,35 +334,7 @@ const ProductAdd = () => {
     } catch (error) {
       const errorMessage =
         error?.message || error || 'An error occurred while creating the product.';
-      setSubmitError(errorMessage);
-
-      const toastElement = document.getElementById('dangerToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-
-        const toastBody = toastElement.querySelector('.toast-body');
-        if (toastBody) {
-          toastBody.textContent = errorMessage;
-        }
-
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 5000,
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 5000);
-        }
-      }
+      toast.error(errorMessage, { delay: 7000 });
     } finally {
       setIsSubmitting(false);
     }
@@ -414,12 +362,6 @@ const ProductAdd = () => {
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit} noValidate>
-                {submitError && (
-                  <div className="alert alert-danger text-white" role="alert">
-                    {submitError}
-                  </div>
-                )}
-
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">
@@ -907,51 +849,6 @@ const ProductAdd = () => {
               </form>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Toast Notifications */}
-      <div className="position-fixed bottom-1 end-1 z-index-2">
-        <div
-          className="toast fade hide p-2 bg-white"
-          role="alert"
-          aria-live="assertive"
-          id="successToast"
-          aria-atomic="true"
-        >
-          <div className="toast-header border-0">
-            <i className="ni ni-check-bold text-success me-2"></i>
-            <span className="me-auto font-weight-bold">Success</span>
-            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
-          </div>
-          <hr className="horizontal dark m-0" />
-          <div className="toast-body">Product created successfully!</div>
-        </div>
-
-        <div
-          className="toast fade hide p-2 mt-2 bg-white"
-          role="alert"
-          aria-live="assertive"
-          id="dangerToast"
-          aria-atomic="true"
-        >
-          <div className="toast-header border-0">
-            <i className="ni ni-notification-70 text-danger me-2"></i>
-            <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>
-            <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
-          </div>
-          <hr className="horizontal dark m-0" />
-          <div className="toast-body">An error occurred while creating the product.</div>
         </div>
       </div>
     </div>
