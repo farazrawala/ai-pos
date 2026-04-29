@@ -13,6 +13,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.js';
+import { API_BASE_URL } from '../../config/apiConfig.js';
 import { toast } from '../../utils/toast.js';
 
 const ProductEdit = () => {
@@ -66,6 +67,10 @@ const ProductEdit = () => {
   const [loadingAttributes, setLoadingAttributes] = useState(false);
   const [selectedAttributes, setSelectedAttributes] = useState({}); // { attributeId: [valueNames] }
   const [variations, setVariations] = useState([]); // Array of variation objects
+  const [warehouseRows, setWarehouseRows] = useState([]);
+  const [defaultWarehouseId, setDefaultWarehouseId] = useState('');
+  const [updatingDefaultWarehouseId, setUpdatingDefaultWarehouseId] = useState('');
+  const [updatingChildWarehouseByVariation, setUpdatingChildWarehouseByVariation] = useState({});
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
@@ -206,6 +211,31 @@ const ProductEdit = () => {
         setExistingBulkImages(currentProduct.multi_images);
       }
 
+      // Load warehouse rows from API response
+      const normalizedWarehouseRows = Array.isArray(currentProduct.warehouse_inventory)
+        ? currentProduct.warehouse_inventory.map((inv, idx) => {
+            const warehouseId =
+              inv?.warehouse_id?._id ||
+              inv?.warehouse_id?.id ||
+              inv?.warehouse_id ||
+              inv?._id ||
+              `wh_${idx}`;
+            const warehouseName =
+              inv?.warehouse_id?.name || inv?.warehouse_name || inv?.name || 'Unknown warehouse';
+            return {
+              warehouseId: String(warehouseId),
+              warehouseName: String(warehouseName),
+              quantity: Number(inv?.quantity ?? 0),
+            };
+          })
+        : [];
+      setWarehouseRows(normalizedWarehouseRows);
+      setDefaultWarehouseId((prev) => {
+        if (normalizedWarehouseRows.length === 0) return '';
+        if (prev && normalizedWarehouseRows.some((row) => row.warehouseId === prev)) return prev;
+        return normalizedWarehouseRows[0].warehouseId;
+      });
+
       // Handle childproducts (variations) if product type is Variable
       if (
         currentProduct.product_type === 'Variable' &&
@@ -224,6 +254,24 @@ const ProductEdit = () => {
           ) {
             qty = child.warehouse_inventory.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
           }
+
+          const childWarehouseRows = Array.isArray(child.warehouse_inventory)
+            ? child.warehouse_inventory.map((inv, warehouseIdx) => {
+                const warehouseId =
+                  inv?.warehouse_id?._id ||
+                  inv?.warehouse_id?.id ||
+                  inv?.warehouse_id ||
+                  inv?._id ||
+                  `ch_wh_${idx}_${warehouseIdx}`;
+                const warehouseName =
+                  inv?.warehouse_id?.name || inv?.warehouse_name || inv?.name || 'Unknown warehouse';
+                return {
+                  warehouseId: String(warehouseId),
+                  warehouseName: String(warehouseName),
+                  quantity: Number(inv?.quantity ?? 0),
+                };
+              })
+            : [];
 
           return {
             id: child._id || `var_${idx}`,
@@ -245,6 +293,9 @@ const ProductEdit = () => {
             imagePreview: null,
             // Store the original child product ID for reference
             childProductId: child._id,
+            warehouseRows: childWarehouseRows,
+            defaultWarehouseId:
+              childWarehouseRows.length > 0 ? childWarehouseRows[0].warehouseId : '',
           };
         });
 
@@ -464,6 +515,71 @@ const ProductEdit = () => {
   // Remove variation
   const handleRemoveVariation = (variationId) => {
     setVariations((prev) => prev.filter((v) => v.id !== variationId));
+  };
+
+  const updateDefaultWarehouseRequest = async (productId, warehouseId) => {
+    const token = localStorage.getItem('authToken') || '';
+    const formData = new FormData();
+    formData.append('warehouse_id', warehouseId);
+
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/product/${productId}/update-default-warehouse`, {
+      method: 'PATCH',
+      headers,
+      body: formData,
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = result?.message || `Failed to update default warehouse (${response.status})`;
+      throw new Error(message);
+    }
+    return result;
+  };
+
+  const handleMakeDefaultWarehouse = async (warehouseId) => {
+    if (!id || !warehouseId || updatingDefaultWarehouseId) return;
+    if (warehouseId === defaultWarehouseId) return;
+
+    setUpdatingDefaultWarehouseId(warehouseId);
+    try {
+      const result = await updateDefaultWarehouseRequest(id, warehouseId);
+
+      setDefaultWarehouseId(warehouseId);
+      toast.success(result?.message || 'Default warehouse updated successfully.');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to update default warehouse.');
+    } finally {
+      setUpdatingDefaultWarehouseId('');
+    }
+  };
+
+  const handleMakeDefaultChildWarehouse = async (variationId, childProductId, warehouseId) => {
+    if (!variationId || !childProductId || !warehouseId) return;
+    if (updatingChildWarehouseByVariation[variationId]) return;
+
+    const targetVariation = variations.find((v) => v.id === variationId);
+    if (!targetVariation) return;
+    if (targetVariation.defaultWarehouseId === warehouseId) return;
+
+    setUpdatingChildWarehouseByVariation((prev) => ({ ...prev, [variationId]: warehouseId }));
+    try {
+      const result = await updateDefaultWarehouseRequest(childProductId, warehouseId);
+      setVariations((prev) =>
+        prev.map((variation) =>
+          variation.id === variationId ? { ...variation, defaultWarehouseId: warehouseId } : variation
+        )
+      );
+      toast.success(result?.message || 'Default warehouse updated successfully.');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to update default warehouse.');
+    } finally {
+      setUpdatingChildWarehouseByVariation((prev) => ({ ...prev, [variationId]: '' }));
+    }
   };
 
   // Close modal and reset state (but keep variations)
@@ -1448,6 +1564,75 @@ const ProductEdit = () => {
                   )}
                 </div>
 
+                {/* Warehouse List */}
+                {warehouseRows.length > 0 && (
+                  <div className="mb-4">
+                    <h6 className="mb-3">
+                      <i className="fas fa-warehouse me-2"></i>
+                      Warehouses
+                    </h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm align-middle">
+                        <thead>
+                          <tr>
+                            <th>Warehouse Name</th>
+                            <th>Quantity</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {warehouseRows.map((row) => {
+                            const isDefault = row.warehouseId === defaultWarehouseId;
+                            return (
+                              <tr key={row.warehouseId}>
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm bg-light"
+                                    value={row.warehouseName}
+                                    readOnly
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm bg-light"
+                                    value={row.quantity}
+                                    readOnly
+                                  />
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${isDefault ? 'btn-success' : 'btn-outline-secondary'}`}
+                                    onClick={() => handleMakeDefaultWarehouse(row.warehouseId)}
+                                    disabled={isSubmitting || !!updatingDefaultWarehouseId}
+                                  >
+                                    {updatingDefaultWarehouseId === row.warehouseId ? (
+                                      <>
+                                        <span
+                                          className="spinner-border spinner-border-sm me-1"
+                                          role="status"
+                                          aria-hidden="true"
+                                        ></span>
+                                        Updating...
+                                      </>
+                                    ) : isDefault ? (
+                                      'Default'
+                                    ) : (
+                                      'Make Default'
+                                    )}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Variations Display Section - Show on main page */}
                 {form.product_type === 'Variable' && variations.length > 0 && (
                   <div className="mb-4">
@@ -1559,6 +1744,88 @@ const ProductEdit = () => {
                                   />
                                 </div>
                               </div>
+
+                              {/* Variation Warehouses */}
+                              {Array.isArray(variation.warehouseRows) &&
+                                variation.warehouseRows.length > 0 && (
+                                  <div className="mt-3">
+                                    <label className="form-label small fw-bold mb-2">
+                                      Warehouses
+                                    </label>
+                                    <div className="table-responsive">
+                                      <table className="table table-sm mb-0">
+                                        <thead>
+                                          <tr>
+                                            <th className="text-xs">Warehouse</th>
+                                            <th className="text-xs">Quantity</th>
+                                            <th className="text-xs">Action</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {variation.warehouseRows.map((warehouseRow) => {
+                                            const isDefault =
+                                              variation.defaultWarehouseId === warehouseRow.warehouseId;
+                                            const isUpdating =
+                                              updatingChildWarehouseByVariation[variation.id] ===
+                                              warehouseRow.warehouseId;
+                                            return (
+                                              <tr key={`${variation.id}-${warehouseRow.warehouseId}`}>
+                                                <td>
+                                                  <input
+                                                    type="text"
+                                                    className="form-control form-control-sm bg-light"
+                                                    value={warehouseRow.warehouseName}
+                                                    readOnly
+                                                  />
+                                                </td>
+                                                <td>
+                                                  <input
+                                                    type="number"
+                                                    className="form-control form-control-sm bg-light"
+                                                    value={warehouseRow.quantity}
+                                                    readOnly
+                                                  />
+                                                </td>
+                                                <td>
+                                                  <button
+                                                    type="button"
+                                                    className={`btn btn-sm ${isDefault ? 'btn-success' : 'btn-outline-secondary'}`}
+                                                    onClick={() =>
+                                                      handleMakeDefaultChildWarehouse(
+                                                        variation.id,
+                                                        variation.childProductId,
+                                                        warehouseRow.warehouseId
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      isSubmitting ||
+                                                      !!updatingChildWarehouseByVariation[variation.id]
+                                                    }
+                                                  >
+                                                    {isUpdating ? (
+                                                      <>
+                                                        <span
+                                                          className="spinner-border spinner-border-sm me-1"
+                                                          role="status"
+                                                          aria-hidden="true"
+                                                        ></span>
+                                                        Updating...
+                                                      </>
+                                                    ) : isDefault ? (
+                                                      'Default'
+                                                    ) : (
+                                                      'Make Default'
+                                                    )}
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
 
                               {/* Wholesale Price and Alert Qty Row */}
                               <div className="row g-2">
