@@ -356,11 +356,11 @@ export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
  * `vendor_id`, `description`, `ref_no`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`, `amount_paid` (from UI `amount_received` / `amount_paid`),
  * `remaining_amount`, `total_amount`, `expected_delivery_date`,
- * `product_id[n]`, `qty[n]`, `price[n]`
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]` (optional per line)
  * (same line-item shape as POS `order/order_save`).
  *
  * UI may still send `supplier_id`, `purchase_order_no`, `notes`, and `items[]`
- * with `{ product_id, qty, price }`; those are mapped here.
+ * with `{ product_id, qty, price, warehouse_id }`; those are mapped here.
  */
 export async function createPurchaseOrderRequest(payload = {}) {
   const body = payload && typeof payload === 'object' ? payload : {};
@@ -439,9 +439,11 @@ export async function createPurchaseOrderRequest(payload = {}) {
     if (!productId) return;
     const qty = line.qty;
     const price = line.price ?? line.rate;
+    const warehouseId = String(line.warehouseId ?? line.warehouse_id ?? '').trim();
     form.append(`product_id[${idx}]`, productId);
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
+    if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
     idx += 1;
   });
 
@@ -471,7 +473,7 @@ export async function createPurchaseOrderRequest(payload = {}) {
 /**
  * PATCH `purchase_order/purchase_order_update/:id` — multipart form fields:
  * `name`, `email`, `phone`, `address`, `vendor_id`, `description`, `ref_no`,
- * `product_id[n]`, `qty[n]`, `price[n]`, `discount`, `shipment`, `account_id`,
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]` (optional per line), `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`,
  * `order_status`, `amount_paid` (from UI `amount_received` / `amount_paid`), `remaining_amount`, `total_amount`
  * (same line-item shape as create).
@@ -563,9 +565,11 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     if (!productId) return;
     const qty = line.qty;
     const price = line.price ?? line.rate;
+    const warehouseId = String(line.warehouseId ?? line.warehouse_id ?? '').trim();
     form.append(`product_id[${idx}]`, productId);
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
+    if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
     idx += 1;
   });
 

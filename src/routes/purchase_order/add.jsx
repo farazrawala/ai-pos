@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -26,7 +27,11 @@ const roundMoney2 = (n) => {
 };
 
 const parseMoneyInput = (raw) => {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? roundMoney2(n) : 0;
 };
 
@@ -57,6 +62,49 @@ const productPickerUnitPrice = (p) => {
   if (v == null || v === '') return 0;
   const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
+};
+
+const warehouseOptionValue = (w) => {
+  if (!w || typeof w !== 'object') return '';
+  return String(w._id ?? w.id ?? '').trim();
+};
+
+const warehouseOptionLabel = (w) => {
+  if (!w || typeof w !== 'object') return 'Warehouse';
+  return w.name ?? w.warehouse_name ?? w.title ?? `Warehouse`;
+};
+
+/**
+ * Build per-line warehouse dropdown options from a product's `warehouse_inventory`
+ * (preserves API array order — index 0 is the default selection).
+ */
+const warehouseInventoryToLineOptions = (product) => {
+  if (!product || typeof product !== 'object') return [];
+  const inv = product.warehouse_inventory ?? product.warehouseInventory;
+  if (!Array.isArray(inv) || inv.length === 0) return [];
+
+  return inv
+    .map((entry, idx) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const wid =
+        entry?.warehouse_id?._id ??
+        entry?.warehouse_id?.id ??
+        entry?.warehouse_id ??
+        entry?.warehouseId?._id ??
+        entry?.warehouseId?.id ??
+        entry?.warehouseId;
+      const value = wid != null ? String(wid).trim() : '';
+      if (!value) return null;
+      const label =
+        entry?.warehouse_id?.name ??
+        entry?.warehouse_id?.warehouse_name ??
+        entry?.warehouse_name ??
+        entry?.name ??
+        `Warehouse ${idx + 1}`;
+      const qty = entry?.quantity;
+      return { value, label: String(label), qty };
+    })
+    .filter(Boolean);
 };
 
 const newLineKey = () => `po-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -107,6 +155,10 @@ const PurchaseOrderAdd = () => {
   const [accountsError, setAccountsError] = useState(null);
   const [amountPaidDirty, setAmountPaidDirty] = useState(false);
 
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehousesStatus, setWarehousesStatus] = useState('idle');
+  const [warehousesError, setWarehousesError] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     setUsersStatus('loading');
@@ -154,6 +206,37 @@ const PurchaseOrderAdd = () => {
           setAccounts([]);
           setAccountsError(err?.message || 'Could not load accounts');
           setAccountsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWarehousesStatus('loading');
+    setWarehousesError(null);
+    (async () => {
+      try {
+        const res = await fetchWarehousesRequest({
+          page: 1,
+          limit: 1000,
+          sortBy: 'name',
+          sortOrder: 'asc',
+        });
+        const list = Array.isArray(res?.data) ? res.data : [];
+        if (!cancelled) {
+          setWarehouses(list);
+          setWarehousesStatus('succeeded');
+        }
+      } catch (err) {
+        console.error('[Purchase order add] Failed to load warehouses', err);
+        if (!cancelled) {
+          setWarehouses([]);
+          setWarehousesError(err?.message || 'Could not load warehouses');
+          setWarehousesStatus('failed');
         }
       }
     })();
@@ -215,6 +298,18 @@ const PurchaseOrderAdd = () => {
     [accounts]
   );
 
+  const fallbackWarehouseLineOptions = useMemo(
+    () =>
+      [...warehouses]
+        .filter((w) => warehouseOptionValue(w))
+        .sort((a, b) => warehouseOptionLabel(a).localeCompare(warehouseOptionLabel(b)))
+        .map((w) => ({
+          value: warehouseOptionValue(w),
+          label: warehouseOptionLabel(w),
+        })),
+    [warehouses]
+  );
+
   const handleLineEdit = useCallback((key, field, rawValue) => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
@@ -223,25 +318,37 @@ const PurchaseOrderAdd = () => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
 
-  const appendProduct = useCallback((product) => {
-    if (!product || typeof product !== 'object') return;
-    const id = String(product._id ?? product.id ?? '').trim();
-    if (!id) return;
-    const rate = productPickerUnitPrice(product);
-    setLines((prev) => [
-      ...prev,
-      {
-        key: newLineKey(),
-        productId: id,
-        label: productPickerLabel(product),
-        qty: '1',
-        rate: String(rate),
-      },
-    ]);
-    setAddProductQuery('');
-    setAddProductResults([]);
-    setAddProductError('');
-  }, []);
+  const appendProduct = useCallback(
+    (product) => {
+      if (!product || typeof product !== 'object') return;
+      const id = String(product._id ?? product.id ?? '').trim();
+      if (!id) return;
+      const rate = productPickerUnitPrice(product);
+      setLines((prev) => {
+        const invOptions = warehouseInventoryToLineOptions(product);
+        const lineWarehouseOptions =
+          invOptions.length > 0 ? invOptions : fallbackWarehouseLineOptions;
+        const defaultWh =
+          lineWarehouseOptions.length > 0 ? String(lineWarehouseOptions[0].value).trim() : '';
+        return [
+          ...prev,
+          {
+            key: newLineKey(),
+            productId: id,
+            label: productPickerLabel(product),
+            qty: '1',
+            rate: String(rate),
+            warehouseOptions: lineWarehouseOptions,
+            warehouseId: defaultWh,
+          },
+        ];
+      });
+      setAddProductQuery('');
+      setAddProductResults([]);
+      setAddProductError('');
+    },
+    [fallbackWarehouseLineOptions]
+  );
 
   const summary = useMemo(() => {
     let subTotal = 0;
@@ -267,7 +374,10 @@ const PurchaseOrderAdd = () => {
     setForm((p) => (p.amount_received === next ? p : { ...p, amount_received: next }));
   }, [summary.total, amountPaidDirty]);
 
-  const amountPaidNum = useMemo(() => parseMoneyInput(form.amount_received), [form.amount_received]);
+  const amountPaidNum = useMemo(
+    () => parseMoneyInput(form.amount_received),
+    [form.amount_received]
+  );
   const paymentRemaining = useMemo(() => {
     const t = roundMoney2(summary.total);
     const p = roundMoney2(amountPaidNum);
@@ -292,11 +402,12 @@ const PurchaseOrderAdd = () => {
     const itemRows = lines
       .map((d) => {
         const product_id = String(d?.productId ?? '').trim();
+        const warehouse_id = String(d?.warehouseId ?? '').trim();
         const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
         const priceNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
         const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
         const price = Number.isFinite(priceNum) ? priceNum : 0;
-        return { product_id, qty, price };
+        return { product_id, warehouse_id, qty, price };
       })
       .filter((l) => l.product_id);
 
@@ -343,6 +454,16 @@ const PurchaseOrderAdd = () => {
     }
     if (!hasSaveableLines) {
       setErrors({ submit: 'Add at least one product with quantity and price.' });
+      return;
+    }
+    const missingWarehouse = lines.some((row) => {
+      if (!String(row?.productId ?? '').trim()) return false;
+      const opts = Array.isArray(row?.warehouseOptions) ? row.warehouseOptions : [];
+      if (opts.length === 0) return false;
+      return !String(row?.warehouseId ?? '').trim();
+    });
+    if (missingWarehouse) {
+      setErrors({ submit: 'Select a warehouse for each product line.' });
       return;
     }
     setErrors({});
@@ -439,7 +560,11 @@ const PurchaseOrderAdd = () => {
           >
             {isSubmitting ? (
               <>
-                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                <span
+                  className="spinner-border spinner-border-sm me-1"
+                  role="status"
+                  aria-hidden="true"
+                />
                 Saving…
               </>
             ) : (
@@ -470,7 +595,10 @@ const PurchaseOrderAdd = () => {
                   <span className="text-muted small text-center px-1">LOGO</span>
                 </div>
                 <div>
-                  <div className="fw-bold text-uppercase text-secondary" style={{ fontSize: '0.75rem' }}>
+                  <div
+                    className="fw-bold text-uppercase text-secondary"
+                    style={{ fontSize: '0.75rem' }}
+                  >
                     {shopName}
                   </div>
                   <div className="h5 mb-0 fw-semibold">{shopName}</div>
@@ -483,7 +611,9 @@ const PurchaseOrderAdd = () => {
                 <span className="text-muted">Reference / PO no. </span>
                 <span className="fw-bold">{form.purchase_order_no.trim() || '—'}</span>
               </div>
-              <div className="small text-muted mb-2">New draft — number assigned by system when saved</div>
+              <div className="small text-muted mb-2">
+                New draft — number assigned by system when saved
+              </div>
               <div className="fw-semibold">Order total: {fmt(summary.total)}</div>
             </div>
           </div>
@@ -525,7 +655,9 @@ const PurchaseOrderAdd = () => {
               </div>
               <div className="small mb-2">
                 <span className="text-muted me-2">Expected delivery:</span>
-                <span className="fw-semibold">{formatDisplayDate(form.expected_delivery_date)}</span>
+                <span className="fw-semibold">
+                  {formatDisplayDate(form.expected_delivery_date)}
+                </span>
               </div>
               <div className="row g-2 justify-content-md-end mt-2">
                 <div className="col-12 col-md-8 col-lg-6">
@@ -537,7 +669,9 @@ const PurchaseOrderAdd = () => {
                     type="date"
                     className="form-control form-control-sm"
                     value={form.expected_delivery_date}
-                    onChange={(e) => setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
+                    }
                     disabled={isSubmitting}
                   />
                 </div>
@@ -608,8 +742,14 @@ const PurchaseOrderAdd = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Rate</strong> and <strong>Qty</strong> per line. Remove rows you do not need.
+            Set <strong>Warehouse</strong>, <strong>Rate</strong>, and <strong>Qty</strong> per
+            line. Remove rows you do not need.
           </p>
+          {warehousesStatus === 'failed' && warehousesError ? (
+            <div className="alert alert-warning py-2 small mb-2" role="alert">
+              {warehousesError}
+            </div>
+          ) : null}
 
           <div className="table-responsive mb-4">
             <table className="table table-bordered po-add-table mb-0">
@@ -617,6 +757,7 @@ const PurchaseOrderAdd = () => {
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th>Description</th>
+                  <th style={{ minWidth: '160px' }}>Warehouse</th>
                   <th className="text-end" style={{ width: '120px' }}>
                     Rate
                   </th>
@@ -632,7 +773,7 @@ const PurchaseOrderAdd = () => {
               <tbody>
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted py-4">
+                    <td colSpan={7} className="text-center text-muted py-4">
                       No line items. Use <strong>Add product</strong> above to add rows.
                     </td>
                   </tr>
@@ -643,14 +784,42 @@ const PurchaseOrderAdd = () => {
                     const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
                     const rate = Number.isFinite(rateNum) ? rateNum : 0;
                     const amount = qty * rate;
+                    const lineWarehouseOptions = Array.isArray(row.warehouseOptions)
+                      ? row.warehouseOptions
+                      : [];
                     return (
                       <tr key={row.key}>
                         <td className="text-center">{i + 1}</td>
                         <td>
                           <div>{row.label}</div>
                           {!String(row.productId || '').trim() ? (
-                            <div className="small text-warning">Missing product — remove or pick again.</div>
+                            <div className="small text-warning">
+                              Missing product — remove or pick again.
+                            </div>
                           ) : null}
+                        </td>
+                        <td className="align-middle">
+                          <select
+                            className="form-select form-select-sm"
+                            aria-label={`Warehouse for line ${i + 1}`}
+                            value={String(row.warehouseId ?? '')}
+                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
+                            disabled={
+                              isSubmitting ||
+                              (lineWarehouseOptions.length === 0 &&
+                                warehousesStatus === 'loading')
+                            }
+                          >
+                            {lineWarehouseOptions.length === 0 ? (
+                              <option value="">No warehouses</option>
+                            ) : (
+                              lineWarehouseOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))
+                            )}
+                          </select>
                         </td>
                         <td className="text-end align-middle">
                           <input
@@ -837,7 +1006,11 @@ const PurchaseOrderAdd = () => {
             >
               {isSubmitting ? (
                 <>
-                  <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                  <span
+                    className="spinner-border spinner-border-sm me-1"
+                    role="status"
+                    aria-hidden="true"
+                  />
                   Saving…
                 </>
               ) : (
