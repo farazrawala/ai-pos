@@ -14,31 +14,6 @@ import {
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
-/** Sum `quantity` across `warehouse_inventory` when the list API includes it. */
-const sumWarehouseInventoryQty = (item) => {
-  if (!item || typeof item !== 'object') return null;
-  const inv = item.warehouse_inventory ?? item.warehouseInventory;
-  if (!Array.isArray(inv) || inv.length === 0) return null;
-  let sum = 0;
-  let any = false;
-  for (const row of inv) {
-    if (!row || typeof row !== 'object') continue;
-    if (row.quantity === undefined || row.quantity === null) continue;
-    const q = Number(row.quantity);
-    if (!Number.isFinite(q)) continue;
-    any = true;
-    sum += q;
-  }
-  return any ? sum : null;
-};
-
-const displayProductStock = (item) => {
-  const fromWarehouses = sumWarehouseInventoryQty(item);
-  if (fromWarehouses !== null) return fromWarehouses;
-  if (item.stock !== undefined && item.stock !== null && item.stock !== '') return item.stock;
-  return null;
-};
-
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -536,7 +511,6 @@ const Product = () => {
                             (item.images && item.images.length > 0 ? item.images[0] : null) ||
                             item.image ||
                             null;
-                          const stockDisplay = displayProductStock(item);
                           return (
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
@@ -580,7 +554,7 @@ const Product = () => {
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {stockDisplay != null && stockDisplay !== '' ? stockDisplay : '-'}
+                                {item.stock !== undefined ? item.stock : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.product_type || item.productType || '-'}
