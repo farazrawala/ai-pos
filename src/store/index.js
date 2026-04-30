@@ -13,6 +13,7 @@ import accountsReducer from '../features/accounts/accountsSlice.js';
 import ordersReducer from '../features/orders/ordersSlice.js';
 import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlice.js';
 import transactionsReducer from '../features/transactions/transactionsSlice.js';
+import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -31,6 +32,7 @@ const store = configureStore({
     orders: ordersReducer,
     purchaseOrders: purchaseOrdersReducer,
     transactions: transactionsReducer,
+    stockMovement: stockMovementReducer,
   },
 });
 
