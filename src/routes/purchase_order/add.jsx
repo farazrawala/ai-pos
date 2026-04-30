@@ -74,11 +74,32 @@ const warehouseOptionLabel = (w) => {
   return w.name ?? w.warehouse_name ?? w.title ?? `Warehouse`;
 };
 
+const buildWarehousesById = (list) => {
+  const map = new Map();
+  if (!Array.isArray(list)) return map;
+  for (const w of list) {
+    const id = String(w?._id ?? w?.id ?? '').trim();
+    if (id) map.set(id, w);
+  }
+  return map;
+};
+
+const labelForWarehouseId = (warehouseId, warehousesById, fallbackLabel) => {
+  const id = String(warehouseId ?? '').trim();
+  if (!id) return String(fallbackLabel || 'Warehouse');
+  const doc = warehousesById?.get(id);
+  if (doc && typeof doc === 'object') {
+    return String(doc.name ?? doc.warehouse_name ?? fallbackLabel ?? 'Warehouse');
+  }
+  return String(fallbackLabel ?? 'Warehouse');
+};
+
 /**
  * Build per-line warehouse dropdown options from a product's `warehouse_inventory`
  * (preserves API array order — index 0 is the default selection).
+ * When `warehousesById` is populated, labels come from the master warehouse list so value/label always match.
  */
-const warehouseInventoryToLineOptions = (product) => {
+const warehouseInventoryToLineOptions = (product, warehousesById) => {
   if (!product || typeof product !== 'object') return [];
   const inv = product.warehouse_inventory ?? product.warehouseInventory;
   if (!Array.isArray(inv) || inv.length === 0) return [];
@@ -95,12 +116,16 @@ const warehouseInventoryToLineOptions = (product) => {
         entry?.warehouseId;
       const value = wid != null ? String(wid).trim() : '';
       if (!value) return null;
-      const label =
+      const nestedLabel =
         entry?.warehouse_id?.name ??
         entry?.warehouse_id?.warehouse_name ??
         entry?.warehouse_name ??
         entry?.name ??
         `Warehouse ${idx + 1}`;
+      const label =
+        warehousesById && warehousesById.size > 0
+          ? labelForWarehouseId(value, warehousesById, nestedLabel)
+          : String(nestedLabel);
       const qty = entry?.quantity;
       return { value, label: String(label), qty };
     })
@@ -298,11 +323,13 @@ const PurchaseOrderAdd = () => {
     [accounts]
   );
 
+  const warehousesById = useMemo(() => buildWarehousesById(warehouses), [warehouses]);
+
+  /** Preserve API list order (matches backend `get-all-active`); do not re-sort by name (sort can diverge from index 0). */
   const fallbackWarehouseLineOptions = useMemo(
     () =>
       [...warehouses]
         .filter((w) => warehouseOptionValue(w))
-        .sort((a, b) => warehouseOptionLabel(a).localeCompare(warehouseOptionLabel(b)))
         .map((w) => ({
           value: warehouseOptionValue(w),
           label: warehouseOptionLabel(w),
@@ -325,7 +352,7 @@ const PurchaseOrderAdd = () => {
       if (!id) return;
       const rate = productPickerUnitPrice(product);
       setLines((prev) => {
-        const invOptions = warehouseInventoryToLineOptions(product);
+        const invOptions = warehouseInventoryToLineOptions(product, warehousesById);
         const lineWarehouseOptions =
           invOptions.length > 0 ? invOptions : fallbackWarehouseLineOptions;
         const defaultWh =
@@ -347,8 +374,54 @@ const PurchaseOrderAdd = () => {
       setAddProductResults([]);
       setAddProductError('');
     },
-    [fallbackWarehouseLineOptions]
+    [fallbackWarehouseLineOptions, warehousesById]
   );
+
+  // When the master warehouse list loads, refresh option labels on existing rows (inventory rows may
+  // have been built before `warehouses` was available).
+  useEffect(() => {
+    if (warehousesById.size === 0) return;
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((row) => {
+        const opts = Array.isArray(row.warehouseOptions) ? row.warehouseOptions : [];
+        if (opts.length === 0) return row;
+        const refreshed = opts.map((o) => {
+          const nextLabel = labelForWarehouseId(o.value, warehousesById, o.label);
+          if (nextLabel === o.label) return o;
+          return { ...o, label: nextLabel };
+        });
+        if (refreshed.every((o, i) => o.label === opts[i].label)) return row;
+        changed = true;
+        return { ...row, warehouseOptions: refreshed };
+      });
+      return changed ? next : prev;
+    });
+  }, [warehousesById]);
+
+  // When the global warehouse list loads after the first render, backfill lines that were added
+  // with no `warehouseOptions` yet. Also fix `warehouseId` if it is missing or not in the row's options.
+  useEffect(() => {
+    if (warehousesStatus !== 'succeeded' || fallbackWarehouseLineOptions.length === 0) return;
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((row) => {
+        let opts = Array.isArray(row.warehouseOptions) ? row.warehouseOptions : [];
+        let nextRow = row;
+        if (opts.length === 0) {
+          changed = true;
+          opts = fallbackWarehouseLineOptions;
+          nextRow = { ...row, warehouseOptions: opts };
+        }
+        const cur = String(nextRow.warehouseId ?? '').trim();
+        const valid = cur && opts.some((o) => o.value === cur);
+        if (valid) return nextRow;
+        changed = true;
+        return { ...nextRow, warehouseOptions: opts, warehouseId: String(opts[0].value) };
+      });
+      return changed ? next : prev;
+    });
+  }, [warehousesStatus, fallbackWarehouseLineOptions]);
 
   const summary = useMemo(() => {
     let subTotal = 0;
