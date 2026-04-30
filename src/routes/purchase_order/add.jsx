@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -86,6 +87,16 @@ const accountOptionValue = (a) => {
   return String(a._id ?? a.id ?? '').trim();
 };
 
+const warehouseOptionValue = (w) => {
+  if (!w || typeof w !== 'object') return '';
+  return String(w._id ?? w.id ?? '').trim();
+};
+
+const warehouseOptionLabel = (w) => {
+  if (!w || typeof w !== 'object') return 'Warehouse';
+  return w.name ?? w.warehouse_name ?? w.title ?? 'Warehouse';
+};
+
 const PurchaseOrderAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -106,6 +117,8 @@ const PurchaseOrderAdd = () => {
   const [accountsStatus, setAccountsStatus] = useState('idle');
   const [accountsError, setAccountsError] = useState(null);
   const [amountPaidDirty, setAmountPaidDirty] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehousesStatus, setWarehousesStatus] = useState('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +138,29 @@ const PurchaseOrderAdd = () => {
           setUsers([]);
           setUsersError(err?.message || 'Could not load users');
           setUsersStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWarehousesStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchWarehousesRequest({ page: 1, limit: 1000 });
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (!cancelled) {
+          setWarehouses(list);
+          setWarehousesStatus('succeeded');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setWarehouses([]);
+          setWarehousesStatus('failed');
         }
       }
     })();
@@ -215,6 +251,16 @@ const PurchaseOrderAdd = () => {
     [accounts]
   );
 
+  const warehouseOptions = useMemo(
+    () => [...warehouses].filter((w) => warehouseOptionValue(w)),
+    [warehouses]
+  );
+
+  const defaultWarehouseId = useMemo(
+    () => (warehouseOptions.length > 0 ? warehouseOptionValue(warehouseOptions[0]) : ''),
+    [warehouseOptions]
+  );
+
   const handleLineEdit = useCallback((key, field, rawValue) => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
@@ -236,12 +282,13 @@ const PurchaseOrderAdd = () => {
         label: productPickerLabel(product),
         qty: '1',
         rate: String(rate),
+        warehouseId: defaultWarehouseId,
       },
     ]);
     setAddProductQuery('');
     setAddProductResults([]);
     setAddProductError('');
-  }, []);
+  }, [defaultWarehouseId]);
 
   const summary = useMemo(() => {
     let subTotal = 0;
@@ -292,11 +339,12 @@ const PurchaseOrderAdd = () => {
     const itemRows = lines
       .map((d) => {
         const product_id = String(d?.productId ?? '').trim();
+        const warehouse_id = String(d?.warehouseId ?? '').trim();
         const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
         const priceNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
         const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
         const price = Number.isFinite(priceNum) ? priceNum : 0;
-        return { product_id, qty, price };
+        return { product_id, warehouse_id, qty, price };
       })
       .filter((l) => l.product_id);
 
@@ -608,7 +656,8 @@ const PurchaseOrderAdd = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Rate</strong> and <strong>Qty</strong> per line. Remove rows you do not need.
+            Set <strong>Warehouse</strong>, <strong>Rate</strong> and <strong>Qty</strong> per line.
+            Remove rows you do not need.
           </p>
 
           <div className="table-responsive mb-4">
@@ -617,6 +666,7 @@ const PurchaseOrderAdd = () => {
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th>Description</th>
+                  <th style={{ minWidth: '180px' }}>Warehouse</th>
                   <th className="text-end" style={{ width: '120px' }}>
                     Rate
                   </th>
@@ -632,7 +682,7 @@ const PurchaseOrderAdd = () => {
               <tbody>
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted py-4">
+                    <td colSpan={7} className="text-center text-muted py-4">
                       No line items. Use <strong>Add product</strong> above to add rows.
                     </td>
                   </tr>
@@ -651,6 +701,25 @@ const PurchaseOrderAdd = () => {
                           {!String(row.productId || '').trim() ? (
                             <div className="small text-warning">Missing product — remove or pick again.</div>
                           ) : null}
+                        </td>
+                        <td className="align-middle">
+                          <select
+                            className="form-select form-select-sm"
+                            aria-label={`Warehouse for line ${i + 1}`}
+                            value={String(row.warehouseId ?? '')}
+                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
+                            disabled={isSubmitting || warehousesStatus === 'loading'}
+                          >
+                            <option value="">Select warehouse</option>
+                            {warehouseOptions.map((w) => {
+                              const value = warehouseOptionValue(w);
+                              return (
+                                <option key={value} value={value}>
+                                  {warehouseOptionLabel(w)}
+                                </option>
+                              );
+                            })}
+                          </select>
                         </td>
                         <td className="text-end align-middle">
                           <input

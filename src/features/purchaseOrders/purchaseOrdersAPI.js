@@ -439,9 +439,11 @@ export async function createPurchaseOrderRequest(payload = {}) {
     if (!productId) return;
     const qty = line.qty;
     const price = line.price ?? line.rate;
+    const warehouseId = String(line.warehouseId ?? line.warehouse_id ?? '').trim();
     form.append(`product_id[${idx}]`, productId);
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
+    if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
     idx += 1;
   });
 
@@ -563,9 +565,11 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     if (!productId) return;
     const qty = line.qty;
     const price = line.price ?? line.rate;
+    const warehouseId = String(line.warehouseId ?? line.warehouse_id ?? '').trim();
     form.append(`product_id[${idx}]`, productId);
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
+    if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
     idx += 1;
   });
 
