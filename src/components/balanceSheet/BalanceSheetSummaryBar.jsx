@@ -51,7 +51,9 @@ export function BalanceSheetSummaryBar({
             <div className="card-body p-3">
               <div className="row">
                 <div className="col-8">
-                  <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">{cell.label}</p>
+                  <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">
+                    {cell.label}
+                  </p>
                   <h5 className="font-weight-bolder mb-0">{formatCurrency(cell.value)}</h5>
                 </div>
                 <div className="col-4 text-end d-flex align-items-center justify-content-end">
@@ -59,7 +61,10 @@ export function BalanceSheetSummaryBar({
                     className={`icon icon-shape ${cell.iconBg} shadow text-center rounded-circle`}
                     style={{ width: '2.5rem', height: '2.5rem', lineHeight: '2.5rem' }}
                   >
-                    <i className={`${cell.icon} text-lg text-white opacity-10`} aria-hidden="true" />
+                    <i
+                      className={`${cell.icon} text-lg text-white opacity-10`}
+                      aria-hidden="true"
+                    />
                   </div>
                 </div>
               </div>

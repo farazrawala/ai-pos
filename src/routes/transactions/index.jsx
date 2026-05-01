@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -11,7 +11,12 @@ import {
   setDateFilters,
   clearDateFilters,
 } from '../../features/transactions/transactionsSlice.js';
-import { getAccountName, formatTransactionAmount } from '../../features/transactions/transactionsAPI.js';
+import {
+  getAccountName,
+  formatTransactionAmount,
+  groupTransactionsIntoJournals,
+  sumDebitCreditForLines,
+} from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
 const Transactions = () => {
@@ -32,8 +37,12 @@ const Transactions = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
+  /** 'journal' = double-entry grouped view; 'lines' = flat ledger list */
+  const [viewMode, setViewMode] = useState('journal');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+
+  const journals = useMemo(() => groupTransactionsIntoJournals(data), [data]);
 
   useEffect(() => {
     if (canView === false) navigate('/dashboard');
@@ -154,21 +163,63 @@ const Transactions = () => {
     };
   };
 
+  const journalMeta = (lines) => {
+    if (!lines?.length) return { ref: '—', description: '—', createdAt: null, status: null };
+    const ref =
+      lines[0].transaction_number ??
+      lines[0].transactionNumber ??
+      lines[0]._id ??
+      lines[0].id ??
+      '—';
+    const desc =
+      lines.map((r) => (r.description && String(r.description).trim()) || '').find(Boolean) || '—';
+    let earliest = null;
+    for (const r of lines) {
+      if (!r.createdAt) continue;
+      const m = moment(r.createdAt);
+      if (!m.isValid()) continue;
+      if (!earliest || m.isBefore(earliest)) earliest = m;
+    }
+    const status = lines.find((r) => r.status)?.status ?? null;
+    return { ref, description: desc, createdAt: earliest, status };
+  };
+
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '100%' }}>
+          <div className="card w-100" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
                   <h5 className="mb-0">Transactions</h5>
                   <p className="text-sm mb-0 text-muted">
+                    Double-entry journals (grouped lines). API:{' '}
                     <code className="small">GET /transaction/get-all-active?populate=account_id</code>
                   </p>
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+                    <div
+                      className="btn-group btn-group-sm"
+                      role="group"
+                      aria-label="Transaction view mode"
+                    >
+                      <button
+                        type="button"
+                        className={`btn mb-0 ${viewMode === 'journal' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setViewMode('journal')}
+                      >
+                        Journal view
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn mb-0 ${viewMode === 'lines' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setViewMode('lines')}
+                      >
+                        All lines
+                      </button>
+                    </div>
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
                         <i className="fas fa-search" aria-hidden="true"></i>
@@ -256,19 +307,110 @@ const Transactions = () => {
                 </div>
               )}
 
-              <div className="table-responsive">
-                {loading && (
-                  <div className="text-center p-4">
-                    <p className="mb-0">Loading transactions…</p>
-                  </div>
-                )}
-                {error && (
-                  <div className="alert alert-danger m-3" role="alert">
-                    {error}
-                  </div>
-                )}
-                {!loading && !error && (
-                  <table className="table table-flush">
+              {loading && (
+                <div className="text-center p-4">
+                  <p className="mb-0">Loading transactions…</p>
+                </div>
+              )}
+              {error && (
+                <div className="alert alert-danger m-3" role="alert">
+                  {error}
+                </div>
+              )}
+              {!loading && !error && viewMode === 'journal' && (
+                <div className="w-100 d-flex flex-column gap-3">
+                  {journals.length === 0 ? (
+                    <p className="text-center text-sm text-muted p-4 mb-0">No transactions found</p>
+                  ) : (
+                    journals.map((lines, jIndex) => {
+                      const meta = journalMeta(lines);
+                      const sums = sumDebitCreditForLines(lines);
+                      const jKey =
+                        lines[0]?._id ||
+                        lines[0]?.id ||
+                        `${pagination.page}-${jIndex}`;
+                      return (
+                        <div key={jKey} className="card shadow-none border mb-0 w-100">
+                          <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-start gap-2 bg-gray-100">
+                            <div>
+                              <span className="text-xs text-uppercase text-muted d-block">
+                                Journal entry
+                              </span>
+                              <strong className="text-sm">Ref. {meta.ref}</strong>
+                              <span className="text-sm text-muted ms-2">
+                                {meta.createdAt
+                                  ? meta.createdAt.format('MM-DD-YYYY h:mm a')
+                                  : '—'}
+                              </span>
+                            </div>
+                            <div className="text-end">
+                              {meta.status ? (
+                                <span
+                                  className={`badge ${
+                                    String(meta.status).toLowerCase() === 'active'
+                                      ? 'bg-success'
+                                      : 'bg-secondary'
+                                  }`}
+                                >
+                                  {meta.status}
+                                </span>
+                              ) : null}
+                              <span
+                                className={`badge ms-1 ${
+                                  sums.balanced ? 'bg-gradient-success' : 'bg-gradient-warning'
+                                }`}
+                                title="Debits should equal credits for a complete posting"
+                              >
+                                {sums.balanced ? 'Balanced' : 'Check totals'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="card-body py-2 px-3 w-100">
+                            <p className="text-sm text-muted mb-2">{meta.description}</p>
+                            <table className="table table-sm table-flush mb-0 w-100">
+                              <thead>
+                                <tr>
+                                  <th className="text-xs text-uppercase">Account</th>
+                                  <th className="text-xs text-uppercase text-end">Debit</th>
+                                  <th className="text-xs text-uppercase text-end">Credit</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lines.map((item, idx) => {
+                                  const { debit, credit } = debitCreditCells(item);
+                                  const rowKey = item._id || item.id || idx;
+                                  return (
+                                    <tr key={rowKey}>
+                                      <td className="text-sm">{getAccountName(item)}</td>
+                                      <td className="text-sm text-end">{debit}</td>
+                                      <td className="text-sm text-end">{credit}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot>
+                                <tr className="font-weight-bold">
+                                  <td className="text-sm pt-2">Totals</td>
+                                  <td className="text-sm text-end pt-2">
+                                    {formatTransactionAmount(sums.debit)}
+                                  </td>
+                                  <td className="text-sm text-end pt-2">
+                                    {formatTransactionAmount(sums.credit)}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {!loading && !error && viewMode === 'lines' && (
+                <div className="table-responsive w-100">
+                  <table className="table table-flush w-100">
                     <thead className="thead-light">
                       <tr>
                         <th>S.No</th>
@@ -380,8 +522,8 @@ const Transactions = () => {
                       )}
                     </tbody>
                   </table>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

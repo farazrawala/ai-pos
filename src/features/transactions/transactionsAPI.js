@@ -165,3 +165,74 @@ export const formatTransactionAmount = (value) => {
   if (!Number.isFinite(n)) return String(value);
   return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+/** Numeric amount for summing debits/credits (0 if invalid). */
+export const parseTransactionAmount = (value) => {
+  if (value == null || value === '') return 0;
+  const n = typeof value === 'number' ? value : parseFloat(String(value).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * Stable key to group ledger lines into one double-entry journal on the client.
+ * Prefer explicit parent/journal ids from the API when present.
+ */
+export const getJournalGroupKey = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const candidates = [
+    row.journal_id,
+    row.journalId,
+    row.parent_transaction_id,
+    row.parentTransactionId,
+    row.transaction_header_id,
+    row.transactionHeaderId,
+    row.group_id,
+    row.groupId,
+  ];
+  for (const c of candidates) {
+    if (c != null && String(c).trim() !== '') return `id:${String(c)}`;
+  }
+  const num = row.transaction_number ?? row.transactionNumber;
+  if (num != null && String(num).trim() !== '') return `no:${String(num)}`;
+  if (row._id != null && String(row._id).trim() !== '') return `row:${String(row._id)}`;
+  if (row.id != null && String(row.id).trim() !== '') return `row:${String(row.id)}`;
+  return '';
+};
+
+/**
+ * Group flat transaction lines into journals (arrays of lines), preserving API order within each group.
+ */
+export const groupTransactionsIntoJournals = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const order = [];
+  const map = new Map();
+  let anon = 0;
+  for (const row of rows) {
+    let key = getJournalGroupKey(row);
+    if (!key) {
+      anon += 1;
+      key = `anon:${anon}`;
+    }
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key).push(row);
+  }
+  return order.map((key) => map.get(key));
+};
+
+export const sumDebitCreditForLines = (lines) => {
+  let debit = 0;
+  let credit = 0;
+  if (!Array.isArray(lines)) return { debit, credit, balanced: true };
+  for (const row of lines) {
+    const t = String(row?.type || '').toLowerCase().trim();
+    const amt = parseTransactionAmount(row?.amount);
+    if (t === 'debit') debit += amt;
+    else if (t === 'credit') credit += amt;
+  }
+  const diff = Math.abs(debit - credit);
+  const balanced = diff < 0.005;
+  return { debit, credit, balanced };
+};
