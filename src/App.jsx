@@ -40,6 +40,7 @@ import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
 import Transactions from './routes/transactions/index.jsx';
 import StockListing from './routes/stock/index.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
+import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -76,6 +77,7 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/accounts/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
@@ -148,6 +150,7 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/accounts/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />

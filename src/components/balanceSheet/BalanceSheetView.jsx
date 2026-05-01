@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { SectionCard } from './SectionCard.jsx';
+import { Fragment, useMemo, useState } from 'react';
 import { BalanceSheetSummaryBar } from './BalanceSheetSummaryBar.jsx';
-import { formatCurrency as formatCurrencyFn } from './formatCurrency.js';
+import { formatCurrencyAccounting } from './formatCurrency.js';
+import './balanceSheetGl.css';
 
 const MONTH_NAMES = [
   'January',
@@ -19,20 +18,38 @@ const MONTH_NAMES = [
   'December',
 ];
 
-/** First calendar day of month (month is 1–12). Local time. */
 function startOfCalendarMonth(year, month1to12) {
   return new Date(year, month1to12 - 1, 1, 0, 0, 0, 0);
 }
 
-/** Last calendar day of month (month is 1–12). Local time. */
 function endOfCalendarMonth(year, month1to12) {
   return new Date(year, month1to12, 0, 23, 59, 59, 999);
 }
 
-/** Compare two calendar months: negative if a < b, 0 if equal, positive if a > b. */
 function compareMonthYear(y1, m1, y2, m2) {
   if (y1 !== y2) return y1 - y2;
   return m1 - m2;
+}
+
+function sameCalendarDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function quarterLabelIfExact(periodStart, periodEnd) {
+  const y = periodStart.getFullYear();
+  if (y !== periodEnd.getFullYear()) return null;
+  if (periodStart.getDate() !== 1) return null;
+  const sm = periodStart.getMonth();
+  const em = periodEnd.getMonth();
+  const q = Math.floor(sm / 3);
+  if (sm !== q * 3 || em !== q * 3 + 2) return null;
+  const quarterEnd = new Date(y, q * 3 + 3, 0);
+  if (!sameCalendarDay(periodEnd, quarterEnd)) return null;
+  return `Q${q + 1} ${y}`;
 }
 
 const MOCK_BALANCE_SHEET = {
@@ -50,7 +67,7 @@ const MOCK_BALANCE_SHEET = {
   liabilities: {
     current: [
       { label: 'Accounts Payable', amount: 22_000 },
-      { label: 'Short-term Debt', amount: 15_000 },
+      // { label: 'Short-term Debt', amount: 15_000 },
     ],
     longTerm: [{ label: 'Long-term notes payable', amount: 120_000 }],
   },
@@ -64,30 +81,54 @@ function sumLines(lines) {
   return lines.reduce((acc, row) => acc + row.amount, 0);
 }
 
-function TotalHighlight({ label, amount, formatCurrency, variant }) {
-  const alertClass =
-    variant === 'success'
-      ? 'alert-success'
-      : variant === 'danger'
-        ? 'alert-danger'
-        : 'alert-info';
-
+function GlStatementPanel({ variant, heading, periodSuffix, groups, grandTotal, grandLabel }) {
+  const hdClass = variant === 'assets' ? 'assets' : 'le';
   return (
-    <div className={`alert ${alertClass} py-3 mb-3 shadow-sm`} role="status">
-      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span className="font-weight-bold mb-0">{label}</span>
-        <span className="font-weight-bolder mb-0 h5">{formatCurrency(amount)}</span>
+    <div className="bs-gl-panel">
+      <div className={`bs-gl-panel-hd ${hdClass}`}>
+        {heading}
+        <span className="period"> · {periodSuffix}</span>
       </div>
+      <table className="bs-gl-table">
+        <thead>
+          <tr>
+            <th scope="col">Account</th>
+            <th scope="col" className="num">
+              Amount
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((g) => (
+            <Fragment key={g.title}>
+              <tr className="bs-gl-section">
+                <td colSpan={2}>{g.title}</td>
+              </tr>
+              {g.lines.map((row) => (
+                <tr key={`${g.title}-${row.label}`} className="bs-gl-line">
+                  <td>{row.label}</td>
+                  <td className="num">{formatCurrencyAccounting(row.amount)}</td>
+                </tr>
+              ))}
+              <tr className="bs-gl-subtotal">
+                <td>Subtotal</td>
+                <td className="num">{formatCurrencyAccounting(g.subtotal)}</td>
+              </tr>
+            </Fragment>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>{grandLabel}</td>
+            <td className="num">{formatCurrencyAccounting(grandTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
 
-/**
- * Balance sheet aligned with Argon dashboard: Bootstrap cards, typography, and accents.
- */
 export default function BalanceSheetView() {
-  const fmt = (n) => formatCurrencyFn(n, 'USD');
-
   const [fromYear, setFromYear] = useState(() => new Date().getFullYear());
   const [fromMonth, setFromMonth] = useState(() => new Date().getMonth() + 1);
   const [toYear, setToYear] = useState(() => new Date().getFullYear());
@@ -111,6 +152,16 @@ export default function BalanceSheetView() {
     const df = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
     return `${df.format(periodStart)} – ${df.format(periodEnd)}`;
   }, [periodStart, periodEnd]);
+
+  const periodSuffix = useMemo(() => {
+    const q = quarterLabelIfExact(periodStart, periodEnd);
+    return q || rangeLabel;
+  }, [periodStart, periodEnd, rangeLabel]);
+
+  const asOfLabel = useMemo(() => {
+    const df = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
+    return df.format(periodEnd);
+  }, [periodEnd]);
 
   const setFrom = (y, m) => {
     setFromYear(y);
@@ -176,205 +227,162 @@ export default function BalanceSheetView() {
     };
   }, []);
 
+  const assetGroups = useMemo(
+    () => [
+      {
+        title: 'Current assets',
+        lines: MOCK_BALANCE_SHEET.assets.current,
+        subtotal: totalCurrentAssets,
+      },
+      {
+        title: 'Non-current assets',
+        lines: MOCK_BALANCE_SHEET.assets.nonCurrent,
+        subtotal: totalNonCurrentAssets,
+      },
+    ],
+    [totalCurrentAssets, totalNonCurrentAssets]
+  );
+
+  const liabilityEquityGroups = useMemo(
+    () => [
+      {
+        title: 'Current liabilities',
+        lines: MOCK_BALANCE_SHEET.liabilities.current,
+        subtotal: totalCurrentLiabilities,
+      },
+      {
+        title: 'Long-term liabilities',
+        lines: MOCK_BALANCE_SHEET.liabilities.longTerm,
+        subtotal: totalLongTermLiabilities,
+      },
+      {
+        title: "Owner's equity",
+        lines: MOCK_BALANCE_SHEET.equity,
+        subtotal: totalEquity,
+      },
+    ],
+    [totalCurrentLiabilities, totalLongTermLiabilities, totalEquity]
+  );
+
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-start gy-3">
-                <div className="col-xl-4 col-lg-5">
-                  <h5 className="mb-0">Balance Sheet</h5>
-                  <p className="text-sm text-muted mb-0">
-                    <span className="text-xs text-uppercase font-weight-bold">Filter</span>{' '}
-                    <span className="text-body">{rangeLabel}</span>
-                  </p>
-                  <p className="text-xs text-muted mb-0 mt-1">{rangeDetail}</p>
+        <div className="col-12 px-3 px-md-4 py-2">
+          <div className="bs-gl-frame">
+            <div className="bs-gl">
+              <div className="bs-gl-toolbar">
+                <div className="bs-gl-toolbar-title">
+                  <h1>Statement of financial position</h1>
+                  <div className="bs-gl-sub">
+                    Balance sheet · As of {asOfLabel} · Basis: accrual (sample)
+                  </div>
                 </div>
-                <div className="col-xl-7 col-lg-7">
-                  <div className="row g-3 align-items-end">
-                    <div className="col-md-6">
-                      <p className="text-xs text-uppercase font-weight-bold text-muted mb-2">From</p>
-                      <div className="row g-2">
-                        <div className="col-7">
-                          <label className="form-label text-xs text-muted mb-1">Month</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(fromMonth)}
-                            onChange={(e) =>
-                              setFrom(fromYear, parseInt(e.target.value, 10))
-                            }
-                            aria-label="From month"
-                          >
-                            {MONTH_NAMES.map((name, idx) => (
-                              <option key={name} value={String(idx + 1)}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-5">
-                          <label className="form-label text-xs text-muted mb-1">Year</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(fromYear)}
-                            onChange={(e) =>
-                              setFrom(parseInt(e.target.value, 10), fromMonth)
-                            }
-                            aria-label="From year"
-                          >
-                            {yearOptions.map((y) => (
-                              <option key={y} value={String(y)}>
-                                {y}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+                <div className="bs-gl-filters">
+                  <div className="bs-gl-fg">
+                    <span>From</span>
+                    <div className="d-flex gap-1">
+                      <select
+                        className="form-select form-select-sm"
+                        value={String(fromMonth)}
+                        onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
+                        aria-label="From month"
+                      >
+                        {MONTH_NAMES.map((name, idx) => (
+                          <option key={name} value={String(idx + 1)}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="form-select form-select-sm"
+                        value={String(fromYear)}
+                        onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
+                        aria-label="From year"
+                      >
+                        {yearOptions.map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="col-md-6">
-                      <p className="text-xs text-uppercase font-weight-bold text-muted mb-2">To</p>
-                      <div className="row g-2">
-                        <div className="col-7">
-                          <label className="form-label text-xs text-muted mb-1">Month</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(toMonth)}
-                            onChange={(e) =>
-                              setTo(toYear, parseInt(e.target.value, 10))
-                            }
-                            aria-label="To month"
-                          >
-                            {MONTH_NAMES.map((name, idx) => (
-                              <option key={name} value={String(idx + 1)}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-5">
-                          <label className="form-label text-xs text-muted mb-1">Year</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(toYear)}
-                            onChange={(e) =>
-                              setTo(parseInt(e.target.value, 10), toMonth)
-                            }
-                            aria-label="To year"
-                          >
-                            {yearOptions.map((y) => (
-                              <option key={y} value={String(y)}>
-                                {y}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+                  </div>
+                  <div className="bs-gl-fg">
+                    <span>To</span>
+                    <div className="d-flex gap-1">
+                      <select
+                        className="form-select form-select-sm"
+                        value={String(toMonth)}
+                        onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
+                        aria-label="To month"
+                      >
+                        {MONTH_NAMES.map((name, idx) => (
+                          <option key={name} value={String(idx + 1)}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="form-select form-select-sm"
+                        value={String(toYear)}
+                        onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
+                        aria-label="To year"
+                      >
+                        {yearOptions.map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
-                <div className="col-xl-1 col-lg-12 text-xl-end text-lg-start mt-2 mt-xl-0">
-                  <span className="badge bg-gradient-primary">Financial position</span>
+                <div className="bs-gl-meta">
+                  <span className="bs-gl-meta-label">Reporting range</span>
+                  <span className="bs-gl-meta-value">{rangeDetail}</span>
                 </div>
               </div>
-            </div>
 
-            <div className="card-body pt-3">
-              <div className="row g-4">
-                <motion.div
-                  className="col-lg-6"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <p className="text-xs text-uppercase font-weight-bold text-muted mb-3">Assets</p>
-                  <SectionCard
-                    title="Current Assets"
-                    tone="assets"
-                    items={MOCK_BALANCE_SHEET.assets.current}
-                    subtotal={totalCurrentAssets}
-                    formatCurrency={fmt}
-                  />
-                  <SectionCard
-                    title="Non-Current Assets"
-                    tone="assets"
-                    items={MOCK_BALANCE_SHEET.assets.nonCurrent}
-                    subtotal={totalNonCurrentAssets}
-                    formatCurrency={fmt}
-                  />
-                  <TotalHighlight label="Total Assets" amount={totalAssets} formatCurrency={fmt} variant="success" />
-                </motion.div>
-
-                <motion.div
-                  className="col-lg-6"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: 0.05 }}
-                >
-                  <p className="text-xs text-uppercase font-weight-bold text-muted mb-3">
-                    Liabilities &amp; Equity
-                  </p>
-                  <SectionCard
-                    title="Current Liabilities"
-                    tone="liabilities"
-                    items={MOCK_BALANCE_SHEET.liabilities.current}
-                    subtotal={totalCurrentLiabilities}
-                    formatCurrency={fmt}
-                  />
-                  <SectionCard
-                    title="Long-term Liabilities"
-                    tone="liabilities"
-                    items={MOCK_BALANCE_SHEET.liabilities.longTerm}
-                    subtotal={totalLongTermLiabilities}
-                    formatCurrency={fmt}
-                  />
-                  <TotalHighlight
-                    label="Total Liabilities"
-                    amount={totalLiabilities}
-                    formatCurrency={fmt}
-                    variant="danger"
-                  />
-                  <SectionCard
-                    title="Equity"
-                    tone="equity"
-                    items={MOCK_BALANCE_SHEET.equity}
-                    subtotal={totalEquity}
-                    formatCurrency={fmt}
-                  />
-                  <TotalHighlight label="Total Equity" amount={totalEquity} formatCurrency={fmt} variant="info" />
-                </motion.div>
+              <div className="bs-gl-panels">
+                <GlStatementPanel
+                  variant="assets"
+                  heading="Assets"
+                  periodSuffix={periodSuffix}
+                  groups={assetGroups}
+                  grandTotal={totalAssets}
+                  grandLabel="Total assets"
+                />
+                <GlStatementPanel
+                  variant="le"
+                  heading="Liabilities & equity"
+                  periodSuffix={periodSuffix}
+                  groups={liabilityEquityGroups}
+                  grandTotal={liabilitiesPlusEquity}
+                  grandLabel="Total liabilities & equity"
+                />
               </div>
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                className={`alert ${balanced ? 'alert-success' : 'alert-warning'} mt-2 mb-0`}
-                role="status"
-              >
-                <p className="font-weight-bold mb-2">
+              <div className={`bs-gl-status ${balanced ? 'ok' : 'warn'}`}>
+                <span>
+                  <strong>Equation check:</strong> Assets ({formatCurrencyAccounting(totalAssets)})
+                  = Liabilities + equity ({formatCurrencyAccounting(liabilitiesPlusEquity)})
+                </span>
+                <span>
                   {balanced ? (
-                    <>
-                      <i className="ni ni-check-bold me-1" aria-hidden="true" />
-                      Accounting equation holds
-                    </>
+                    <span className="bs-gl-pill bs-gl-pill-success">In balance</span>
                   ) : (
-                    <>
-                      <i className="ni ni-fat-remove me-1" aria-hidden="true" />
-                      Check figures — totals do not balance
-                    </>
+                    <span className="bs-gl-pill bs-gl-pill-warn">
+                      Out of balance · {formatCurrencyAccounting(difference)}
+                    </span>
                   )}
-                </p>
-                <p className="text-sm mb-0 font-weight-bold">
-                  Assets = Liabilities + Equity &nbsp;→&nbsp; {fmt(totalAssets)} = {fmt(liabilitiesPlusEquity)}
-                </p>
-              </motion.div>
+                </span>
+              </div>
 
               <BalanceSheetSummaryBar
                 totalAssets={totalAssets}
                 liabilitiesPlusEquity={liabilitiesPlusEquity}
                 difference={difference}
-                formatCurrency={fmt}
+                formatCurrency={formatCurrencyAccounting}
               />
             </div>
           </div>
