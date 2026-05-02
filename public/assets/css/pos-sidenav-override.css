@@ -1,0 +1,45 @@
+/*
+ * POS sidebar fixes — load in index.html AFTER argon-dashboard.min.css.
+ * Covers: Bootstrap .collapse hiding, Argon height calc clipping, mini-sidenav label hiding.
+ */
+#sidenav-main.navbar-vertical.navbar-expand-xs {
+  max-width: 15.625rem !important;
+  min-width: 13rem !important;
+  width: 15.625rem !important;
+  visibility: visible !important;
+}
+
+#sidenav-main #sidenav-collapse-main.navbar-collapse {
+  display: block !important;
+  height: auto !important;
+  min-height: 10rem !important;
+  max-height: min(90vh, calc(100vh - 6rem)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+#sidenav-main .navbar-nav {
+  width: 100% !important;
+}
+
+#sidenav-main .nav-item .nav-link .nav-link-text,
+#sidenav-main .nav-item .nav-link .sidenav-normal {
+  opacity: 1 !important;
+  width: auto !important;
+  max-width: none !important;
+  visibility: visible !important;
+}
+
+#sidenav-main .navbar-brand span {
+  opacity: 1 !important;
+}
+
+#sidenav-main .nav-item .nav-link .icon {
+  opacity: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+#sidenav-main h6 {
+  opacity: 1 !important;
+  visibility: visible !important;
+}

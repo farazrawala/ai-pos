@@ -379,3 +379,5 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Sidebar overrides live in /assets/css/pos-sidenav-override.css (linked after Argon in index.html). */

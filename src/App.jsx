@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Home from './routes/Home.jsx';
@@ -42,10 +43,30 @@ import StockListing from './routes/stock/index.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 
+const selectIsAuthenticated = (state) => {
+  const { name, token, user } = state.user;
+  return Boolean(name || token || user?.name || user?.email || user?._id);
+};
+
 const App = () => {
   const location = useLocation();
-  const isAuthenticated = useSelector((state) => Boolean(state.user.name));
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const hideHeader = location.pathname === '/signin' || location.pathname === '/signup';
+
+  // Argon "mini" mode adds body.g-sidenav-hidden (≥1200px): sidebar shrinks to ~6rem and labels get width:0 / opacity:0.
+  useEffect(() => {
+    const sync = () => {
+      document.body.classList.remove('g-sidenav-hidden');
+      document.body.classList.add('g-sidenav-show', 'g-sidenav-pinned');
+    };
+    sync();
+    const raf = requestAnimationFrame(sync);
+    const t = window.setTimeout(sync, 0);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, []);
 
   // Don't show sidebar/header on signin/signup pages
   if (hideHeader) {
@@ -115,7 +136,7 @@ const App = () => {
   }
 
   return (
-    <div className="g-sidenav-show bg-gray-100">
+    <div className="g-sidenav-show g-sidenav-pinned bg-gray-100">
       <Loader />
       <div className="min-height-300 bg-dark position-absolute w-100"></div>
       <Sidebar />

@@ -52,7 +52,11 @@ const userSlice = createSlice({
       }
     },
     setUser: (state, action) => {
-      const userData = action.payload;
+      const raw = action.payload;
+      const userData = raw && typeof raw === 'object' ? { ...raw } : raw;
+      if (userData && typeof userData === 'object' && 'password' in userData) {
+        delete userData.password;
+      }
       state.user = userData;
       state.name = userData?.name || '';
       state.token = userData?.token || state.token;

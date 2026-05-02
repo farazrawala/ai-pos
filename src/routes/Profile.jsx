@@ -3,9 +3,10 @@ import { useSelector } from 'react-redux';
 import UserProfile from '../features/user/UserProfile.jsx';
 
 const Profile = () => {
-  const name = useSelector((state) => state.user.name);
+  const { name, user } = useSelector((state) => state.user);
+  const hasSession = Boolean(name || user?.name || user?.email || user?._id);
 
-  if (!name) {
+  if (!hasSession) {
     return (
       <section className="card">
         <h2>No profile info yet</h2>

@@ -1,8 +1,37 @@
+import { useLayoutEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { NavLink } from 'react-router-dom';
 
+/** Strip PerfectScrollbar DOM/classes (Argon may init on .sidenav on Windows after React mounts). */
+const stripPerfectScrollbar = (el) => {
+  if (!el) return;
+  el.querySelectorAll('.ps__rail-x, .ps__rail-y').forEach((n) => n.remove());
+  el.className = el.className
+    .split(/\s+/)
+    .filter((c) => c && c !== 'ps' && !c.startsWith('ps__') && !c.startsWith('ps--'))
+    .join(' ');
+};
+
 const Sidebar = () => {
   const name = useSelector((state) => state.user.name);
+
+  useLayoutEffect(() => {
+    const aside = document.getElementById('sidenav-main');
+    const nav = document.getElementById('sidenav-collapse-main');
+    stripPerfectScrollbar(aside);
+    stripPerfectScrollbar(nav);
+    if (aside) {
+      aside.style.setProperty('max-width', '15.625rem', 'important');
+      aside.style.setProperty('min-width', '13rem', 'important');
+      aside.style.setProperty('visibility', 'visible', 'important');
+    }
+    if (nav) {
+      nav.style.setProperty('display', 'block', 'important');
+      nav.style.setProperty('height', 'auto', 'important');
+      nav.style.setProperty('min-height', '10rem', 'important');
+      nav.style.setProperty('overflow-y', 'auto', 'important');
+    }
+  }, []);
 
   return (
     <aside
@@ -32,7 +61,8 @@ const Sidebar = () => {
         </a>
       </div>
       <hr className="horizontal dark mt-0" />
-      <div className="collapse navbar-collapse  w-auto h-auto" id="sidenav-collapse-main">
+      {/* No "collapse" class: Bootstrap 5 hides .collapse:not(.show) and breaks the menu in SPAs. */}
+      <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
         <ul className="navbar-nav">
           <li className="nav-item">
             <a

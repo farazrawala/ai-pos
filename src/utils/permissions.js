@@ -8,12 +8,18 @@
  * @param {Object} state - Redux state
  * @returns {boolean} - True if user has ADMIN role
  */
+const normalizeRoles = (role) => {
+  if (!role) return [];
+  const list = Array.isArray(role) ? role : [role];
+  return list.map((r) => (typeof r === 'string' ? r.trim().toUpperCase() : r));
+};
+
 export const isAdmin = (state) => {
   const user = state?.user?.user;
   if (!user) return false;
 
-  const roles = user.role || [];
-  return Array.isArray(roles) && roles.includes('ADMIN');
+  const roles = normalizeRoles(user.role);
+  return roles.includes('ADMIN');
 };
 
 /**
