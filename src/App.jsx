@@ -42,6 +42,7 @@ import Transactions from './routes/transactions/index.jsx';
 import StockListing from './routes/stock/index.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
+import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
 
 const selectIsAuthenticated = (state) => {
   const { name, token, user } = state.user;
@@ -51,7 +52,10 @@ const selectIsAuthenticated = (state) => {
 const App = () => {
   const location = useLocation();
   const isAuthenticated = useSelector(selectIsAuthenticated);
-  const hideHeader = location.pathname === '/signin' || location.pathname === '/signup';
+  const hideHeader =
+    location.pathname === '/signin' ||
+    location.pathname === '/signup' ||
+    (!isAuthenticated && location.pathname === '/api-workflow');
 
   // Argon "mini" mode adds body.g-sidenav-hidden (≥1200px): sidebar shrinks to ~6rem and labels get width:0 / opacity:0.
   useEffect(() => {
@@ -68,7 +72,7 @@ const App = () => {
     };
   }, []);
 
-  // Don't show sidebar/header on signin/signup pages
+  // Don't show sidebar/header on signin/signup, or on API workflow when logged out (public tool).
   if (hideHeader) {
     return (
       <>
@@ -106,6 +110,7 @@ const App = () => {
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
+          <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -179,6 +184,7 @@ const App = () => {
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
+          <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

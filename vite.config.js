@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => {
         allow: ['..'],
       },
       proxy: {
-        '/api': {
+        // Use `/api/` (slash after api) so the SPA route `/api-workflow` is not proxied to the backend.
+        '/api/': {
           target: 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
