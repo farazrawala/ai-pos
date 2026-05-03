@@ -4,14 +4,10 @@ Think of POS as: sell → record → update stock → create accounting entry
 
 Core Modules
 Products
-Name, SKU, barcode
-Cost price, sale price
 Category
-Stock quantity [Remaining]
+Stock quantity
 Customers
-Walk-in customer (default)
-Registered customers (credit, history)
-Suppliers
+Users / Registered customers / Suppliers
 For purchase tracking
 Inventory / Stock [Remaining]
 Stock in (purchase) [Remaining]
@@ -19,8 +15,6 @@ Stock out (sales) [Remaining]
 
 Adjustments
 Sales (Main POS Screen)
-Add products (search/barcode)
-Quantity + price
 Discount (item / total)
 Tax (optional) [Remaining]
 

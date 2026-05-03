@@ -14,19 +14,9 @@ import {
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useNavigate } from 'react-router-dom';
+import { ACCOUNT_TYPE_OPTIONS } from '../../constants/accountTypes.js';
 
 const Accounts = () => {
-  const ACCOUNT_TYPE_OPTIONS = [
-    { value: 'current_asset', label: 'Current Asset' },
-    { value: 'fixed_asset', label: 'Fixed Asset' },
-    { value: 'revenue', label: 'Revenue' },
-    { value: 'cost of goods sold', label: 'Cost of Goods Sold' },
-    { value: 'operating expense', label: 'Operating Expense' },
-    { value: 'other expense', label: 'Other Expense' },
-    { value: 'equity', label: 'Equity' },
-    { value: 'liability', label: 'Liability' },
-    { value: 'other', label: 'Other' },
-  ];
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -348,6 +338,11 @@ const Accounts = () => {
                           const statusValue =
                             item.status || (item.isActive ? 'active' : 'inactive');
                           const isActive = String(statusValue).toLowerCase() === 'active';
+                          const isDeletableFlag = item.is_deletable ?? item.isDeletable;
+                          const canDeleteFlag = item.can_delete ?? item.canDelete;
+                          const showDelete =
+                            canDelete && isDeletableFlag !== false && canDeleteFlag !== false;
+                          const showEdit = canEdit;
                           return (
                             <tr key={item._id || item.id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
@@ -377,7 +372,7 @@ const Accounts = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex gap-1">
-                                  {canEdit && (
+                                  {showEdit && (
                                     <button
                                       className="btn btn-outline-info btn-sm mb-0"
                                       onClick={() =>
@@ -387,7 +382,7 @@ const Accounts = () => {
                                       Edit
                                     </button>
                                   )}
-                                  {canDelete && (
+                                  {item.can_delete && (
                                     <button
                                       className="btn btn-outline-danger btn-sm mb-0"
                                       onClick={() => handleDelete(item._id || item.id, item.name)}
@@ -396,7 +391,7 @@ const Accounts = () => {
                                       Delete
                                     </button>
                                   )}
-                                  {!canEdit && !canDelete && '-'}
+                                  {!showEdit && !showDelete && '-'}
                                 </div>
                               </td>
                             </tr>

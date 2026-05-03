@@ -8,18 +8,7 @@ import {
   clearUpdateStatus,
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-
-const ACCOUNT_TYPE_OPTIONS = [
-  { value: 'current_asset', label: 'Current Asset' },
-  { value: 'fixed_asset', label: 'Fixed Asset' },
-  { value: 'revenue', label: 'Revenue' },
-  { value: 'cost of goods sold', label: 'Cost of Goods Sold' },
-  { value: 'operating expense', label: 'Operating Expense' },
-  { value: 'other expense', label: 'Other Expense' },
-  { value: 'equity', label: 'Equity' },
-  { value: 'liability', label: 'Liability' },
-  { value: 'other', label: 'Other' },
-];
+import { ACCOUNT_TYPE_OPTIONS } from '../../constants/accountTypes.js';
 
 const EditAccount = () => {
   const dispatch = useDispatch();
