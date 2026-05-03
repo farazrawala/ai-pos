@@ -9,14 +9,14 @@ Stock quantity
 Customers
 Users / Registered customers / Suppliers
 For purchase tracking
-Inventory / Stock [Remaining]
-Stock in (purchase) [Remaining]
-Stock out (sales) [Remaining]
+Inventory / Stock
+Stock in (purchase)
+Stock out (sales)
 
 Adjustments
 Sales (Main POS Screen)
 Discount (item / total)
-Tax (optional) [Remaining]
+Tax (optional)
 
 Payment method:
 Cash
@@ -26,30 +26,28 @@ Purchases
 Purchase order
 Purchase invoice
 Supplier payable
-Returns [Remaining]
-Sales return [Remaining]
-Purchase return [Remaining]
-Payments [Remaining]
-Receive from customer [Remaining]
-Pay to supplier [Remaining]
-Reports [Remaining]
-Daily sales [Remaining]
-Profit report [Remaining]
+Returns
+Sales return
+Purchase return
+Payments
+Receive from customer
+Pay to supplier
+Reports
+Daily sales
+Profit report
 Stock report
-Customer ledger [Remaining]
-Supplier ledger [Remaining]
+Customer ledger
+Supplier ledger
 
 🔁 2. Transactions (VERY IMPORTANT)
-
 Every POS action should create double-entry accounting records.
-
 Example: Sale (Cash)
 Debit → Cash
 Credit → Sales
 Debit → Cost of Goods Sold
 Credit → Inventory
 
-📊 3. Chart of Accounts (COA) [Remaining]
+📊 3. Chart of Accounts (COA)
 This is your accounting structure.
 🟢 Assets
 Cash
@@ -94,7 +92,7 @@ accounts
 transactions
 transaction_entries (debit/credit lines)
 products
-stock_movements [Remaining]
+stock_movements
 sales
 sale_items
 purchases

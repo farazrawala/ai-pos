@@ -93,4 +93,11 @@ const userSlice = createSlice({
 });
 
 export const { setName, setToken, setUser, clearUser } = userSlice.actions;
+
+/** Matches protected routes: session can be token-only until user payload hydrates. */
+export const selectIsAuthenticated = (state) => {
+  const { name, token, user } = state.user;
+  return Boolean(name || token || user?.name || user?.email || user?._id);
+};
+
 export default userSlice.reducer;

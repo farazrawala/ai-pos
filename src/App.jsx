@@ -43,11 +43,7 @@ import StockListing from './routes/stock/index.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
-
-const selectIsAuthenticated = (state) => {
-  const { name, token, user } = state.user;
-  return Boolean(name || token || user?.name || user?.email || user?._id);
-};
+import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
   const location = useLocation();

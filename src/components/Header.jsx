@@ -1,12 +1,12 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
-import { clearUser } from '../features/user/userSlice.js';
+import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 
 const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { name, user } = useSelector((state) => state.user);
-  const isAuthenticated = Boolean(name || user);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const firstSegment =
     window.location.pathname.split('/')[1].charAt(0).toUpperCase() +
@@ -52,6 +52,17 @@ const Header = () => {
             </div>
           </a>
         </div>
+        <button
+          type="button"
+          className="btn btn-link text-white p-1 ms-2 d-lg-none"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbar"
+          aria-controls="navbar"
+          aria-expanded="false"
+          aria-label="Open menu"
+        >
+          <i className="fas fa-bars fa-lg" />
+        </button>
         <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
           <div className="ms-md-auto pe-md-3 d-flex align-items-center">
             <div className="input-group">
@@ -73,7 +84,9 @@ const Header = () => {
                 >
                   <div className="d-flex align-items-center">
                     <i className="fa fa-user me-sm-1"></i>
-                    <span className="d-sm-inline d-none me-2">{name || user?.name || 'User'}</span>
+                    <span className="d-sm-inline d-none me-2">
+                      {name || user?.name || user?.email || 'User'}
+                    </span>
                     <i className="fa fa-chevron-down" style={{ fontSize: '0.75rem' }}></i>
                   </div>
                 </a>
