@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -7,6 +7,9 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 
 const MODULES = ['category', 'integration', 'order', 'process', 'proces'];
 const ACTIONS = ['view', 'add', 'edit', 'delete'];
+
+/** Backend accepts multiple `role[]` values on create user. */
+const USER_ROLE_OPTIONS = ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'];
 
 const buildInitialPermissions = () =>
   MODULES.reduce((acc, moduleName) => {
@@ -33,8 +36,6 @@ const AddUser = () => {
     permissions: buildInitialPermissions(),
   });
   const [errors, setErrors] = useState({});
-
-  const roleOptions = useMemo(() => ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'], []);
 
   useEffect(() => {
     if (canCreate === false) navigate('/users');
@@ -69,14 +70,9 @@ const AddUser = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleRoleToggle = (roleName) => {
-    setForm((prev) => {
-      const hasRole = prev.role.includes(roleName);
-      const nextRole = hasRole
-        ? prev.role.filter((item) => item !== roleName)
-        : [...prev.role, roleName];
-      return { ...prev, role: nextRole };
-    });
+  const handleRolesMultiChange = (e) => {
+    const selected = Array.from(e.target.selectedOptions, (opt) => opt.value);
+    setForm((prev) => ({ ...prev, role: selected }));
   };
 
   const handlePermissionToggle = (moduleName, actionName) => {
@@ -97,11 +93,6 @@ const AddUser = () => {
     if (!validateForm()) return;
 
     try {
-      console.log('[Users module] create payload debug', {
-        company_id: form.company_id || null,
-        role: form.role,
-        email: form.email?.trim?.() || '',
-      });
       await dispatch(
         createUser({
           name: form.name.trim(),
@@ -198,27 +189,30 @@ const AddUser = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label">
+                  <label className="form-label" htmlFor="user-roles-multiselect">
                     Roles <span className="text-danger">*</span>
                   </label>
-                  <div className="d-flex flex-wrap gap-3">
-                    {roleOptions.map((roleName) => (
-                      <div className="form-check" key={roleName}>
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          checked={form.role.includes(roleName)}
-                          onChange={() => handleRoleToggle(roleName)}
-                          id={`role-${roleName}`}
-                          disabled={isSubmitting}
-                        />
-                        <label className="form-check-label" htmlFor={`role-${roleName}`}>
-                          {roleName}
-                        </label>
-                      </div>
+                  <select
+                    id="user-roles-multiselect"
+                    multiple
+                    size={Math.min(6, USER_ROLE_OPTIONS.length)}
+                    className={`form-select ${errors.role ? 'is-invalid' : ''}`}
+                    value={form.role}
+                    onChange={handleRolesMultiChange}
+                    disabled={isSubmitting}
+                    aria-describedby="user-roles-hint"
+                  >
+                    {USER_ROLE_OPTIONS.map((roleName) => (
+                      <option key={roleName} value={roleName}>
+                        {roleName}
+                      </option>
                     ))}
+                  </select>
+                  <div id="user-roles-hint" className="form-text">
+                    Select one or more types. Use Ctrl+click (Windows) or ⌘+click (Mac) to add or remove
+                    a selection.
                   </div>
-                  {errors.role && <small className="text-danger">{errors.role}</small>}
+                  {errors.role && <div className="invalid-feedback d-block">{errors.role}</div>}
                 </div>
 
                 <div className="mb-4">

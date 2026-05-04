@@ -1,7 +1,5 @@
 🧾 1. Basic POS System – What You Need
-
 Think of POS as: sell → record → update stock → create accounting entry
-
 Core Modules
 Products
 Category
@@ -107,3 +105,11 @@ Entry 1: Debit Cash
 Entry 2: Credit Sales
 Entry 3: Debit COGS
 Entry 4: Credit Inventory
+
+//5.4.26
+accounts transc theek karney hein.
+user accounts set inital accounts with transctions.
+Front Barcode printing module.
+POS debit/credit working fine
+transction insert with new date functionality.
+Income statement dynamic.

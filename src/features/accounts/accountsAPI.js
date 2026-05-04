@@ -6,6 +6,7 @@ const ACCOUNT_GET_PATH = 'account/get';
 const ACCOUNT_CREATE_PATH = 'account/custom-create';
 const ACCOUNT_UPDATE_PATH = 'account/custom-update';
 const ACCOUNT_DELETE_PATH = 'account/delete';
+const ACCOUNT_FETCH_BY_TYPE_PATH = 'account/fetch-account-by-type';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -90,6 +91,20 @@ const normalizeSingleAccountPayload = (result) => {
   if (result._id || result.id) return result;
   return null;
 };
+
+/** GET `account/fetch-account-by-type?account_type=...` — returns accounts array (e.g. balance sheet by type). */
+export async function fetchAccountsByTypeRequest(accountType) {
+  const query = new URLSearchParams();
+  query.set('account_type', String(accountType));
+  const url = `${BASE_URL}${ACCOUNT_FETCH_BY_TYPE_PATH}?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  const result = await response.json().catch(() => ({}));
+  return normalizeAccountsPayload(result);
+}
 
 export async function fetchAccountByIdRequest(accountId) {
   const response = await fetch(`${BASE_URL}${ACCOUNT_GET_PATH}/${accountId}`, {

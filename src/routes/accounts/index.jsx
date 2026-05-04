@@ -343,6 +343,8 @@ const Accounts = () => {
                           const showDelete =
                             canDelete && isDeletableFlag !== false && canDeleteFlag !== false;
                           const showEdit = canEdit;
+
+                          console.log('item_details', item);
                           return (
                             <tr key={item._id || item.id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
@@ -372,7 +374,7 @@ const Accounts = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex gap-1">
-                                  {showEdit && (
+                                  {item.is_editable === true && (
                                     <button
                                       className="btn btn-outline-info btn-sm mb-0"
                                       onClick={() =>
@@ -382,7 +384,7 @@ const Accounts = () => {
                                       Edit
                                     </button>
                                   )}
-                                  {item.can_delete && (
+                                  {item.is_deletable === true && (
                                     <button
                                       className="btn btn-outline-danger btn-sm mb-0"
                                       onClick={() => handleDelete(item._id || item.id, item.name)}
