@@ -18,7 +18,7 @@ const normalizeUsersPayload = (result) => {
 
 /**
  * GET list of users for POS / admin dropdowns.
- * Default path: `GET /api/user/get-all-active` (same style as categories).
+ * Default: `GET /api/user/get-all-active?include_inactive=true&...`
  * Adjust `USER_LIST_PATH` if your backend uses a different route.
  */
 const USER_LIST_PATH = 'user/get-all-active';
@@ -27,6 +27,34 @@ const USER_LIST_PATH = 'user/get-all-active';
 const USER_CREATE_PATH = 'user/create';
 const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
+
+/** Must match user add/edit forms (`MODULES` / `ACTIONS`). */
+const PERMISSION_MODULES = ['category', 'integration', 'order', 'process', 'proces'];
+const PERMISSION_ACTIONS = ['view', 'add', 'edit', 'delete'];
+
+function clonePlainJson(obj) {
+  try {
+    return JSON.parse(JSON.stringify(obj ?? {}));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Full permission grid with explicit booleans so JSON does not drop keys and the API never sees “missing” flags as false-only defaults by mistake.
+ */
+export function normalizePermissionsForApi(raw) {
+  const input = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  for (const m of PERMISSION_MODULES) {
+    out[m] = {};
+    for (const a of PERMISSION_ACTIONS) {
+      const v = input[m]?.[a];
+      out[m][a] = Boolean(v === true || v === 'true' || v === 1 || v === '1');
+    }
+  }
+  return out;
+}
 
 /** Default password sent for POS-created customers (hidden in UI). */
 export const POS_DEFAULT_CUSTOMER_PASSWORD = '123456';
@@ -110,6 +138,7 @@ export async function fetchUsersListRequest(params = {}) {
   }
 
   const query = new URLSearchParams();
+  query.set('include_inactive', 'true');
   const limit = params.limit ?? 2000;
   const skip = params.skip ?? 0;
   query.set('limit', String(limit));
@@ -139,6 +168,7 @@ export async function fetchUsersRequest(params = {}) {
   }
 
   const query = new URLSearchParams();
+  query.set('include_inactive', 'true');
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     query.set('skip', String(skip));
@@ -151,7 +181,7 @@ export async function fetchUsersRequest(params = {}) {
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
   const queryString = query.toString();
-  const url = `${BASE_URL}${USER_LIST_PATH}${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${USER_LIST_PATH}?${queryString}`;
   const response = await fetch(url, { method: 'GET', headers });
 
   if (!response.ok) {
@@ -224,36 +254,28 @@ export async function fetchUserByIdRequest(userId) {
 
 export async function createUserRequest(payload = {}) {
   const token = getAuthToken();
-  const headers = {};
+  const headers = { 'Content-Type': 'application/json' };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-
-  const formData = new FormData();
-  if (payload.name != null) formData.append('name', String(payload.name));
-  if (payload.email != null) formData.append('email', String(payload.email));
-  if (payload.password != null) formData.append('password', String(payload.password));
-  if (payload.status != null) formData.append('status', String(payload.status));
-
   const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
-  roleList.forEach((roleItem) => {
-    formData.append('role[]', String(roleItem));
-  });
-
-  if (payload.permissions && typeof payload.permissions === 'object') {
-    Object.entries(payload.permissions).forEach(([moduleName, actions]) => {
-      if (!actions || typeof actions !== 'object') return;
-      Object.entries(actions).forEach(([actionName, value]) => {
-        formData.append(`permissions[${moduleName}][${actionName}]`, String(Boolean(value)));
-      });
-    });
-  }
+  const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
+  const body = {
+    name: payload.name != null ? String(payload.name) : '',
+    email: payload.email != null ? String(payload.email) : '',
+    password: payload.password != null ? String(payload.password) : '',
+    status: payload.status != null ? String(payload.status) : 'active',
+    role: roleList.map((r) => String(r)),
+    initial_balance:
+      payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
+    permissions,
+  };
 
   const url = `${BASE_URL}${USER_CREATE_PATH}`;
   const response = await fetch(url, {
     method: 'POST',
     headers,
-    body: formData,
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -268,38 +290,30 @@ export async function createUserRequest(payload = {}) {
 
 export async function updateUserRequest(userId, payload = {}) {
   const token = getAuthToken();
-  const headers = {};
+  const headers = { 'Content-Type': 'application/json' };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-
-  const formData = new FormData();
-  if (payload.name != null) formData.append('name', String(payload.name));
-  if (payload.email != null) formData.append('email', String(payload.email));
-  if (payload.status != null) formData.append('status', String(payload.status));
-  if (payload.password != null && String(payload.password).trim()) {
-    formData.append('password', String(payload.password));
-  }
-
   const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
-  roleList.forEach((roleItem) => {
-    formData.append('role[]', String(roleItem));
-  });
-
-  if (payload.permissions && typeof payload.permissions === 'object') {
-    Object.entries(payload.permissions).forEach(([moduleName, actions]) => {
-      if (!actions || typeof actions !== 'object') return;
-      Object.entries(actions).forEach(([actionName, value]) => {
-        formData.append(`permissions[${moduleName}][${actionName}]`, String(Boolean(value)));
-      });
-    });
+  const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
+  const body = {
+    name: payload.name != null ? String(payload.name) : undefined,
+    email: payload.email != null ? String(payload.email) : undefined,
+    status: payload.status != null ? String(payload.status) : undefined,
+    role: roleList.map((r) => String(r)),
+    permissions,
+    initial_balance:
+      payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
+  };
+  if (payload.password != null && String(payload.password).trim()) {
+    body.password = String(payload.password);
   }
 
   const url = `${BASE_URL}${USER_UPDATE_PATH}/${userId}`;
   const response = await fetch(url, {
     method: 'PATCH',
     headers,
-    body: formData,
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

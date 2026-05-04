@@ -44,6 +44,7 @@ const EditUser = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    initial_balance: '0',
     status: 'active',
     role: ['USER'],
     permissions: normalizePermissions(null),
@@ -69,6 +70,8 @@ const EditUser = () => {
     setForm({
       name: currentUser.name || '',
       email: currentUser.email || '',
+      initial_balance:
+        currentUser.initial_balance ?? currentUser.initialBalance ?? currentUser.opening_balance ?? 0,
       status: currentUser.status || 'active',
       role: Array.isArray(currentUser.role)
         ? currentUser.role
@@ -129,18 +132,15 @@ const EditUser = () => {
     e.preventDefault();
     if (!validateForm()) return;
     try {
-      console.log('[Users module] update payload debug', {
-        userId: id,
-        company_id: form.company_id || null,
-        role: form.role,
-        email: form.email?.trim?.() || '',
-      });
+      const parsedInitialBalance = parseFloat(String(form.initial_balance).replace(/,/g, ''));
+      const initial_balance = Number.isFinite(parsedInitialBalance) ? parsedInitialBalance : 0;
       await dispatch(
         updateUser({
           userId: id,
           payload: {
             name: form.name.trim(),
             email: form.email.trim(),
+            initial_balance,
             role: form.role,
             permissions: form.permissions,
             status: form.status,
@@ -225,6 +225,19 @@ const EditUser = () => {
                 </div>
 
                 <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label">Initial balance</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      step="0.01"
+                      value={form.initial_balance}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, initial_balance: e.target.value }))
+                      }
+                      disabled={isSubmitting}
+                    />
+                  </div>
                   <div className="col-md-6 mb-3">
                     <label className="form-label">Status</label>
                     <select

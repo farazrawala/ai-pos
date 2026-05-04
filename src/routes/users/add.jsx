@@ -31,6 +31,7 @@ const AddUser = () => {
     name: '',
     email: '',
     password: '',
+    initial_balance: '0',
     status: 'active',
     role: ['USER'],
     permissions: buildInitialPermissions(),
@@ -93,11 +94,14 @@ const AddUser = () => {
     if (!validateForm()) return;
 
     try {
+      const parsedInitialBalance = parseFloat(String(form.initial_balance).replace(/,/g, ''));
+      const initial_balance = Number.isFinite(parsedInitialBalance) ? parsedInitialBalance : 0;
       await dispatch(
         createUser({
           name: form.name.trim(),
           email: form.email.trim(),
           password: form.password,
+          initial_balance,
           role: form.role,
           permissions: form.permissions,
           status: form.status,
@@ -161,7 +165,7 @@ const AddUser = () => {
                 </div>
 
                 <div className="row">
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">
                       Password <span className="text-danger">*</span>
                     </label>
@@ -174,7 +178,20 @@ const AddUser = () => {
                     />
                     {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                   </div>
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
+                    <label className="form-label">Initial balance</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      step="0.01"
+                      value={form.initial_balance}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, initial_balance: e.target.value }))
+                      }
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">Status</label>
                     <select
                       className="form-select"
