@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import JsBarcode from 'jsbarcode';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
+import {
+  getCompanyIdFromUser,
+  fetchCompanyById,
+  patchCompanyBarcodeSettings,
+  extractBarcodeSettingsFromCompanyBody,
+  normalizeIncomingBarcodeSettings,
+  buildBarcodeSettingsPayload,
+} from '../../features/company/companyAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
 const B_TYPES = [
@@ -296,7 +304,8 @@ const PRINT_DOC_STYLES = `
 
 const BarcodePrint = () => {
   const navigate = useNavigate();
-  const user = useSelector((state) => state.user?.user);
+  const userSlice = useSelector((state) => state.user);
+  const user = userSlice?.user;
   const { canView } = usePermissions('product');
 
   const [listLoading, setListLoading] = useState(true);
@@ -326,7 +335,22 @@ const BarcodePrint = () => {
   const [showProductCode, setShowProductCode] = useState(true);
   const [maxChars, setMaxChars] = useState(50);
 
+  const [settingsLoadError, setSettingsLoadError] = useState('');
+  const [settingsSaveError, setSettingsSaveError] = useState('');
+  const [settingsSaveMessage, setSettingsSaveMessage] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
   const searchTimer = useRef(null);
+
+  const companyId = useMemo(() => {
+    const merged =
+      user && typeof user === 'object'
+        ? { ...user, company_id: user.company_id ?? userSlice?.company_id }
+        : userSlice?.company_id != null
+          ? { company_id: userSlice.company_id }
+          : null;
+    return getCompanyIdFromUser(merged);
+  }, [user, userSlice?.company_id]);
 
   useEffect(() => {
     if (canView === false) {
@@ -367,6 +391,66 @@ const BarcodePrint = () => {
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setSettingsLoadError('');
+      return;
+    }
+    let cancelled = false;
+    setSettingsLoadError('');
+    (async () => {
+      try {
+        const body = await fetchCompanyById(companyId);
+        if (cancelled) return;
+        const raw = extractBarcodeSettingsFromCompanyBody(body);
+        const norm = normalizeIncomingBarcodeSettings(raw);
+        if (!norm) return;
+
+        const applyBool = (v, setter) => {
+          if (v === undefined) return;
+          if (v === 'yes' || v === true || v === 1 || v === '1') setter(true);
+          else if (v === 'no' || v === false || v === 0 || v === '0') setter(false);
+          else setter(Boolean(v));
+        };
+        const applyNum = (v, setter, fallback) => {
+          if (v === undefined) return;
+          const n = Number(v);
+          if (Number.isFinite(n)) setter(n);
+          else if (fallback !== undefined) setter(fallback);
+        };
+        const applyStr = (v, setter) => {
+          if (v === undefined) return;
+          setter(String(v));
+        };
+
+        if (norm.bType !== undefined) applyStr(norm.bType, setBType);
+        if (norm.labelCount !== undefined) applyStr(norm.labelCount, setLabelCount);
+        if (norm.sheetWidthIn !== undefined) applyStr(norm.sheetWidthIn, setSheetWidthIn);
+        if (norm.sheetHeightIn !== undefined) applyStr(norm.sheetHeightIn, setSheetHeightIn);
+        if (norm.labelWidthMm !== undefined) applyStr(norm.labelWidthMm, setLabelWidthMm);
+        if (norm.labelHeightMm !== undefined) applyStr(norm.labelHeightMm, setLabelHeightMm);
+        if (norm.totalRows !== undefined) applyNum(norm.totalRows, setTotalRows, 1);
+        if (norm.totalCols !== undefined) applyNum(norm.totalCols, setTotalCols, 1);
+        if (norm.barCodeWidthField !== undefined) applyStr(norm.barCodeWidthField, setBarCodeWidthField);
+        if (norm.barCodeHeightField !== undefined) applyStr(norm.barCodeHeightField, setBarCodeHeightField);
+        if (norm.fontSize !== undefined) applyNum(norm.fontSize, setFontSize, 11);
+        if (norm.maxChars !== undefined) applyStr(norm.maxChars, setMaxChars);
+        applyBool(norm.showProductName, setShowProductName);
+        applyBool(norm.showLocation, setShowLocation);
+        applyBool(norm.showWarehouse, setShowWarehouse);
+        applyBool(norm.showPrice, setShowPrice);
+        applyBool(norm.showProductCode, setShowProductCode);
+      } catch (e) {
+        if (!cancelled) {
+          setSettingsLoadError(e?.message || 'Could not load company barcode settings');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   const selectedProduct = useMemo(
     () => products.find((p) => String(productId(p)) === String(selectedId)) || null,
@@ -424,6 +508,43 @@ const BarcodePrint = () => {
   const shIn = Math.max(0.5, Math.min(36, Number(sheetHeightIn) || 2));
   const lw = Math.max(20, Math.min(250, Number(labelWidthMm) || 80));
   const lh = Math.max(15, Math.min(250, Number(labelHeightMm) || 50));
+
+  const handleSaveSettings = async () => {
+    setSettingsSaveError('');
+    setSettingsSaveMessage('');
+    if (!companyId) {
+      setSettingsSaveError('Your account is not linked to a company, so settings cannot be saved.');
+      return;
+    }
+    setSettingsSaving(true);
+    try {
+      const payload = buildBarcodeSettingsPayload({
+        bType,
+        labelCount: Number(labelCount) || 1,
+        sheetWidthIn: Number(sheetWidthIn) || 6.3,
+        sheetHeightIn: Number(sheetHeightIn) || 2,
+        labelWidthMm: Number(labelWidthMm) || 80,
+        labelHeightMm: Number(labelHeightMm) || 50,
+        totalRows: Number(totalRows) || 1,
+        totalCols: Number(totalCols) || 1,
+        barCodeWidthField: Number(barCodeWidthField) || 50,
+        barCodeHeightField: Number(barCodeHeightField) || 30,
+        fontSize: Number(fontSize) || 11,
+        showProductName,
+        showLocation,
+        showWarehouse,
+        showPrice,
+        showProductCode,
+        maxChars: Number(maxChars) || 50,
+      });
+      await patchCompanyBarcodeSettings(companyId, payload);
+      setSettingsSaveMessage('Barcode print settings saved for your company.');
+    } catch (e) {
+      setSettingsSaveError(e?.message || 'Save failed');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   const handlePrint = () => {
     if (!selectedProduct || !encodeValue) return;
@@ -534,10 +655,25 @@ const BarcodePrint = () => {
               <h5 className="mb-0">Print barcodes</h5>
               <p className="text-sm text-muted mb-0">
                 Configure print settings, preview the sheet layout, then print from this page or open a print-only
-                window.
+                Settings can be saved to your company and restored on next visit.
               </p>
             </div>
             <div className="card-body barcode-print-toolbar">
+              {settingsLoadError ? (
+                <div className="alert alert-warning py-2 mb-3" role="status">
+                  {settingsLoadError}
+                </div>
+              ) : null}
+              {settingsSaveError ? (
+                <div className="alert alert-danger py-2 mb-3" role="alert">
+                  {settingsSaveError}
+                </div>
+              ) : null}
+              {settingsSaveMessage ? (
+                <div className="alert alert-success py-2 mb-3" role="status">
+                  {settingsSaveMessage}
+                </div>
+              ) : null}
               {listError ? (
                 <div className="alert alert-warning" role="alert">
                   {listError}
@@ -761,7 +897,7 @@ const BarcodePrint = () => {
                 </div>
               ) : null}
 
-              <div className="d-flex flex-wrap gap-2 mt-2">
+              <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
                 <button
                   type="button"
                   className="btn btn-success"
@@ -781,6 +917,29 @@ const BarcodePrint = () => {
                   <i className="fas fa-file-alt me-2" aria-hidden="true"></i>
                   Print page
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveSettings}
+                  disabled={!companyId || settingsSaving}
+                >
+                  {settingsSaving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-save me-2" aria-hidden="true"></i>
+                      Save settings
+                    </>
+                  )}
+                </button>
+                {!companyId ? (
+                  <span className="text-xs text-muted">
+                    Save requires a company on your profile (e.g. <code>company_id</code> or <code>company._id</code>).
+                  </span>
+                ) : null}
               </div>
             </div>
 
