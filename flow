@@ -109,9 +109,12 @@ Entry 4: Credit Inventory
 //5.4.26
 accounts transc theek karney hein. (done)
 user accounts set inital accounts with transctions.(done) on update permissions are not updating.
+
 Front Barcode printing module.
 POS debit/credit working fine
+
 transction insert with new date functionality.
+
 flow
 -> new company
 -> new users with initial amounts

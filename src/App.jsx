@@ -43,6 +43,7 @@ import StockListing from './routes/stock/index.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
+import BarcodePrint from './routes/barcodePrint/index.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
@@ -80,6 +81,7 @@ const App = () => {
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
@@ -154,6 +156,7 @@ const App = () => {
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
