@@ -121,3 +121,13 @@ flow
 -> purchases of products on cash/a/c payable.
 -> sales -> on cash, a/c receivable, multiple accounts.
 Income statement dynamic.
+
+
+
+
+-modules missing.
+Receipt voucher receive/send.
+purchase mein shipping_id 
+purchases mein discount remove from total :: line item mein add hoga.
+
+
