@@ -247,10 +247,6 @@ const ProductAdd = () => {
       newErrors.alert_qty = 'Alert quantity must be a valid number';
     }
 
-    if (!form.categoryId || (Array.isArray(form.categoryId) && form.categoryId.length === 0)) {
-      newErrors.categoryId = 'At least one category is required';
-    }
-
     if (!form.unit) {
       newErrors.unit = 'Unit is required';
     }
@@ -273,7 +269,6 @@ const ProductAdd = () => {
         slug: 'Slug',
         price: 'Product Price',
         alert_qty: 'Alert Quantity',
-        categoryId: 'Categories',
         unit: 'Unit',
         product_type: 'Product Type',
       };
@@ -405,7 +400,7 @@ const ProductAdd = () => {
                 {/* Category Field - Multiselect */}
                 <div className="mb-3">
                   <label htmlFor="categoryId" className="form-label">
-                    Categories <span className="text-danger">*</span>
+                    Categories
                   </label>
                   <select
                     className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
@@ -415,7 +410,6 @@ const ProductAdd = () => {
                     multiple
                     value={Array.isArray(form.categoryId) ? form.categoryId : []}
                     onChange={handleChange}
-                    required
                     disabled={loadingCategories}
                     size="5"
                   >

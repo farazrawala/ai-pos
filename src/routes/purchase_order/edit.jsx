@@ -15,6 +15,7 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { PO_STATUS_OPTIONS } from './poFormConstants.js';
+import { toast } from '../../utils/toast.js';
 
 const accountOptionLabel = (a) => {
   if (!a || typeof a !== 'object') return 'Account';
@@ -383,13 +384,17 @@ const PurchaseOrderEdit = () => {
   );
 
   const hasVendor = Boolean(String(form.supplier_id ?? '').trim());
+  const hasPaymentAccount = Boolean(String(form.account_id ?? '').trim());
 
-  const submitDisabled = isSubmitting || !hasSaveableLines || !hasVendor || !id;
+  const submitDisabled =
+    isSubmitting || !hasSaveableLines || !hasVendor || !id || !hasPaymentAccount;
   const submitButtonTitle = !hasVendor
     ? 'Select a vendor'
     : !hasSaveableLines
       ? 'Add at least one product line'
-      : undefined;
+      : !hasPaymentAccount
+        ? 'Select mode of payment'
+        : undefined;
 
   const buildPayload = () => {
     const itemRows = lines
@@ -435,6 +440,13 @@ const PurchaseOrderEdit = () => {
       setErrors({ submit: 'Add at least one product with quantity and price.' });
       return;
     }
+    if (!hasPaymentAccount) {
+      setErrors({
+        submit: 'Mode of payment is required.',
+        account_id: 'Mode of payment is required.',
+      });
+      return;
+    }
     setErrors({});
     try {
       await dispatch(
@@ -442,10 +454,16 @@ const PurchaseOrderEdit = () => {
       ).unwrap();
       navigate('/purchase-orders');
     } catch (err) {
+      const submitError =
+        (typeof err === 'string'
+          ? err
+          : String(err?.payload ?? err?.message ?? err ?? '').trim()) ||
+        'Failed to update purchase order';
       setErrors((prev) => ({
         ...prev,
-        submit: err?.message || String(err) || 'Failed to update purchase order',
+        submit: submitError,
       }));
+      toast.error(submitError, { delay: 12000 });
     }
   };
 
@@ -866,7 +884,7 @@ const PurchaseOrderEdit = () => {
                 </div>
                 <div className="col-12">
                   <label className="form-label small text-muted mb-1" htmlFor="po-edit-account">
-                    Mode of payment
+                    Mode of payment <span className="text-danger">*</span>
                   </label>
                   {accountsStatus === 'failed' && accountsError ? (
                     <div className="alert alert-warning py-2 mb-2" role="alert">
@@ -875,12 +893,22 @@ const PurchaseOrderEdit = () => {
                   ) : null}
                   <select
                     id="po-edit-account"
-                    className="form-select form-select-sm"
+                    className={`form-select form-select-sm ${errors.account_id ? 'is-invalid' : ''}`}
                     value={form.account_id}
-                    onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setForm((p) => ({ ...p, account_id: v }));
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.account_id;
+                        if (next.submit === 'Mode of payment is required.') delete next.submit;
+                        return next;
+                      });
+                    }}
+                    required
                     disabled={accountSelectDisabled}
                   >
-                    <option value="">None</option>
+                    <option value="">Select mode of payment</option>
                     {!accountIdInList && form.account_id ? (
                       <option value={form.account_id}>Payment id: {form.account_id}</option>
                     ) : null}
@@ -893,6 +921,9 @@ const PurchaseOrderEdit = () => {
                       );
                     })}
                   </select>
+                  {errors.account_id ? (
+                    <div className="text-danger small mt-1">{errors.account_id}</div>
+                  ) : null}
                 </div>
               </div>
               <div className="border rounded p-3 bg-light mb-3">

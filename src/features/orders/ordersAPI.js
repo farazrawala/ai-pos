@@ -71,6 +71,7 @@ export async function getErrorMessageFromResponse(response) {
         if (typeof json.error === 'string' && json.error) return json.error;
         if (typeof json.msg === 'string' && json.msg) return json.msg;
         if (typeof json.detail === 'string' && json.detail) return json.detail;
+        if (typeof json.details === 'string' && json.details.trim()) return json.details.trim();
         if (json.data && typeof json.data === 'object' && typeof json.data.message === 'string') {
           return json.data.message;
         }

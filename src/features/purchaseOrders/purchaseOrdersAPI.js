@@ -1,9 +1,24 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import { getErrorMessageFromResponse } from '../orders/ordersAPI.js';
 
+function assertPurchaseOrderJsonSuccess(result) {
+  if (result == null || typeof result !== 'object' || Array.isArray(result)) return;
+  if (Object.prototype.hasOwnProperty.call(result, 'success') && result.success === false) {
+    const msg =
+      (typeof result.error === 'string' && result.error.trim()) ||
+      (typeof result.details === 'string' && result.details.trim()) ||
+      (typeof result.message === 'string' && result.message.trim()) ||
+      `Request failed (${result.status ?? 'error'})`;
+    throw new Error(msg);
+  }
+}
+
 const BASE_URL = `${API_BASE_URL}/`;
 
 const ENDPOINT_PATH = 'purchase_order/get-purchase-order-by-purchase-item';
+
+/** Appended on GET list/detail for this route so `vendor_id` is populated (e.g. Mongoose). */
+const PURCHASE_ORDER_GET_POPULATE = 'vendor_id';
 
 /**
  * Query / JSON body keys to try (in order). Backends vary: snake_case, camelCase, generic `id`.
@@ -152,6 +167,7 @@ export const fetchPurchaseOrderByPurchaseItemRequest = async (purchaseItemId) =>
   for (const key of paramKeys) {
     const query = new URLSearchParams();
     query.set(key, id);
+    query.set('populate', PURCHASE_ORDER_GET_POPULATE);
     const url = `${baseUrl}?${query.toString()}`;
     try {
       const result = await fetchJsonOnce('GET', url, { headers: getJsonReadHeaders() });
@@ -254,13 +270,14 @@ export function normalizePurchaseOrdersListResponse(result, params = {}) {
 
 /**
  * Paginated list: `GET purchase_order/get-purchase-order-by-purchase-item`
- * with `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
+ * with `populate=vendor_id`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
  */
 export async function fetchPurchaseOrdersListRequest(params = {}) {
   const queryParams = new URLSearchParams();
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 10);
   const skip = (page - 1) * limit;
+  queryParams.append('populate', PURCHASE_ORDER_GET_POPULATE);
   queryParams.append('skip', String(skip));
   queryParams.append('limit', String(limit));
   if (params.search != null && String(params.search).trim() !== '') {
@@ -313,13 +330,14 @@ export function unwrapPurchaseOrderRecord(result) {
 }
 
 /**
- * GET `purchase_order/get-purchase-order-by-purchase-item/:id`
+ * GET `purchase_order/get-purchase-order-by-purchase-item/:id?populate=vendor_id`
  * (purchase order id in path). Response shape: `{ data: [ purchaseOrder ], ... }`.
  */
 export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
   const id = String(purchaseOrderId ?? '').trim();
   if (!id) throw new Error('Purchase order id is required');
-  const url = `${BASE_URL}${ENDPOINT_PATH}/${encodeURIComponent(id)}`;
+  const qs = new URLSearchParams({ populate: PURCHASE_ORDER_GET_POPULATE }).toString();
+  const url = `${BASE_URL}${ENDPOINT_PATH}/${encodeURIComponent(id)}?${qs}`;
   let response;
   try {
     response = await fetch(url, { method: 'GET', headers: getJsonReadHeaders() });
@@ -467,7 +485,9 @@ export async function createPurchaseOrderRequest(payload = {}) {
     });
     throw new Error(message);
   }
-  return response.json().catch(() => ({}));
+  const result = await response.json().catch(() => ({}));
+  assertPurchaseOrderJsonSuccess(result);
+  return result;
 }
 
 /**
@@ -594,5 +614,7 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     });
     throw new Error(message);
   }
-  return response.json().catch(() => ({}));
+  const result = await response.json().catch(() => ({}));
+  assertPurchaseOrderJsonSuccess(result);
+  return result;
 }

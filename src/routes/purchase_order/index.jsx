@@ -23,14 +23,50 @@ const poRef = (row) =>
 const poStatus = (row) =>
   row?.order_status ?? row?.status ?? row?.purchase_order_status ?? row?.po_status ?? '—';
 
+const vendorDisplayName = (vendor) => {
+  if (vendor == null || typeof vendor !== 'object' || Array.isArray(vendor)) return null;
+  const n =
+    vendor.name ??
+    vendor.vendor_name ??
+    vendor.business_name ??
+    vendor.company_name ??
+    vendor.full_name ??
+    '';
+  const s = String(n).trim();
+  return s || null;
+};
+
 const poSupplier = (row) =>
   row?.supplier_name ??
+  vendorDisplayName(row?.vendor_id) ??
   row?.supplier?.name ??
   row?.vendor_name ??
-  (row?.supplier_id != null ? String(row.supplier_id) : null) ??
+  (row?.supplier_id != null && typeof row.supplier_id !== 'object'
+    ? String(row.supplier_id)
+    : null) ??
   '—';
 
 const poCreated = (row) => row?.createdAt ?? row?.created_at ?? null;
+
+const poTraceId = (row) => row?._id ?? row?.id ?? '';
+
+const poTotalAmount = (row) => {
+  const v = row?.total_amount ?? row?.total ?? row?.grand_total;
+  if (v == null || v === '') return '—';
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return String(v);
+  return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const poTransactionNumber = (row) => {
+  const v =
+    row?.transaction_number ??
+    row?.transactionNumber ??
+    row?.txn_no ??
+    row?.transaction_no ??
+    '';
+  return v !== '' && v != null ? String(v) : '—';
+};
 
 const PurchaseOrders = () => {
   const dispatch = useDispatch();
@@ -261,7 +297,9 @@ const PurchaseOrders = () => {
                   </div>
                   <p className="text-sm mb-0 text-muted">
                     Server-side pagination and search —{' '}
-                    <code className="small">GET /purchase_order/get-purchase-order-by-purchase-item</code>
+                    <code className="small">
+                      GET /purchase_order/get-purchase-order-by-purchase-item?populate=vendor_id
+                    </code>
                   </p>
                 </div>
                 <div className="col-md-6">
@@ -325,6 +363,14 @@ const PurchaseOrders = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('transaction_number')}
+                          onDoubleClick={() => handleSort('transaction_number', true)}
+                        >
+                          Transaction number
+                          {renderSortIcon('transaction_number')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('order_status')}
                           onDoubleClick={() => handleSort('order_status', true)}
                         >
@@ -339,6 +385,16 @@ const PurchaseOrders = () => {
                           Supplier
                           {renderSortIcon('supplier_name')}
                         </th>
+                        <th className="text-muted small">trace_no</th>
+                        <th
+                          className="text-end"
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('total_amount')}
+                          onDoubleClick={() => handleSort('total_amount', true)}
+                        >
+                          Total amount
+                          {renderSortIcon('total_amount')}
+                        </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('createdAt')}
@@ -347,14 +403,13 @@ const PurchaseOrders = () => {
                           Created
                           {renderSortIcon('createdAt')}
                         </th>
-                        <th className="text-muted small">Id</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center text-sm p-4 text-muted">
+                          <td colSpan={9} className="text-center text-sm p-4 text-muted">
                             <p className="mb-3">
                               No purchase orders found. Try adjusting search or optional purchase item
                               filter.
@@ -372,21 +427,27 @@ const PurchaseOrders = () => {
                       ) : (
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const id = item._id ?? item.id ?? '';
+                          const id = poTraceId(item);
                           const created = poCreated(item);
                           return (
                             <tr key={id || index}>
                               <td className="text-sm">{seriesNumber}</td>
                               <td className="text-sm font-weight-normal">{poRef(item)}</td>
+                              <td className="text-sm font-weight-normal text-break" style={{ maxWidth: '140px' }}>
+                                {poTransactionNumber(item)}
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 <span className="badge bg-secondary text-wrap">{String(poStatus(item))}</span>
                               </td>
                               <td className="text-sm font-weight-normal">{poSupplier(item)}</td>
-                              <td className="text-sm font-weight-normal">
-                                {created ? moment(created).format('MM-DD-YYYY h:mm a') : '—'}
-                              </td>
                               <td className="text-sm font-weight-normal text-muted text-break" style={{ maxWidth: '120px' }}>
                                 {id || '—'}
+                              </td>
+                              <td className="text-sm font-weight-normal text-end text-nowrap">
+                                {poTotalAmount(item)}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {created ? moment(created).format('MM-DD-YYYY h:mm a') : '—'}
                               </td>
                               <td className="text-sm">
                                 {id ? (
