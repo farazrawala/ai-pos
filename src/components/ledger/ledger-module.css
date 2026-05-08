@@ -1,0 +1,94 @@
+/* Ledger Management Module — Argon-aligned */
+
+/* Detail page: filters + transactions flush to main content edges (container-fluid px-0). */
+.ledger-module .ledger-transactions-fullwidth {
+  width: 100%;
+  max-width: 100%;
+}
+
+.ledger-module .ledger-transactions-fullwidth .ledger-detail-toolbar,
+.ledger-module .ledger-transactions-fullwidth .ledger-transactions-card {
+  border-radius: 0;
+}
+
+.ledger-module .ledger-transactions-fullwidth .table-responsive {
+  width: 100%;
+}
+
+.ledger-module .ledger-transactions-fullwidth .table.table-ledger {
+  width: 100%;
+}
+
+.ledger-module .ledger-sticky-toolbar {
+  position: sticky;
+  top: 4.75rem;
+  z-index: 102;
+}
+
+@media (max-width: 991.98px) {
+  .ledger-module .ledger-sticky-toolbar {
+    top: 3.5rem;
+  }
+}
+
+.ledger-module .table-ledger thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bs-card-bg, #fff);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+
+.ledger-module .table-ledger tbody tr:nth-child(even):not(.ledger-expand-row) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.ledger-module .table-ledger tbody tr.ledger-data-row:hover {
+  background-color: rgba(94, 114, 228, 0.06);
+}
+
+.ledger-module .ledger-summary-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ledger-module .ledger-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.35rem 1.25rem rgba(0, 0, 0, 0.1) !important;
+}
+
+.ledger-module .chart-wrap {
+  position: relative;
+  height: 240px;
+}
+
+.ledger-module .chart-wrap-sm {
+  height: 200px;
+}
+
+.ledger-module .timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ledger-module .table-ledger thead th {
+    background: #1e293b;
+    color: #e2e8f0;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .ledger-module .table-ledger tbody tr:nth-child(even):not(.ledger-expand-row) {
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+
+  .ledger-module .table-ledger tbody tr.ledger-data-row:hover {
+    background-color: rgba(94, 114, 228, 0.12);
+  }
+}
+
+.ledger-module .skeleton-line {
+  height: 0.85rem;
+  border-radius: 0.25rem;
+}

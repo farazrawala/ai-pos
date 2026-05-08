@@ -40,6 +40,8 @@ import PurchaseOrderAdd from './routes/purchase_order/add.jsx';
 import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
 import Transactions from './routes/transactions/index.jsx';
 import StockListing from './routes/stock/index.jsx';
+import LedgerListingPage from './routes/ledger/index.jsx';
+import UserLedgerDetailPage from './routes/ledger/UserLedgerDetailPage.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
@@ -104,6 +106,8 @@ const App = () => {
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/ledger" element={<LedgerListingPage />} />
+          <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
@@ -179,6 +183,8 @@ const App = () => {
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/ledger" element={<LedgerListingPage />} />
+          <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />

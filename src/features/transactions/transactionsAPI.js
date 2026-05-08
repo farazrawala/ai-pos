@@ -82,14 +82,21 @@ const normalizeTransactionsPayload = (result) => {
 
 /**
  * GET /transaction/get-all-active?populate=account_id&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
+ * User ledger: `populate=account_id,ref_id,reference_user_id&reference_user_id=<userId>`
  */
 export async function fetchTransactionsRequest(params = {}) {
   const queryParams = new URLSearchParams();
-  queryParams.set('populate', 'account_id');
+  queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+
+  if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
+    queryParams.set('reference_user_id', String(params.referenceUserId).trim());
+  }
 
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     queryParams.append('skip', String(skip));
+  } else if (params.skip != null) {
+    queryParams.append('skip', String(params.skip));
   }
   if (params.limit) queryParams.append('limit', String(params.limit));
   if (params.search) queryParams.append('search', String(params.search));
