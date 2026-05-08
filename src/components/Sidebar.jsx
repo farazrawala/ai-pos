@@ -215,6 +215,14 @@ const Sidebar = () => {
             </NavLink>
           </li>
           <li className="nav-item">
+            <NavLink className="nav-link" to="/accounts/payments">
+              <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                <i className="ni ni-wallet-43 text-dark text-sm opacity-10"></i>
+              </div>
+              <span className="nav-link-text ms-1">Payments</span>
+            </NavLink>
+          </li>
+          <li className="nav-item">
             <NavLink className="nav-link" to="/orders">
               <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
                 <i className="ni ni-cart text-dark text-sm opacity-10"></i>
