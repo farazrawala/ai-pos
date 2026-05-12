@@ -92,3 +92,340 @@
   height: 0.85rem;
   border-radius: 0.25rem;
 }
+
+/* T-account card — Argon / dashboard aligned */
+.ledger-module .ledger-t-classic {
+  --t-ink: #344767;
+  --t-line: rgba(94, 114, 228, 0.2);
+  --t-paper: #fff;
+  background: var(--t-paper);
+}
+
+.ledger-module .ledger-transactions-fullwidth .ledger-t-classic {
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
+}
+
+@media (min-width: 992px) {
+  .ledger-module .ledger-transactions-fullwidth .ledger-t-classic {
+    margin-left: 1.15rem;
+    margin-right: 1.15rem;
+  }
+}
+
+.ledger-module .ledger-t-classic-accent {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, #5e72e4 0%, #825ee4 45%, #11cdef 100%);
+}
+
+.ledger-module .ledger-t-classic-card-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 0.75rem 0.5rem;
+}
+
+@media (min-width: 992px) {
+  .ledger-module .ledger-t-classic-card-inner {
+    padding: 0 1.25rem 0.65rem;
+  }
+}
+
+.ledger-module .ledger-t-classic-header {
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #f8f9fe 0%, #ffffff 100%);
+}
+
+.ledger-module .ledger-t-classic-header-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.ledger-module .ledger-t-classic-icon-wrap {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #5e72e4 0%, #324cdd 100%);
+  font-size: 1.05rem;
+}
+
+.ledger-module .ledger-t-classic-heading-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-module .ledger-t-classic-kicker {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #8898aa;
+  margin-bottom: 0.25rem;
+}
+
+.ledger-module .ledger-t-classic-title {
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-ink);
+  line-height: 1.25;
+}
+
+.ledger-module .ledger-t-classic-meta {
+  font-size: 0.75rem;
+  margin-top: 0.5rem !important;
+  letter-spacing: 0.01em;
+}
+
+.ledger-module .ledger-t-classic-stat-pill {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #5e72e4;
+  background: rgba(94, 114, 228, 0.1);
+  border: 1px solid rgba(94, 114, 228, 0.22);
+  border-radius: 100px;
+  padding: 0.2rem 0.55rem;
+}
+
+.ledger-module .ledger-t-classic-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1fr);
+  min-width: min(100%, 520px);
+  min-height: 120px;
+  padding-top: 0.35rem;
+}
+
+.ledger-module .ledger-t-classic-spine {
+  background: linear-gradient(180deg, #5e72e4 0%, #324cdd 50%, #5e72e4 100%);
+  border-radius: 2px;
+  width: 100%;
+  min-height: 100%;
+  align-self: stretch;
+  box-shadow: 0 0 10px rgba(94, 114, 228, 0.25);
+}
+
+.ledger-module .ledger-t-classic-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ledger-module .ledger-t-classic-col--dr {
+  background: linear-gradient(180deg, rgba(245, 54, 92, 0.04) 0%, transparent 48%);
+}
+
+.ledger-module .ledger-t-classic-col--cr {
+  background: linear-gradient(180deg, rgba(45, 206, 137, 0.05) 0%, transparent 48%);
+}
+
+.ledger-module .ledger-t-classic-band {
+  padding: 0.35rem 0.5rem 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.ledger-module .ledger-t-classic-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.48rem 0.55rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.045);
+}
+
+.ledger-module .ledger-t-classic-row--blank {
+  min-height: 2.15rem;
+  border-bottom: 1px dashed rgba(136, 152, 170, 0.25);
+  background: transparent;
+}
+
+.ledger-module .ledger-t-classic-row--click {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ledger-module .ledger-t-classic-row--click:hover {
+  background: rgba(94, 114, 228, 0.06);
+  box-shadow: inset 3px 0 0 0 #5e72e4;
+}
+
+.ledger-module .ledger-t-classic-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--t-ink);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.ledger-module .ledger-t-classic-amt {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--t-ink);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ledger-module .ledger-t-classic-amt--dr {
+  color: #e64980;
+}
+
+.ledger-module .ledger-t-classic-amt--cr {
+  color: #1aae6f;
+}
+
+.ledger-module .ledger-t-classic-footer {
+  padding: 0.85rem 0 0.35rem;
+  background: linear-gradient(180deg, #f8f9fe 0%, #fff 100%);
+}
+
+.ledger-module .ledger-t-classic-footer-panel {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+  padding: 0.6rem 0.35rem 0.75rem;
+}
+
+.ledger-module .ledger-t-classic-footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1fr);
+  gap: 0;
+}
+
+.ledger-module .ledger-t-classic-spine--foot {
+  opacity: 0.9;
+  box-shadow: none;
+}
+
+.ledger-module .ledger-t-classic-footer-side {
+  padding: 0.15rem 0.45rem 0;
+  min-width: 0;
+}
+
+.ledger-module .ledger-t-classic-hr {
+  border: 0;
+  border-top: 1px solid var(--t-line);
+  margin: 0.35rem 0 0.45rem;
+  opacity: 1;
+}
+
+.ledger-module .ledger-t-classic-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--t-ink);
+  padding: 0.12rem 0;
+}
+
+.ledger-module .ledger-t-classic-total--less {
+  font-weight: 600;
+}
+
+.ledger-module .ledger-t-classic-balance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.15rem;
+}
+
+.ledger-module .ledger-t-classic-balance-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t-ink);
+}
+
+.ledger-module .ledger-t-classic-balance-pill {
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: linear-gradient(145deg, #5e72e4 0%, #324cdd 100%);
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.2rem 0.55rem rgba(94, 114, 228, 0.35);
+}
+
+.ledger-module .ledger-t-classic-footer-spacer {
+  min-height: 3.5rem;
+}
+
+.ledger-module .ledger-t-classic-empty {
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
+}
+
+.ledger-module .ledger-t-classic-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(94, 114, 228, 0.1);
+  border: 1px solid rgba(94, 114, 228, 0.15);
+  font-size: 1.35rem;
+}
+
+.ledger-module .ledger-t-classic-pager {
+  padding: 0.85rem 0.25rem 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  background: #fff;
+}
+
+@media (max-width: 575.98px) {
+  .ledger-module .ledger-t-classic-body,
+  .ledger-module .ledger-t-classic-footer-grid {
+    min-width: 440px;
+  }
+
+  .ledger-module .ledger-transactions-fullwidth .ledger-t-classic {
+    margin-left: 0.35rem;
+    margin-right: 0.35rem;
+  }
+
+  .ledger-module .ledger-t-classic {
+    overflow-x: auto;
+  }
+
+  .ledger-module .ledger-t-classic-header-main {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .ledger-module .ledger-t-classic-heading-text {
+    text-align: center;
+  }
+
+  .ledger-module .ledger-t-classic-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+}

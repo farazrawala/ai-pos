@@ -7,19 +7,16 @@ import LedgerUserProfileCard from '../../components/ledger/user-profile/LedgerUs
 import LedgerDetailSummaryCards from '../../components/ledger/user-profile/LedgerDetailSummaryCards.jsx';
 import LedgerChartsSection from '../../components/ledger/charts/LedgerChartsSection.jsx';
 import LedgerDetailFilters from '../../components/ledger/filters/LedgerDetailFilters.jsx';
-import LedgerTransactionsTable from '../../components/ledger/tables/LedgerTransactionsTable.jsx';
+import LedgerTAccountView from '../../components/ledger/tables/LedgerTAccountView.jsx';
 import LedgerTransactionDrawer from '../../components/ledger/drawers/LedgerTransactionDrawer.jsx';
 import LedgerActivityTimeline from '../../components/ledger/timeline/LedgerActivityTimeline.jsx';
 import { fetchUserByIdRequest } from '../../features/users/usersAPI.js';
 import { mapApiUserToLedgerRow } from '../../components/ledger/ledgerUserMapper.js';
-import { fetchTransactionsRequest } from '../../features/transactions/transactionsAPI.js';
+import { fetchMyLedgerTransactionsRequest } from '../../features/transactions/transactionsAPI.js';
 import { mapApiTransactionToLedgerTransaction } from '../../components/ledger/ledgerTransactionMapper.js';
 import { computeRunningBalances } from '../../components/ledger/ledgerUtils.js';
 import { buildMonthlyDebitCreditSeries, buildLedgerTimelineEvents } from '../../components/ledger/ledgerChartData.js';
-import {
-  filterDetailTransactions,
-  compareTransactions,
-} from '../../components/ledger/ledgerDetailTransactionFilters.js';
+import { filterDetailTransactions } from '../../components/ledger/ledgerDetailTransactionFilters.js';
 import '../../components/ledger/ledger-module.css';
 
 const PAGE_SIZE = 8;
@@ -99,10 +96,7 @@ export default function UserLedgerDetailPage() {
   const [rawTx, setRawTx] = useState([]);
   const [draftFilters, setDraftFilters] = useState(initialDetailFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialDetailFilters);
-  const [sortKey, setSortKey] = useState('date');
-  const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
-  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [timelineLimit, setTimelineLimit] = useState(TIMELINE_INITIAL);
 
@@ -112,7 +106,7 @@ export default function UserLedgerDetailPage() {
     (async () => {
       setLoading(true);
       try {
-        const r = await fetchTransactionsRequest({
+        const r = await fetchMyLedgerTransactionsRequest({
           referenceUserId: userId,
           populate: 'account_id,ref_id,reference_user_id,created_by',
           limit: LEDGER_TX_FETCH_LIMIT,
@@ -161,10 +155,8 @@ export default function UserLedgerDetailPage() {
     return computeRunningBalances(chrono, user ? user.openingBalance : 0);
   }, [filteredRaw, user]);
 
-  const displayRows = useMemo(() => {
-    const sorted = [...sortedChrono].sort((a, b) => compareTransactions(a, b, sortKey, sortDir));
-    return sorted;
-  }, [sortedChrono, sortKey, sortDir]);
+  /** Chronological T-account (matches textbook ledger order). */
+  const displayRows = useMemo(() => [...sortedChrono], [sortedChrono]);
 
   useEffect(() => {
     const tp = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
@@ -260,32 +252,7 @@ export default function UserLedgerDetailPage() {
     setPage(1);
   }, [draftFilters]);
 
-  const handleSort = useCallback((key, dir) => {
-    setSortKey(key);
-    setSortDir(dir);
-    setPage(1);
-  }, []);
-
-  const toggleExpand = useCallback((id) => {
-    setExpandedIds((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }, []);
-
   const clearSelectedTxn = useCallback(() => setSelectedTxn(null), []);
-
-  const handleTableAction = useCallback(
-    (action, row) => {
-      if (action === 'view') setSelectedTxn(row);
-      else if (action === 'edit') toast.info(`Edit ${row.referenceNo} (demo)`, { delay: 4000 });
-      else if (action === 'delete') toast.warning(`Delete ${row.referenceNo} (demo)`, { delay: 4000 });
-      else if (action === 'print' || action === 'receipt') toast.info(`${action} ${row.referenceNo} (demo)`, { delay: 4000 });
-    },
-    []
-  );
 
   if (!userLoading && !user) {
     return <Navigate to="/ledger" replace />;
@@ -347,19 +314,17 @@ export default function UserLedgerDetailPage() {
           }}
         />
 
-        <LedgerTransactionsTable
+        <LedgerTAccountView
+          accountTitle={String(user.fullName || 'Ledger').trim().toUpperCase()}
           rows={displayRows}
           loading={loading}
           page={page}
           pageSize={PAGE_SIZE}
           onPageChange={setPage}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          expandedIds={expandedIds}
-          onToggleExpand={toggleExpand}
-          onRowOpenDrawer={setSelectedTxn}
-          onAction={handleTableAction}
+          totalDebit={totals.debit}
+          totalCredit={totals.credit}
+          endingBalance={totals.currentBalance}
+          onRowClick={setSelectedTxn}
         />
       </section>
 

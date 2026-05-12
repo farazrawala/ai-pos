@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 const TRANSACTION_LIST_PATH = 'transaction/get-all-active';
+const MY_LEDGER_TRANSACTION_LIST_PATH = 'transaction/get-my-ledger-transaction';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -107,6 +108,83 @@ export async function fetchTransactionsRequest(params = {}) {
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${TRANSACTION_LIST_PATH}?${queryString}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  const data = normalizeTransactionsPayload(result);
+
+  if (result.pagination && typeof result.pagination === 'object') {
+    const pagination = result.pagination;
+    const total = Number(pagination.total ?? data.length ?? 0);
+    const skip = Number(pagination.skip ?? 0);
+    const apiLimit = pagination.limit;
+
+    if (apiLimit != null && Number(apiLimit) > 0) {
+      const limit = Number(apiLimit);
+      const page = limit > 0 ? Math.floor(skip / limit) + 1 : 1;
+      const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
+      return {
+        data: Array.isArray(data) ? data : [],
+        total,
+        page,
+        limit,
+        totalPages,
+      };
+    }
+
+    const limit = Number(params.limit || Math.max(data.length, 10) || 10);
+    const page = 1;
+    const totalPages = total > 0 ? 1 : 0;
+    return {
+      data: Array.isArray(data) ? data : [],
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  const total = Number(result.total ?? data.length ?? 0);
+  const limit = Number(params.limit || result.limit || 10);
+  return {
+    data: Array.isArray(data) ? data : [],
+    total,
+    page: Number(params.page || result.page || 1),
+    limit,
+    totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+  };
+}
+
+/**
+ * GET /transaction/get-my-ledger-transaction?populate=account_id,ref_id,reference_user_id,created_by&reference_user_id=<userId>
+ */
+export async function fetchMyLedgerTransactionsRequest(params = {}) {
+  const queryParams = new URLSearchParams();
+  queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+
+  if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
+    queryParams.set('reference_user_id', String(params.referenceUserId).trim());
+  }
+
+  if (params.page && params.limit) {
+    const skip = (params.page - 1) * params.limit;
+    queryParams.append('skip', String(skip));
+  } else if (params.skip != null) {
+    queryParams.append('skip', String(params.skip));
+  }
+  if (params.limit) queryParams.append('limit', String(params.limit));
+  if (params.search) queryParams.append('search', String(params.search));
+  if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
+  if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
+  if (params.startDate) queryParams.append('startDate', String(params.startDate));
+  if (params.endDate) queryParams.append('endDate', String(params.endDate));
+
+  const queryString = queryParams.toString();
+  const url = `${BASE_URL}${MY_LEDGER_TRANSACTION_LIST_PATH}?${queryString}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
 
   if (!response.ok) {

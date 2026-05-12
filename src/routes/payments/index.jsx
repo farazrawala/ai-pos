@@ -6,6 +6,7 @@ import { toast } from '../../utils/toast.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
+import { savePaymentReceiptRequest } from '../../features/paymentReceipts/paymentReceiptsAPI.js';
 
 const todayISO = moment().format('YYYY-MM-DD');
 
@@ -212,27 +213,48 @@ export default function PaymentManagementPage() {
 
       setIsSubmitting(true);
       try {
-        // Replace with real API call when wired up.
-        await new Promise((r) => setTimeout(r, 800));
-
         const user = users.find((u) => String(u._id ?? u.id ?? u.userId ?? '') === String(form.userId));
         const amountNum = parseAmountToNumber(form.amount);
         const payAcc = assetAccounts.find(
           (a) => String(a._id ?? a.id ?? '') === String(form.paymentMode)
         );
 
-        const newRow = {
-          id: `p_${Date.now()}`,
-          userName: user?.name || user?.fullName || '—',
-          paymentType: form.paymentType,
-          paymentMode: payAcc?.name || form.paymentMode || '—',
+        const payload = {
+          user_id: String(form.userId),
           amount: amountNum,
-          date: form.paymentDate,
-          status: 'posted',
+          date: form.paymentDate || todayISO,
+          payment_type: form.paymentType,
+          payment_mode: String(form.paymentMode),
+          description: String(form.notes || '').trim(),
+        };
+
+        const saveUrl = '/api/payment_receipt/save';
+        console.log('[PaymentManagement] Submitting payment_receipt/save', {
+          url: saveUrl,
+          payload,
+        });
+
+        const result = await savePaymentReceiptRequest(payload);
+        console.log('[PaymentManagement] payment_receipt/save response', result);
+
+        const created =
+          result && typeof result === 'object' && !Array.isArray(result)
+            ? result.data || result.payment_receipt || result.paymentReceipt || result
+            : {};
+        const createdId = created?._id ?? created?.id;
+
+        const newRow = {
+          id: String(createdId || `p_${Date.now()}`),
+          userName: user?.name || user?.fullName || '—',
+          paymentType: String(created.payment_type || form.paymentType || '—'),
+          paymentMode: payAcc?.name || form.paymentMode || '—',
+          amount: Number(created.amount ?? amountNum),
+          date: String(created.date || form.paymentDate || todayISO).slice(0, 10),
+          status: String(created.status || 'posted').toLowerCase(),
         };
 
         setRecentPayments((prev) => [newRow, ...prev]);
-        toast.success('Payment saved (demo).', { delay: 2500 });
+        toast.success('Payment saved successfully.', { delay: 2500 });
         handleCancel();
       } catch (err) {
         toast.error(String(err?.message ?? 'Failed to save payment'));
@@ -509,7 +531,7 @@ export default function PaymentManagementPage() {
             <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
                 <h6 className="mb-0">Recent transactions</h6>
-                <p className="text-xs text-muted mb-0">Latest payments recorded (demo)</p>
+                <p className="text-xs text-muted mb-0">Latest payments saved from this session</p>
               </div>
             </div>
           </div>
