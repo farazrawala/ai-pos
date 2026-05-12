@@ -15,6 +15,7 @@ import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlic
 import transactionsReducer from '../features/transactions/transactionsSlice.js';
 import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
+import paymentReceiptsReducer from '../features/paymentReceipts/paymentReceiptsSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -35,6 +36,7 @@ const store = configureStore({
     transactions: transactionsReducer,
     stockMovement: stockMovementReducer,
     incomeStatement: incomeStatementReducer,
+    paymentReceipts: paymentReceiptsReducer,
   },
 });
 

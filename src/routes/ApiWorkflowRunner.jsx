@@ -34,6 +34,11 @@ function createInitialSteps() {
       save: {
         login_email: 'response.data.data.user.email',
         login_password: 'response.data.data.user.email',
+        workflow_user_id: [
+          'response.data.data.user._id',
+          'response.data.data.user.id',
+          'response.data.user._id',
+        ],
       },
     },
     {
@@ -43,6 +48,46 @@ function createInitialSteps() {
       body: {
         email: '{{login_email}}',
         password: '{{login_password}}',
+      },
+      save: {
+        auth_token: [
+          'response.data.data.token',
+          'response.data.token',
+          'response.data.data.user.token',
+          'response.data.user.token',
+        ],
+      },
+    },
+    {
+      name: 'Create category — category 1',
+      method: 'POST',
+      url: '{{url}}api/category/create',
+      body: {
+        name: 'category 1',
+        user_id: '{{workflow_user_id}}',
+        description: 'Lorem ipsum',
+      },
+      save: {},
+    },
+    {
+      name: 'Create category — category 2',
+      method: 'POST',
+      url: '{{url}}api/category/create',
+      body: {
+        name: 'category 2',
+        user_id: '{{workflow_user_id}}',
+        description: 'Lorem ipsum',
+      },
+      save: {},
+    },
+    {
+      name: 'Create category — category 3',
+      method: 'POST',
+      url: '{{url}}api/category/create',
+      body: {
+        name: 'category 3',
+        user_id: '{{workflow_user_id}}',
+        description: 'Lorem ipsum',
       },
       save: {},
     },
@@ -79,7 +124,7 @@ const ApiWorkflowRunner = () => {
     JSON.stringify(getInitialSteps()[0]?.body ?? {}, null, 2)
   );
   const [stepResults, setStepResults] = useState(() =>
-    Array.from({ length: getInitialSteps().length }, () => null),
+    Array.from({ length: getInitialSteps().length }, () => null)
   );
   const [loadingStep, setLoadingStep] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
@@ -154,7 +199,10 @@ const ApiWorkflowRunner = () => {
           headers: null,
         };
         setStepResults((prev) => {
-          const next = prev.length === steps.length ? [...prev] : Array.from({ length: steps.length }, () => null);
+          const next =
+            prev.length === steps.length
+              ? [...prev]
+              : Array.from({ length: steps.length }, () => null);
           next[index] = errPayload;
           return next;
         });
@@ -174,9 +222,19 @@ const ApiWorkflowRunner = () => {
           url: fullUrl,
           validateStatus: () => true,
         };
+        const headers = {};
+        if (method !== 'GET' && method !== 'HEAD') {
+          headers['Content-Type'] = 'application/json';
+        }
+        const token = interpVars.auth_token ?? interpVars.token;
+        if (typeof token === 'string' && token.trim()) {
+          headers.Authorization = `Bearer ${token.trim()}`;
+        }
+        if (Object.keys(headers).length) {
+          cfg.headers = headers;
+        }
         if (method !== 'GET' && method !== 'HEAD') {
           cfg.data = body;
-          cfg.headers = { 'Content-Type': 'application/json' };
         }
 
         const res = await axios(cfg);
@@ -193,7 +251,10 @@ const ApiWorkflowRunner = () => {
           headers: res.headers ? { ...res.headers } : null,
         };
         setStepResults((prev) => {
-          const next = prev.length === steps.length ? [...prev] : Array.from({ length: steps.length }, () => null);
+          const next =
+            prev.length === steps.length
+              ? [...prev]
+              : Array.from({ length: steps.length }, () => null);
           next[index] = payload;
           return next;
         });
@@ -225,7 +286,10 @@ const ApiWorkflowRunner = () => {
           headers: res?.headers ? { ...res.headers } : null,
         };
         setStepResults((prev) => {
-          const next = prev.length === steps.length ? [...prev] : Array.from({ length: steps.length }, () => null);
+          const next =
+            prev.length === steps.length
+              ? [...prev]
+              : Array.from({ length: steps.length }, () => null);
           next[index] = payload;
           return next;
         });
