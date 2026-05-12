@@ -32,5 +32,4 @@ sales return ::
 Pos
     Remaining ammount will be default in a/c receivable.
     no a/c receivable will be shown in accounts dropdown.
-
 Barcode printing module.

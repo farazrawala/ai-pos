@@ -374,11 +374,11 @@ export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
  * `vendor_id`, `description`, `ref_no`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`, `amount_paid` (from UI `amount_received` / `amount_paid`),
  * `remaining_amount`, `total_amount`, `expected_delivery_date`,
- * `product_id[n]`, `qty[n]`, `price[n]`
- * (same line-item shape as POS `order/order_save`).
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`,
+ * `shipping_per_unit[n]`, `total_shipping[n]` (per line, same index as product rows).
  *
- * UI may still send `supplier_id`, `purchase_order_no`, `notes`, and `items[]`
- * with `{ product_id, qty, price }`; those are mapped here.
+ * UI may send `supplier_id`, `purchase_order_no`, `notes`, and `items[]` with per-line
+ * `shipping_per_unit` / `total_shipping`; those are mapped to indexed form fields.
  */
 export async function createPurchaseOrderRequest(payload = {}) {
   const body = payload && typeof payload === 'object' ? payload : {};
@@ -402,7 +402,10 @@ export async function createPurchaseOrderRequest(payload = {}) {
     form.append('discount', d === '' ? '0' : d);
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, 'shipment') || Object.prototype.hasOwnProperty.call(body, 'shipping')) {
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'shipment') ||
+    Object.prototype.hasOwnProperty.call(body, 'shipping')
+  ) {
     const shipmentVal = body.shipment ?? body.shipping;
     const s =
       shipmentVal == null || String(shipmentVal).trim() === '' ? '0' : String(shipmentVal).trim();
@@ -438,7 +441,10 @@ export async function createPurchaseOrderRequest(payload = {}) {
     form.append('remaining_amount', r === '' ? '0' : r);
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, 'total_amount') || Object.prototype.hasOwnProperty.call(body, 'total')) {
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'total_amount') ||
+    Object.prototype.hasOwnProperty.call(body, 'total')
+  ) {
     const t = body.total_amount ?? body.total;
     const s = t == null || String(t).trim() === '' ? '0' : String(t).trim();
     form.append('total_amount', s);
@@ -462,6 +468,24 @@ export async function createPurchaseOrderRequest(payload = {}) {
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
     if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
+    const spu = line.shipping_per_unit ?? line.shippingPerUnit;
+    const ts = line.total_shipping ?? line.totalShipping;
+    const spuN =
+      spu == null || spu === ''
+        ? 0
+        : (() => {
+            const n = Number(spu);
+            return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+          })();
+    const tsN =
+      ts == null || ts === ''
+        ? 0
+        : (() => {
+            const n = Number(ts);
+            return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+          })();
+    form.append(`shipping_per_unit[${idx}]`, String(spuN));
+    form.append(`total_shipping[${idx}]`, String(tsN));
     idx += 1;
   });
 
@@ -493,7 +517,8 @@ export async function createPurchaseOrderRequest(payload = {}) {
 /**
  * PATCH `purchase_order/purchase_order_update/:id` — multipart form fields:
  * `name`, `email`, `phone`, `address`, `vendor_id`, `description`, `ref_no`,
- * `product_id[n]`, `qty[n]`, `price[n]`, `discount`, `shipment`, `account_id`,
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`,
+ * `shipping_per_unit[n]`, `total_shipping[n]`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`,
  * `order_status`, `amount_paid` (from UI `amount_received` / `amount_paid`), `remaining_amount`, `total_amount`
  * (same line-item shape as create).
@@ -562,7 +587,10 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     form.append('remaining_amount', r === '' ? '0' : r);
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, 'total_amount') || Object.prototype.hasOwnProperty.call(body, 'total')) {
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'total_amount') ||
+    Object.prototype.hasOwnProperty.call(body, 'total')
+  ) {
     const t = body.total_amount ?? body.total;
     const s = t == null || String(t).trim() === '' ? '0' : String(t).trim();
     form.append('total_amount', s);
@@ -590,6 +618,24 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
     if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
+    const spu = line.shipping_per_unit ?? line.shippingPerUnit;
+    const ts = line.total_shipping ?? line.totalShipping;
+    const spuN =
+      spu == null || spu === ''
+        ? 0
+        : (() => {
+            const n = Number(spu);
+            return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+          })();
+    const tsN =
+      ts == null || ts === ''
+        ? 0
+        : (() => {
+            const n = Number(ts);
+            return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+          })();
+    form.append(`shipping_per_unit[${idx}]`, String(spuN));
+    form.append(`total_shipping[${idx}]`, String(tsN));
     idx += 1;
   });
 

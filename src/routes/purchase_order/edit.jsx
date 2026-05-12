@@ -30,6 +30,19 @@ const accountOptionValue = (a) => {
   return String(a._id ?? a.id ?? '').trim();
 };
 
+/** API may return populated refs; coerce to a plain id string for `<select value>` and comparisons. */
+function pickIdString(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.id ?? raw.$oid;
+    return id != null ? String(id).trim() : '';
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
+  const s = String(raw).trim();
+  if (s === '[object Object]') return '';
+  return s;
+}
+
 const shopName =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
     ? String(import.meta.env.VITE_SHOP_NAME)
@@ -43,6 +56,40 @@ const roundMoney2 = (n) => {
   if (!Number.isFinite(x)) return 0;
   return Math.round(x * 100) / 100;
 };
+
+/**
+ * Per-line shipping: Total Shipping ÷ Qty → Shipping Per Unit; Final Rate = base Rate + per unit; Amount = Final Rate × Qty.
+ * Empty Total Shipping resets to base rate only. Qty ≤ 0 → shipping per unit 0.
+ */
+function computeLineDerived(row) {
+  const qtyNum = parseFloat(String(row?.qty ?? '0').replace(/,/g, ''));
+  const baseRateNum = parseFloat(String(row?.rate ?? '0').replace(/,/g, ''));
+  const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+  const baseRate = Number.isFinite(baseRateNum) ? baseRateNum : 0;
+
+  const tsRaw = String(row?.totalShipping ?? '').trim();
+  if (tsRaw === '') {
+    return {
+      shippingPerUnit: 0,
+      finalRate: baseRate,
+      amount: roundMoney2(qty * baseRate),
+      totalShippingNum: 0,
+      hasLineShipping: false,
+    };
+  }
+  const tsNum = parseFloat(tsRaw.replace(/,/g, ''));
+  const totalShippingNum = Number.isFinite(tsNum) ? roundMoney2(tsNum) : 0;
+  const shippingPerUnit = qty > 0 ? roundMoney2(totalShippingNum / qty) : 0;
+  const finalRate = roundMoney2(baseRate + shippingPerUnit);
+  const amount = roundMoney2(finalRate * qty);
+  return {
+    shippingPerUnit,
+    finalRate,
+    amount,
+    totalShippingNum,
+    hasLineShipping: true,
+  };
+}
 
 const parseMoneyInput = (raw) => {
   const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
@@ -107,12 +154,39 @@ const linesFromPurchaseOrder = (po) => {
       const qtyRaw = it.qty ?? it.quantity ?? it.qty_ordered ?? 1;
       const priceRaw = it.price ?? it.rate ?? it.unit_price;
       const qtyStr = qtyRaw != null ? String(qtyRaw) : '1';
+      const tsLine = it.total_shipping ?? it.totalShipping;
+      const totalShipStr =
+        tsLine != null && String(tsLine).trim() !== '' ? String(tsLine).trim() : '';
+      const spuLine = it.shipping_per_unit ?? it.shippingPerUnit;
+
       let rateStr = '';
       if (priceRaw != null && String(priceRaw).trim() !== '') {
-        rateStr = String(priceRaw);
+        const p = parseFloat(String(priceRaw).replace(/,/g, ''));
+        if (totalShipStr !== '') {
+          let spu = parseFloat(String(spuLine ?? '').replace(/,/g, ''));
+          if (!Number.isFinite(spu)) {
+            const q = parseFloat(String(qtyRaw).replace(/,/g, ''));
+            const ts = parseFloat(totalShipStr.replace(/,/g, ''));
+            spu = Number.isFinite(q) && q > 0 && Number.isFinite(ts) ? ts / q : 0;
+          }
+          rateStr = Number.isFinite(p)
+            ? String(roundMoney2(Math.max(0, p - (Number.isFinite(spu) ? spu : 0))))
+            : String(priceRaw);
+        } else {
+          rateStr = String(priceRaw);
+        }
       } else if (it.amount != null) {
         const q = parseFloat(String(qtyRaw).replace(/,/g, ''));
-        if (Number.isFinite(q) && q > 0) rateStr = String(Number(it.amount) / q);
+        if (Number.isFinite(q) && q > 0) {
+          const perUnit = Number(it.amount) / q;
+          if (totalShipStr !== '') {
+            const ts = parseFloat(totalShipStr.replace(/,/g, ''));
+            const spu = Number.isFinite(ts) && q > 0 ? ts / q : 0;
+            rateStr = String(roundMoney2(Math.max(0, perUnit - spu)));
+          } else {
+            rateStr = String(perUnit);
+          }
+        }
       }
       return {
         key: newLineKey(),
@@ -120,6 +194,7 @@ const linesFromPurchaseOrder = (po) => {
         label: productPickerLabel(prodObj || it) || `Product #${productId}`,
         qty: qtyStr,
         rate: rateStr,
+        totalShipping: totalShipStr,
       };
     })
     .filter(Boolean);
@@ -128,14 +203,15 @@ const linesFromPurchaseOrder = (po) => {
 const recordToForm = (po) => ({
   purchase_order_no:
     po?.purchase_order_no ?? po?.po_no ?? po?.order_no ?? po?.reference ?? po?.ref_no ?? '',
-  supplier_id:
-    po?.supplier_id != null
-      ? String(po.supplier_id)
-      : po?.supplier && typeof po.supplier === 'object' && po.supplier._id != null
-        ? String(po.supplier._id)
-        : po?.vendor_id != null
-          ? String(po.vendor_id)
-          : '',
+  supplier_id: (() => {
+    if (po?.supplier_id != null && po.supplier_id !== '') return pickIdString(po.supplier_id);
+    if (po?.vendor_id != null && po.vendor_id !== '') return pickIdString(po.vendor_id);
+    if (po?.supplier != null) {
+      if (typeof po.supplier === 'object') return pickIdString(po.supplier._id ?? po.supplier);
+      return pickIdString(po.supplier);
+    }
+    return '';
+  })(),
   order_status:
     po?.order_status ?? po?.status ?? po?.purchase_order_status ?? po?.po_status ?? 'placed',
   notes: po?.notes ?? po?.remarks ?? po?.description ?? '',
@@ -154,8 +230,7 @@ const recordToForm = (po) => ({
   account_id: (() => {
     const raw = po?.account_id ?? po?.payment_method_accounts_id;
     if (raw == null || raw === '') return '';
-    if (typeof raw === 'object' && raw._id != null) return String(raw._id);
-    return String(raw).trim();
+    return pickIdString(raw);
   })(),
   amount_received: (() => {
     const paid = po?.amount_paid ?? po?.amount_received;
@@ -305,7 +380,7 @@ const PurchaseOrderEdit = () => {
 
   const supplierIdInList =
     !form.supplier_id ||
-    supplierOptions.some((u) => getUserOptionValue(u) === String(form.supplier_id));
+    supplierOptions.some((u) => String(getUserOptionValue(u)).trim() === String(form.supplier_id).trim());
 
   const accountOptions = useMemo(
     () =>
@@ -340,6 +415,7 @@ const PurchaseOrderEdit = () => {
         label: productPickerLabel(product),
         qty: '1',
         rate: String(rate),
+        totalShipping: '',
       },
     ]);
     setAddProductQuery('');
@@ -351,11 +427,8 @@ const PurchaseOrderEdit = () => {
     let subTotal = 0;
     lines.forEach((row) => {
       if (!String(row?.productId ?? '').trim()) return;
-      const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
-      const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
-      const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-      const rate = Number.isFinite(rateNum) ? rateNum : 0;
-      subTotal += qty * rate;
+      const { amount } = computeLineDerived(row);
+      subTotal += amount;
     });
     const shipNum = parseFloat(String(form.shipment ?? '').replace(/,/g, ''));
     const discNum = parseFloat(String(form.discount ?? '').replace(/,/g, ''));
@@ -401,10 +474,16 @@ const PurchaseOrderEdit = () => {
       .map((d) => {
         const product_id = String(d?.productId ?? '').trim();
         const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
-        const priceNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
         const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-        const price = Number.isFinite(priceNum) ? priceNum : 0;
-        return { product_id, qty, price };
+        const derived = computeLineDerived(d);
+        const price = derived.finalRate;
+        return {
+          product_id,
+          qty,
+          price,
+          shipping_per_unit: roundMoney2(derived.shippingPerUnit),
+          total_shipping: roundMoney2(derived.hasLineShipping ? derived.totalShippingNum : 0),
+        };
       })
       .filter((l) => l.product_id);
 
@@ -637,13 +716,15 @@ const PurchaseOrderEdit = () => {
               <select
                 id="po-edit-supplier"
                 className="form-select form-select-sm"
-                value={form.supplier_id}
+                value={String(form.supplier_id ?? '')}
                 onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value }))}
                 disabled={supplierSelectDisabled}
               >
                 <option value="">No supplier</option>
                 {!supplierIdInList && form.supplier_id ? (
-                  <option value={form.supplier_id}>Supplier id: {form.supplier_id}</option>
+                  <option value={String(form.supplier_id)}>
+                    Supplier id: {String(form.supplier_id)}
+                  </option>
                 ) : null}
                 {supplierOptions.map((u) => {
                   const value = getUserOptionValue(u);
@@ -744,7 +825,10 @@ const PurchaseOrderEdit = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Rate</strong> and <strong>Qty</strong> per line. Remove rows you do not need.
+            Set <strong>Rate</strong> (base unit price), <strong>Qty</strong>, and optional{' '}
+            <strong>Total shipping</strong> per line. <strong>Shipping / unit</strong> is calculated automatically;{' '}
+            <strong>Amount</strong> uses (rate + shipping per unit) × qty.
+            Remove rows you do not need.
           </p>
 
           <div className="table-responsive mb-4">
@@ -759,6 +843,12 @@ const PurchaseOrderEdit = () => {
                   <th className="text-end" style={{ width: '120px' }}>
                     Qty
                   </th>
+                  <th className="text-end" style={{ minWidth: '130px' }}>
+                    Shipping / unit
+                  </th>
+                  <th className="text-end" style={{ minWidth: '130px' }}>
+                    Total shipping
+                  </th>
                   <th className="text-end" style={{ width: '120px' }}>
                     Amount
                   </th>
@@ -768,17 +858,14 @@ const PurchaseOrderEdit = () => {
               <tbody>
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted py-4">
+                    <td colSpan={8} className="text-center text-muted py-4">
                       No line items. Use <strong>Add product</strong> above to add rows.
                     </td>
                   </tr>
                 ) : (
                   lines.map((row, i) => {
-                    const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
-                    const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
-                    const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-                    const rate = Number.isFinite(rateNum) ? rateNum : 0;
-                    const amount = qty * rate;
+                    const derived = computeLineDerived(row);
+                    const { shippingPerUnit, amount, hasLineShipping } = derived;
                     return (
                       <tr key={row.key}>
                         <td className="text-center">{i + 1}</td>
@@ -809,6 +896,28 @@ const PurchaseOrderEdit = () => {
                             aria-label={`Quantity for line ${i + 1}`}
                             value={row.qty}
                             onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
+                            disabled={isSubmitting}
+                          />
+                        </td>
+                        <td className="text-end align-middle">
+                          <div
+                            className="form-control form-control-sm text-end bg-light border mb-0 py-1"
+                            title="Total shipping ÷ qty (read-only)"
+                            aria-label={`Shipping per unit for line ${i + 1}`}
+                          >
+                            {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                          </div>
+                        </td>
+                        <td className="text-end align-middle">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            className="form-control form-control-sm text-end"
+                            placeholder="0.00"
+                            aria-label={`Total shipping for line ${i + 1}`}
+                            value={row.totalShipping ?? ''}
+                            onChange={(e) => handleLineEdit(row.key, 'totalShipping', e.target.value)}
                             disabled={isSubmitting}
                           />
                         </td>
