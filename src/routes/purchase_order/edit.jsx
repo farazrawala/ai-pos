@@ -8,6 +8,7 @@ import {
   clearUpdateStatus,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -30,6 +31,16 @@ const accountOptionValue = (a) => {
   return String(a._id ?? a.id ?? '').trim();
 };
 
+const warehouseOptionValue = (w) => {
+  if (!w || typeof w !== 'object') return '';
+  return String(w._id ?? w.id ?? '').trim();
+};
+
+const warehouseOptionLabel = (w) => {
+  if (!w || typeof w !== 'object') return 'Warehouse';
+  return w.name ?? w.warehouse_name ?? w.title ?? 'Warehouse';
+};
+
 /** API may return populated refs; coerce to a plain id string for `<select value>` and comparisons. */
 function pickIdString(raw) {
   if (raw == null || raw === '') return '';
@@ -41,6 +52,31 @@ function pickIdString(raw) {
   const s = String(raw).trim();
   if (s === '[object Object]') return '';
   return s;
+}
+
+/** Coerce populated warehouse refs to an id string. */
+function idFromWarehouseRef(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.$oid ?? raw.id;
+    return id != null ? String(id).trim() : '';
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
+  return String(raw).trim();
+}
+
+function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
+  const wid = String(warehouseId ?? '').trim();
+  if (!wid || !Array.isArray(warehouseInventoryRows)) return '';
+  for (const row of warehouseInventoryRows) {
+    if (!row || typeof row !== 'object') continue;
+    const rowWid = idFromWarehouseRef(row.warehouse_id ?? row.warehouseId ?? row.warehouse);
+    if (rowWid === wid) {
+      const invId = row._id ?? row.id;
+      if (invId != null && String(invId).trim() !== '') return String(invId).trim();
+    }
+  }
+  return '';
 }
 
 const shopName =
@@ -199,6 +235,17 @@ const linesFromPurchaseOrder = (po) => {
           }
         }
       }
+      const whRaw = it.warehouse_id ?? it.warehouseId ?? it.warehouse;
+      const warehouseId = pickIdString(whRaw);
+      const invFromProduct =
+        prodObj && Array.isArray(prodObj.warehouse_inventory) ? prodObj.warehouse_inventory : [];
+      const wi = it.warehouse_inventory;
+      const invFromLine = Array.isArray(wi) ? wi : wi && typeof wi === 'object' ? [wi] : [];
+      const warehouseInventoryRows =
+        invFromProduct.length > 0 ? invFromProduct : invFromLine;
+      const presetWarehouseInventoryId = pickIdString(
+        it.warehouse_inventory_id ?? it.warehouseInventoryId
+      );
       return {
         key: newLineKey(),
         productId,
@@ -206,6 +253,10 @@ const linesFromPurchaseOrder = (po) => {
         qty: qtyStr,
         rate: rateStr,
         totalShipping: totalShipStr,
+        warehouseId,
+        warehouseInventoryRows,
+        presetWarehouseInventoryId,
+        presetWarehouseId: warehouseId,
       };
     })
     .filter(Boolean);
@@ -271,6 +322,8 @@ const PurchaseOrderEdit = () => {
   const [accountsStatus, setAccountsStatus] = useState('idle');
   const [accountsError, setAccountsError] = useState(null);
   const [amountPaidDirty, setAmountPaidDirty] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehousesStatus, setWarehousesStatus] = useState('idle');
   const isSubmitting = updateStatus === 'loading';
 
   useEffect(() => {
@@ -320,6 +373,29 @@ const PurchaseOrderEdit = () => {
           setAccounts([]);
           setAccountsError(err?.message || 'Could not load accounts');
           setAccountsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWarehousesStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchWarehousesRequest({ page: 1, limit: 1000 });
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (!cancelled) {
+          setWarehouses(list);
+          setWarehousesStatus('succeeded');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setWarehouses([]);
+          setWarehousesStatus('failed');
         }
       }
     })();
@@ -405,6 +481,16 @@ const PurchaseOrderEdit = () => {
     !form.account_id ||
     accountOptions.some((a) => accountOptionValue(a) === String(form.account_id));
 
+  const warehouseOptions = useMemo(
+    () => [...warehouses].filter((w) => warehouseOptionValue(w)),
+    [warehouses]
+  );
+
+  const defaultWarehouseId = useMemo(
+    () => (warehouseOptions.length > 0 ? warehouseOptionValue(warehouseOptions[0]) : ''),
+    [warehouseOptions]
+  );
+
   const handleLineEdit = useCallback((key, field, rawValue) => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
@@ -413,26 +499,35 @@ const PurchaseOrderEdit = () => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
 
-  const appendProduct = useCallback((product) => {
-    if (!product || typeof product !== 'object') return;
-    const pid = String(product._id ?? product.id ?? '').trim();
-    if (!pid) return;
-    const rate = productPickerDefaultLineRate(product);
-    setLines((prev) => [
-      ...prev,
-      {
-        key: newLineKey(),
-        productId: pid,
-        label: productPickerLabel(product),
-        qty: '1',
-        rate: String(rate),
-        totalShipping: '',
-      },
-    ]);
-    setAddProductQuery('');
-    setAddProductResults([]);
-    setAddProductError('');
-  }, []);
+  const appendProduct = useCallback(
+    (product) => {
+      if (!product || typeof product !== 'object') return;
+      const pid = String(product._id ?? product.id ?? '').trim();
+      if (!pid) return;
+      const rate = productPickerDefaultLineRate(product);
+      setLines((prev) => [
+        ...prev,
+        {
+          key: newLineKey(),
+          productId: pid,
+          label: productPickerLabel(product),
+          qty: '1',
+          rate: String(rate),
+          totalShipping: '',
+          warehouseId: defaultWarehouseId,
+          warehouseInventoryRows: Array.isArray(product.warehouse_inventory)
+            ? product.warehouse_inventory
+            : [],
+          presetWarehouseInventoryId: '',
+          presetWarehouseId: '',
+        },
+      ]);
+      setAddProductQuery('');
+      setAddProductResults([]);
+      setAddProductError('');
+    },
+    [defaultWarehouseId]
+  );
 
   const summary = useMemo(() => {
     let subTotal = 0;
@@ -484,12 +579,22 @@ const PurchaseOrderEdit = () => {
     const itemRows = lines
       .map((d) => {
         const product_id = String(d?.productId ?? '').trim();
+        const warehouse_id = String(d?.warehouseId ?? '').trim();
+        const resolvedInv = resolveWarehouseInventoryId(d?.warehouseInventoryRows, warehouse_id);
+        const presetInv = String(d?.presetWarehouseInventoryId ?? '').trim();
+        const presetWid = String(d?.presetWarehouseId ?? '').trim();
+        let warehouse_inventory_id = resolvedInv;
+        if (!warehouse_inventory_id && presetInv && presetWid && presetWid === warehouse_id) {
+          warehouse_inventory_id = presetInv;
+        }
         const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
         const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
         const derived = computeLineDerived(d);
         const price = derived.finalRate;
         return {
           product_id,
+          warehouse_id,
+          ...(warehouse_inventory_id ? { warehouse_inventory_id } : {}),
           qty,
           price,
           shipping_per_unit: roundMoney2(derived.shippingPerUnit),
@@ -836,10 +941,10 @@ const PurchaseOrderEdit = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Rate</strong> (base unit price), <strong>Qty</strong>, and optional{' '}
-            <strong>Total shipping</strong> per line. <strong>Shipping / unit</strong> is calculated automatically;{' '}
-            <strong>Amount</strong> uses (rate + shipping per unit) × qty.
-            Remove rows you do not need.
+            Set <strong>Warehouse</strong>, <strong>Rate</strong> (base unit price), <strong>Qty</strong>, and
+            optional <strong>Total shipping</strong> per line. <strong>Shipping / unit</strong> is calculated
+            automatically; <strong>Amount</strong> uses (rate + shipping per unit) × qty. Remove rows you do not
+            need.
           </p>
 
           <div className="table-responsive mb-4">
@@ -848,6 +953,7 @@ const PurchaseOrderEdit = () => {
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th>Description</th>
+                  <th style={{ minWidth: '180px' }}>Warehouse</th>
                   <th className="text-end" style={{ width: '120px' }}>
                     Rate
                   </th>
@@ -869,7 +975,7 @@ const PurchaseOrderEdit = () => {
               <tbody>
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center text-muted py-4">
+                    <td colSpan={9} className="text-center text-muted py-4">
                       No line items. Use <strong>Add product</strong> above to add rows.
                     </td>
                   </tr>
@@ -885,6 +991,39 @@ const PurchaseOrderEdit = () => {
                           {!String(row.productId || '').trim() ? (
                             <div className="small text-warning">Missing product — remove or pick again.</div>
                           ) : null}
+                        </td>
+                        <td className="align-middle">
+                          <select
+                            className="form-select form-select-sm"
+                            aria-label={`Warehouse for line ${i + 1}`}
+                            value={String(row.warehouseId ?? '')}
+                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
+                            disabled={isSubmitting || warehousesStatus === 'loading'}
+                          >
+                            <option value="">Select warehouse</option>
+                            {(() => {
+                              const wid = String(row.warehouseId ?? '').trim();
+                              if (
+                                wid &&
+                                !warehouseOptions.some((w) => warehouseOptionValue(w) === wid)
+                              ) {
+                                return (
+                                  <option value={wid} title={wid}>
+                                    Current warehouse (not in list)
+                                  </option>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {warehouseOptions.map((w) => {
+                              const value = warehouseOptionValue(w);
+                              return (
+                                <option key={value} value={value}>
+                                  {warehouseOptionLabel(w)}
+                                </option>
+                              );
+                            })}
+                          </select>
                         </td>
                         <td className="text-end align-middle">
                           <input
