@@ -82,12 +82,13 @@ const normalizeTransactionsPayload = (result) => {
 };
 
 /**
- * GET /transaction/get-all-active?populate=account_id&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
+ * GET /transaction/get-all-active?populate=account_id&amount_gt=0&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
  * User ledger: `populate=account_id,ref_id,reference_user_id&reference_user_id=<userId>`
  */
 export async function fetchTransactionsRequest(params = {}) {
   const queryParams = new URLSearchParams();
   queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+  queryParams.set('amount_gt', '0');
 
   if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
     queryParams.set('reference_user_id', String(params.referenceUserId).trim());
@@ -160,11 +161,12 @@ export async function fetchTransactionsRequest(params = {}) {
 }
 
 /**
- * GET /transaction/get-my-ledger-transaction?populate=account_id,ref_id,reference_user_id,created_by&reference_user_id=<userId>
+ * GET /transaction/get-my-ledger-transaction?populate=...&amount_gt=0&reference_user_id=<userId>&...
  */
 export async function fetchMyLedgerTransactionsRequest(params = {}) {
   const queryParams = new URLSearchParams();
   queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+  queryParams.set('amount_gt', '0');
 
   if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
     queryParams.set('reference_user_id', String(params.referenceUserId).trim());

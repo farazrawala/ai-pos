@@ -125,6 +125,17 @@ const productPickerUnitPrice = (p) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/** Default PO line rate: wholesale when set and positive, otherwise retail (`product_price` / `price`). */
+const productPickerDefaultLineRate = (p) => {
+  if (!p || typeof p !== 'object') return 0;
+  const wRaw = p.wholesale_price ?? p.wholesalePrice;
+  if (wRaw != null && wRaw !== '') {
+    const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
+    if (Number.isFinite(w) && w > 0) return roundMoney2(w);
+  }
+  return roundMoney2(productPickerUnitPrice(p));
+};
+
 const newLineKey = () => `po-edit-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const resolveProductId = (it) => {
@@ -406,7 +417,7 @@ const PurchaseOrderEdit = () => {
     if (!product || typeof product !== 'object') return;
     const pid = String(product._id ?? product.id ?? '').trim();
     if (!pid) return;
-    const rate = productPickerUnitPrice(product);
+    const rate = productPickerDefaultLineRate(product);
     setLines((prev) => [
       ...prev,
       {

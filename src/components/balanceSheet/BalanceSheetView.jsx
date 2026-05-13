@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { BalanceSheetSummaryBar } from './BalanceSheetSummaryBar.jsx';
 import { formatCurrencyAccounting } from './formatCurrency.js';
 import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
+import { fetchBalanceSheetInventoryCogRequest } from '../../features/balanceSheet/balanceSheetAPI.js';
 import './balanceSheetGl.css';
 
 const MONTH_NAMES = [
@@ -142,6 +143,10 @@ export default function BalanceSheetView() {
   });
   const [fixedAssetLines, setFixedAssetLines] = useState([]);
   const [fixedAssetsStatus, setFixedAssetsStatus] = useState({ loading: true, error: null });
+  const [inventoryLines, setInventoryLines] = useState([]);
+  /** Subtotal for Inventory section; from API `grand_total_cost_of_goods`. */
+  const [inventoryGrandTotal, setInventoryGrandTotal] = useState(0);
+  const [inventoryStatus, setInventoryStatus] = useState({ loading: true, error: null });
 
   const periodStart = useMemo(
     () => startOfCalendarMonth(fromYear, fromMonth),
@@ -205,6 +210,8 @@ export default function BalanceSheetView() {
       setCurrentLiabilitiesStatus({ loading: true, error: null });
       setLongTermLiabilitiesStatus({ loading: true, error: null });
       setFixedAssetsStatus({ loading: true, error: null });
+      setInventoryStatus({ loading: true, error: null });
+      setInventoryGrandTotal(0);
 
       const settled = await Promise.allSettled([
         fetchAccountsByTypeRequest('current_asset'),
@@ -212,11 +219,18 @@ export default function BalanceSheetView() {
         fetchAccountsByTypeRequest('current_liability'),
         fetchAccountsByTypeRequest('long_term_liability'),
         fetchAccountsByTypeRequest('fixed_asset'),
+        fetchBalanceSheetInventoryCogRequest(),
       ]);
       if (cancelled) return;
 
-      const [currentRes, equityRes, currentLiabilityRes, longTermLiabilityRes, fixedAssetRes] =
-        settled;
+      const [
+        currentRes,
+        equityRes,
+        currentLiabilityRes,
+        longTermLiabilityRes,
+        fixedAssetRes,
+        inventoryRes,
+      ] = settled;
 
       if (currentRes.status === 'fulfilled') {
         const list = currentRes.value;
@@ -281,6 +295,21 @@ export default function BalanceSheetView() {
           error: fixedAssetRes.reason?.message || 'Failed to load fixed assets',
         });
       }
+
+      if (inventoryRes.status === 'fulfilled') {
+        const { lines, grandTotal } = inventoryRes.value;
+        setInventoryLines(Array.isArray(lines) ? lines : []);
+        const gt = Number(grandTotal);
+        setInventoryGrandTotal(Number.isFinite(gt) ? gt : 0);
+        setInventoryStatus({ loading: false, error: null });
+      } else {
+        setInventoryLines([]);
+        setInventoryGrandTotal(0);
+        setInventoryStatus({
+          loading: false,
+          error: inventoryRes.reason?.message || 'Failed to load inventory',
+        });
+      }
     })();
     return () => {
       cancelled = true;
@@ -291,6 +320,7 @@ export default function BalanceSheetView() {
     () => ({
       assets: {
         current: currentAssetLines,
+        inventory: inventoryLines,
         nonCurrent: fixedAssetLines,
       },
       liabilities: {
@@ -299,11 +329,19 @@ export default function BalanceSheetView() {
       },
       equity: equityLines,
     }),
-    [currentAssetLines, currentLiabilityLines, longTermLiabilityLines, equityLines, fixedAssetLines]
+    [
+      currentAssetLines,
+      inventoryLines,
+      currentLiabilityLines,
+      longTermLiabilityLines,
+      equityLines,
+      fixedAssetLines,
+    ]
   );
 
   const {
     totalCurrentAssets,
+    totalInventory,
     totalNonCurrentAssets,
     totalAssets,
     totalCurrentLiabilities,
@@ -316,8 +354,9 @@ export default function BalanceSheetView() {
   } = useMemo(() => {
     const data = sheetData;
     const totalCurrentAssets = sumLines(data.assets.current);
+    const totalInventory = inventoryGrandTotal;
     const totalNonCurrentAssets = sumLines(data.assets.nonCurrent);
-    const totalAssets = totalCurrentAssets + totalNonCurrentAssets;
+    const totalAssets = totalCurrentAssets + totalInventory + totalNonCurrentAssets;
 
     const totalCurrentLiabilities = sumLines(data.liabilities.current);
     const totalLongTermLiabilities = sumLines(data.liabilities.longTerm);
@@ -329,6 +368,7 @@ export default function BalanceSheetView() {
 
     return {
       totalCurrentAssets,
+      totalInventory,
       totalNonCurrentAssets,
       totalAssets,
       totalCurrentLiabilities,
@@ -339,7 +379,7 @@ export default function BalanceSheetView() {
       difference,
       balanced,
     };
-  }, [sheetData]);
+  }, [sheetData, inventoryGrandTotal]);
 
   const assetGroups = useMemo(
     () => [
@@ -349,12 +389,17 @@ export default function BalanceSheetView() {
         subtotal: totalCurrentAssets,
       },
       {
+        title: 'Inventory',
+        lines: sheetData.assets.inventory,
+        subtotal: totalInventory,
+      },
+      {
         title: 'Non-current assets',
         lines: sheetData.assets.nonCurrent,
         subtotal: totalNonCurrentAssets,
       },
     ],
-    [sheetData, totalCurrentAssets, totalNonCurrentAssets]
+    [sheetData, totalCurrentAssets, totalInventory, totalNonCurrentAssets]
   );
 
   const liabilityEquityGroups = useMemo(
@@ -459,11 +504,15 @@ export default function BalanceSheetView() {
                   equityStatus.loading ||
                   currentLiabilitiesStatus.loading ||
                   longTermLiabilitiesStatus.loading ||
-                  fixedAssetsStatus.loading) && (
+                  fixedAssetsStatus.loading ||
+                  inventoryStatus.loading) && (
                   <div className="text-muted small">Loading accounts…</div>
                 )}
                 {currentAssetsStatus.error && (
                   <div className="text-danger small">{currentAssetsStatus.error}</div>
+                )}
+                {inventoryStatus.error && (
+                  <div className="text-danger small">{inventoryStatus.error}</div>
                 )}
                 {equityStatus.error && (
                   <div className="text-danger small">{equityStatus.error}</div>
