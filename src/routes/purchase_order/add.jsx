@@ -147,6 +147,34 @@ const warehouseOptionLabel = (w) => {
   return w.name ?? w.warehouse_name ?? w.title ?? 'Warehouse';
 };
 
+/** Coerce populated warehouse refs to an id string. */
+function idFromWarehouseRef(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.$oid ?? raw.id;
+    return id != null ? String(id).trim() : '';
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
+  return String(raw).trim();
+}
+
+/**
+ * Find the warehouse-inventory row id for the chosen warehouse (from product search payload).
+ */
+function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
+  const wid = String(warehouseId ?? '').trim();
+  if (!wid || !Array.isArray(warehouseInventoryRows)) return '';
+  for (const row of warehouseInventoryRows) {
+    if (!row || typeof row !== 'object') continue;
+    const rowWid = idFromWarehouseRef(row.warehouse_id ?? row.warehouseId ?? row.warehouse);
+    if (rowWid === wid) {
+      const invId = row._id ?? row.id;
+      if (invId != null && String(invId).trim() !== '') return String(invId).trim();
+    }
+  }
+  return '';
+}
+
 const PurchaseOrderAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -335,6 +363,9 @@ const PurchaseOrderAdd = () => {
           rate: String(rate),
           totalShipping: '',
           warehouseId: defaultWarehouseId,
+          warehouseInventoryRows: Array.isArray(product.warehouse_inventory)
+            ? product.warehouse_inventory
+            : [],
         },
       ]);
       setAddProductQuery('');
@@ -397,6 +428,10 @@ const PurchaseOrderAdd = () => {
       .map((d) => {
         const product_id = String(d?.productId ?? '').trim();
         const warehouse_id = String(d?.warehouseId ?? '').trim();
+        const warehouse_inventory_id = resolveWarehouseInventoryId(
+          d?.warehouseInventoryRows,
+          warehouse_id
+        );
         const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
         const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
         const derived = computeLineDerived(d);
@@ -404,6 +439,7 @@ const PurchaseOrderAdd = () => {
         return {
           product_id,
           warehouse_id,
+          ...(warehouse_inventory_id ? { warehouse_inventory_id } : {}),
           qty,
           price,
           shipping_per_unit: roundMoney2(derived.shippingPerUnit),

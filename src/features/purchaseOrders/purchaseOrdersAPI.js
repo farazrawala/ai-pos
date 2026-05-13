@@ -374,7 +374,7 @@ export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {
  * `vendor_id`, `description`, `ref_no`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`, `amount_paid` (from UI `amount_received` / `amount_paid`),
  * `remaining_amount`, `total_amount`, `expected_delivery_date`,
- * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`,
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`, `warehouse_inventory_id[n]` (optional),
  * `shipping_per_unit[n]`, `total_shipping[n]` (per line, same index as product rows).
  *
  * UI may send `supplier_id`, `purchase_order_no`, `notes`, and `items[]` with per-line
@@ -468,6 +468,12 @@ export async function createPurchaseOrderRequest(payload = {}) {
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
     if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
+    const warehouseInventoryId = String(
+      line.warehouse_inventory_id ?? line.warehouseInventoryId ?? ''
+    ).trim();
+    if (warehouseInventoryId) {
+      form.append(`warehouse_inventory_id[${idx}]`, warehouseInventoryId);
+    }
     const spu = line.shipping_per_unit ?? line.shippingPerUnit;
     const ts = line.total_shipping ?? line.totalShipping;
     const spuN =
@@ -517,7 +523,7 @@ export async function createPurchaseOrderRequest(payload = {}) {
 /**
  * PATCH `purchase_order/purchase_order_update/:id` — multipart form fields:
  * `name`, `email`, `phone`, `address`, `vendor_id`, `description`, `ref_no`,
- * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`,
+ * `product_id[n]`, `qty[n]`, `price[n]`, `warehouse_id[n]`, `warehouse_inventory_id[n]` (optional),
  * `shipping_per_unit[n]`, `total_shipping[n]`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`,
  * `order_status`, `amount_paid` (from UI `amount_received` / `amount_paid`), `remaining_amount`, `total_amount`
@@ -618,6 +624,12 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
     if (qty != null && qty !== '') form.append(`qty[${idx}]`, String(qty));
     if (price != null && price !== '') form.append(`price[${idx}]`, String(price));
     if (warehouseId) form.append(`warehouse_id[${idx}]`, warehouseId);
+    const warehouseInventoryId = String(
+      line.warehouse_inventory_id ?? line.warehouseInventoryId ?? ''
+    ).trim();
+    if (warehouseInventoryId) {
+      form.append(`warehouse_inventory_id[${idx}]`, warehouseInventoryId);
+    }
     const spu = line.shipping_per_unit ?? line.shippingPerUnit;
     const ts = line.total_shipping ?? line.totalShipping;
     const spuN =

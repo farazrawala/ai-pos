@@ -34,10 +34,19 @@ function createInitialSteps() {
       save: {
         login_email: 'response.data.data.user.email',
         login_password: 'response.data.data.user.email',
+        company_id: [
+          'response.data.data.company._id',
+          'response.data.data.company.id',
+          'response.data.data.user.company_id',
+          'response.data.data.user.company',
+          'response.data.company._id',
+          'response.data.company.id',
+          'response.data.user.company_id',
+        ],
         workflow_user_id: [
           'response.data.data.user._id',
           'response.data.data.user.id',
-          'response.data.user._id',
+          'response.data.company._id',
         ],
       },
     },
@@ -56,7 +65,33 @@ function createInitialSteps() {
           'response.data.data.user.token',
           'response.data.user.token',
         ],
+        company_id: [
+          'response.data.data.user.company_id',
+          'response.data.data.user.company',
+          'response.data.data.company._id',
+          'response.data.data.company.id',
+          'response.data.user.company_id',
+          'response.data.company._id',
+        ],
       },
+    },
+    {
+      name: 'Create warehouse — Ware House 1 3',
+      method: 'POST',
+      url: '{{url}}api/warehouse/create',
+      body: {
+        name: 'Ware House 1 3',
+      },
+      save: {},
+    },
+    {
+      name: 'Create warehouse — Ware House 2',
+      method: 'POST',
+      url: '{{url}}api/warehouse/create',
+      body: {
+        name: 'Ware House 2',
+      },
+      save: {},
     },
     {
       name: 'Create category — category 1',

@@ -18,6 +18,17 @@ export function getByPath(root, path) {
  * Each value may be a single path string or an array of paths; the first path
  * that resolves to a non-nullish value wins (useful for alternate API shapes).
  */
+function normalizeSavedScalar(value) {
+  if (value == null) return undefined;
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const id = value._id ?? value.id;
+    if (id == null) return undefined;
+    return String(id).trim() || undefined;
+  }
+  const s = String(value).trim();
+  return s === '' ? undefined : s;
+}
+
 export function applySaveMap(axiosResponse, saveMap, variables) {
   if (!saveMap || typeof saveMap !== 'object') return variables;
   const next = { ...variables };
@@ -28,12 +39,16 @@ export function applySaveMap(axiosResponse, saveMap, variables) {
     for (const p of paths) {
       if (typeof p !== 'string') continue;
       const v = getByPath(root, p);
-      if (v != null) {
+      if (v != null && (typeof v !== 'string' || v.trim() !== '')) {
         chosen = v;
         break;
       }
     }
-    next[varName] = chosen;
+    if (chosen === undefined) continue;
+    const normalized = normalizeSavedScalar(chosen);
+    if (normalized !== undefined) {
+      next[varName] = normalized;
+    }
   }
   return next;
 }
