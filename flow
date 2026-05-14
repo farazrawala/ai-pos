@@ -12,6 +12,7 @@ Stock in (purchase)
 Stock out (sales)
 
 Adjustments
+
 Sales (Main POS Screen)
 Discount (item / total)
 Tax (optional)
@@ -122,12 +123,7 @@ flow
 -> sales -> on cash, a/c receivable, multiple accounts.
 Income statement dynamic.
 
-
-
-
 -modules missing.
 Receipt voucher receive/send.
-purchase mein shipping_id 
+purchase mein shipping_id
 purchases mein discount remove from total :: line item mein add hoga.
-
-
