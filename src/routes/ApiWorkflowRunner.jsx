@@ -8,10 +8,16 @@ import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 
 const DEFAULT_BASE = '';
 
-/** Fresh workflow on each page load; email uses a timestamp so re-runs are less likely to collide. */
+/** Short unique local part per mount: `comp_<random>@gmail.com`. */
+function compRandEmail() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `comp_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}@gmail.com`;
+  }
+  return `comp_${Math.random().toString(36).slice(2, 11)}${Math.random().toString(36).slice(2, 7)}@gmail.com`;
+}
+
 function createInitialSteps() {
-  const rid = Date.now();
-  const email = `company_${rid}@gmail.com`;
+  const email = compRandEmail();
   return [
     {
       name: 'Create master user + company',
@@ -180,13 +186,22 @@ function createInitialSteps() {
   ];
 }
 
-let initialStepsCache;
-function getInitialSteps() {
-  if (!initialStepsCache) initialStepsCache = createInitialSteps();
-  return initialStepsCache;
-}
-
 const emptyStatuses = (n) => Array.from({ length: n }, () => 'pending');
+
+/** One shared snapshot per component mount (avoids multiple `createInitialSteps()` calls with different emails). */
+function useInitialRunnerSnapshot() {
+  const ref = useRef(null);
+  if (ref.current === null) {
+    const steps = createInitialSteps();
+    ref.current = {
+      steps,
+      statuses: emptyStatuses(steps.length),
+      bodyText: JSON.stringify(steps[0]?.body ?? {}, null, 2),
+      stepResults: Array.from({ length: steps.length }, () => null),
+    };
+  }
+  return ref.current;
+}
 
 /** `{{url}}` in step URLs: API root with trailing slash (from Base URL or current browser origin). */
 function buildInterpVars(varsSnapshot, baseUrlRaw) {
@@ -201,17 +216,14 @@ function buildInterpVars(varsSnapshot, baseUrlRaw) {
 }
 
 const ApiWorkflowRunner = () => {
-  const [steps, setSteps] = useState(() => getInitialSteps());
+  const initialSnapshot = useInitialRunnerSnapshot();
+  const [steps, setSteps] = useState(() => initialSnapshot.steps);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
   const [variables, setVariables] = useState({});
-  const [statuses, setStatuses] = useState(() => emptyStatuses(getInitialSteps().length));
+  const [statuses, setStatuses] = useState(() => initialSnapshot.statuses);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [bodyText, setBodyText] = useState(() =>
-    JSON.stringify(getInitialSteps()[0]?.body ?? {}, null, 2)
-  );
-  const [stepResults, setStepResults] = useState(() =>
-    Array.from({ length: getInitialSteps().length }, () => null)
-  );
+  const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
+  const [stepResults, setStepResults] = useState(() => initialSnapshot.stepResults);
   const [loadingStep, setLoadingStep] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
 
