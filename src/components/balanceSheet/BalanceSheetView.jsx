@@ -4,6 +4,7 @@ import { formatCurrencyAccounting } from './formatCurrency.js';
 import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchBalanceSheetInventoryCogRequest } from '../../features/balanceSheet/balanceSheetAPI.js';
 import './balanceSheetGl.css';
+import './balanceSheetDark.css';
 
 const MONTH_NAMES = [
   'January',
@@ -58,8 +59,52 @@ function sumLines(lines) {
   return lines.reduce((acc, row) => acc + row.amount, 0);
 }
 
+function formatCompactMillions(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '—';
+  const abs = Math.abs(x);
+  if (abs >= 1_000_000) return `$${(x / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `$${(x / 1_000).toFixed(2)}K`;
+  return formatCurrencyAccounting(x);
+}
+
+/** Emphasis for select lines (inventory, certain debt / deferrals), matching dashboard mock. */
+function lineAmountClassName(label, sectionTitle) {
+  const l = String(label || '').toLowerCase();
+  const t = String(sectionTitle || '').toLowerCase();
+  if (t.includes('inventory')) return 'bs-gl-amt-warn';
+  if (t.includes('current liabilit')) {
+    if (
+      l.includes('debt') ||
+      l.includes('loan') ||
+      l.includes('borrowing') ||
+      l.includes('line of credit') ||
+      l.includes('note payable')
+    ) {
+      return 'bs-gl-amt-warn';
+    }
+  }
+  if (t.includes('long-term') && (l.includes('defer') || l.includes('deferred'))) return 'bs-gl-amt-warn';
+  return '';
+}
+
 function GlStatementPanel({ variant, heading, periodSuffix, groups, grandTotal, grandLabel }) {
   const hdClass = variant === 'assets' ? 'assets' : 'le';
+  const [expanded, setExpanded] = useState(() => new Set(groups.map((g) => g.title)));
+
+  useEffect(() => {
+    setExpanded(new Set(groups.map((g) => g.title)));
+  }, [groups]);
+
+  const toggle = (title) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  };
+
   return (
     <div className="bs-gl-panel">
       <div className={`bs-gl-panel-hd ${hdClass}`}>
@@ -76,23 +121,50 @@ function GlStatementPanel({ variant, heading, periodSuffix, groups, grandTotal, 
           </tr>
         </thead>
         <tbody>
-          {groups.map((g) => (
-            <Fragment key={g.title}>
-              <tr className="bs-gl-section">
-                <td colSpan={2}>{g.title}</td>
-              </tr>
-              {g.lines.map((row, lineIdx) => (
-                <tr key={row.id || `${g.title}-${row.label}-${lineIdx}`} className="bs-gl-line">
-                  <td>{row.label}</td>
-                  <td className="num">{formatCurrencyAccounting(row.amount)}</td>
+          {groups.map((g) => {
+            const open = expanded.has(g.title);
+            return (
+              <Fragment key={g.title}>
+                <tr
+                  className="bs-gl-section"
+                  onClick={() => toggle(g.title)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggle(g.title);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-expanded={open}
+                >
+                  <td>
+                    <span className="bs-gl-chevron" aria-hidden>
+                      {open ? '▼' : '▶'}
+                    </span>
+                    {g.title}
+                  </td>
+                  <td className="num">{formatCurrencyAccounting(g.subtotal)}</td>
                 </tr>
-              ))}
-              <tr className="bs-gl-subtotal">
-                <td>Subtotal</td>
-                <td className="num">{formatCurrencyAccounting(g.subtotal)}</td>
-              </tr>
-            </Fragment>
-          ))}
+                {open ? (
+                  <>
+                    {g.lines.map((row, lineIdx) => (
+                      <tr key={row.id || `${g.title}-${row.label}-${lineIdx}`} className="bs-gl-line">
+                        <td>{row.label}</td>
+                        <td className={`num ${lineAmountClassName(row.label, g.title)}`}>
+                          {formatCurrencyAccounting(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bs-gl-subtotal">
+                      <td>Subtotal</td>
+                      <td className="num">{formatCurrencyAccounting(g.subtotal)}</td>
+                    </tr>
+                  </>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </tbody>
         <tfoot>
           <tr>
@@ -176,6 +248,11 @@ export default function BalanceSheetView() {
     const df = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
     return df.format(periodEnd);
   }, [periodEnd]);
+
+  const quarterExact = useMemo(
+    () => quarterLabelIfExact(periodStart, periodEnd),
+    [periodStart, periodEnd]
+  );
 
   const setFrom = (y, m) => {
     setFromYear(y);
@@ -427,16 +504,54 @@ export default function BalanceSheetView() {
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12 px-3 px-md-4 py-2">
-          <div className="bs-gl-frame">
-            <div className="bs-gl">
-              <div className="bs-gl-toolbar">
-                <div className="bs-gl-toolbar-title">
-                  <h1>Statement of financial position</h1>
-                  <div className="bs-gl-sub">
-                    Balance sheet · As of {asOfLabel} · Basis: accrual (sample)
+          <div className="bs-bs-dark">
+            <div className="bs-gl-frame">
+              <div className="bs-gl">
+                <div className="bs-bs-hero">
+                  <h1>
+                    Consolidated financial position{' '}
+                    <span className="bs-bs-hero-muted">(assets vs liabilities)</span>
+                    {quarterExact ? (
+                      <>
+                        {' '}
+                        | {quarterExact}{' '}
+                        <span className="bs-bs-hero-muted">(ending {asOfLabel})</span>
+                      </>
+                    ) : (
+                      <>
+                        {' '}
+                        | <span className="bs-bs-hero-muted">{rangeDetail}</span>
+                      </>
+                    )}
+                  </h1>
+                </div>
+
+                <div className="bs-bs-balance-strip">
+                  Balance: ({formatCurrencyAccounting(difference)}){' '}
+                  <span className={balanced ? 'ok' : 'bad'}>
+                    {balanced ? 'Check · OK' : 'Check · review'}
+                  </span>
+                </div>
+
+                <div className="bs-bs-kpi-row">
+                  <div className="bs-bs-kpi-card">
+                    <div className="lbl">Total assets</div>
+                    <div className="val">{formatCompactMillions(totalAssets)}</div>
+                  </div>
+                  <div className="bs-bs-kpi-card">
+                    <div className="lbl">Total liabilities & equity</div>
+                    <div className="val">{formatCompactMillions(liabilitiesPlusEquity)}</div>
                   </div>
                 </div>
-                <div className="bs-gl-filters">
+
+                <div className="bs-gl-toolbar">
+                  <div className="bs-gl-toolbar-title">
+                    <h1>Reporting period</h1>
+                    <div className="bs-gl-sub">
+                      As of {asOfLabel} · Accrual basis (sample)
+                    </div>
+                  </div>
+                  <div className="bs-gl-filters">
                   <div className="bs-gl-fg">
                     <span>From</span>
                     <div className="d-flex gap-1">
@@ -495,43 +610,43 @@ export default function BalanceSheetView() {
                       </select>
                     </div>
                   </div>
+                  </div>
+                  <div className="bs-gl-meta">
+                    <span className="bs-gl-meta-label">Reporting range</span>
+                    <span className="bs-gl-meta-value">{rangeDetail}</span>
+                  </div>
+                  {(currentAssetsStatus.loading ||
+                    equityStatus.loading ||
+                    currentLiabilitiesStatus.loading ||
+                    longTermLiabilitiesStatus.loading ||
+                    fixedAssetsStatus.loading ||
+                    inventoryStatus.loading) && (
+                    <div className="text-muted small">Loading accounts…</div>
+                  )}
+                  {currentAssetsStatus.error && (
+                    <div className="text-danger small">{currentAssetsStatus.error}</div>
+                  )}
+                  {inventoryStatus.error && (
+                    <div className="text-danger small">{inventoryStatus.error}</div>
+                  )}
+                  {equityStatus.error && (
+                    <div className="text-danger small">{equityStatus.error}</div>
+                  )}
+                  {currentLiabilitiesStatus.error && (
+                    <div className="text-danger small">{currentLiabilitiesStatus.error}</div>
+                  )}
+                  {longTermLiabilitiesStatus.error && (
+                    <div className="text-danger small">{longTermLiabilitiesStatus.error}</div>
+                  )}
+                  {fixedAssetsStatus.error && (
+                    <div className="text-danger small">{fixedAssetsStatus.error}</div>
+                  )}
                 </div>
-                <div className="bs-gl-meta">
-                  <span className="bs-gl-meta-label">Reporting range</span>
-                  <span className="bs-gl-meta-value">{rangeDetail}</span>
-                </div>
-                {(currentAssetsStatus.loading ||
-                  equityStatus.loading ||
-                  currentLiabilitiesStatus.loading ||
-                  longTermLiabilitiesStatus.loading ||
-                  fixedAssetsStatus.loading ||
-                  inventoryStatus.loading) && (
-                  <div className="text-muted small">Loading accounts…</div>
-                )}
-                {currentAssetsStatus.error && (
-                  <div className="text-danger small">{currentAssetsStatus.error}</div>
-                )}
-                {inventoryStatus.error && (
-                  <div className="text-danger small">{inventoryStatus.error}</div>
-                )}
-                {equityStatus.error && (
-                  <div className="text-danger small">{equityStatus.error}</div>
-                )}
-                {currentLiabilitiesStatus.error && (
-                  <div className="text-danger small">{currentLiabilitiesStatus.error}</div>
-                )}
-                {longTermLiabilitiesStatus.error && (
-                  <div className="text-danger small">{longTermLiabilitiesStatus.error}</div>
-                )}
-                {fixedAssetsStatus.error && (
-                  <div className="text-danger small">{fixedAssetsStatus.error}</div>
-                )}
-              </div>
 
-              <div className="bs-gl-panels">
+                <div className="bs-gl-panels">
                 <GlStatementPanel
                   variant="assets"
-                  heading="Assets"
+                  heading="Asset breakdown"
                   periodSuffix={periodSuffix}
                   groups={assetGroups}
                   grandTotal={totalAssets}
@@ -539,15 +654,15 @@ export default function BalanceSheetView() {
                 />
                 <GlStatementPanel
                   variant="le"
-                  heading="Liabilities & equity"
+                  heading="Liabilities & equity breakdown"
                   periodSuffix={periodSuffix}
                   groups={liabilityEquityGroups}
                   grandTotal={liabilitiesPlusEquity}
                   grandLabel="Total liabilities & equity"
                 />
-              </div>
+                </div>
 
-              <div className={`bs-gl-status ${balanced ? 'ok' : 'warn'}`}>
+                <div className={`bs-gl-status ${balanced ? 'ok' : 'warn'}`}>
                 <span>
                   <strong>Equation check:</strong> Assets ({formatCurrencyAccounting(totalAssets)})
                   = Liabilities + equity ({formatCurrencyAccounting(liabilitiesPlusEquity)})
@@ -561,14 +676,15 @@ export default function BalanceSheetView() {
                     </span>
                   )}
                 </span>
-              </div>
+                </div>
 
-              <BalanceSheetSummaryBar
-                totalAssets={totalAssets}
-                liabilitiesPlusEquity={liabilitiesPlusEquity}
-                difference={difference}
-                formatCurrency={formatCurrencyAccounting}
-              />
+                <BalanceSheetSummaryBar
+                  totalAssets={totalAssets}
+                  liabilitiesPlusEquity={liabilitiesPlusEquity}
+                  difference={difference}
+                  formatCurrency={formatCurrencyAccounting}
+                />
+              </div>
             </div>
           </div>
         </div>

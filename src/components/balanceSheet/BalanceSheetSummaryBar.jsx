@@ -23,10 +23,7 @@ export function BalanceSheetSummaryBar({
       {cells.map((cell) => (
         <div key={cell.label} className="bs-gl-summary-cell">
           <div className="lbl">{cell.label}</div>
-          <div
-            className="val"
-            style={cell.warn ? { color: '#b45309' } : undefined}
-          >
+          <div className={`val${cell.warn ? ' bs-gl-summary-warn' : ''}`}>
             {formatCurrency(cell.value)}
           </div>
         </div>

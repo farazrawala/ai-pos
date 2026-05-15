@@ -390,3 +390,7 @@
   color: var(--bs-gl-text);
   letter-spacing: -0.02em;
 }
+
+.bs-gl .bs-gl-summary-cell .val.bs-gl-summary-warn {
+  color: #b45309;
+}
