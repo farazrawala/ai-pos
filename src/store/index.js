@@ -16,6 +16,7 @@ import transactionsReducer from '../features/transactions/transactionsSlice.js';
 import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
 import paymentReceiptsReducer from '../features/paymentReceipts/paymentReceiptsSlice.js';
+import expensesReducer from '../features/expenses/expensesSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -37,6 +38,7 @@ const store = configureStore({
     stockMovement: stockMovementReducer,
     incomeStatement: incomeStatementReducer,
     paymentReceipts: paymentReceiptsReducer,
+    expenses: expensesReducer,
   },
 });
 

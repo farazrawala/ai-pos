@@ -49,6 +49,8 @@ import PaymentReceiptsList from './routes/payment_receipt/index.jsx';
 import PaymentReceiptEditPage from './routes/payment_receipt/edit.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
+import ExpenseIndex from './routes/expense/index.jsx';
+import ExpenseAdd from './routes/expense/add.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
@@ -110,6 +112,8 @@ const App = () => {
           <Route path="/accounts/payment-receipts" element={<PaymentReceiptsList />} />
           <Route path="/accounts/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
+          <Route path="/expenses" element={<ExpenseIndex />} />
+          <Route path="/expenses/add" element={<ExpenseAdd />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
@@ -190,6 +194,8 @@ const App = () => {
           <Route path="/accounts/payment-receipts" element={<PaymentReceiptsList />} />
           <Route path="/accounts/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
+          <Route path="/expenses" element={<ExpenseIndex />} />
+          <Route path="/expenses/add" element={<ExpenseAdd />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
