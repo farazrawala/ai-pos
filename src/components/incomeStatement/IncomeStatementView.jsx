@@ -58,7 +58,11 @@ function getPriorRange(periodStart, periodEnd) {
 
 function formatRangeHeading(start, end) {
   const my = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
-  const dmy = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const dmy = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
   if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
     return `${my.format(start)} (Ending ${dmy.format(end)})`;
   }
@@ -156,13 +160,7 @@ function MonthlyBarsSvg({ labels, revenue, expenses }) {
           <g key={lab}>
             <rect x={xR} y={yR} width={barW} height={hR} fill={revenueFill} rx={2} />
             <rect x={xE} y={yE} width={barW} height={hE} fill={expenseFill} rx={2} />
-            <text
-              x={gx + groupW / 2}
-              y={h - 6}
-              fill="#94a3b8"
-              fontSize="10"
-              textAnchor="middle"
-            >
+            <text x={gx + groupW / 2} y={h - 6} fill="#94a3b8" fontSize="10" textAnchor="middle">
               {lab}
             </text>
           </g>
@@ -215,7 +213,10 @@ function OpExDonut({ items, colors }) {
             className="d-flex align-items-center justify-content-between gap-2 py-1"
             style={{ fontSize: '0.75rem' }}
           >
-            <span className="d-flex align-items-center gap-2 text-truncate" style={{ maxWidth: '10rem' }}>
+            <span
+              className="d-flex align-items-center gap-2 text-truncate"
+              style={{ maxWidth: '10rem' }}
+            >
               <span
                 style={{
                   width: 8,
@@ -229,7 +230,10 @@ function OpExDonut({ items, colors }) {
                 {s.label}
               </span>
             </span>
-            <span className="text-muted flex-shrink-0" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <span
+              className="text-muted flex-shrink-0"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            >
               {((Number(s.amount) / total) * 100).toFixed(0)}%
             </span>
           </li>
@@ -260,7 +264,10 @@ export default function IncomeStatementView() {
   const [tableFilter, setTableFilter] = useState('');
   const [expanded, setExpanded] = useState(() => new Set(['revenue', 'cogs', 'opex']));
 
-  const periodStart = useMemo(() => startOfCalendarMonth(fromYear, fromMonth), [fromYear, fromMonth]);
+  const periodStart = useMemo(
+    () => startOfCalendarMonth(fromYear, fromMonth),
+    [fromYear, fromMonth]
+  );
   const periodEnd = useMemo(() => endOfCalendarMonth(toYear, toMonth), [toYear, toMonth]);
 
   const { priorStart, priorEnd } = useMemo(
@@ -268,13 +275,18 @@ export default function IncomeStatementView() {
     [periodStart, periodEnd]
   );
 
-  const rangeLabel = useMemo(() => formatRangeHeading(periodStart, periodEnd), [periodStart, periodEnd]);
+  const rangeLabel = useMemo(
+    () => formatRangeHeading(periodStart, periodEnd),
+    [periodStart, periodEnd]
+  );
   const priorColLabel = useMemo(
-    () => new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(priorStart),
+    () =>
+      new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(priorStart),
     [priorStart]
   );
   const currentColLabel = useMemo(
-    () => new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(periodStart),
+    () =>
+      new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(periodStart),
     [periodStart]
   );
 
@@ -483,15 +495,7 @@ export default function IncomeStatementView() {
     pushSubtotal('Net income', totals.netIncome, priorTotals.netIncome, false);
 
     return rows;
-  }, [
-    report,
-    priorReport,
-    priorTotals,
-    totals,
-    expanded,
-    tableFilter,
-    priorReady,
-  ]);
+  }, [report, priorReport, priorTotals, totals, expanded, tableFilter, priorReady]);
 
   const exportCsv = () => {
     const lines = [['Account', priorColLabel, currentColLabel, 'Change %', 'YTD']];
@@ -500,9 +504,12 @@ export default function IncomeStatementView() {
         lines.push([r.label, String(r.pri), String(r.cur), r.deltaText, String(r.ytd)]);
       }
     });
-    const blob = new Blob([lines.map((x) => x.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], {
-      type: 'text/csv;charset=utf-8',
-    });
+    const blob = new Blob(
+      [lines.map((x) => x.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')],
+      {
+        type: 'text/csv;charset=utf-8',
+      }
+    );
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'income-statement.csv';
@@ -543,7 +550,7 @@ export default function IncomeStatementView() {
 
   return (
     <div className="is-ledger">
-      <header className="is-ledger-topbar">
+      {/* <header className="is-ledger-topbar">
         <div className="is-ledger-brand">
           Ledger <span>Technology</span>
         </div>
@@ -558,7 +565,7 @@ export default function IncomeStatementView() {
             <span className="is-ledger-user-name">{userName}</span>
           </div>
         </div>
-      </header>
+      </header> */}
 
       <div className="is-ledger-main">
         <div className="is-ledger-panel">
@@ -571,8 +578,8 @@ export default function IncomeStatementView() {
                 {demo ? <span className="is-ledger-demo-pill">Demo data</span> : null}
               </h1>
               <p className="is-ledger-subtitle">
-                Revenue, COGS, operating expenses, and net income — compared to the prior period of equal
-                length.
+                Revenue, COGS, operating expenses, and net income — compared to the prior period of
+                equal length.
               </p>
             </div>
             <div className="d-flex flex-column align-items-stretch align-items-md-end gap-2">
@@ -659,7 +666,9 @@ export default function IncomeStatementView() {
               </div>
             </div>
             {priorStatus === 'loading' ? (
-              <span className="small text-muted align-self-center ms-md-auto">Loading prior period…</span>
+              <span className="small text-muted align-self-center ms-md-auto">
+                Loading prior period…
+              </span>
             ) : null}
           </div>
 
@@ -685,7 +694,9 @@ export default function IncomeStatementView() {
               <div className="is-ledger-cards">
                 <div className="is-ledger-card">
                   <p className="is-ledger-card-title">Gross revenue</p>
-                  <p className="is-ledger-card-value">{formatCompactMillions(totals.totalRevenue)}</p>
+                  <p className="is-ledger-card-value">
+                    {formatCompactMillions(totals.totalRevenue)}
+                  </p>
                   <p className={`is-ledger-card-delta ${revDelta.kind}`}>{revDelta.text}</p>
                 </div>
                 <div className="is-ledger-card">
@@ -719,7 +730,12 @@ export default function IncomeStatementView() {
                       aria-label="Filter table"
                     />
                   </div>
-                  <button type="button" className="is-ledger-icon-btn" aria-label="Sort" title="Sort">
+                  <button
+                    type="button"
+                    className="is-ledger-icon-btn"
+                    aria-label="Sort"
+                    title="Sort"
+                  >
                     <i className="fas fa-sort" />
                   </button>
                   <button
