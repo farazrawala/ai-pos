@@ -8,7 +8,7 @@ const BASE_URL = `${API_BASE_URL}/`;
  */
 const INVENTORY_COG_PATH =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BALANCE_SHEET_INVENTORY_COG_PATH) ||
-  'product/cost-of-goods-available';
+  'inventory_movements/cost-of-goods-available';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';

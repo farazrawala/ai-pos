@@ -5,6 +5,37 @@ import moment from 'moment';
 import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
+/** Logs list: show at most 40 chars; full URL in native tooltip on hover. */
+function LogUrlCell({ url }) {
+  const raw = url == null ? '' : String(url).trim();
+  if (!raw) {
+    return <span className="text-muted">—</span>;
+  }
+  const display = raw.length > 40 ? `${raw.slice(0, 40)}…` : raw;
+  return (
+    <code className="text-xs" title={raw}>
+      {display}
+    </code>
+  );
+}
+
+/** Single-line ellipsis in table; full text on hover via `title`. */
+function LogDescriptionCell({ text, maxWidth = 'min(22rem, 38vw)' }) {
+  const raw = text == null ? '' : String(text).trim();
+  if (!raw) {
+    return <span className="text-muted">—</span>;
+  }
+  return (
+    <div
+      className="text-truncate text-sm"
+      style={{ maxWidth }}
+      title={raw}
+    >
+      {raw}
+    </div>
+  );
+}
+
 const Logs = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -238,12 +269,14 @@ const Logs = () => {
                     <thead className="thead-light">
                       <tr>
                         <th>S.No</th>
+                        <th>User</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('action')}
                           onDoubleClick={() => handleSort('action', true)}
                         >
-                          User
+                          Action
+                          {renderSortIcon('action')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -253,14 +286,14 @@ const Logs = () => {
                           URL
                           {renderSortIcon('url')}
                         </th>
-                        {/* <th
+                        <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('description')}
                           onDoubleClick={() => handleSort('description', true)}
                         >
                           Description
                           {renderSortIcon('description')}
-                        </th> */}
+                        </th>
                         <th>Tags</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -283,7 +316,7 @@ const Logs = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan={8} className="text-center text-sm font-weight-normal p-4">
                             No log entries found
                           </td>
                         </tr>
@@ -305,12 +338,20 @@ const Logs = () => {
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
                               <td className="text-sm font-weight-normal">{creatorName}</td>
-                              <td className="text-sm font-weight-normal text-break">
-                                <code className="text-xs">{item.url || '—'}</code>
+                              <td className="text-sm font-weight-normal align-middle">
+                                <LogDescriptionCell
+                                  text={item.action ?? item.title ?? item.event}
+                                  maxWidth="min(16rem, 28vw)"
+                                />
                               </td>
-                              {/* <td className="text-sm font-weight-normal text-break">
-                                {item.description || '—'}
-                              </td> */}
+                              <td className="text-sm font-weight-normal text-break">
+                                <LogUrlCell url={item.url} />
+                              </td>
+                              <td className="text-sm font-weight-normal align-middle">
+                                <LogDescriptionCell
+                                  text={item.description ?? item.details ?? item.detail ?? item.message}
+                                />
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex flex-wrap gap-1">
                                   {tags.length === 0 ? (

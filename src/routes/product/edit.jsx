@@ -1055,13 +1055,14 @@ const ProductEdit = () => {
                       type="number"
                       step="0.01"
                       min="0"
-                      className="form-control"
+                      className="form-control bg-light"
                       id="wholesale_price"
                       name="wholesale_price"
                       placeholder="0.00"
                       value={form.wholesale_price}
-                      onChange={handleChange}
+                      readOnly
                       disabled={isSubmitting}
+                      aria-readonly="true"
                     />
                   </div>
                   <div className="col-md-4 mb-3">
@@ -1568,17 +1569,12 @@ const ProductEdit = () => {
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    className="form-control form-control-sm"
+                                    className="form-control form-control-sm bg-light"
                                     placeholder="0.00"
                                     value={variation.wholesale_price || ''}
-                                    onChange={(e) =>
-                                      handleVariationChange(
-                                        variation.id,
-                                        'wholesale_price',
-                                        e.target.value
-                                      )
-                                    }
+                                    readOnly
                                     disabled={isSubmitting}
+                                    aria-readonly="true"
                                   />
                                 </div>
                                 <div className="col-6">
@@ -1915,16 +1911,12 @@ const ProductEdit = () => {
                                       type="number"
                                       step="0.01"
                                       min="0"
-                                      className="form-control form-control-sm"
+                                      className="form-control form-control-sm bg-light"
                                       placeholder="0.00"
                                       value={variation.wholesale_price || ''}
-                                      onChange={(e) =>
-                                        handleVariationChange(
-                                          variation.id,
-                                          'wholesale_price',
-                                          e.target.value
-                                        )
-                                      }
+                                      readOnly
+                                      disabled={isSubmitting}
+                                      aria-readonly="true"
                                     />
                                   </div>
                                   <div className="col-6">
