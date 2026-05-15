@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { fetchIncomeStatement } from '../../features/incomeStatement/incomeStatementSlice.js';
 import {
   computeIncomeStatementTotals,
+  fetchIncomeStatementRequest,
 } from '../../features/incomeStatement/incomeStatementAPI.js';
 import { formatCurrency as formatCurrencyFn } from '../balanceSheet/formatCurrency.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import './incomeStatementLedger.css';
 
 const MONTH_NAMES = [
   'January',
@@ -44,59 +45,199 @@ function toYmd(d) {
   return `${y}-${m}-${day}`;
 }
 
-function LineRow({ label, amount, formatCurrency, muted }) {
-  return (
-    <div className="d-flex justify-content-between align-items-center py-2 border-bottom border-light">
-      <span className={`text-sm mb-0 ${muted ? 'text-muted' : ''}`}>{label}</span>
-      <span className="text-sm font-weight-bold mb-0 text-end ps-3 tabular-nums">
-        {formatCurrency(amount)}
-      </span>
-    </div>
-  );
+/** Same-length window ending the day before `periodStart`. */
+function getPriorRange(periodStart, periodEnd) {
+  const lenMs = periodEnd.getTime() - periodStart.getTime();
+  const priorEnd = new Date(periodStart);
+  priorEnd.setDate(priorEnd.getDate() - 1);
+  priorEnd.setHours(23, 59, 59, 999);
+  const priorStart = new Date(priorEnd.getTime() - lenMs);
+  priorStart.setHours(0, 0, 0, 0);
+  return { priorStart, priorEnd };
 }
 
-function SectionBlock({ title, subtitle, iconClass, iconBg, borderClass, children, delay = 0 }) {
+function formatRangeHeading(start, end) {
+  const my = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
+  const dmy = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${my.format(start)} (Ending ${dmy.format(end)})`;
+  }
+  return `${my.format(start)} – ${my.format(end)}`;
+}
+
+function formatCompactMillions(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '—';
+  const abs = Math.abs(x);
+  if (abs >= 1_000_000) return `${(x / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${(x / 1_000).toFixed(2)}K`;
+  return x.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function pctChange(curr, prior, { invert = false } = {}) {
+  const c = Number(curr);
+  const p = Number(prior);
+  if (!Number.isFinite(c)) return { text: '—', kind: 'neutral' };
+  if (!Number.isFinite(p) || p === 0) {
+    if (c === 0) return { text: '—', kind: 'neutral' };
+    return { text: '+100%', kind: invert ? 'neg' : 'pos' };
+  }
+  const raw = ((c - p) / Math.abs(p)) * 100;
+  const text = `${raw > 0 ? '+' : ''}${raw.toFixed(1)}%`;
+  const economicallyPositive = invert ? raw <= 0 : raw >= 0;
+  return { text, kind: economicallyPositive ? 'pos' : 'neg' };
+}
+
+function initials(name) {
+  const s = String(name || '').trim();
+  if (!s) return '?';
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return s.slice(0, 2).toUpperCase();
+}
+
+function priorAmountForLabel(lines, label) {
+  if (!Array.isArray(lines)) return 0;
+  const row = lines.find((r) => String(r?.label || '').trim() === String(label || '').trim());
+  return Number(row?.amount) || 0;
+}
+
+function MonthlyBarsSvg({ labels, revenue, expenses }) {
+  const h = 160;
+  const pad = { t: 12, r: 8, b: 28, l: 36 };
+  const chartW = 420;
+  const innerW = chartW - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const maxVal = Math.max(1, ...revenue, ...expenses);
+  const n = labels.length;
+  const groupW = innerW / n;
+  const barW = (groupW * 0.32).toFixed(1);
+  const revenueFill = '#11cdef';
+  const expenseFill = '#fb6340';
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    y: pad.t + innerH * (1 - t),
+    lab: formatCompactMillions(maxVal * t),
+  }));
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={`card mb-3 shadow-sm border-0 border-start border-4 ${borderClass}`}
+    <svg
+      viewBox={`0 0 ${chartW} ${h}`}
+      width="100%"
+      height={h}
+      style={{ display: 'block' }}
+      role="img"
+      aria-label="Monthly revenue versus expenses"
     >
-      <div className="card-header bg-white border-bottom-0 pb-0 pt-3">
-        <div className="d-flex align-items-start gap-3">
-          <div
-            className={`icon icon-shape ${iconBg} shadow text-center rounded-3`}
-            style={{ width: '2.75rem', height: '2.75rem', lineHeight: '2.75rem' }}
-          >
-            <i className={`${iconClass} text-white text-sm`} aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <h6 className="mb-0 font-weight-bold">{title}</h6>
-            {subtitle ? <p className="text-xs text-muted mb-0 mt-1">{subtitle}</p> : null}
-          </div>
-        </div>
-      </div>
-      <div className="card-body pt-2 pb-3">{children}</div>
-    </motion.div>
+      {yTicks.map((tk) => (
+        <g key={tk.lab}>
+          <line
+            x1={pad.l}
+            x2={chartW - pad.r}
+            y1={tk.y}
+            y2={tk.y}
+            stroke="#334155"
+            strokeWidth="1"
+          />
+          <text x={4} y={tk.y + 4} fill="#8392ab" fontSize="10">
+            {tk.lab}
+          </text>
+        </g>
+      ))}
+      {labels.map((lab, i) => {
+        const gx = pad.l + i * groupW;
+        const xR = gx + groupW * 0.18;
+        const xE = gx + groupW * 0.52;
+        const hR = (revenue[i] / maxVal) * innerH;
+        const hE = (expenses[i] / maxVal) * innerH;
+        const yR = pad.t + innerH - hR;
+        const yE = pad.t + innerH - hE;
+        return (
+          <g key={lab}>
+            <rect x={xR} y={yR} width={barW} height={hR} fill={revenueFill} rx={2} />
+            <rect x={xE} y={yE} width={barW} height={hE} fill={expenseFill} rx={2} />
+            <text
+              x={gx + groupW / 2}
+              y={h - 6}
+              fill="#94a3b8"
+              fontSize="10"
+              textAnchor="middle"
+            >
+              {lab}
+            </text>
+          </g>
+        );
+      })}
+      <g transform={`translate(${chartW - 120}, ${pad.t})`}>
+        <rect x={0} y={0} width={10} height={10} fill={revenueFill} rx={2} />
+        <text x={14} y={9} fill="#f8fafc" fontSize="10">
+          Revenue
+        </text>
+        <rect x={0} y={16} width={10} height={10} fill={expenseFill} rx={2} />
+        <text x={14} y={25} fill="#f8fafc" fontSize="10">
+          Expenses
+        </text>
+      </g>
+    </svg>
   );
 }
 
-function MetricTile({ label, value, formatCurrency, iconClass, iconBg, borderClass }) {
+function OpExDonut({ items, colors }) {
+  const list = (Array.isArray(items) ? items : []).filter((x) => Number(x?.amount) > 0);
+  const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0) || 1;
+  let acc = 0;
+  const segs = list.map((it, i) => {
+    const pct = (Number(it.amount) / total) * 100;
+    const start = acc;
+    acc += pct;
+    return { ...it, start, pct, color: colors[i % colors.length] };
+  });
+  const stops = segs.map((s) => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ');
+  const gradient = segs.length ? `conic-gradient(from -90deg, ${stops})` : '#334155';
+
   return (
-    <div className={`card h-100 mb-0 shadow-sm border-0 border-start border-4 ${borderClass}`}>
-      <div className="card-body p-3 d-flex align-items-center justify-content-between gap-2">
-        <div>
-          <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">{label}</p>
-          <h4 className="font-weight-bolder mb-0 tabular-nums">{formatCurrency(value)}</h4>
-        </div>
-        <div
-          className={`icon icon-shape ${iconBg} shadow text-center rounded-circle flex-shrink-0`}
-          style={{ width: '2.75rem', height: '2.75rem', lineHeight: '2.75rem' }}
-        >
-          <i className={`${iconClass} text-lg text-white opacity-10`} aria-hidden="true" />
-        </div>
-      </div>
+    <div className="d-flex flex-wrap align-items-center gap-3 justify-content-between">
+      <div
+        style={{
+          width: 140,
+          height: 140,
+          borderRadius: '50%',
+          background: gradient,
+          flexShrink: 0,
+          boxShadow: 'inset 0 0 0 28px #273548',
+        }}
+        aria-hidden
+      />
+      <ul className="list-unstyled mb-0 flex-grow-1" style={{ minWidth: '140px' }}>
+        {segs.map((s, i) => (
+          <li
+            key={`${s.label}-${i}`}
+            className="d-flex align-items-center justify-content-between gap-2 py-1"
+            style={{ fontSize: '0.75rem' }}
+          >
+            <span className="d-flex align-items-center gap-2 text-truncate" style={{ maxWidth: '10rem' }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: s.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span className="text-truncate" title={s.label}>
+                {s.label}
+              </span>
+            </span>
+            <span className="text-muted flex-shrink-0" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {((Number(s.amount) / total) * 100).toFixed(0)}%
+            </span>
+          </li>
+        ))}
+        {segs.length === 0 ? (
+          <li className="text-muted small">No operating expense lines</li>
+        ) : null}
+      </ul>
     </div>
   );
 }
@@ -106,6 +247,7 @@ export default function IncomeStatementView() {
   const navigate = useNavigate();
   const { canView } = usePermissions('accounts');
   const { status, error, report, demo } = useSelector((state) => state.incomeStatement);
+  const userName = useSelector((state) => state.user?.name || state.user?.user?.name || 'User');
 
   const fmt = useCallback((n) => formatCurrencyFn(n, 'USD'), []);
 
@@ -113,22 +255,28 @@ export default function IncomeStatementView() {
   const [fromMonth, setFromMonth] = useState(() => new Date().getMonth() + 1);
   const [toYear, setToYear] = useState(() => new Date().getFullYear());
   const [toMonth, setToMonth] = useState(() => new Date().getMonth() + 1);
+  const [priorReport, setPriorReport] = useState(null);
+  const [priorStatus, setPriorStatus] = useState('idle');
+  const [tableFilter, setTableFilter] = useState('');
+  const [expanded, setExpanded] = useState(() => new Set(['revenue', 'cogs', 'opex']));
 
   const periodStart = useMemo(() => startOfCalendarMonth(fromYear, fromMonth), [fromYear, fromMonth]);
   const periodEnd = useMemo(() => endOfCalendarMonth(toYear, toMonth), [toYear, toMonth]);
 
-  const rangeLabel = useMemo(() => {
-    const my = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
-    const a = my.format(periodStart);
-    const b = my.format(periodEnd);
-    if (a === b) return a;
-    return `${a} – ${b}`;
-  }, [periodStart, periodEnd]);
+  const { priorStart, priorEnd } = useMemo(
+    () => getPriorRange(periodStart, periodEnd),
+    [periodStart, periodEnd]
+  );
 
-  const rangeDetail = useMemo(() => {
-    const df = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
-    return `${df.format(periodStart)} – ${df.format(periodEnd)}`;
-  }, [periodStart, periodEnd]);
+  const rangeLabel = useMemo(() => formatRangeHeading(periodStart, periodEnd), [periodStart, periodEnd]);
+  const priorColLabel = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(priorStart),
+    [priorStart]
+  );
+  const currentColLabel = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(periodStart),
+    [periodStart]
+  );
 
   const yearOptions = useMemo(() => {
     const y = new Date().getFullYear();
@@ -155,6 +303,19 @@ export default function IncomeStatementView() {
     }
   };
 
+  const applyQuarterPreset = (q) => {
+    const y = new Date().getFullYear();
+    const ranges = {
+      1: [1, 3],
+      2: [4, 6],
+      3: [7, 9],
+      4: [10, 12],
+    };
+    const [a, b] = ranges[q] || [1, 3];
+    setFrom(y, a);
+    setTo(y, b);
+  };
+
   useEffect(() => {
     if (canView === false) navigate('/dashboard');
   }, [canView, navigate]);
@@ -166,384 +327,504 @@ export default function IncomeStatementView() {
   }, [dispatch, periodStart, periodEnd]);
 
   useEffect(() => {
+    let cancelled = false;
+    setPriorStatus('loading');
+    const ps = toYmd(priorStart);
+    const pe = toYmd(priorEnd);
+    fetchIncomeStatementRequest({ startDate: ps, endDate: pe })
+      .then(({ report: r }) => {
+        if (!cancelled) {
+          setPriorReport(r);
+          setPriorStatus('succeeded');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPriorReport(null);
+          setPriorStatus('failed');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [priorStart, priorEnd]);
+
+  useEffect(() => {
     if (status === 'failed' && error) {
       console.error('[Income statement module] Failed to load report', error);
     }
   }, [status, error]);
 
   const totals = useMemo(() => computeIncomeStatementTotals(report), [report]);
+  const priorTotals = useMemo(() => computeIncomeStatementTotals(priorReport || {}), [priorReport]);
+  const priorReady = priorStatus === 'succeeded' && priorReport != null;
 
   const loading = status === 'loading';
+  const showData = status === 'succeeded' && report != null;
+
+  const toggleSection = (id) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const donutColors = ['#5e72e4', '#11cdef', '#2dce89', '#fb6340', '#8392ab', '#825ee4'];
+
+  const monthlyBars = useMemo(() => {
+    const revTotal = totals.totalRevenue;
+    const expTotal = totals.totalCOGS + totals.totalOperatingExpenses;
+    const n = 6;
+    const mults = [0.92, 1.05, 0.98, 1.12, 0.95, 1.02];
+    const sumM = mults.reduce((a, b) => a + b, 0);
+    const labels = [];
+    const revenue = [];
+    const expenses = [];
+    const d = new Date(periodEnd);
+    for (let i = n - 1; i >= 0; i -= 1) {
+      const dt = new Date(d);
+      dt.setMonth(dt.getMonth() - i);
+      labels.push(dt.toLocaleString(undefined, { month: 'short' }));
+      const m = (mults[n - 1 - i] / sumM) * n;
+      revenue.push((revTotal / n) * m);
+      expenses.push((expTotal / n) * m);
+    }
+    return { labels, revenue, expenses };
+  }, [totals.totalRevenue, totals.totalCOGS, totals.totalOperatingExpenses, periodEnd]);
+
+  const tableRows = useMemo(() => {
+    if (!report) return [];
+    const pr = priorReport || {};
+    const q = tableFilter.trim().toLowerCase();
+    const match = (label) => !q || String(label).toLowerCase().includes(q);
+
+    const rows = [];
+
+    const pushGroup = (id, title) => {
+      rows.push({ type: 'group', id, title });
+    };
+    const pushLeaf = (label, cur, pri, invert = false) => {
+      if (!match(label)) return;
+      const p = Number(pri) || 0;
+      const c = Number(cur) || 0;
+      const ytd = priorReady ? c + p : c;
+      const ch = priorReady ? pctChange(c, p, { invert }) : { text: '—', kind: 'neutral' };
+      rows.push({
+        type: 'leaf',
+        label,
+        cur: c,
+        pri: priorReady ? p : null,
+        ytd,
+        deltaText: ch.text,
+        deltaKind: ch.kind,
+      });
+    };
+    const pushSubtotal = (label, cur, pri, invert = false) => {
+      if (!match(label)) return;
+      const p = Number(pri) || 0;
+      const c = Number(cur) || 0;
+      const ytd = priorReady ? c + p : c;
+      const ch = priorReady ? pctChange(c, p, { invert }) : { text: '—', kind: 'neutral' };
+      rows.push({
+        type: 'subtotal',
+        label,
+        cur: c,
+        pri: priorReady ? p : null,
+        ytd,
+        deltaText: ch.text,
+        deltaKind: ch.kind,
+      });
+    };
+
+    pushGroup('revenue', 'Revenue');
+    if (expanded.has('revenue')) {
+      (report.revenue || []).forEach((row) => {
+        const pri = priorAmountForLabel(pr.revenue, row.label);
+        pushLeaf(row.label, row.amount, pri, false);
+      });
+      pushSubtotal('Total revenue', totals.totalRevenue, priorTotals.totalRevenue, false);
+    }
+
+    pushGroup('cogs', 'Cost of goods sold');
+    if (expanded.has('cogs')) {
+      (report.costOfGoodsSold || []).forEach((row) => {
+        const pri = priorAmountForLabel(pr.costOfGoodsSold, row.label);
+        pushLeaf(row.label, row.amount, pri, true);
+      });
+      pushSubtotal('Total COGS', totals.totalCOGS, priorTotals.totalCOGS, true);
+    }
+
+    const gpPrior = priorTotals.totalRevenue - priorTotals.totalCOGS;
+    pushLeaf('Gross profit', totals.grossProfit, gpPrior, false);
+
+    pushGroup('opex', 'Operating expenses');
+    if (expanded.has('opex')) {
+      (report.operatingExpenses || []).forEach((row) => {
+        const pri = priorAmountForLabel(pr.operatingExpenses, row.label);
+        pushLeaf(row.label, row.amount, pri, true);
+      });
+      pushSubtotal(
+        'Total operating expenses',
+        totals.totalOperatingExpenses,
+        priorTotals.totalOperatingExpenses,
+        true
+      );
+    }
+
+    const oiPrior = priorTotals.grossProfit - priorTotals.totalOperatingExpenses;
+    pushLeaf('Operating income (EBIT)', totals.operatingIncome, oiPrior, false);
+
+    const otherNetPrior = priorTotals.totalOtherIncome - priorTotals.totalOtherExpenses;
+    const otherNetCurr = totals.totalOtherIncome - totals.totalOtherExpenses;
+    pushLeaf('Other income (net)', otherNetCurr, otherNetPrior, false);
+
+    pushSubtotal('Net income', totals.netIncome, priorTotals.netIncome, false);
+
+    return rows;
+  }, [
+    report,
+    priorReport,
+    priorTotals,
+    totals,
+    expanded,
+    tableFilter,
+    priorReady,
+  ]);
+
+  const exportCsv = () => {
+    const lines = [['Account', priorColLabel, currentColLabel, 'Change %', 'YTD']];
+    tableRows.forEach((r) => {
+      if (r.type === 'leaf' || r.type === 'subtotal') {
+        lines.push([r.label, String(r.pri), String(r.cur), r.deltaText, String(r.ytd)]);
+      }
+    });
+    const blob = new Blob([lines.map((x) => x.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'income-statement.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const revDelta = useMemo(
+    () =>
+      priorReady
+        ? pctChange(totals.totalRevenue, priorTotals.totalRevenue, { invert: false })
+        : { text: '—', kind: 'neutral' },
+    [priorReady, totals.totalRevenue, priorTotals.totalRevenue]
+  );
+  const cogsDelta = useMemo(
+    () =>
+      priorReady
+        ? pctChange(totals.totalCOGS, priorTotals.totalCOGS, { invert: true })
+        : { text: '—', kind: 'neutral' },
+    [priorReady, totals.totalCOGS, priorTotals.totalCOGS]
+  );
+  const opexDelta = useMemo(
+    () =>
+      priorReady
+        ? pctChange(totals.totalOperatingExpenses, priorTotals.totalOperatingExpenses, {
+            invert: true,
+          })
+        : { text: '—', kind: 'neutral' },
+    [priorReady, totals.totalOperatingExpenses, priorTotals.totalOperatingExpenses]
+  );
+  const niDelta = useMemo(
+    () =>
+      priorReady
+        ? pctChange(totals.netIncome, priorTotals.netIncome, { invert: false })
+        : { text: '—', kind: 'neutral' },
+    [priorReady, totals.netIncome, priorTotals.netIncome]
+  );
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="card shadow-sm border-0 overflow-hidden"
-            style={{ maxWidth: '100%' }}
-          >
-            <div
-              className="text-white px-4 pt-4 pb-5 position-relative"
-              style={{
-                background: 'linear-gradient(135deg, #5e72e4 0%, #825ee4 45%, #11cdef 100%)',
-              }}
-            >
-              <div
-                className="position-absolute top-0 end-0 opacity-10"
-                style={{ fontSize: '8rem', lineHeight: 1, transform: 'translate(10%, -10%)' }}
-                aria-hidden
+    <div className="is-ledger">
+      <header className="is-ledger-topbar">
+        <div className="is-ledger-brand">
+          Ledger <span>Technology</span>
+        </div>
+        <div className="is-ledger-topbar-actions">
+          <button type="button" className="is-ledger-icon-btn" aria-label="Notifications">
+            <i className="fas fa-bell" />
+          </button>
+          <div className="is-ledger-user">
+            <div className="is-ledger-avatar" aria-hidden>
+              {initials(userName)}
+            </div>
+            <span className="is-ledger-user-name">{userName}</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="is-ledger-main">
+        <div className="is-ledger-panel">
+          <div className="is-ledger-head">
+            <div>
+              <h1 className="is-ledger-title">
+                <span className="accent">Income Statement</span>
+                <span className="text-muted fw-normal"> | </span>
+                {rangeLabel}
+                {demo ? <span className="is-ledger-demo-pill">Demo data</span> : null}
+              </h1>
+              <p className="is-ledger-subtitle">
+                Revenue, COGS, operating expenses, and net income — compared to the prior period of equal
+                length.
+              </p>
+            </div>
+            <div className="d-flex flex-column align-items-stretch align-items-md-end gap-2">
+              <label className="small text-muted mb-0" htmlFor="is-ledger-quarter">
+                Year / quarter
+              </label>
+              <select
+                id="is-ledger-quarter"
+                className="is-ledger-select"
+                aria-label="Quick quarter preset"
+                defaultValue=""
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v) applyQuarterPreset(parseInt(v, 10));
+                  e.target.value = '';
+                }}
               >
-                <i className="ni ni-chart-pie-35" />
+                <option value="">Presets…</option>
+                <option value="1">Q1 (Jan–Mar)</option>
+                <option value="2">Q2 (Apr–Jun)</option>
+                <option value="3">Q3 (Jul–Sep)</option>
+                <option value="4">Q4 (Oct–Dec)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="is-ledger-period-row">
+            <div className="is-ledger-period-group">
+              <label>From</label>
+              <div className="d-flex gap-2">
+                <select
+                  className="is-ledger-select"
+                  value={String(fromMonth)}
+                  onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
+                  aria-label="From month"
+                >
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={name} value={String(idx + 1)}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="is-ledger-select"
+                  value={String(fromYear)}
+                  onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
+                  aria-label="From year"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="position-relative" style={{ zIndex: 1 }}>
-                <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                  <span className="badge bg-white text-primary text-uppercase text-xs font-weight-bold">
-                    P&amp;L
-                  </span>
-                  {demo ? (
-                    <span className="badge bg-warning text-dark text-xs font-weight-bold">
-                      Demo data
-                    </span>
-                  ) : null}
+            </div>
+            <div className="is-ledger-period-group">
+              <label>To</label>
+              <div className="d-flex gap-2">
+                <select
+                  className="is-ledger-select"
+                  value={String(toMonth)}
+                  onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
+                  aria-label="To month"
+                >
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={name} value={String(idx + 1)}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="is-ledger-select"
+                  value={String(toYear)}
+                  onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
+                  aria-label="To year"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {priorStatus === 'loading' ? (
+              <span className="small text-muted align-self-center ms-md-auto">Loading prior period…</span>
+            ) : null}
+          </div>
+
+          {loading ? (
+            <div className="is-ledger-body text-center py-5">
+              <div className="spinner-border is-ledger-spinner" role="status">
+                <span className="visually-hidden">Loading…</span>
+              </div>
+              <p className="small text-muted mt-3 mb-0">Loading statement…</p>
+            </div>
+          ) : null}
+
+          {!loading && error ? (
+            <div className="is-ledger-body">
+              <div className="alert alert-danger mb-0" role="alert">
+                {error}
+              </div>
+            </div>
+          ) : null}
+
+          {showData ? (
+            <>
+              <div className="is-ledger-cards">
+                <div className="is-ledger-card">
+                  <p className="is-ledger-card-title">Gross revenue</p>
+                  <p className="is-ledger-card-value">{formatCompactMillions(totals.totalRevenue)}</p>
+                  <p className={`is-ledger-card-delta ${revDelta.kind}`}>{revDelta.text}</p>
                 </div>
-                <h4 className="text-white font-weight-bolder mb-1">Income statement</h4>
-                <p className="text-white text-sm mb-0" style={{ maxWidth: '36rem', opacity: 0.9 }}>
-                  Revenue, costs, and profitability for the selected period — aligned with your Argon
-                  dashboard theme.
+                <div className="is-ledger-card">
+                  <p className="is-ledger-card-title">Cost of goods sold</p>
+                  <p className="is-ledger-card-value">{formatCompactMillions(totals.totalCOGS)}</p>
+                  <p className={`is-ledger-card-delta ${cogsDelta.kind}`}>{cogsDelta.text}</p>
+                </div>
+                <div className="is-ledger-card">
+                  <p className="is-ledger-card-title">Operating expenses</p>
+                  <p className="is-ledger-card-value">
+                    {formatCompactMillions(totals.totalOperatingExpenses)}
+                  </p>
+                  <p className={`is-ledger-card-delta ${opexDelta.kind}`}>{opexDelta.text}</p>
+                </div>
+                <div className="is-ledger-card">
+                  <p className="is-ledger-card-title">Net income</p>
+                  <p className="is-ledger-card-value">{formatCompactMillions(totals.netIncome)}</p>
+                  <p className={`is-ledger-card-delta ${niDelta.kind}`}>{niDelta.text}</p>
+                </div>
+              </div>
+
+              <div className="is-ledger-body">
+                <div className="is-ledger-toolbar">
+                  <div className="is-ledger-search">
+                    <i className="fas fa-search" aria-hidden />
+                    <input
+                      type="search"
+                      placeholder="Filter accounts…"
+                      value={tableFilter}
+                      onChange={(e) => setTableFilter(e.target.value)}
+                      aria-label="Filter table"
+                    />
+                  </div>
+                  <button type="button" className="is-ledger-icon-btn" aria-label="Sort" title="Sort">
+                    <i className="fas fa-sort" />
+                  </button>
+                  <button
+                    type="button"
+                    className="is-ledger-icon-btn"
+                    aria-label="Export CSV"
+                    title="Export"
+                    onClick={exportCsv}
+                  >
+                    <i className="fas fa-file-export" />
+                  </button>
+                </div>
+
+                <div className="is-ledger-table-wrap">
+                  <table className="is-ledger-table">
+                    <thead>
+                      <tr>
+                        <th>Account description</th>
+                        <th className="num prior">{priorColLabel}</th>
+                        <th className="num">{currentColLabel}</th>
+                        <th className="num">Change %</th>
+                        <th className="num">Total YTD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map((row, idx) => {
+                        if (row.type === 'group') {
+                          const open = expanded.has(row.id);
+                          return (
+                            <tr key={row.id} className="is-ledger-row-group">
+                              <td colSpan={5}>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className="is-ledger-chevron"
+                                  onClick={() => toggleSection(row.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      toggleSection(row.id);
+                                    }
+                                  }}
+                                  aria-expanded={open}
+                                >
+                                  <i className={`fas fa-chevron-${open ? 'down' : 'right'}`} />
+                                </span>
+                                {row.title}
+                              </td>
+                            </tr>
+                          );
+                        }
+                        const deltaClass =
+                          row.deltaKind === 'pos'
+                            ? 'is-ledger-delta-pos'
+                            : row.deltaKind === 'neg'
+                              ? 'is-ledger-delta-neg'
+                              : 'text-muted';
+                        const trClass =
+                          row.type === 'subtotal' ? 'is-ledger-row-sub' : 'is-ledger-row-leaf';
+                        return (
+                          <tr key={`${row.type}-${row.label}-${idx}`} className={trClass}>
+                            <td>{row.label}</td>
+                            <td
+                              className="num prior"
+                              style={{
+                                textDecoration: row.pri == null ? 'none' : 'line-through',
+                                opacity: row.pri == null ? 1 : 0.72,
+                              }}
+                            >
+                              {row.pri == null ? '—' : fmt(row.pri)}
+                            </td>
+                            <td className="num">{fmt(row.cur)}</td>
+                            <td className={`num ${deltaClass}`}>{row.deltaText}</td>
+                            <td className="num">{fmt(row.ytd)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="is-ledger-charts">
+                  <div className="is-ledger-chart-card">
+                    <h3 className="is-ledger-chart-title">Monthly revenue vs. expenses</h3>
+                    <p className="small text-muted mb-2" style={{ fontSize: '0.7rem' }}>
+                      Illustrative split by month from current-period totals (no monthly API).
+                    </p>
+                    <MonthlyBarsSvg
+                      labels={monthlyBars.labels}
+                      revenue={monthlyBars.revenue}
+                      expenses={monthlyBars.expenses}
+                    />
+                  </div>
+                  <div className="is-ledger-chart-card">
+                    <h3 className="is-ledger-chart-title">Operating expense breakdown</h3>
+                    <OpExDonut items={report.operatingExpenses} colors={donutColors} />
+                  </div>
+                </div>
+
+                <p className="is-ledger-api-note mb-0">
+                  <code>GET /api/reports/income-statement?startDate=&amp;endDate=</code>
                 </p>
               </div>
-            </div>
-
-            <div className="card-header bg-white border-bottom pb-0 mx-3 mx-sm-4 mt-n4 shadow border-radius-lg position-relative">
-              <div className="row align-items-start gy-3 pt-3 pb-3">
-                <div className="col-xl-4 col-lg-5">
-                  <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">Filter period</p>
-                  <p className="text-sm font-weight-bold text-dark mb-0">{rangeLabel}</p>
-                  <p className="text-xs text-muted mb-0 mt-1">{rangeDetail}</p>
-                </div>
-                <div className="col-xl-7 col-lg-7">
-                  <div className="row g-3 align-items-end">
-                    <div className="col-md-6">
-                      <p className="text-xs text-uppercase font-weight-bold text-muted mb-2">From</p>
-                      <div className="row g-2">
-                        <div className="col-7">
-                          <label className="form-label text-xs text-muted mb-1">Month</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(fromMonth)}
-                            onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
-                            aria-label="From month"
-                          >
-                            {MONTH_NAMES.map((name, idx) => (
-                              <option key={name} value={String(idx + 1)}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-5">
-                          <label className="form-label text-xs text-muted mb-1">Year</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(fromYear)}
-                            onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
-                            aria-label="From year"
-                          >
-                            {yearOptions.map((y) => (
-                              <option key={y} value={String(y)}>
-                                {y}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <p className="text-xs text-uppercase font-weight-bold text-muted mb-2">To</p>
-                      <div className="row g-2">
-                        <div className="col-7">
-                          <label className="form-label text-xs text-muted mb-1">Month</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(toMonth)}
-                            onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
-                            aria-label="To month"
-                          >
-                            {MONTH_NAMES.map((name, idx) => (
-                              <option key={name} value={String(idx + 1)}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-5">
-                          <label className="form-label text-xs text-muted mb-1">Year</label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={String(toYear)}
-                            onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
-                            aria-label="To year"
-                          >
-                            {yearOptions.map((y) => (
-                              <option key={y} value={String(y)}>
-                                {y}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card-body pt-3 px-3 px-sm-4">
-              {loading && (
-                <div className="text-center py-5">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading…</span>
-                  </div>
-                  <p className="text-sm text-muted mt-3 mb-0">Building your statement…</p>
-                </div>
-              )}
-
-              {!loading && error && (
-                <div className="alert alert-danger" role="alert">
-                  {error}
-                </div>
-              )}
-
-              {!loading && !error && report && (
-                <>
-                  <div className="row g-3 mb-2">
-                    <div className="col-md-4">
-                      <MetricTile
-                        label="Total revenue"
-                        value={totals.totalRevenue}
-                        formatCurrency={fmt}
-                        iconClass="ni ni-money-coins"
-                        iconBg="bg-gradient-success"
-                        borderClass="border-success"
-                      />
-                    </div>
-                    <div className="col-md-4">
-                      <MetricTile
-                        label="Gross profit"
-                        value={totals.grossProfit}
-                        formatCurrency={fmt}
-                        iconClass="ni ni-chart-bar-32"
-                        iconBg="bg-gradient-info"
-                        borderClass="border-info"
-                      />
-                    </div>
-                    <div className="col-md-4">
-                      <MetricTile
-                        label="Net income"
-                        value={totals.netIncome}
-                        formatCurrency={fmt}
-                        iconClass="ni ni-trophy"
-                        iconBg="bg-gradient-primary"
-                        borderClass="border-primary"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="row g-4">
-                    <div className="col-lg-6">
-                      <SectionBlock
-                        title="Revenue"
-                        subtitle="Top-line inflows for the period"
-                        iconClass="ni ni-shop"
-                        iconBg="bg-gradient-success"
-                        borderClass="border-success"
-                        delay={0.02}
-                      >
-                        {(report.revenue || []).map((row, i) => (
-                          <LineRow
-                            key={`${row.label}-${i}`}
-                            label={row.label}
-                            amount={row.amount}
-                            formatCurrency={fmt}
-                          />
-                        ))}
-                        {(report.revenue || []).length === 0 ? (
-                          <p className="text-sm text-muted mb-0 py-2">No revenue lines.</p>
-                        ) : null}
-                        <div className="d-flex justify-content-between align-items-center pt-3 mt-1">
-                          <span className="text-xs text-uppercase font-weight-bold text-success">
-                            Total revenue
-                          </span>
-                          <span className="text-sm font-weight-bolder text-success tabular-nums">
-                            {fmt(totals.totalRevenue)}
-                          </span>
-                        </div>
-                      </SectionBlock>
-
-                      <SectionBlock
-                        title="Cost of goods sold"
-                        subtitle="Direct costs tied to revenue"
-                        iconClass="ni ni-box-2"
-                        iconBg="bg-gradient-warning"
-                        borderClass="border-warning"
-                        delay={0.06}
-                      >
-                        {(report.costOfGoodsSold || []).map((row, i) => (
-                          <LineRow
-                            key={`${row.label}-${i}`}
-                            label={row.label}
-                            amount={row.amount}
-                            formatCurrency={fmt}
-                          />
-                        ))}
-                        {(report.costOfGoodsSold || []).length === 0 ? (
-                          <p className="text-sm text-muted mb-0 py-2">No COGS lines.</p>
-                        ) : null}
-                        <div className="d-flex justify-content-between align-items-center pt-3 mt-1">
-                          <span className="text-xs text-uppercase font-weight-bold text-warning">
-                            Total COGS
-                          </span>
-                          <span className="text-sm font-weight-bolder text-warning tabular-nums">
-                            {fmt(totals.totalCOGS)}
-                          </span>
-                        </div>
-                      </SectionBlock>
-
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="alert alert-info border-0 shadow-sm py-3 mb-0"
-                        role="status"
-                      >
-                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                          <span className="font-weight-bold mb-0">Gross profit</span>
-                          <span className="h5 font-weight-bolder mb-0 tabular-nums">
-                            {fmt(totals.grossProfit)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted mb-0 mt-2">
-                          Revenue minus cost of goods sold.
-                        </p>
-                      </motion.div>
-                    </div>
-
-                    <div className="col-lg-6">
-                      <SectionBlock
-                        title="Operating expenses"
-                        subtitle="Day-to-day running costs"
-                        iconClass="ni ni-settings"
-                        iconBg="bg-gradient-secondary"
-                        borderClass="border-secondary"
-                        delay={0.04}
-                      >
-                        {(report.operatingExpenses || []).map((row, i) => (
-                          <LineRow
-                            key={`${row.label}-${i}`}
-                            label={row.label}
-                            amount={row.amount}
-                            formatCurrency={fmt}
-                          />
-                        ))}
-                        {(report.operatingExpenses || []).length === 0 ? (
-                          <p className="text-sm text-muted mb-0 py-2">No operating expense lines.</p>
-                        ) : null}
-                        <div className="d-flex justify-content-between align-items-center pt-3 mt-1">
-                          <span className="text-xs text-uppercase font-weight-bold text-muted">
-                            Total operating expenses
-                          </span>
-                          <span className="text-sm font-weight-bolder tabular-nums">
-                            {fmt(totals.totalOperatingExpenses)}
-                          </span>
-                        </div>
-                      </SectionBlock>
-
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.08 }}
-                        className="alert alert-dark border-0 shadow-sm py-3 mb-3"
-                        role="status"
-                      >
-                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                          <span className="font-weight-bold mb-0">Operating income</span>
-                          <span className="h5 font-weight-bolder mb-0 tabular-nums">
-                            {fmt(totals.operatingIncome)}
-                          </span>
-                        </div>
-                      </motion.div>
-
-                      <SectionBlock
-                        title="Other income & expenses"
-                        subtitle="Non-operating items"
-                        iconClass="ni ni-bullet-list-67"
-                        iconBg="bg-gradient-dark"
-                        borderClass="border-dark"
-                        delay={0.1}
-                      >
-                        {(report.otherIncome || []).map((row, i) => (
-                          <LineRow
-                            key={`oi-${row.label}-${i}`}
-                            label={row.label}
-                            amount={row.amount}
-                            formatCurrency={fmt}
-                          />
-                        ))}
-                        {(report.otherExpenses || []).map((row, i) => (
-                          <LineRow
-                            key={`oe-${row.label}-${i}`}
-                            label={row.label}
-                            amount={row.amount}
-                            formatCurrency={fmt}
-                            muted
-                          />
-                        ))}
-                        {(report.otherIncome || []).length === 0 &&
-                        (report.otherExpenses || []).length === 0 ? (
-                          <p className="text-sm text-muted mb-0 py-2">No other items.</p>
-                        ) : null}
-                        <div className="d-flex justify-content-between align-items-center pt-3 mt-1 border-top">
-                          <span className="text-xs text-uppercase font-weight-bold text-muted">
-                            Net other
-                          </span>
-                          <span className="text-sm font-weight-bolder tabular-nums">
-                            {fmt(totals.totalOtherIncome - totals.totalOtherExpenses)}
-                          </span>
-                        </div>
-                      </SectionBlock>
-
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.12, type: 'spring', stiffness: 120, damping: 18 }}
-                        className="card bg-gradient-primary border-0 shadow-lg mb-0"
-                      >
-                        <div className="card-body p-4">
-                          <p className="text-white text-xs text-uppercase font-weight-bold opacity-8 mb-1">
-                            Bottom line
-                          </p>
-                          <div className="d-flex justify-content-between align-items-end flex-wrap gap-2">
-                            <h3 className="text-white font-weight-bolder mb-0">Net income</h3>
-                            <span className="display-6 text-white font-weight-bolder tabular-nums">
-                              {fmt(totals.netIncome)}
-                            </span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted mt-4 mb-0">
-                    <code className="small">GET /api/reports/income-statement?startDate=&amp;endDate=</code>
-                  </p>
-                </>
-              )}
-            </div>
-          </motion.div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
