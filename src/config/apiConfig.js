@@ -1,21 +1,29 @@
-// API Configuration
-// Use relative URL to leverage Vite proxy and avoid CORS issues
-export const API_BASE_URL = '/api';
+import { APP_ENV } from './env.js';
 
 const trimTrailingSlashes = (s) => String(s).replace(/\/+$/, '');
 
-/**
- * Backend origin for resolving category image URLs stored as paths (e.g. `/uploads/...`)
- * when files are served from the API host, not under `/api`.
- * Optional .env: `VITE_API_MEDIA_ORIGIN` or `VITE_API_ORIGIN` (e.g. http://localhost:8000).
- */
-const readMediaOrigin = () => {
-  if (typeof import.meta === 'undefined' || !import.meta.env) return '';
-  const v = import.meta.env.VITE_API_MEDIA_ORIGIN || import.meta.env.VITE_API_ORIGIN;
-  return v ? trimTrailingSlashes(v) : '';
+const readEnv = (key, fallback = '') => {
+  if (typeof import.meta === 'undefined' || !import.meta.env) return fallback;
+  const v = import.meta.env[key];
+  return v !== undefined && v !== '' ? String(v) : fallback;
 };
 
-export const API_MEDIA_ORIGIN = readMediaOrigin();
+/**
+ * API base path or URL.
+ * - local / development: `/api` (Vite proxy → VITE_API_PROXY_TARGET)
+ * - live: full URL from VITE_API_BASE_URL
+ */
+export const API_BASE_URL = readEnv('VITE_API_BASE_URL', '/api');
+
+/** Backend origin for uploads/media when paths are not under `/api`. */
+export const API_MEDIA_ORIGIN = trimTrailingSlashes(
+  readEnv('VITE_API_MEDIA_ORIGIN', readEnv('VITE_API_ORIGIN', ''))
+);
+
+/** Dev-server proxy target (vite.config only). */
+export const API_PROXY_TARGET = readEnv('VITE_API_PROXY_TARGET', 'http://localhost:8000');
+
+export { APP_ENV };
 
 /**
  * Turn API image fields into a URL the browser can load.

@@ -8,7 +8,10 @@ yarn.lock
 npm-debug.log*
 pnpm-debug.log*
 coverage
-*.local
+# Local env overrides (optional secrets)
+.env.local
+.env.*.local
+
 node_modules
 .DS_Store
 dist

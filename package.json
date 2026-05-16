@@ -4,12 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "vite",
-    "dev": "vite",
-    "build": "vite build",
+    "start": "vite --mode development",
+    "dev": "vite --mode development",
+    "dev:local": "vite --mode localhost",
+    "dev:development": "vite --mode development",
+    "build": "vite build --mode live",
+    "build:local": "vite build --mode localhost",
+    "build:development": "vite build --mode development",
+    "build:live": "vite build --mode live",
+    "preview": "vite preview",
+    "preview:live": "vite preview --mode live",
     "test": "echo \"No tests specified\" && exit 0",
-    "lint": "echo \"Linting not configured\" && exit 0",
-    "preview": "vite preview"
+    "lint": "echo \"Linting not configured\" && exit 0"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.2.5",

@@ -6,8 +6,12 @@ import { projectDevLogPlugin } from './vite-plugin-project-dev-log.js';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const projectDevLogFile = env.VITE_PROJECT_DEV_LOG_FILE || 'logs.txt';
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8000';
 
   return {
+    define: {
+      __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || mode),
+    },
     plugins: [
       react({
         include: ['**/*.jsx', '**/*.js', '**/*.tsx', '**/*.ts'],
@@ -22,23 +26,23 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Use `/api/` (slash after api) so the SPA route `/api-workflow` is not proxied to the backend.
         '/api/': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
           secure: false,
         },
         // Category (and other) uploads are often served outside /api; proxy so /uploads works on :5173
         '/uploads': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
           secure: false,
         },
         '/storage': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
           secure: false,
         },
         '/public': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
           secure: false,
         },
