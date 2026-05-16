@@ -68,6 +68,12 @@ export async function fetchExpensesRequest(params = {}) {
   if (params.search) queryParams.append('search', params.search);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  queryParams.append(
+    'populate',
+    params.populate != null
+      ? String(params.populate)
+      : 'account_id,user_id,payment_method_accounts_id'
+  );
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}expense/get-all-active${queryString ? `?${queryString}` : ''}`;
@@ -157,7 +163,30 @@ export async function fetchExpensesRequest(params = {}) {
   };
 }
 
-/** Build JSON body for POST /expense/create — omits blank optional id fields. */
+const EXPENSE_IMAGE_FIELD_NAME = 'image';
+
+const appendExpenseFieldsToFormData = (formData, data) => {
+  Object.entries(data).forEach(([key, value]) => {
+    if (key === 'image') return;
+    if (value === undefined) return;
+    if (value === null) {
+      formData.append(key, '');
+      return;
+    }
+    formData.append(key, typeof value === 'string' ? value : String(value));
+  });
+};
+
+/** True for values from `<input type="file">`. */
+export const isExpenseUploadFilePart = (value) => {
+  if (value == null || typeof value !== 'object') return false;
+  if (typeof File !== 'undefined' && value instanceof File) return true;
+  if (typeof Blob === 'undefined' || !(value instanceof Blob)) return false;
+  if (typeof value.name === 'string') return true;
+  return typeof value.lastModified === 'number';
+};
+
+/** Build payload fields for POST /expense/save (and legacy create). */
 export function buildExpenseCreateBody(raw = {}) {
   const body = {};
   if (raw.name != null && String(raw.name).trim() !== '') body.name = String(raw.name).trim();
@@ -174,6 +203,236 @@ export function buildExpenseCreateBody(raw = {}) {
   }
   if (raw.note != null) body.note = String(raw.note);
   return body;
+}
+
+/** POST /expense/save — JSON when no file; multipart/form-data with `image` when a file is attached. */
+export async function saveExpenseRequest(expenseData = {}) {
+  const token = getAuthToken();
+  const { image, ...rest } = expenseData;
+  const url = `${BASE_URL}expense/save`;
+  const fields = buildExpenseCreateBody(rest);
+  const useMultipart = isExpenseUploadFilePart(image);
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendExpenseFieldsToFormData(formData, fields);
+    const fileName = image.name || 'upload';
+    formData.append(EXPENSE_IMAGE_FIELD_NAME, image, fileName);
+
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let response;
+    try {
+      response = await fetch(url, { method: 'POST', headers, body: formData });
+    } catch (err) {
+      logExpenseModuleError('saveExpenseRequest network error (multipart)', {
+        url,
+        hasToken: Boolean(token),
+        formFieldKeys: [...formData.keys()],
+        errorMessage: err?.message || String(err),
+        error: err,
+      });
+      throw err;
+    }
+
+    if (!response.ok) {
+      const details = await readResponseErrorDetails(response);
+      logExpenseModuleError('saveExpenseRequest failed (multipart)', {
+        url,
+        hasToken: Boolean(token),
+        ...details,
+      });
+      throw new Error(details.message);
+    }
+
+    try {
+      return await response.json();
+    } catch (parseErr) {
+      logExpenseModuleError('saveExpenseRequest invalid JSON body (multipart)', {
+        url,
+        errorMessage: parseErr?.message || String(parseErr),
+      });
+      throw parseErr;
+    }
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(fields),
+    });
+  } catch (err) {
+    logExpenseModuleError('saveExpenseRequest network error (JSON)', {
+      url,
+      hasToken: Boolean(token),
+      payloadKeys: Object.keys(fields),
+      errorMessage: err?.message || String(err),
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const details = await readResponseErrorDetails(response);
+    logExpenseModuleError('saveExpenseRequest failed (JSON)', {
+      url,
+      hasToken: Boolean(token),
+      payloadKeys: Object.keys(fields),
+      ...details,
+    });
+    throw new Error(details.message);
+  }
+
+  try {
+    return await response.json();
+  } catch (parseErr) {
+    logExpenseModuleError('saveExpenseRequest invalid JSON body (JSON)', {
+      url,
+      errorMessage: parseErr?.message || String(parseErr),
+    });
+    throw parseErr;
+  }
+}
+
+export const EXPENSE_POPULATE = 'account_id,user_id,payment_method_accounts_id';
+
+const normalizeSingleExpensePayload = (result) => {
+  if (!result || typeof result !== 'object') return null;
+  if (result.data != null && typeof result.data === 'object' && !Array.isArray(result.data)) {
+    return result.data;
+  }
+  if (result.expense != null && typeof result.expense === 'object' && !Array.isArray(result.expense)) {
+    return result.expense;
+  }
+  if (result._id || result.id) return result;
+  return null;
+};
+
+export async function fetchExpenseByIdRequest(expenseId, params = {}) {
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const queryParams = new URLSearchParams();
+  queryParams.append(
+    'populate',
+    params.populate != null ? String(params.populate) : EXPENSE_POPULATE
+  );
+  const url = `${BASE_URL}expense/get/${expenseId}?${queryParams.toString()}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers });
+  } catch (err) {
+    logExpenseModuleError('fetchExpenseByIdRequest network error', { expenseId, url, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const details = await readResponseErrorDetails(response);
+    logExpenseModuleError('fetchExpenseByIdRequest failed', { expenseId, ...details });
+    throw new Error(details.message);
+  }
+
+  const result = await response.json();
+  const expense = normalizeSingleExpensePayload(result);
+  if (!expense) {
+    throw new Error('Expense not found');
+  }
+  return expense;
+}
+
+/** PATCH /expense/update/:id — JSON when no file; multipart with `image` when attached. */
+export async function updateExpenseRequest(expenseId, expenseData = {}) {
+  const token = getAuthToken();
+  const id = String(expenseId ?? '').trim();
+  if (!id) throw new Error('Missing expense id');
+
+  const { image, ...rest } = expenseData;
+  const url = `${BASE_URL}expense/update/${encodeURIComponent(id)}`;
+  const fields = buildExpenseCreateBody(rest);
+  const useMultipart = isExpenseUploadFilePart(image);
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendExpenseFieldsToFormData(formData, fields);
+    const fileName = image.name || 'upload';
+    formData.append(EXPENSE_IMAGE_FIELD_NAME, image, fileName);
+
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let response;
+    try {
+      response = await fetch(url, { method: 'PATCH', headers, body: formData });
+    } catch (err) {
+      logExpenseModuleError('updateExpenseRequest network error (multipart)', {
+        expenseId,
+        url,
+        errorMessage: err?.message || String(err),
+        error: err,
+      });
+      throw err;
+    }
+
+    if (!response.ok) {
+      const details = await readResponseErrorDetails(response);
+      logExpenseModuleError('updateExpenseRequest failed (multipart)', { expenseId, ...details });
+      throw new Error(details.message);
+    }
+
+    try {
+      return await response.json();
+    } catch (parseErr) {
+      logExpenseModuleError('updateExpenseRequest invalid JSON body (multipart)', {
+        expenseId,
+        errorMessage: parseErr?.message || String(parseErr),
+      });
+      throw parseErr;
+    }
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(fields),
+    });
+  } catch (err) {
+    logExpenseModuleError('updateExpenseRequest network error (JSON)', {
+      expenseId,
+      url,
+      errorMessage: err?.message || String(err),
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const details = await readResponseErrorDetails(response);
+    logExpenseModuleError('updateExpenseRequest failed (JSON)', { expenseId, ...details });
+    throw new Error(details.message);
+  }
+
+  try {
+    return await response.json();
+  } catch (parseErr) {
+    logExpenseModuleError('updateExpenseRequest invalid JSON body (JSON)', {
+      expenseId,
+      errorMessage: parseErr?.message || String(parseErr),
+    });
+    throw parseErr;
+  }
 }
 
 export async function createExpenseRequest(expenseData = {}) {

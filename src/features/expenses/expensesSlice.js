@@ -1,5 +1,11 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { createExpenseRequest, fetchExpensesRequest } from './expensesAPI.js';
+import {
+  createExpenseRequest,
+  fetchExpenseByIdRequest,
+  fetchExpensesRequest,
+  saveExpenseRequest,
+  updateExpenseRequest,
+} from './expensesAPI.js';
 
 export const fetchExpenses = createAsyncThunk(
   'expenses/fetchExpenses',
@@ -12,6 +18,17 @@ export const fetchExpenses = createAsyncThunk(
   }
 );
 
+export const fetchExpenseById = createAsyncThunk(
+  'expenses/fetchExpenseById',
+  async (expenseId, { rejectWithValue }) => {
+    try {
+      return await fetchExpenseByIdRequest(expenseId);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch expense');
+    }
+  }
+);
+
 export const createExpense = createAsyncThunk(
   'expenses/createExpense',
   async (expenseData, { rejectWithValue }) => {
@@ -20,12 +37,44 @@ export const createExpense = createAsyncThunk(
       return response;
     } catch (error) {
       const message = error?.message || String(error) || 'Failed to create expense';
-      console.error('[Expense module] createExpense thunk error', {
-        message,
-        errorName: error?.name,
-        stack: error?.stack,
-        error,
-      });
+      console.error('[Expense module] createExpense thunk error', { message, error });
+      return rejectWithValue(message);
+    }
+  }
+);
+
+export const saveExpense = createAsyncThunk(
+  'expenses/saveExpense',
+  async (arg, { rejectWithValue }) => {
+    const safe = arg || {};
+    const { expenseFields, image } = safe;
+    try {
+      const payload =
+        expenseFields !== undefined
+          ? { ...expenseFields, ...(image != null ? { image } : {}) }
+          : { ...safe };
+      return await saveExpenseRequest(payload);
+    } catch (error) {
+      const message = error?.message || String(error) || 'Failed to save expense';
+      console.error('[Expense module] saveExpense thunk error', { message, error });
+      return rejectWithValue(message);
+    }
+  }
+);
+
+export const updateExpense = createAsyncThunk(
+  'expenses/updateExpense',
+  async ({ expenseId, expenseFields, image }, { rejectWithValue }) => {
+    try {
+      const payload = {
+        ...expenseFields,
+        ...(image != null ? { image } : {}),
+      };
+      const response = await updateExpenseRequest(expenseId, payload);
+      return { expenseId, response };
+    } catch (error) {
+      const message = error?.message || String(error) || 'Failed to update expense';
+      console.error('[Expense module] updateExpense thunk error', { message, expenseId, error });
       return rejectWithValue(message);
     }
   }
@@ -46,9 +95,14 @@ const initialState = {
     sortBy: null,
     sortOrder: 'asc',
   },
+  currentExpense: null,
+  fetchStatus: 'idle',
+  fetchError: null,
   createStatus: 'idle',
   createError: null,
   lastCreated: null,
+  updateStatus: 'idle',
+  updateError: null,
 };
 
 const expensesSlice = createSlice({
@@ -61,6 +115,15 @@ const expensesSlice = createSlice({
     },
     clearLastCreated: (state) => {
       state.lastCreated = null;
+    },
+    clearCurrentExpense: (state) => {
+      state.currentExpense = null;
+      state.fetchStatus = 'idle';
+      state.fetchError = null;
+    },
+    clearUpdateStatus: (state) => {
+      state.updateStatus = 'idle';
+      state.updateError = null;
     },
     setSearch: (state, action) => {
       state.search = action.payload;
@@ -109,6 +172,20 @@ const expensesSlice = createSlice({
         state.listError = action.payload || action.error.message || 'Failed to fetch expenses';
         state.list = [];
       })
+      .addCase(fetchExpenseById.pending, (state) => {
+        state.fetchStatus = 'loading';
+        state.fetchError = null;
+      })
+      .addCase(fetchExpenseById.fulfilled, (state, action) => {
+        state.fetchStatus = 'succeeded';
+        state.currentExpense = action.payload;
+        state.fetchError = null;
+      })
+      .addCase(fetchExpenseById.rejected, (state, action) => {
+        state.fetchStatus = 'failed';
+        state.fetchError = action.payload || action.error.message || 'Failed to fetch expense';
+        state.currentExpense = null;
+      })
       .addCase(createExpense.pending, (state) => {
         state.createStatus = 'loading';
         state.createError = null;
@@ -121,10 +198,52 @@ const expensesSlice = createSlice({
       .addCase(createExpense.rejected, (state, action) => {
         state.createStatus = 'failed';
         state.createError = action.payload || action.error.message || 'Failed to create expense';
+      })
+      .addCase(saveExpense.pending, (state) => {
+        state.createStatus = 'loading';
+        state.createError = null;
+      })
+      .addCase(saveExpense.fulfilled, (state, action) => {
+        state.createStatus = 'succeeded';
+        state.createError = null;
+        state.lastCreated = action.payload;
+      })
+      .addCase(saveExpense.rejected, (state, action) => {
+        state.createStatus = 'failed';
+        state.createError = action.payload || action.error.message || 'Failed to save expense';
+      })
+      .addCase(updateExpense.pending, (state) => {
+        state.updateStatus = 'loading';
+        state.updateError = null;
+      })
+      .addCase(updateExpense.fulfilled, (state, action) => {
+        state.updateStatus = 'succeeded';
+        state.updateError = null;
+        const expenseId = action.payload.expenseId;
+        const index = state.list.findIndex(
+          (item) => (item._id || item.id) === expenseId
+        );
+        const updated =
+          action.payload.response?.data || action.payload.response?.expense || action.payload.response;
+        if (index !== -1 && updated && typeof updated === 'object') {
+          state.list[index] = { ...state.list[index], ...updated };
+        }
+      })
+      .addCase(updateExpense.rejected, (state, action) => {
+        state.updateStatus = 'failed';
+        state.updateError = action.payload || action.error.message || 'Failed to update expense';
       });
   },
 });
 
-export const { clearCreateStatus, clearLastCreated, setSearch, setPage, setLimit, setSort } =
-  expensesSlice.actions;
+export const {
+  clearCreateStatus,
+  clearLastCreated,
+  clearCurrentExpense,
+  clearUpdateStatus,
+  setSearch,
+  setPage,
+  setLimit,
+  setSort,
+} = expensesSlice.actions;
 export default expensesSlice.reducer;

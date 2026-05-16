@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchExpenses,
@@ -27,8 +27,35 @@ const IdCell = ({ value }) => {
   );
 };
 
+/** Populated `user_id` object or raw id string from API. */
+const expenseUserDisplayName = (userRef) => {
+  if (userRef == null || userRef === '') return '—';
+  if (typeof userRef === 'object') {
+    const name = String(userRef.name ?? '').trim();
+    if (name) return name;
+    const email = String(userRef.email ?? '').trim();
+    if (email) return email;
+    return '—';
+  }
+  return '—';
+};
+
+/** Populated `account_id` (or payment account) object or raw id. */
+const expenseAccountDisplayName = (accountRef) => {
+  if (accountRef == null || accountRef === '') return '—';
+  if (typeof accountRef === 'object') {
+    const name = String(accountRef.name ?? accountRef.account_name ?? '').trim();
+    if (name) return name;
+    const code = String(accountRef.code ?? accountRef.account_code ?? '').trim();
+    if (code) return code;
+    return '—';
+  }
+  return '—';
+};
+
 const ExpenseIndex = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const {
     list: data,
     listStatus,
@@ -203,7 +230,7 @@ const ExpenseIndex = () => {
     );
   };
 
-  const colCount = 13;
+  const colCount = 11;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -215,7 +242,10 @@ const ExpenseIndex = () => {
                 <div className="col-md-6">
                   <h5 className="mb-0">Expenses</h5>
                   <p className="text-sm mb-0 text-muted">
-                    List from <code className="text-xs">GET /expense/get-all-active</code>
+                    List from{' '}
+                    <code className="text-xs">
+                      GET /expense/get-all-active?populate=account_id,user_id,payment_method_accounts_id
+                    </code>
                   </p>
                 </div>
                 <div className="col-md-6">
@@ -267,8 +297,8 @@ const ExpenseIndex = () => {
                           Name
                           {renderSortIcon('name')}
                         </th>
-                        <th>User id</th>
-                        <th>Account id</th>
+                        <th>User name</th>
+                        <th>Expense account</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('amount')}
@@ -277,10 +307,8 @@ const ExpenseIndex = () => {
                           Amount
                           {renderSortIcon('amount')}
                         </th>
-                        <th>Payment acct.</th>
+                        <th>Payment account</th>
                         <th>Note</th>
-                        <th>Company id</th>
-                        <th>Created by</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('status')}
@@ -297,14 +325,7 @@ const ExpenseIndex = () => {
                           Created
                           {renderSortIcon('createdAt')}
                         </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Updated
-                          {renderSortIcon('updatedAt')}
-                        </th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -326,17 +347,17 @@ const ExpenseIndex = () => {
                                 <IdCell value={item._id} />
                               </td>
                               <td className="text-sm font-weight-normal">{item.name || '—'}</td>
-                              <td className="text-sm">
-                                <IdCell value={item.user_id} />
+                              <td className="text-sm font-weight-normal">
+                                {expenseUserDisplayName(item.user_id)}
                               </td>
-                              <td className="text-sm">
-                                <IdCell value={item.account_id} />
+                              <td className="text-sm font-weight-normal">
+                                {expenseAccountDisplayName(item.account_id)}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.amount != null ? Number(item.amount).toLocaleString() : '—'}
                               </td>
-                              <td className="text-sm">
-                                <IdCell value={item.payment_method_accounts_id} />
+                              <td className="text-sm font-weight-normal">
+                                {expenseAccountDisplayName(item.payment_method_accounts_id)}
                               </td>
                               <td
                                 className="text-sm font-weight-normal"
@@ -355,12 +376,6 @@ const ExpenseIndex = () => {
                                 )}
                               </td>
                               <td className="text-sm">
-                                <IdCell value={item.company_id} />
-                              </td>
-                              <td className="text-sm">
-                                <IdCell value={item.created_by} />
-                              </td>
-                              <td className="text-sm">
                                 <span
                                   className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
                                 >
@@ -372,10 +387,16 @@ const ExpenseIndex = () => {
                                   ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
                                   : '—'}
                               </td>
-                              <td className="text-sm text-muted text-nowrap">
-                                {item.updatedAt
-                                  ? moment(item.updatedAt).format('YYYY-MM-DD HH:mm')
-                                  : '—'}
+                              <td className="text-sm font-weight-normal">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() =>
+                                    navigate(`/expenses/edit/${item._id || item.id}`)
+                                  }
+                                >
+                                  Edit
+                                </button>
                               </td>
                             </tr>
                           );

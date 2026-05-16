@@ -1,26 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import moment from 'moment';
-import { saveExpense } from '../../features/expenses/expensesSlice.js';
+import {
+  fetchExpenseById,
+  updateExpense,
+  clearCurrentExpense,
+  clearUpdateStatus,
+} from '../../features/expenses/expensesSlice.js';
 import { isExpenseUploadFilePart } from '../../features/expenses/expensesAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
-import { API_BASE_URL } from '../../config/apiConfig.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
 
-/** GET `account/get-all-active` URL as used by this form (for help text). */
-const accountsListUrl = (accountType) => {
-  const q = new URLSearchParams();
-  q.set('skip', '0');
-  q.set('limit', '500');
-  q.set('sortBy', 'name');
-  q.set('sortOrder', 'asc');
-  q.set('account_type', accountType);
-  const base = String(API_BASE_URL || '/api').replace(/\/+$/, '');
-  return `${base}/account/get-all-active?${q.toString()}`;
+const refId = (ref) => {
+  if (ref == null || ref === '') return '';
+  if (typeof ref === 'object') return String(ref._id ?? ref.id ?? '');
+  return String(ref);
 };
 
 const accountOptionValue = (a) => a?._id ?? a?.id ?? '';
@@ -34,32 +33,38 @@ const accountOptionLabel = (a) => {
 };
 
 const userOptionValue = (u) => u?._id ?? u?.id ?? '';
-
-/** Visible label only — never show raw ids in the UI. */
 const userDisplayName = (u) => {
-  const name = String(u?.name ?? '').trim();
-  if (name) return name;
-  const email = String(u?.email ?? '').trim();
-  if (email) return email;
+  if (typeof u === 'object' && u != null) {
+    const name = String(u.name ?? '').trim();
+    if (name) return name;
+    const email = String(u.email ?? '').trim();
+    if (email) return email;
+  }
   return 'Unknown user';
 };
 
-const ExpenseAdd = () => {
+const pickExpenseImageUrl = (exp) => {
+  const raw = exp?.image ?? exp?.attachment ?? '';
+  return resolveCategoryMediaUrl(raw);
+};
+
+const ExpenseEdit = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user: authUser } = useSelector((state) => state.user);
-  const defaultUserId = userOptionValue(authUser) || '';
+  const { id } = useParams();
+  const { currentExpense, fetchStatus, fetchError, updateStatus, updateError } = useSelector(
+    (state) => state.expenses
+  );
 
   const [form, setForm] = useState({
-    name: 'salary',
-    user_id: defaultUserId || '',
+    name: '',
+    user_id: '',
     account_id: '',
-    amount: '300',
+    amount: '',
     payment_method_accounts_id: '',
-    note: 'Lorem ispum',
+    note: '',
   });
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [expenseAccounts, setExpenseAccounts] = useState([]);
   const [expenseAccountsStatus, setExpenseAccountsStatus] = useState('idle');
   const [paymentMethodAccounts, setPaymentMethodAccounts] = useState([]);
@@ -68,25 +73,22 @@ const ExpenseAdd = () => {
   const [usersStatus, setUsersStatus] = useState('idle');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState('');
   const imageInputRef = useRef(null);
+  const isSubmitting = updateStatus === 'loading';
+  const isLoading = fetchStatus === 'loading';
 
   useEffect(() => {
-    const uid = userOptionValue(authUser);
-    if (!uid) return;
-    setForm((prev) => {
-      if (prev.user_id) return prev;
-      return { ...prev, user_id: uid };
-    });
-  }, [authUser]);
+    if (id) dispatch(fetchExpenseById(id));
+    return () => {
+      dispatch(clearCurrentExpense());
+      dispatch(clearUpdateStatus());
+    };
+  }, [dispatch, id]);
 
   useEffect(() => {
     let cancelled = false;
-    const params = {
-      page: 1,
-      limit: 500,
-      sortBy: 'name',
-      sortOrder: 'asc',
-    };
+    const params = { page: 1, limit: 500, sortBy: 'name', sortOrder: 'asc' };
 
     setExpenseAccountsStatus('loading');
     fetchAccountsRequest({ ...params, account_type: EXPENSE_ACCOUNT_TYPE })
@@ -96,8 +98,7 @@ const ExpenseAdd = () => {
           setExpenseAccountsStatus('succeeded');
         }
       })
-      .catch((err) => {
-        console.error('[Expense module] Failed to load expense (operating_expense) accounts', err);
+      .catch(() => {
         if (!cancelled) {
           setExpenseAccounts([]);
           setExpenseAccountsStatus('failed');
@@ -112,11 +113,25 @@ const ExpenseAdd = () => {
           setPaymentMethodAccountsStatus('succeeded');
         }
       })
-      .catch((err) => {
-        console.error('[Expense module] Failed to load payment (current_asset) accounts', err);
+      .catch(() => {
         if (!cancelled) {
           setPaymentMethodAccounts([]);
           setPaymentMethodAccountsStatus('failed');
+        }
+      });
+
+    setUsersStatus('loading');
+    fetchUsersRequest({ page: 1, limit: 500 })
+      .then((res) => {
+        if (!cancelled) {
+          setUsers(Array.isArray(res.data) ? res.data : []);
+          setUsersStatus('succeeded');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUsers([]);
+          setUsersStatus('failed');
         }
       });
 
@@ -126,26 +141,20 @@ const ExpenseAdd = () => {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    setUsersStatus('loading');
-    fetchUsersRequest({ page: 1, limit: 500 })
-      .then((res) => {
-        if (!cancelled) {
-          setUsers(Array.isArray(res.data) ? res.data : []);
-          setUsersStatus('succeeded');
-        }
-      })
-      .catch((err) => {
-        console.error('[Expense module] Failed to load users for expense form', err);
-        if (!cancelled) {
-          setUsers([]);
-          setUsersStatus('failed');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!currentExpense) return;
+    setForm({
+      name: currentExpense.name || '',
+      user_id: refId(currentExpense.user_id),
+      account_id: refId(currentExpense.account_id),
+      amount: currentExpense.amount != null ? String(currentExpense.amount) : '',
+      payment_method_accounts_id: refId(currentExpense.payment_method_accounts_id),
+      note: currentExpense.note != null ? String(currentExpense.note) : '',
+    });
+    setExistingImageUrl(pickExpenseImageUrl(currentExpense));
+    setImageFile(null);
+    setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }, [currentExpense]);
 
   useEffect(() => {
     return () => {
@@ -186,19 +195,13 @@ const ExpenseAdd = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
-    }
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-    if (!String(form.name || '').trim()) {
-      newErrors.name = 'Name is required';
-    }
-    if (!String(form.user_id || '').trim()) {
-      newErrors.user_id = 'Please select a user';
-    }
+    if (!String(form.name || '').trim()) newErrors.name = 'Name is required';
+    if (!String(form.user_id || '').trim()) newErrors.user_id = 'Please select a user';
     const amt = Number(form.amount);
     if (form.amount === '' || form.amount == null || Number.isNaN(amt)) {
       newErrors.amount = 'Enter a valid amount';
@@ -212,23 +215,17 @@ const ExpenseAdd = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const showToast = (id, bodyText) => {
-    const toastElement = document.getElementById(id);
+  const showToast = (toastId, bodyText) => {
+    const toastElement = document.getElementById(toastId);
     if (!toastElement) return;
     const timeElement = toastElement.querySelector('.toast-time');
-    if (timeElement) {
-      timeElement.textContent = moment().format('h:mm A');
-    }
+    if (timeElement) timeElement.textContent = moment().format('h:mm A');
     if (bodyText) {
       const toastBody = toastElement.querySelector('.toast-body');
       if (toastBody) toastBody.textContent = bodyText;
     }
-    if (window.bootstrap && window.bootstrap.Toast) {
-      const toast = new window.bootstrap.Toast(toastElement, {
-        autohide: true,
-        delay: 5000,
-      });
-      toast.show();
+    if (window.bootstrap?.Toast) {
+      new window.bootstrap.Toast(toastElement, { autohide: true, delay: 5000 }).show();
     } else {
       toastElement.classList.remove('hide');
       toastElement.classList.add('show');
@@ -243,7 +240,6 @@ const ExpenseAdd = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
     try {
       const payload = {
         name: form.name.trim(),
@@ -254,29 +250,71 @@ const ExpenseAdd = () => {
       };
       if (form.account_id.trim()) payload.account_id = form.account_id.trim();
 
-      const hadImage = isExpenseUploadFilePart(imageFile);
       await dispatch(
-        saveExpense({
+        updateExpense({
+          expenseId: id,
           expenseFields: payload,
-          image: hadImage ? imageFile : undefined,
+          image: isExpenseUploadFilePart(imageFile) ? imageFile : undefined,
         })
       ).unwrap();
-      showToast('successToast', 'Expense saved successfully.');
+
+      showToast('successToast', 'Expense updated successfully.');
       setTimeout(() => navigate('/expenses'), 1000);
     } catch (error) {
-      const normalizedMessage =
+      const msg =
         typeof error === 'string'
           ? error
-          : error?.message || (error && String(error)) || 'Could not create expense.';
-      console.error('[Expense module] Add expense form submit failed', {
-        message: normalizedMessage,
-        raw: error,
-      });
-      showToast('dangerToast', normalizedMessage);
-    } finally {
-      setIsSubmitting(false);
+          : error?.message || updateError || 'Could not update expense.';
+      showToast('dangerToast', msg);
     }
   };
+
+  const renderUserOptions = () => {
+    const currentUserRef = currentExpense?.user_id;
+    const currentId = form.user_id;
+    const currentInList = users.some((u) => userOptionValue(u) === currentId);
+    const extra =
+      currentId && !currentInList ? (
+        <option key={`cur-${currentId}`} value={currentId}>
+          {userDisplayName(currentUserRef)}
+        </option>
+      ) : null;
+    const sorted = [...users].sort((a, b) =>
+      userDisplayName(a).localeCompare(userDisplayName(b), undefined, { sensitivity: 'base' })
+    );
+    return (
+      <>
+        {extra}
+        {sorted.map((u, idx) => (
+          <option
+            key={userOptionValue(u) ? `u-${userOptionValue(u)}` : `u-idx-${idx}`}
+            value={userOptionValue(u)}
+          >
+            {userDisplayName(u)}
+          </option>
+        ))}
+      </>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container-fluid py-4">
+        <p className="mb-0">Loading expense…</p>
+      </div>
+    );
+  }
+
+  if (fetchStatus === 'failed') {
+    return (
+      <div className="container-fluid py-4">
+        <div className="alert alert-danger">{fetchError || 'Failed to load expense.'}</div>
+        <button type="button" className="btn btn-outline-secondary" onClick={() => navigate('/expenses')}>
+          Back to list
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -286,10 +324,9 @@ const ExpenseAdd = () => {
             <div className="card-header pb-0">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <h5 className="mb-0">Add expense</h5>
+                  <h5 className="mb-0">Edit expense</h5>
                   <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /expense/save</code> (multipart when
-                    attachment is added)
+                    Updates via <code className="text-xs">PATCH /expense/update/:id</code>
                   </p>
                 </div>
                 <button
@@ -315,7 +352,7 @@ const ExpenseAdd = () => {
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="e.g. salary"
+                    disabled={isSubmitting}
                   />
                   {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                 </div>
@@ -330,45 +367,14 @@ const ExpenseAdd = () => {
                     name="user_id"
                     value={form.user_id}
                     onChange={handleChange}
-                    disabled={usersStatus === 'loading'}
+                    disabled={usersStatus === 'loading' || isSubmitting}
                   >
                     <option value="">Select user…</option>
-                    {(() => {
-                      const authId = userOptionValue(authUser);
-                      const authInList = authId && users.some((u) => userOptionValue(u) === authId);
-                      const extra =
-                        authId && !authInList ? (
-                          <option key={`auth-${authId}`} value={authId}>
-                            {userDisplayName(authUser)}
-                          </option>
-                        ) : null;
-                      const sorted = [...users].sort((a, b) =>
-                        userDisplayName(a).localeCompare(userDisplayName(b), undefined, {
-                          sensitivity: 'base',
-                        })
-                      );
-                      return (
-                        <>
-                          {extra}
-                          {sorted.map((u, idx) => (
-                            <option
-                              key={userOptionValue(u) ? `u-${userOptionValue(u)}` : `u-idx-${idx}`}
-                              value={userOptionValue(u)}
-                            >
-                              {userDisplayName(u)}
-                            </option>
-                          ))}
-                        </>
-                      );
-                    })()}
+                    {renderUserOptions()}
                   </select>
                   {errors.user_id && (
                     <div className="invalid-feedback d-block">{errors.user_id}</div>
                   )}
-                  <small className="text-muted d-block mt-1">
-                    Choose the person this expense belongs to. The signed-in user is selected when
-                    the list loads, if available.
-                  </small>
                 </div>
 
                 <div className="mb-3">
@@ -381,7 +387,7 @@ const ExpenseAdd = () => {
                     name="account_id"
                     value={form.account_id}
                     onChange={handleChange}
-                    disabled={expenseAccountsStatus === 'loading'}
+                    disabled={expenseAccountsStatus === 'loading' || isSubmitting}
                   >
                     <option value="">None</option>
                     {expenseAccounts.map((a, idx) => (
@@ -393,15 +399,6 @@ const ExpenseAdd = () => {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted d-block mt-1">
-                    Source:{' '}
-                    <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
-                      {accountsListUrl(EXPENSE_ACCOUNT_TYPE)}
-                    </code>
-                  </small>
-                  {expenseAccountsStatus === 'failed' && (
-                    <small className="text-danger d-block mt-1">Could not load expense accounts.</small>
-                  )}
                 </div>
 
                 <div className="mb-3">
@@ -417,6 +414,7 @@ const ExpenseAdd = () => {
                     name="amount"
                     value={form.amount}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                   {errors.amount && <div className="invalid-feedback">{errors.amount}</div>}
                 </div>
@@ -431,8 +429,7 @@ const ExpenseAdd = () => {
                     name="payment_method_accounts_id"
                     value={form.payment_method_accounts_id}
                     onChange={handleChange}
-                    disabled={paymentMethodAccountsStatus === 'loading'}
-                    required
+                    disabled={paymentMethodAccountsStatus === 'loading' || isSubmitting}
                   >
                     <option value="">Select payment method…</option>
                     {paymentMethodAccounts.map((a, idx) => (
@@ -451,23 +448,29 @@ const ExpenseAdd = () => {
                       {errors.payment_method_accounts_id}
                     </div>
                   )}
-                  <small className="text-muted d-block mt-1">
-                    Source:{' '}
-                    <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
-                      {accountsListUrl(PAYMENT_METHOD_ACCOUNT_TYPE)}
-                    </code>
-                  </small>
-                  {paymentMethodAccountsStatus === 'failed' && (
-                    <small className="text-danger d-block mt-1">
-                      Could not load payment method accounts.
-                    </small>
-                  )}
                 </div>
 
                 <div className="mb-3">
                   <label htmlFor="expense_attachment" className="form-label">
                     Attachments
                   </label>
+                  {existingImageUrl && !imagePreview && (
+                    <div className="mb-2">
+                      <small className="text-muted d-block mb-1">Current attachment:</small>
+                      {existingImageUrl.match(/\.(jpe?g|png|gif|webp)(\?|$)/i) ? (
+                        <img
+                          src={existingImageUrl}
+                          alt="Current attachment"
+                          className="rounded border d-block"
+                          style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <a href={existingImageUrl} target="_blank" rel="noopener noreferrer">
+                          View attachment
+                        </a>
+                      )}
+                    </div>
+                  )}
                   <input
                     ref={imageInputRef}
                     type="file"
@@ -477,18 +480,14 @@ const ExpenseAdd = () => {
                     onChange={handleImageChange}
                     disabled={isSubmitting}
                   />
-                  {errors.image && (
-                    <div className="invalid-feedback d-block">{errors.image}</div>
-                  )}
                   <small className="text-muted d-block">
-                    Optional. Uploaded as field <code className="text-xs">image</code> on{' '}
-                    <code className="text-xs">POST /expense/save</code>.
+                    Optional. Replace attachment via field <code className="text-xs">image</code>.
                   </small>
                   {imagePreview && imageFile?.type?.startsWith('image/') && (
                     <div className="mt-3 d-flex align-items-start gap-2">
                       <img
                         src={imagePreview}
-                        alt="Attachment preview"
+                        alt="New attachment preview"
                         className="rounded border"
                         style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
                       />
@@ -498,23 +497,7 @@ const ExpenseAdd = () => {
                         onClick={clearImage}
                         disabled={isSubmitting}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                  {imageFile && !imageFile.type?.startsWith('image/') && (
-                    <div className="mt-2 d-flex align-items-center gap-2">
-                      <span className="text-sm">
-                        <i className="fas fa-paperclip me-1"></i>
-                        {imageFile.name}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={clearImage}
-                        disabled={isSubmitting}
-                      >
-                        Remove
+                        Remove new file
                       </button>
                     </div>
                   )}
@@ -531,7 +514,7 @@ const ExpenseAdd = () => {
                     rows={3}
                     value={form.note}
                     onChange={handleChange}
-                    placeholder="Optional note"
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -552,12 +535,12 @@ const ExpenseAdd = () => {
                           role="status"
                           aria-hidden="true"
                         ></span>
-                        Saving…
+                        Updating…
                       </>
                     ) : (
                       <>
                         <i className="fas fa-save me-2"></i>
-                        Create expense
+                        Update expense
                       </>
                     )}
                   </button>
@@ -572,40 +555,27 @@ const ExpenseAdd = () => {
         <div
           className="toast fade hide p-2 bg-white"
           role="alert"
-          aria-live="assertive"
           id="successToast"
-          aria-atomic="true"
+          aria-live="assertive"
         >
           <div className="toast-header border-0">
             <i className="ni ni-check-bold text-success me-2"></i>
             <span className="me-auto font-weight-bold">Success</span>
             <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
           </div>
           <hr className="horizontal dark m-0" />
-          <div className="toast-body">Expense saved successfully.</div>
+          <div className="toast-body">Expense updated successfully.</div>
         </div>
-
         <div
           className="toast fade hide p-2 mt-2 bg-white"
           role="alert"
-          aria-live="assertive"
           id="dangerToast"
-          aria-atomic="true"
+          aria-live="assertive"
         >
           <div className="toast-header border-0">
             <i className="ni ni-notification-70 text-danger me-2"></i>
             <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>
             <small className="text-body toast-time">{moment().format('h:mm A')}</small>
-            <i
-              className="fas fa-times text-md ms-3 cursor-pointer"
-              data-bs-dismiss="toast"
-              aria-label="Close"
-            ></i>
           </div>
           <hr className="horizontal dark m-0" />
           <div className="toast-body">An error occurred.</div>
@@ -615,4 +585,4 @@ const ExpenseAdd = () => {
   );
 };
 
-export default ExpenseAdd;
+export default ExpenseEdit;
