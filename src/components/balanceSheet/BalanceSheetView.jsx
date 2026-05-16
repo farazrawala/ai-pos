@@ -1,8 +1,16 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { BalanceSheetSummaryBar } from './BalanceSheetSummaryBar.jsx';
 import { formatCurrencyAccounting } from './formatCurrency.js';
-import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
-import { fetchBalanceSheetInventoryCogRequest } from '../../features/balanceSheet/balanceSheetAPI.js';
+import {
+  buildFetchAccountsByTypeUrl,
+  fetchAccountsByTypeRequest,
+} from '../../features/accounts/accountsAPI.js';
+import {
+  buildBalanceSheetInventoryCogUrl,
+  fetchBalanceSheetInventoryCogRequest,
+} from '../../features/balanceSheet/balanceSheetAPI.js';
+import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import '../common/devApiSources.css';
 import './balanceSheetGl.css';
 import './balanceSheetDark.css';
 
@@ -278,6 +286,18 @@ export default function BalanceSheetView() {
     for (let i = y - 10; i <= y + 2; i += 1) out.push(i);
     return out;
   }, []);
+
+  const apiDataSources = useMemo(
+    () => [
+      { label: 'Current assets', url: buildFetchAccountsByTypeUrl('current_asset') },
+      { label: 'Fixed assets', url: buildFetchAccountsByTypeUrl('fixed_asset') },
+      { label: 'Inventory (cost of goods)', url: buildBalanceSheetInventoryCogUrl() },
+      { label: 'Current liabilities', url: buildFetchAccountsByTypeUrl('current_liability') },
+      { label: 'Long-term liabilities', url: buildFetchAccountsByTypeUrl('long_term_liability') },
+      { label: 'Equity', url: buildFetchAccountsByTypeUrl('equity') },
+    ],
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -683,6 +703,12 @@ export default function BalanceSheetView() {
                   liabilitiesPlusEquity={liabilitiesPlusEquity}
                   difference={difference}
                   formatCurrency={formatCurrencyAccounting}
+                />
+
+                <DevApiSourcesFooter
+                  className="bs-gl-api-sources"
+                  title="Data fetched from"
+                  sources={apiDataSources}
                 />
               </div>
             </div>

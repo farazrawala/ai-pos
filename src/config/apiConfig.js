@@ -25,6 +25,18 @@ export const API_PROXY_TARGET = readEnv('VITE_API_PROXY_TARGET', 'http://localho
 
 export { APP_ENV };
 
+/** Full browser URL for dev help text (relative `/api/...` → current origin). */
+export function formatDisplayApiUrl(url) {
+  if (!url) return '';
+  const s = String(url);
+  if (/^https?:\/\//i.test(s)) return s;
+  const path = s.startsWith('/') ? s : `/${s.replace(/^\//, '')}`;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${path}`;
+  }
+  return path;
+}
+
 /**
  * Turn API image fields into a URL the browser can load.
  */

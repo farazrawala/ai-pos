@@ -40,6 +40,11 @@ const getErrorMessageFromResponse = async (response) => {
   return oneLine.length > 500 ? `${oneLine.slice(0, 500)}…` : oneLine;
 };
 
+/** GET URL for inventory / COGS section on the balance sheet. */
+export function buildBalanceSheetInventoryCogUrl() {
+  return `${BASE_URL}${INVENTORY_COG_PATH}`;
+}
+
 /**
  * Inventory valuation for the balance sheet.
  * Expects JSON like `{ grand_total_cost_of_goods, data: [{ product_id, product_name, cost_of_goods_available }] }`.
@@ -47,7 +52,7 @@ const getErrorMessageFromResponse = async (response) => {
  * @returns {Promise<{ lines: Array<{ id: string; label: string; amount: number }>; grandTotal: number }>}
  */
 export async function fetchBalanceSheetInventoryCogRequest() {
-  const url = `${BASE_URL}${INVENTORY_COG_PATH}`;
+  const url = buildBalanceSheetInventoryCogUrl();
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
 
   if (!response.ok) {
