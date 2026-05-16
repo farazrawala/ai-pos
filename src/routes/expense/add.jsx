@@ -69,12 +69,12 @@ const ExpenseAdd = () => {
   const defaultUserId = userOptionValue(authUser) || '';
 
   const [form, setForm] = useState({
-    name: 'salary',
+    name: '',
     user_id: defaultUserId || '',
     account_id: '',
-    amount: '300',
+    amount: '0',
     payment_method_accounts_id: '',
-    note: 'Lorem ispum',
+    note: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
