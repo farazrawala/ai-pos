@@ -3,7 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { saveExpense } from '../../features/expenses/expensesSlice.js';
-import { isExpenseUploadFilePart } from '../../features/expenses/expensesAPI.js';
+import {
+  buildExpenseDefaultAccountFilterParams,
+  isExpenseUploadFilePart,
+} from '../../features/expenses/expensesAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { API_BASE_URL } from '../../config/apiConfig.js';
@@ -11,14 +14,28 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
 
-/** GET `account/get-all-active` URL as used by this form (for help text). */
-const accountsListUrl = (accountType) => {
+/** GET `account/get-all-active` URL for expense accounts (help text). */
+const expenseAccountsListUrl = (accountType) => {
   const q = new URLSearchParams();
   q.set('skip', '0');
   q.set('limit', '500');
   q.set('sortBy', 'name');
   q.set('sortOrder', 'asc');
   q.set('account_type', accountType);
+  const base = String(API_BASE_URL || '/api').replace(/\/+$/, '');
+  return `${base}/account/get-all-active?${q.toString()}`;
+};
+
+/** Payment method accounts URL with company default include/exclude filters. */
+const paymentAccountsListUrl = (filters) => {
+  const q = new URLSearchParams();
+  q.set('skip', '0');
+  q.set('limit', '500');
+  q.set('sortBy', 'name');
+  q.set('sortOrder', 'asc');
+  if (filters?.account_type) q.set('account_type', filters.account_type);
+  if (filters?.include_id) q.set('include_id', filters.include_id);
+  if (filters?.exclude_id) q.set('exclude_id', filters.exclude_id);
   const base = String(API_BASE_URL || '/api').replace(/\/+$/, '');
   return `${base}/account/get-all-active?${q.toString()}`;
 };
@@ -47,7 +64,8 @@ const userDisplayName = (u) => {
 const ExpenseAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user: authUser } = useSelector((state) => state.user);
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
   const defaultUserId = userOptionValue(authUser) || '';
 
   const [form, setForm] = useState({
@@ -66,6 +84,7 @@ const ExpenseAdd = () => {
   const [paymentMethodAccountsStatus, setPaymentMethodAccountsStatus] = useState('idle');
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
+  const [paymentAccountFilterUrl, setPaymentAccountFilterUrl] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const imageInputRef = useRef(null);
@@ -105,7 +124,16 @@ const ExpenseAdd = () => {
       });
 
     setPaymentMethodAccountsStatus('loading');
-    fetchAccountsRequest({ ...params, account_type: PAYMENT_METHOD_ACCOUNT_TYPE })
+    buildExpenseDefaultAccountFilterParams(authUser, authCompany)
+      .then((accountFilters) => {
+        if (!cancelled) setPaymentAccountFilterUrl(paymentAccountsListUrl(accountFilters));
+        return fetchAccountsRequest({
+          ...params,
+          account_type: accountFilters.account_type ?? PAYMENT_METHOD_ACCOUNT_TYPE,
+          include_id: accountFilters.include_id,
+          exclude_id: accountFilters.exclude_id,
+        });
+      })
       .then((res) => {
         if (!cancelled) {
           setPaymentMethodAccounts(Array.isArray(res.data) ? res.data : []);
@@ -123,7 +151,7 @@ const ExpenseAdd = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser, authCompany]);
 
   useEffect(() => {
     let cancelled = false;
@@ -396,7 +424,7 @@ const ExpenseAdd = () => {
                   <small className="text-muted d-block mt-1">
                     Source:{' '}
                     <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
-                      {accountsListUrl(EXPENSE_ACCOUNT_TYPE)}
+                      {expenseAccountsListUrl(EXPENSE_ACCOUNT_TYPE)}
                     </code>
                   </small>
                   {expenseAccountsStatus === 'failed' && (
@@ -451,12 +479,19 @@ const ExpenseAdd = () => {
                       {errors.payment_method_accounts_id}
                     </div>
                   )}
-                  <small className="text-muted d-block mt-1">
-                    Source:{' '}
-                    <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
-                      {accountsListUrl(PAYMENT_METHOD_ACCOUNT_TYPE)}
-                    </code>
-                  </small>
+                  {paymentAccountFilterUrl && (
+                    <small className="text-muted d-block mt-1">
+                      Accounts:{' '}
+                      <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
+                        {paymentAccountFilterUrl}
+                      </code>
+                      <span className="d-block">
+                        Uses <code className="text-xs">default_account_payable_account</code> (include)
+                        and <code className="text-xs">default_account_receivable_account</code> (exclude)
+                        from company settings.
+                      </span>
+                    </small>
+                  )}
                   {paymentMethodAccountsStatus === 'failed' && (
                     <small className="text-danger d-block mt-1">
                       Could not load payment method accounts.

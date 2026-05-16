@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setUser } from '../features/user/userSlice.js';
+import { setLoginSession } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
 import { API_BASE_URL } from '../config/apiConfig.js';
 
@@ -51,34 +51,32 @@ const SignIn = () => {
         }
       );
 
-      // Save complete user data from response
-      // The API returns user data in data.user or directly in data
-      const userData = data?.user || data;
-
-      if (userData) {
-        // Ensure token is included in user data
+      if (data?.user) {
+        const userData = { ...data.user };
         if (!userData.token) {
-          userData.token = data?.token || data?.access_token || data?.accessToken;
+          userData.token =
+            data.token || data.access_token || data.accessToken || userData.token;
         }
-
-        // Save complete user object to Redux and localStorage
-        dispatch(setUser(userData));
+        dispatch(setLoginSession({ ...data, user: userData }));
+      } else if (data?._id || data?.email) {
+        const userData = { ...data };
+        if (!userData.token) {
+          userData.token = data.token || data.access_token || data.accessToken;
+        }
+        dispatch(setLoginSession({ success: true, user: userData }));
       } else {
-        // Fallback: if user data structure is different, extract what we can
         const displayName =
           data?.name ||
           data?.user?.name ||
           data?.user?.fullName ||
           form.email.split('@')[0] ||
           'User';
-
-        const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
-
+        const token =
+          data?.token || data?.access_token || data?.accessToken || data?.user?.token;
         dispatch(
-          setUser({
-            name: displayName,
-            email: form.email,
-            token: token,
+          setLoginSession({
+            success: true,
+            user: { name: displayName, email: form.email, token },
           })
         );
       }

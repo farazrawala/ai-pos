@@ -25,6 +25,72 @@ function pickCompanyIdString(raw) {
   return '';
 }
 
+/** Account ref → id string (populated doc, ObjectId string, or plain id). */
+export function pickAccountRefId(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.id;
+    if (id != null) return String(id).trim();
+  }
+  const s = String(raw).trim();
+  return s && s !== '[object Object]' ? s : '';
+}
+
+/** Default account fields on company (login `company_id` populate). */
+export const COMPANY_DEFAULT_ACCOUNT_KEYS = [
+  'default_account_payable_account',
+  'default_account_receivable_account',
+  'default_cash_account',
+  'default_equity_account_id',
+  'default_expense_account',
+  'default_other_expense_account',
+  'default_purchase_account',
+  'default_purchase_discount_account',
+  'default_salary_account',
+  'default_sales_account',
+  'default_sales_discount_account',
+  'default_shipping_account',
+  'default_utilities_account',
+];
+
+/** Map of default account keys → populated account doc or id from company. */
+export function extractCompanyDefaultAccounts(company) {
+  if (!company || typeof company !== 'object') return {};
+  const out = {};
+  for (const key of COMPANY_DEFAULT_ACCOUNT_KEYS) {
+    if (company[key] != null) out[key] = company[key];
+  }
+  return out;
+}
+
+export function getDefaultAccountFromCompany(company, key) {
+  if (!company || typeof company !== 'object') return null;
+  return company[key] ?? null;
+}
+
+export function getDefaultAccountId(company, key) {
+  return pickAccountRefId(getDefaultAccountFromCompany(company, key));
+}
+
+/** Populated company doc from login user (`company_id` or `company`). */
+export function extractCompanyFromUser(user) {
+  if (!user || typeof user !== 'object') return null;
+
+  const cid = user.company_id;
+  if (cid && typeof cid === 'object' && !Array.isArray(cid)) {
+    const id = pickCompanyIdString(cid);
+    if (id || cid.company_name != null || cid.name != null) return { ...cid };
+  }
+
+  const c = user.company;
+  if (c && typeof c === 'object' && !Array.isArray(c)) {
+    const id = pickCompanyIdString(c);
+    if (id || c.company_name != null || c.name != null) return { ...c };
+  }
+
+  return null;
+}
+
 /** Resolve company id from login payload; prefers the user's `company_id`. */
 export function getCompanyIdFromUser(user) {
   if (!user || typeof user !== 'object') return '';

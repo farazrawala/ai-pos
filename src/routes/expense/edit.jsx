@@ -8,13 +8,29 @@ import {
   clearCurrentExpense,
   clearUpdateStatus,
 } from '../../features/expenses/expensesSlice.js';
-import { isExpenseUploadFilePart } from '../../features/expenses/expensesAPI.js';
+import {
+  buildExpenseDefaultAccountFilterParams,
+  isExpenseUploadFilePart,
+} from '../../features/expenses/expensesAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
-import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
+
+const paymentAccountsListUrl = (filters) => {
+  const q = new URLSearchParams();
+  q.set('skip', '0');
+  q.set('limit', '500');
+  q.set('sortBy', 'name');
+  q.set('sortOrder', 'asc');
+  if (filters?.account_type) q.set('account_type', filters.account_type);
+  if (filters?.include_id) q.set('include_id', filters.include_id);
+  if (filters?.exclude_id) q.set('exclude_id', filters.exclude_id);
+  const base = String(API_BASE_URL || '/api').replace(/\/+$/, '');
+  return `${base}/account/get-all-active?${q.toString()}`;
+};
 
 const refId = (ref) => {
   if (ref == null || ref === '') return '';
@@ -55,6 +71,8 @@ const ExpenseEdit = () => {
   const { currentExpense, fetchStatus, fetchError, updateStatus, updateError } = useSelector(
     (state) => state.expenses
   );
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
 
   const [form, setForm] = useState({
     name: '',
@@ -71,6 +89,7 @@ const ExpenseEdit = () => {
   const [paymentMethodAccountsStatus, setPaymentMethodAccountsStatus] = useState('idle');
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
+  const [paymentAccountFilterUrl, setPaymentAccountFilterUrl] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [existingImageUrl, setExistingImageUrl] = useState('');
@@ -106,7 +125,16 @@ const ExpenseEdit = () => {
       });
 
     setPaymentMethodAccountsStatus('loading');
-    fetchAccountsRequest({ ...params, account_type: PAYMENT_METHOD_ACCOUNT_TYPE })
+    buildExpenseDefaultAccountFilterParams(authUser, authCompany)
+      .then((accountFilters) => {
+        if (!cancelled) setPaymentAccountFilterUrl(paymentAccountsListUrl(accountFilters));
+        return fetchAccountsRequest({
+          ...params,
+          account_type: accountFilters.account_type ?? PAYMENT_METHOD_ACCOUNT_TYPE,
+          include_id: accountFilters.include_id,
+          exclude_id: accountFilters.exclude_id,
+        });
+      })
       .then((res) => {
         if (!cancelled) {
           setPaymentMethodAccounts(Array.isArray(res.data) ? res.data : []);
@@ -138,7 +166,7 @@ const ExpenseEdit = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser, authCompany]);
 
   useEffect(() => {
     if (!currentExpense) return;
@@ -447,6 +475,19 @@ const ExpenseEdit = () => {
                     <div className="invalid-feedback d-block">
                       {errors.payment_method_accounts_id}
                     </div>
+                  )}
+                  {paymentAccountFilterUrl && (
+                    <small className="text-muted d-block mt-1">
+                      Accounts:{' '}
+                      <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
+                        {paymentAccountFilterUrl}
+                      </code>
+                      <span className="d-block">
+                        Uses <code className="text-xs">default_account_payable_account</code> (include)
+                        and <code className="text-xs">default_account_receivable_account</code> (exclude)
+                        from company settings.
+                      </span>
+                    </small>
                   )}
                 </div>
 

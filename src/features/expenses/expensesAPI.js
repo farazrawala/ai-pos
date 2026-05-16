@@ -1,6 +1,69 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import {
+  extractCompanyFromUser,
+  extractCompanyRecord,
+  fetchCompanyById,
+  getCompanyIdFromUser,
+  pickAccountRefId,
+} from '../company/companyAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
+
+export const EXPENSE_LIST_ACCOUNT_TYPE = 'current_asset';
+export const EXPENSE_LIST_POPULATE = 'account_id,user_id,payment_method_accounts_id';
+
+/** Resolve default payable (include) and receivable (exclude) account ids for expense list filter. */
+export function resolveDefaultExpenseListFilterIds(user, company) {
+  const sources = [
+    company,
+    user,
+    user?.company && typeof user.company === 'object' ? user.company : null,
+  ].filter(Boolean);
+
+  let includeId = '';
+  let excludeId = '';
+  for (const src of sources) {
+    if (!includeId) {
+      includeId = pickAccountRefId(
+        src.default_account_payable_account ??
+          src.defaultAccountPayableAccount ??
+          src.default_payable_account
+      );
+    }
+    if (!excludeId) {
+      excludeId = pickAccountRefId(
+        src.default_account_receivable_account ??
+          src.defaultAccountReceivableAccount ??
+          src.default_receivable_account
+      );
+    }
+  }
+  return { includeId, excludeId };
+}
+
+/** Company default payable/receivable ids for expense edit filters. */
+export async function buildExpenseDefaultAccountFilterParams(user = null, companyFromStore = null) {
+  let company = companyFromStore || extractCompanyFromUser(user);
+  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
+
+  let { includeId, excludeId } = resolveDefaultExpenseListFilterIds(user, company);
+  const needsFetch = companyId && !includeId && !excludeId;
+
+  if (needsFetch) {
+    try {
+      const body = await fetchCompanyById(companyId);
+      company = extractCompanyRecord(body) || company;
+    } catch (err) {
+      console.warn('[Expense module] Could not load company for default account filters', err);
+    }
+  }
+
+  ({ includeId, excludeId } = resolveDefaultExpenseListFilterIds(user, company));
+  const params = { account_type: EXPENSE_LIST_ACCOUNT_TYPE };
+  if (includeId) params.include_id = includeId;
+  if (excludeId) params.exclude_id = excludeId;
+  return params;
+}
 
 const logExpenseModuleError = (operation, details) => {
   console.error(`[Expense module] ${operation}`, details);
@@ -68,11 +131,14 @@ export async function fetchExpensesRequest(params = {}) {
   if (params.search) queryParams.append('search', params.search);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  if (params.account_type) queryParams.append('account_type', String(params.account_type));
+  if (params.include_id) queryParams.append('include_id', String(params.include_id));
+  if (params.exclude_id) queryParams.append('exclude_id', String(params.exclude_id));
   queryParams.append(
     'populate',
-    params.populate != null
+    params.populate != null && String(params.populate).trim() !== ''
       ? String(params.populate)
-      : 'account_id,user_id,payment_method_accounts_id'
+      : EXPENSE_LIST_POPULATE
   );
 
   const queryString = queryParams.toString();

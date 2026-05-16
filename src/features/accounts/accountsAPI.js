@@ -41,6 +41,8 @@ export async function fetchAccountsRequest(params = {}) {
   if (params.limit != null) query.set('limit', String(params.limit));
   if (params.search) query.set('search', String(params.search));
   if (params.account_type) query.set('account_type', String(params.account_type));
+  if (params.include_id) query.set('include_id', String(params.include_id));
+  if (params.exclude_id) query.set('exclude_id', String(params.exclude_id));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 

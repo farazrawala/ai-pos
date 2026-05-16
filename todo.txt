@@ -1,12 +1,30 @@
 GET {{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id=69fd1d5668a2d809a34a3dd1
 
 
+http://localhost:5173/expenses
+
+On this page :  use this api with default_account_payable_account,default_account_receivable_account
+expense/get-all-active?account_type=current_asset&include_id=(default_account_payable_account)&exclude_id=(default_account_receivable_account)
+Where IDs come from
+Resolved in this order:
+
+Company record (GET /company/get/:companyId using the signed-in user’s company_id)
+User / user.company from login (userData in Redux/localStorage)
+Supported field names:
+
+default_account_payable_account → include_id
+default_account_receivable_account → exclude_id
+
 // Front End :
 logs (done)
 users (done)
 branches
 warehouse
 Account
+
+
+Accounts: /api/account/get-all-active?skip=0&limit=500&sortBy=name&sortOrder=asc&account_type=current_asset&include_id=6a081271b7068827a21ad9bf&exclude_id=6a081270b7068827a21ad9a3
+Uses default_account_payable_account (include) and default_account_receivable_account (exclude) from company settings.
 
 Pos 
     - add discount,subamount in db
