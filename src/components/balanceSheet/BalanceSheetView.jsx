@@ -7,7 +7,9 @@ import {
 } from '../../features/accounts/accountsAPI.js';
 import {
   buildBalanceSheetInventoryCogUrl,
+  buildBalanceSheetProfitUrl,
   fetchBalanceSheetInventoryCogRequest,
+  fetchBalanceSheetProfitRequest,
 } from '../../features/balanceSheet/balanceSheetAPI.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import { usePageApiSources } from '../../hooks/usePageApiSources.js';
@@ -93,7 +95,8 @@ function lineAmountClassName(label, sectionTitle) {
       return 'bs-gl-amt-warn';
     }
   }
-  if (t.includes('long-term') && (l.includes('defer') || l.includes('deferred'))) return 'bs-gl-amt-warn';
+  if (t.includes('long-term') && (l.includes('defer') || l.includes('deferred')))
+    return 'bs-gl-amt-warn';
   return '';
 }
 
@@ -158,7 +161,10 @@ function GlStatementPanel({ variant, heading, periodSuffix, groups, grandTotal, 
                 {open ? (
                   <>
                     {g.lines.map((row, lineIdx) => (
-                      <tr key={row.id || `${g.title}-${row.label}-${lineIdx}`} className="bs-gl-line">
+                      <tr
+                        key={row.id || `${g.title}-${row.label}-${lineIdx}`}
+                        className="bs-gl-line"
+                      >
                         <td>{row.label}</td>
                         <td className={`num ${lineAmountClassName(row.label, g.title)}`}>
                           {formatCurrencyAccounting(row.amount)}
@@ -221,6 +227,12 @@ const BALANCE_SHEET_API_DEFINITIONS = [
     label: "Owner's equity (operating expenses)",
     url: buildFetchAccountsByTypeUrl('operating_expense'),
     fetch: () => fetchAccountsByTypeRequest('operating_expense'),
+  },
+  {
+    key: 'profit',
+    label: "Owner's equity (profit)",
+    url: buildBalanceSheetProfitUrl(),
+    fetch: () => fetchBalanceSheetProfitRequest(),
   },
   {
     key: 'current_liability',
@@ -369,6 +381,7 @@ export default function BalanceSheetView() {
 
       const equityRes = apiResult(results, 'equity');
       const operatingExpenseRes = apiResult(results, 'operating_expense');
+      const profitRes = apiResult(results, 'profit');
       const equityAccounts =
         equityRes?.status === 'success' && Array.isArray(equityRes.value) ? equityRes.value : [];
       const operatingExpenseAccounts =
@@ -376,21 +389,42 @@ export default function BalanceSheetView() {
           ? operatingExpenseRes.value
           : [];
 
-      if (equityRes?.status === 'success' && operatingExpenseRes?.status === 'success') {
+      const equityOk = equityRes?.status === 'success';
+      const operatingExpenseOk = operatingExpenseRes?.status === 'success';
+
+      if (equityOk && operatingExpenseOk) {
         const equityAccountLines = equityAccounts.map(mapAccountToLine);
         const expenseDeductionLines = operatingExpenseAccounts.map((account) =>
           mapAccountToLine(account, 'credit_minus_debit')
         );
-        setEquityLines([...equityAccountLines, ...expenseDeductionLines]);
-        setEquityStatus({ loading: false, error: null });
+        const profitLines = [];
+        if (profitRes?.status === 'success' && profitRes.value) {
+          const profitNum = Number(profitRes.value.profit);
+          if (Number.isFinite(profitNum)) {
+            profitLines.push({
+              id: 'order-profit-by-order-item',
+              label: 'Profit',
+              amount: profitNum,
+            });
+          }
+        }
+        setEquityLines([...equityAccountLines, ...profitLines, ...expenseDeductionLines]);
+        const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
+        setEquityStatus({
+          loading: false,
+          error: profitErr || null,
+        });
       } else {
         setEquityLines([]);
         const equityErr = equityRes?.status === 'error' ? equityRes.error : null;
         const expenseErr =
           operatingExpenseRes?.status === 'error' ? operatingExpenseRes.error : null;
+        const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
         setEquityStatus({
           loading: false,
-          error: [equityErr, expenseErr].filter(Boolean).join(' · ') || 'Failed to load equity',
+          error:
+            [equityErr, expenseErr, profitErr].filter(Boolean).join(' · ') ||
+            'Failed to load equity',
         });
       }
 
@@ -610,69 +644,67 @@ export default function BalanceSheetView() {
                 <div className="bs-gl-toolbar">
                   <div className="bs-gl-toolbar-title">
                     <h1>Reporting period</h1>
-                    <div className="bs-gl-sub">
-                      As of {asOfLabel} · Accrual basis (sample)
-                    </div>
+                    <div className="bs-gl-sub">As of {asOfLabel} · Accrual basis (sample)</div>
                   </div>
                   <div className="bs-gl-filters">
-                  <div className="bs-gl-fg">
-                    <span>From</span>
-                    <div className="d-flex gap-1">
-                      <select
-                        className="form-select form-select-sm"
-                        value={String(fromMonth)}
-                        onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
-                        aria-label="From month"
-                      >
-                        {MONTH_NAMES.map((name, idx) => (
-                          <option key={name} value={String(idx + 1)}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="form-select form-select-sm"
-                        value={String(fromYear)}
-                        onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
-                        aria-label="From year"
-                      >
-                        {yearOptions.map((y) => (
-                          <option key={y} value={String(y)}>
-                            {y}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="bs-gl-fg">
+                      <span>From</span>
+                      <div className="d-flex gap-1">
+                        <select
+                          className="form-select form-select-sm"
+                          value={String(fromMonth)}
+                          onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
+                          aria-label="From month"
+                        >
+                          {MONTH_NAMES.map((name, idx) => (
+                            <option key={name} value={String(idx + 1)}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="form-select form-select-sm"
+                          value={String(fromYear)}
+                          onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
+                          aria-label="From year"
+                        >
+                          {yearOptions.map((y) => (
+                            <option key={y} value={String(y)}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bs-gl-fg">
-                    <span>To</span>
-                    <div className="d-flex gap-1">
-                      <select
-                        className="form-select form-select-sm"
-                        value={String(toMonth)}
-                        onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
-                        aria-label="To month"
-                      >
-                        {MONTH_NAMES.map((name, idx) => (
-                          <option key={name} value={String(idx + 1)}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="form-select form-select-sm"
-                        value={String(toYear)}
-                        onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
-                        aria-label="To year"
-                      >
-                        {yearOptions.map((y) => (
-                          <option key={y} value={String(y)}>
-                            {y}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="bs-gl-fg">
+                      <span>To</span>
+                      <div className="d-flex gap-1">
+                        <select
+                          className="form-select form-select-sm"
+                          value={String(toMonth)}
+                          onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
+                          aria-label="To month"
+                        >
+                          {MONTH_NAMES.map((name, idx) => (
+                            <option key={name} value={String(idx + 1)}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="form-select form-select-sm"
+                          value={String(toYear)}
+                          onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
+                          aria-label="To year"
+                        >
+                          {yearOptions.map((y) => (
+                            <option key={y} value={String(y)}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
                   </div>
                   <div className="bs-gl-meta">
                     <span className="bs-gl-meta-label">Reporting range</span>
@@ -707,38 +739,38 @@ export default function BalanceSheetView() {
                 </div>
 
                 <div className="bs-gl-panels">
-                <GlStatementPanel
-                  variant="assets"
-                  heading="Asset breakdown"
-                  periodSuffix={periodSuffix}
-                  groups={assetGroups}
-                  grandTotal={totalAssets}
-                  grandLabel="Total assets"
-                />
-                <GlStatementPanel
-                  variant="le"
-                  heading="Liabilities & equity breakdown"
-                  periodSuffix={periodSuffix}
-                  groups={liabilityEquityGroups}
-                  grandTotal={liabilitiesPlusEquity}
-                  grandLabel="Total liabilities & equity"
-                />
+                  <GlStatementPanel
+                    variant="assets"
+                    heading="Asset breakdown"
+                    periodSuffix={periodSuffix}
+                    groups={assetGroups}
+                    grandTotal={totalAssets}
+                    grandLabel="Total assets"
+                  />
+                  <GlStatementPanel
+                    variant="le"
+                    heading="Liabilities & equity breakdown"
+                    periodSuffix={periodSuffix}
+                    groups={liabilityEquityGroups}
+                    grandTotal={liabilitiesPlusEquity}
+                    grandLabel="Total liabilities & equity"
+                  />
                 </div>
 
                 <div className={`bs-gl-status ${balanced ? 'ok' : 'warn'}`}>
-                <span>
-                  <strong>Equation check:</strong> Assets ({formatCurrencyAccounting(totalAssets)})
-                  = Liabilities + equity ({formatCurrencyAccounting(liabilitiesPlusEquity)})
-                </span>
-                <span>
-                  {balanced ? (
-                    <span className="bs-gl-pill bs-gl-pill-success">In balance</span>
-                  ) : (
-                    <span className="bs-gl-pill bs-gl-pill-warn">
-                      Out of balance · {formatCurrencyAccounting(difference)}
-                    </span>
-                  )}
-                </span>
+                  <span>
+                    <strong>Equation check:</strong> Assets ({formatCurrencyAccounting(totalAssets)}
+                    ) = Liabilities + equity ({formatCurrencyAccounting(liabilitiesPlusEquity)})
+                  </span>
+                  <span>
+                    {balanced ? (
+                      <span className="bs-gl-pill bs-gl-pill-success">In balance</span>
+                    ) : (
+                      <span className="bs-gl-pill bs-gl-pill-warn">
+                        Out of balance · {formatCurrencyAccounting(difference)}
+                      </span>
+                    )}
+                  </span>
                 </div>
 
                 <BalanceSheetSummaryBar

@@ -42,15 +42,12 @@ Navigate with Permissions ::
 Purchase return ::
 sales return ::
 
-// generic 
-- add order_by to all-active and make order
+5.17.26
+env setup for debug (done)
+expense in balance sheet (done)
 
-
-
-Pos
-    Remaining ammount will be default in a/c receivable.
-    no a/c receivable will be shown in accounts dropdown.
-Barcode printing module.
-
-
+purchase order Id not working well.2,4,6 (DONE.)
+balance sheet with profit. (done)..
+income statement 
+stock transfer.
 

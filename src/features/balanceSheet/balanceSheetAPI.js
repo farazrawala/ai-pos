@@ -98,3 +98,58 @@ export async function fetchBalanceSheetInventoryCogRequest() {
 
   return { lines, grandTotal };
 }
+
+const PROFIT_BY_ORDER_ITEM_PATH = 'order/profit-by-order-item';
+
+/** GET URL for order profit on the balance sheet (Owner's equity). */
+export function buildBalanceSheetProfitUrl() {
+  return `${BASE_URL}${PROFIT_BY_ORDER_ITEM_PATH}`;
+}
+
+/**
+ * Order profit for balance sheet Owner's equity.
+ * Expects `{ success, profit, line_count?, order_item_ids? }`.
+ *
+ * @returns {Promise<{ profit: number; lineCount: number; orderItemIds: string[] }>}
+ */
+export async function fetchBalanceSheetProfitRequest() {
+  const url = buildBalanceSheetProfitUrl();
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Profit request was not successful';
+    throw new Error(msg);
+  }
+
+  const raw = result.profit ?? result.total_profit ?? result.totalProfit;
+  const profit =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+
+  const lineCountRaw = result.line_count ?? result.lineCount;
+  const lineCount =
+    typeof lineCountRaw === 'number' && Number.isFinite(lineCountRaw)
+      ? lineCountRaw
+      : parseInt(String(lineCountRaw ?? ''), 10);
+
+  const orderItemIds = Array.isArray(result.order_item_ids)
+    ? result.order_item_ids.map(String)
+    : Array.isArray(result.orderItemIds)
+      ? result.orderItemIds.map(String)
+      : [];
+
+  return {
+    profit: Number.isFinite(profit) ? profit : 0,
+    lineCount: Number.isFinite(lineCount) ? lineCount : 0,
+    orderItemIds,
+  };
+}

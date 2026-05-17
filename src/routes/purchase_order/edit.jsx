@@ -16,7 +16,7 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
-import { PO_STATUS_OPTIONS } from './poFormConstants.js';
+import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 
 const accountOptionLabel = (a) => {
@@ -1221,11 +1221,16 @@ const PurchaseOrderEdit = () => {
                   <input
                     id="po-edit-received"
                     type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
                     className="form-control form-control-sm"
                     value={form.amount_received}
                     onChange={(e) => {
                       setAmountPaidDirty(true);
-                      setForm((p) => ({ ...p, amount_received: e.target.value }));
+                      setForm((p) => ({
+                        ...p,
+                        amount_received: sanitizeAmountPaidInput(e.target.value),
+                      }));
                     }}
                     disabled={isSubmitting}
                   />
