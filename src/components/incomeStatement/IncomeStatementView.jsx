@@ -279,17 +279,6 @@ export default function IncomeStatementView() {
     () => formatRangeHeading(periodStart, periodEnd),
     [periodStart, periodEnd]
   );
-  const priorColLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(priorStart),
-    [priorStart]
-  );
-  const currentColLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(periodStart),
-    [periodStart]
-  );
-
   const yearOptions = useMemo(() => {
     const y = new Date().getFullYear();
     const out = [];
@@ -477,20 +466,7 @@ export default function IncomeStatementView() {
         const pri = priorAmountForLabel(pr.operatingExpenses, row.label);
         pushLeaf(row.label, row.amount, pri, true);
       });
-      pushSubtotal(
-        'Total operating expenses',
-        totals.totalOperatingExpenses,
-        priorTotals.totalOperatingExpenses,
-        true
-      );
     }
-
-    const oiPrior = priorTotals.grossProfit - priorTotals.totalOperatingExpenses;
-    pushLeaf('Operating income (EBIT)', totals.operatingIncome, oiPrior, false);
-
-    const otherNetPrior = priorTotals.totalOtherIncome - priorTotals.totalOtherExpenses;
-    const otherNetCurr = totals.totalOtherIncome - totals.totalOtherExpenses;
-    pushLeaf('Other income (net)', otherNetCurr, otherNetPrior, false);
 
     pushSubtotal('Net income', totals.netIncome, priorTotals.netIncome, false);
 
@@ -498,10 +474,10 @@ export default function IncomeStatementView() {
   }, [report, priorReport, priorTotals, totals, expanded, tableFilter, priorReady]);
 
   const exportCsv = () => {
-    const lines = [['Account', priorColLabel, currentColLabel, 'Change %', 'YTD']];
+    const lines = [['Account', 'Amount']];
     tableRows.forEach((r) => {
       if (r.type === 'leaf' || r.type === 'subtotal') {
-        lines.push([r.label, String(r.pri), String(r.cur), r.deltaText, String(r.ytd)]);
+        lines.push([r.label, String(r.cur)]);
       }
     });
     const blob = new Blob(
@@ -578,8 +554,7 @@ export default function IncomeStatementView() {
                 {demo ? <span className="is-ledger-demo-pill">Demo data</span> : null}
               </h1>
               <p className="is-ledger-subtitle">
-                Revenue, COGS, operating expenses, and net income — compared to the prior period of
-                equal length.
+                Revenue, COGS, operating expenses, and net income for the selected period.
               </p>
             </div>
             <div className="d-flex flex-column align-items-stretch align-items-md-end gap-2">
@@ -754,10 +729,7 @@ export default function IncomeStatementView() {
                     <thead>
                       <tr>
                         <th>Account description</th>
-                        <th className="num prior">{priorColLabel}</th>
-                        <th className="num">{currentColLabel}</th>
-                        <th className="num">Change %</th>
-                        <th className="num">Total YTD</th>
+                        <th className="num">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -766,7 +738,7 @@ export default function IncomeStatementView() {
                           const open = expanded.has(row.id);
                           return (
                             <tr key={row.id} className="is-ledger-row-group">
-                              <td colSpan={5}>
+                              <td colSpan={2}>
                                 <span
                                   role="button"
                                   tabIndex={0}
@@ -787,29 +759,12 @@ export default function IncomeStatementView() {
                             </tr>
                           );
                         }
-                        const deltaClass =
-                          row.deltaKind === 'pos'
-                            ? 'is-ledger-delta-pos'
-                            : row.deltaKind === 'neg'
-                              ? 'is-ledger-delta-neg'
-                              : 'text-muted';
                         const trClass =
                           row.type === 'subtotal' ? 'is-ledger-row-sub' : 'is-ledger-row-leaf';
                         return (
                           <tr key={`${row.type}-${row.label}-${idx}`} className={trClass}>
                             <td>{row.label}</td>
-                            <td
-                              className="num prior"
-                              style={{
-                                textDecoration: row.pri == null ? 'none' : 'line-through',
-                                opacity: row.pri == null ? 1 : 0.72,
-                              }}
-                            >
-                              {row.pri == null ? '—' : fmt(row.pri)}
-                            </td>
                             <td className="num">{fmt(row.cur)}</td>
-                            <td className={`num ${deltaClass}`}>{row.deltaText}</td>
-                            <td className="num">{fmt(row.ytd)}</td>
                           </tr>
                         );
                       })}
@@ -837,6 +792,12 @@ export default function IncomeStatementView() {
 
                 <p className="is-ledger-api-note mb-0">
                   <code>GET /api/reports/income-statement?startDate=&amp;endDate=</code>
+                  {' · '}
+                  <code>GET /api/order/sales</code>
+                  {' · '}
+                  <code>GET /api/order_item/cost-of-goods-sold-by-order-item</code>
+                  {' · '}
+                  <code>GET /api/account/fetch-account-by-type?account_type=operating_expense</code>
                 </p>
               </div>
             </>
