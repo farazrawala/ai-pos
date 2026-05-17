@@ -10,6 +10,7 @@ import {
   fetchBalanceSheetInventoryCogRequest,
 } from '../../features/balanceSheet/balanceSheetAPI.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import { usePageApiSources } from '../../hooks/usePageApiSources.js';
 import '../common/devApiSources.css';
 import './balanceSheetGl.css';
 import './balanceSheetDark.css';
@@ -202,7 +203,57 @@ function mapAccountToLine(account, amountSource = 'credit_minus_debit') {
   };
 }
 
+const BALANCE_SHEET_API_DEFINITIONS = [
+  {
+    key: 'current_asset',
+    label: 'Current assets',
+    url: buildFetchAccountsByTypeUrl('current_asset'),
+    fetch: () => fetchAccountsByTypeRequest('current_asset'),
+  },
+  {
+    key: 'equity',
+    label: 'Equity',
+    url: buildFetchAccountsByTypeUrl('equity'),
+    fetch: () => fetchAccountsByTypeRequest('equity'),
+  },
+  {
+    key: 'operating_expense',
+    label: "Owner's equity (operating expenses)",
+    url: buildFetchAccountsByTypeUrl('operating_expense'),
+    fetch: () => fetchAccountsByTypeRequest('operating_expense'),
+  },
+  {
+    key: 'current_liability',
+    label: 'Current liabilities',
+    url: buildFetchAccountsByTypeUrl('current_liability'),
+    fetch: () => fetchAccountsByTypeRequest('current_liability'),
+  },
+  {
+    key: 'long_term_liability',
+    label: 'Long-term liabilities',
+    url: buildFetchAccountsByTypeUrl('long_term_liability'),
+    fetch: () => fetchAccountsByTypeRequest('long_term_liability'),
+  },
+  {
+    key: 'fixed_asset',
+    label: 'Fixed assets',
+    url: buildFetchAccountsByTypeUrl('fixed_asset'),
+    fetch: () => fetchAccountsByTypeRequest('fixed_asset'),
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory (cost of goods)',
+    url: buildBalanceSheetInventoryCogUrl(),
+    fetch: () => fetchBalanceSheetInventoryCogRequest(),
+  },
+];
+
+function apiResult(results, key) {
+  return results.find((r) => r.key === key);
+}
+
 export default function BalanceSheetView() {
+  const { sources: apiSources, wallDurationMs, runAll } = usePageApiSources();
   const [fromYear, setFromYear] = useState(() => new Date().getFullYear());
   const [fromMonth, setFromMonth] = useState(() => new Date().getMonth() + 1);
   const [toYear, setToYear] = useState(() => new Date().getFullYear());
@@ -287,18 +338,6 @@ export default function BalanceSheetView() {
     return out;
   }, []);
 
-  const apiDataSources = useMemo(
-    () => [
-      { label: 'Current assets', url: buildFetchAccountsByTypeUrl('current_asset') },
-      { label: 'Fixed assets', url: buildFetchAccountsByTypeUrl('fixed_asset') },
-      { label: 'Inventory (cost of goods)', url: buildBalanceSheetInventoryCogUrl() },
-      { label: 'Current liabilities', url: buildFetchAccountsByTypeUrl('current_liability') },
-      { label: 'Long-term liabilities', url: buildFetchAccountsByTypeUrl('long_term_liability') },
-      { label: 'Equity', url: buildFetchAccountsByTypeUrl('equity') },
-    ],
-    []
-  );
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -310,26 +349,11 @@ export default function BalanceSheetView() {
       setInventoryStatus({ loading: true, error: null });
       setInventoryGrandTotal(0);
 
-      const settled = await Promise.allSettled([
-        fetchAccountsByTypeRequest('current_asset'),
-        fetchAccountsByTypeRequest('equity'),
-        fetchAccountsByTypeRequest('current_liability'),
-        fetchAccountsByTypeRequest('long_term_liability'),
-        fetchAccountsByTypeRequest('fixed_asset'),
-        fetchBalanceSheetInventoryCogRequest(),
-      ]);
+      const { results } = await runAll(BALANCE_SHEET_API_DEFINITIONS);
       if (cancelled) return;
 
-      const [
-        currentRes,
-        equityRes,
-        currentLiabilityRes,
-        longTermLiabilityRes,
-        fixedAssetRes,
-        inventoryRes,
-      ] = settled;
-
-      if (currentRes.status === 'fulfilled') {
+      const currentRes = apiResult(results, 'current_asset');
+      if (currentRes?.status === 'success') {
         const list = currentRes.value;
         setCurrentAssetLines(
           Array.isArray(list) ? list.map((a) => mapAccountToLine(a, 'net_debit_minus_credit')) : []
@@ -339,23 +363,39 @@ export default function BalanceSheetView() {
         setCurrentAssetLines([]);
         setCurrentAssetsStatus({
           loading: false,
-          error: currentRes.reason?.message || 'Failed to load current assets',
+          error: currentRes?.error || 'Failed to load current assets',
         });
       }
 
-      if (equityRes.status === 'fulfilled') {
-        const list = equityRes.value;
-        setEquityLines(Array.isArray(list) ? list.map(mapAccountToLine) : []);
+      const equityRes = apiResult(results, 'equity');
+      const operatingExpenseRes = apiResult(results, 'operating_expense');
+      const equityAccounts =
+        equityRes?.status === 'success' && Array.isArray(equityRes.value) ? equityRes.value : [];
+      const operatingExpenseAccounts =
+        operatingExpenseRes?.status === 'success' && Array.isArray(operatingExpenseRes.value)
+          ? operatingExpenseRes.value
+          : [];
+
+      if (equityRes?.status === 'success' && operatingExpenseRes?.status === 'success') {
+        const equityAccountLines = equityAccounts.map(mapAccountToLine);
+        const expenseDeductionLines = operatingExpenseAccounts.map((account) =>
+          mapAccountToLine(account, 'credit_minus_debit')
+        );
+        setEquityLines([...equityAccountLines, ...expenseDeductionLines]);
         setEquityStatus({ loading: false, error: null });
       } else {
         setEquityLines([]);
+        const equityErr = equityRes?.status === 'error' ? equityRes.error : null;
+        const expenseErr =
+          operatingExpenseRes?.status === 'error' ? operatingExpenseRes.error : null;
         setEquityStatus({
           loading: false,
-          error: equityRes.reason?.message || 'Failed to load equity',
+          error: [equityErr, expenseErr].filter(Boolean).join(' · ') || 'Failed to load equity',
         });
       }
 
-      if (currentLiabilityRes.status === 'fulfilled') {
+      const currentLiabilityRes = apiResult(results, 'current_liability');
+      if (currentLiabilityRes?.status === 'success') {
         const list = currentLiabilityRes.value;
         setCurrentLiabilityLines(Array.isArray(list) ? list.map(mapAccountToLine) : []);
         setCurrentLiabilitiesStatus({ loading: false, error: null });
@@ -363,11 +403,12 @@ export default function BalanceSheetView() {
         setCurrentLiabilityLines([]);
         setCurrentLiabilitiesStatus({
           loading: false,
-          error: currentLiabilityRes.reason?.message || 'Failed to load current liabilities',
+          error: currentLiabilityRes?.error || 'Failed to load current liabilities',
         });
       }
 
-      if (longTermLiabilityRes.status === 'fulfilled') {
+      const longTermLiabilityRes = apiResult(results, 'long_term_liability');
+      if (longTermLiabilityRes?.status === 'success') {
         const list = longTermLiabilityRes.value;
         setLongTermLiabilityLines(Array.isArray(list) ? list.map(mapAccountToLine) : []);
         setLongTermLiabilitiesStatus({ loading: false, error: null });
@@ -375,11 +416,12 @@ export default function BalanceSheetView() {
         setLongTermLiabilityLines([]);
         setLongTermLiabilitiesStatus({
           loading: false,
-          error: longTermLiabilityRes.reason?.message || 'Failed to load long-term liabilities',
+          error: longTermLiabilityRes?.error || 'Failed to load long-term liabilities',
         });
       }
 
-      if (fixedAssetRes.status === 'fulfilled') {
+      const fixedAssetRes = apiResult(results, 'fixed_asset');
+      if (fixedAssetRes?.status === 'success') {
         const list = fixedAssetRes.value;
         setFixedAssetLines(
           Array.isArray(list) ? list.map((a) => mapAccountToLine(a, 'net_debit_minus_credit')) : []
@@ -389,11 +431,12 @@ export default function BalanceSheetView() {
         setFixedAssetLines([]);
         setFixedAssetsStatus({
           loading: false,
-          error: fixedAssetRes.reason?.message || 'Failed to load fixed assets',
+          error: fixedAssetRes?.error || 'Failed to load fixed assets',
         });
       }
 
-      if (inventoryRes.status === 'fulfilled') {
+      const inventoryRes = apiResult(results, 'inventory');
+      if (inventoryRes?.status === 'success') {
         const { lines, grandTotal } = inventoryRes.value;
         setInventoryLines(Array.isArray(lines) ? lines : []);
         const gt = Number(grandTotal);
@@ -404,14 +447,14 @@ export default function BalanceSheetView() {
         setInventoryGrandTotal(0);
         setInventoryStatus({
           loading: false,
-          error: inventoryRes.reason?.message || 'Failed to load inventory',
+          error: inventoryRes?.error || 'Failed to load inventory',
         });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [runAll]);
 
   const sheetData = useMemo(
     () => ({
@@ -707,8 +750,8 @@ export default function BalanceSheetView() {
 
                 <DevApiSourcesFooter
                   className="bs-gl-api-sources"
-                  title="Data fetched from"
-                  sources={apiDataSources}
+                  sources={apiSources}
+                  wallDurationMs={wallDurationMs}
                 />
               </div>
             </div>

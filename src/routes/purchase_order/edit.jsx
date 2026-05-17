@@ -15,6 +15,7 @@ import {
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 
@@ -308,6 +309,8 @@ const PurchaseOrderEdit = () => {
   const { currentPurchaseOrder, fetchStatus, fetchError, updateStatus, updateError } = useSelector(
     (state) => state.purchaseOrders
   );
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
   const [form, setForm] = useState(recordToForm(null));
   const [lines, setLines] = useState([]);
   const [errors, setErrors] = useState({});
@@ -358,9 +361,15 @@ const PurchaseOrderEdit = () => {
     setAccountsError(null);
     (async () => {
       try {
+        const accountFilters = await buildExpenseDefaultAccountFilterParams(authUser, authCompany);
         const result = await fetchAccountsRequest({
-          limit: 2000,
-          skip: 0,
+          page: 1,
+          limit: 500,
+          sortBy: 'name',
+          sortOrder: 'asc',
+          account_type: accountFilters.account_type,
+          include_id: accountFilters.include_id,
+          exclude_id: accountFilters.exclude_id,
         });
         const list = Array.isArray(result?.data) ? result.data : [];
         if (!cancelled) {
@@ -368,10 +377,10 @@ const PurchaseOrderEdit = () => {
           setAccountsStatus('succeeded');
         }
       } catch (err) {
-        console.error('[Purchase order edit] Failed to load accounts', err);
+        console.error('[Purchase order edit] Failed to load payment accounts', err);
         if (!cancelled) {
           setAccounts([]);
-          setAccountsError(err?.message || 'Could not load accounts');
+          setAccountsError(err?.message || 'Could not load payment accounts');
           setAccountsStatus('failed');
         }
       }
@@ -379,7 +388,7 @@ const PurchaseOrderEdit = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser, authCompany]);
 
   useEffect(() => {
     let cancelled = false;

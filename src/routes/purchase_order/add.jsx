@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
@@ -10,6 +10,7 @@ import {
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 
@@ -178,6 +179,8 @@ function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
 const PurchaseOrderAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
   const [form, setForm] = useState(() => emptyForm());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -253,9 +256,15 @@ const PurchaseOrderAdd = () => {
     setAccountsError(null);
     (async () => {
       try {
+        const accountFilters = await buildExpenseDefaultAccountFilterParams(authUser, authCompany);
         const result = await fetchAccountsRequest({
-          limit: 2000,
-          skip: 0,
+          page: 1,
+          limit: 500,
+          sortBy: 'name',
+          sortOrder: 'asc',
+          account_type: accountFilters.account_type,
+          include_id: accountFilters.include_id,
+          exclude_id: accountFilters.exclude_id,
         });
         const list = Array.isArray(result?.data) ? result.data : [];
         if (!cancelled) {
@@ -263,10 +272,10 @@ const PurchaseOrderAdd = () => {
           setAccountsStatus('succeeded');
         }
       } catch (err) {
-        console.error('[Purchase order add] Failed to load accounts', err);
+        console.error('[Purchase order add] Failed to load payment accounts', err);
         if (!cancelled) {
           setAccounts([]);
-          setAccountsError(err?.message || 'Could not load accounts');
+          setAccountsError(err?.message || 'Could not load payment accounts');
           setAccountsStatus('failed');
         }
       }
@@ -274,7 +283,7 @@ const PurchaseOrderAdd = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser, authCompany]);
 
   useEffect(() => {
     const q = addProductQuery.trim();

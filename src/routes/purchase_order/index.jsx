@@ -11,6 +11,7 @@ import {
   setFilterPurchaseItemId,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { PURCHASE_ITEM_QUERY_KEY } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
+import { DEBUG } from '../../config/env.js';
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -295,12 +296,14 @@ const PurchaseOrders = () => {
                       Create purchase order
                     </button>
                   </div>
-                  <p className="text-sm mb-0 text-muted">
-                    Server-side pagination and search —{' '}
-                    <code className="small">
-                      GET /purchase_order/get-purchase-order-by-purchase-item?populate=vendor_id
-                    </code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Server-side pagination and search —{' '}
+                      <code className="small">
+                        GET /purchase_order/get-purchase-order-by-purchase-item?populate=vendor_id
+                      </code>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2">
