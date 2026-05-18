@@ -26,6 +26,10 @@ Account
 Accounts: /api/account/get-all-active?skip=0&limit=500&sortBy=name&sortOrder=asc&account_type=current_asset&include_id=6a081271b7068827a21ad9bf&exclude_id=6a081270b7068827a21ad9a3
 Uses default_account_payable_account (include) and default_account_receivable_account (exclude) from company settings.
 
+// To check DB Size : 
+https://cloud.mongodb.com/v2/6a0b617360de5cb1d83e2e14#/overview?automateSecurity=true
+
+
 Pos 
     - add discount,subamount in db
     - product image hove bring complete name.
@@ -45,9 +49,14 @@ sales return ::
 5.17.26
 env setup for debug (done)
 expense in balance sheet (done)
+purchase order Id not working well.2,4,6 (DONE)
+balance sheet with profit. (done)
+income statement  (done)
 
-purchase order Id not working well.2,4,6 (DONE.)
-balance sheet with profit. (done)..
-income statement 
-stock transfer.
+
+stock transfer
+live connection with mongo db
+fixed assets 
+load testing module.
+
 
