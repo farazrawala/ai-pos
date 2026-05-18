@@ -52,6 +52,8 @@ import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
 import ExpenseEdit from './routes/expense/edit.jsx';
+import AssetIndex from './routes/asset/index.jsx';
+import AssetAdd from './routes/asset/add.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
@@ -116,6 +118,8 @@ const App = () => {
           <Route path="/expenses" element={<ExpenseIndex />} />
           <Route path="/expenses/add" element={<ExpenseAdd />} />
           <Route path="/expenses/edit/:id" element={<ExpenseEdit />} />
+          <Route path="/assets" element={<AssetIndex />} />
+          <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
@@ -199,6 +203,8 @@ const App = () => {
           <Route path="/expenses" element={<ExpenseIndex />} />
           <Route path="/expenses/add" element={<ExpenseAdd />} />
           <Route path="/expenses/edit/:id" element={<ExpenseEdit />} />
+          <Route path="/assets" element={<AssetIndex />} />
+          <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />

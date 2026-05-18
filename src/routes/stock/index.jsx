@@ -291,9 +291,13 @@ const StockListing = () => {
                           return (
                             <tr key={key}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{getProductLabel(item)}</td>
+                              <td className="text-sm font-weight-normal">
+                                {getProductLabel(item)}
+                              </td>
                               <td className="text-sm font-weight-normal">{getProductSku(item)}</td>
-                              <td className="text-sm font-weight-normal">{getWarehouseLabel(item)}</td>
+                              <td className="text-sm font-weight-normal">
+                                {getWarehouseLabel(item)}
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 {movementType ? (
                                   <span

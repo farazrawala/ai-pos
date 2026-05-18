@@ -53,7 +53,8 @@ purchase order Id not working well.2,4,6 (DONE)
 balance sheet with profit. (done)
 income statement  (done)
 live connection with mongo db (done)
-Stock transfer
+Stock transfer (done)
+
 fixed assets 
 load testing module.
 
