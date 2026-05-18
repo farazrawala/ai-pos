@@ -1,16 +1,18 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
-const LIST_PATH = 'stock_movement/get-all-active';
+const LIST_PATH = 'inventory_movements/get-all-active';
+const STOCK_TRANSFER_PATH = 'inventory_movements/stock-transfer';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('authToken') || '';
 };
 
-const getHeaders = () => {
+const getHeaders = (jsonBody = false) => {
   const token = getAuthToken();
   const headers = { Accept: 'application/json' };
+  if (jsonBody) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 };
@@ -41,12 +43,13 @@ const normalizeListPayload = (result) => {
   if (!result || typeof result !== 'object') return [];
   if (Array.isArray(result.data)) return result.data;
   if (Array.isArray(result.stock_movements)) return result.stock_movements;
+  if (Array.isArray(result.inventory_movements)) return result.inventory_movements;
   if (Array.isArray(result)) return result;
   return [];
 };
 
 /**
- * GET /stock_movement/get-all-active?populate=product_id,warehouse_id&skip=&limit=&search=&sortBy=&sortOrder=
+ * GET /inventory_movements/get-all-active?populate=product_id,warehouse_id&skip=&limit=&search=&sortBy=&sortOrder=
  */
 export async function fetchStockMovementsRequest(params = {}) {
   const queryParams = new URLSearchParams();
@@ -91,26 +94,21 @@ export async function fetchStockMovementsRequest(params = {}) {
     const skip = Number(pagination.skip ?? 0);
     const apiLimit = pagination.limit;
 
-    if (apiLimit != null && Number(apiLimit) > 0) {
-      const limit = Number(apiLimit);
-      const page = limit > 0 ? Math.floor(skip / limit) + 1 : 1;
-      const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
-      return {
-        data: Array.isArray(data) ? data : [],
-        total,
-        page,
-        limit,
-        totalPages,
-      };
-    }
-
-    const limit = Number(params.limit || Math.max(data.length, 10) || 10);
+    const limit =
+      apiLimit != null && Number(apiLimit) > 0
+        ? Number(apiLimit)
+        : Number(params.limit || 10);
+    const page =
+      limit > 0
+        ? Math.max(1, Math.floor(skip / limit) + 1)
+        : Number(params.page || 1);
+    const totalPages = limit > 0 ? Math.ceil(total / limit) : total > 0 ? 1 : 0;
     return {
       data: Array.isArray(data) ? data : [],
       total,
-      page: 1,
+      page,
       limit,
-      totalPages: total > 0 ? 1 : 0,
+      totalPages,
     };
   }
 
@@ -125,29 +123,109 @@ export async function fetchStockMovementsRequest(params = {}) {
   };
 }
 
+const isPopulatedRef = (ref) => ref && typeof ref === 'object' && !Array.isArray(ref);
+
+/** Populated `product_id` display name. */
 export const getProductLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';
   const p = row.product_id;
-  if (p && typeof p === 'object' && !Array.isArray(p)) {
-    return p.product_name || p.name || p.sku || '—';
+  if (isPopulatedRef(p)) {
+    return p.product_name || p.name || p.product_slug || p.sku || '—';
   }
-  if (typeof p === 'string' && p.trim()) return p;
   return '—';
 };
 
+/** Populated `product_id` barcode / SKU / code. */
 export const getProductSku = (row) => {
   if (!row || typeof row !== 'object') return '—';
   const p = row.product_id;
-  if (p && typeof p === 'object' && !Array.isArray(p)) {
-    return p.sku || p.product_code || '—';
+  if (isPopulatedRef(p)) {
+    return p.barcode || p.sku || p.product_code || '—';
   }
   return '—';
+};
+
+const getWarehouseRefLabel = (ref) => {
+  if (!ref) return '';
+  if (typeof ref === 'object' && !Array.isArray(ref)) {
+    return ref.name || ref.warehouse_name || ref.code || ref.warehouse_code || '';
+  }
+  if (typeof ref === 'string' && ref.trim()) return ref;
+  return '';
 };
 
 export const getWarehouseLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';
+  const from = getWarehouseRefLabel(row.from_warehouse_id);
+  const to = getWarehouseRefLabel(row.to_warehouse_id);
+  if (from && to) return `${from} → ${to}`;
+  if (from || to) return from || to;
   const w = row.warehouse_id;
-  if (w && typeof w === 'object' && !Array.isArray(w)) return w.name || w.code || '—';
-  if (typeof w === 'string' && w.trim()) return w;
-  return '—';
+  const single = getWarehouseRefLabel(w);
+  return single || '—';
 };
+
+/** Quantity from list row (`quantity` or `qty`). */
+export const getMovementQuantity = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  if (row.quantity != null && row.quantity !== '') return row.quantity;
+  if (row.qty != null && row.qty !== '') return row.qty;
+  return null;
+};
+
+/** `movement_type` (in/out) with legacy `direction` / `type` fallbacks. */
+export const getMovementType = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const raw = row.movement_type ?? row.direction ?? row.type ?? '';
+  return String(raw).trim().toLowerCase();
+};
+
+export const getReferenceName = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const name = row.reference_name ?? row.reason ?? '';
+  return String(name).trim();
+};
+
+export const getReferenceType = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  return String(row.reference_type ?? '').trim();
+};
+
+/** POST URL for warehouse stock transfer. */
+export function buildStockTransferUrl() {
+  return `${BASE_URL}${STOCK_TRANSFER_PATH}`;
+}
+
+/**
+ * POST `inventory_movements/stock-transfer`
+ * @param {{ product_id: string; qty: number | string; from_warehouse_id: string; to_warehouse_id: string }} payload
+ */
+export async function stockTransferRequest(payload = {}) {
+  const url = buildStockTransferUrl();
+  const body = {
+    product_id: String(payload.product_id ?? '').trim(),
+    qty: Number(payload.qty),
+    from_warehouse_id: String(payload.from_warehouse_id ?? '').trim(),
+    to_warehouse_id: String(payload.to_warehouse_id ?? '').trim(),
+  };
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(true),
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    logStockMovementError('stockTransferRequest network error', { url, body, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    logStockMovementError('stockTransferRequest failed', { status: response.status, body, message });
+    throw new Error(message);
+  }
+
+  return response.json().catch(() => ({}));
+}

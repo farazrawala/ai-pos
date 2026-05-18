@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
-import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import {
+  fetchProductActiveRequest,
+  fetchProductByIdRequest,
+} from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
   fetchUsersListRequest,
@@ -100,15 +103,34 @@ const productPickerUnitPrice = (p) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Default PO line rate: wholesale when set and positive, otherwise retail (`product_price` / `price`). */
+const productPickerWholesalePrice = (p) => {
+  if (!p || typeof p !== 'object') return null;
+  const nested = p.product && typeof p.product === 'object' ? p.product : null;
+  const wRaw =
+    p.wholesale_price ??
+    p.wholesalePrice ??
+    nested?.wholesale_price ??
+    nested?.wholesalePrice;
+  if (wRaw == null || wRaw === '') return null;
+  const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
+  return Number.isFinite(w) ? roundMoney2(w) : null;
+};
+
+/** PO line rate: `wholesale_price` when present (including 0), else retail fallback. */
 const productPickerDefaultLineRate = (p) => {
-  if (!p || typeof p !== 'object') return 0;
-  const wRaw = p.wholesale_price ?? p.wholesalePrice;
-  if (wRaw != null && wRaw !== '') {
-    const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
-    if (Number.isFinite(w) && w > 0) return roundMoney2(w);
-  }
+  const wholesale = productPickerWholesalePrice(p);
+  if (wholesale !== null) return wholesale;
   return roundMoney2(productPickerUnitPrice(p));
+};
+
+const normalizeProductDetail = (result) => {
+  if (!result || typeof result !== 'object') return null;
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+    return result.data;
+  }
+  if (result.product && typeof result.product === 'object') return result.product;
+  if (result._id || result.id) return result;
+  return null;
 };
 
 const newLineKey = () => `po-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -357,24 +379,38 @@ const PurchaseOrderAdd = () => {
   }, []);
 
   const appendProduct = useCallback(
-    (product) => {
+    async (product) => {
       if (!product || typeof product !== 'object') return;
       const id = String(product._id ?? product.id ?? '').trim();
       if (!id) return;
-      const rate = productPickerDefaultLineRate(product);
+
+      let resolved = product;
+      if (productPickerWholesalePrice(product) === null) {
+        try {
+          const detail = await fetchProductByIdRequest(id);
+          const full = normalizeProductDetail(detail);
+          if (full) resolved = { ...product, ...full };
+        } catch (err) {
+          console.warn('[Purchase order add] Could not load product wholesale price', err);
+        }
+      }
+
+      const rate = productPickerDefaultLineRate(resolved);
       setLines((prev) => [
         ...prev,
         {
           key: newLineKey(),
           productId: id,
-          label: productPickerLabel(product),
+          label: productPickerLabel(resolved),
           qty: '1',
           rate: String(rate),
           totalShipping: '',
           warehouseId: defaultWarehouseId,
-          warehouseInventoryRows: Array.isArray(product.warehouse_inventory)
-            ? product.warehouse_inventory
-            : [],
+          warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
+            ? resolved.warehouse_inventory
+            : Array.isArray(product.warehouse_inventory)
+              ? product.warehouse_inventory
+              : [],
         },
       ]);
       setAddProductQuery('');
@@ -781,7 +817,9 @@ const PurchaseOrderAdd = () => {
                         onClick={() => appendProduct(p)}
                       >
                         <span className="fw-semibold">{productPickerLabel(p)}</span>
-                        <span className="text-muted ms-2">{fmt(productPickerUnitPrice(p))}</span>
+                        <span className="text-muted ms-2">
+                          Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                        </span>
                       </button>
                     </li>
                   );
@@ -791,7 +829,7 @@ const PurchaseOrderAdd = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Warehouse</strong>, <strong>Rate</strong> (base unit price),{' '}
+            Set <strong>Warehouse</strong>, <strong>Rate</strong> (wholesale price),{' '}
             <strong>Qty</strong>, and optional <strong>Total Shipping</strong> per line.{' '}
             <strong>Shipping per unit</strong> is calculated automatically; <strong>Amount</strong>{' '}
             uses final rate (rate + shipping per unit) × qty. Remove rows you do not need.
