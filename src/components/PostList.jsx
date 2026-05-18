@@ -39,41 +39,9 @@ const PostList = () => {
         </div>
       </header>
 
-      <form className="post-form" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          name="title"
-          placeholder="Post title"
-          value={form.title}
-          onChange={handleChange}
-          required
-        />
-        <textarea
-          name="body"
-          placeholder="Write something..."
-          rows="3"
-          value={form.body}
-          onChange={handleChange}
-          required
-        />
-        <button type="submit" disabled={status === 'pending'}>
-          {status === 'pending' ? 'Saving...' : 'Add Post'}
-        </button>
-      </form>
-
       {error && <p className="error">Error: {error}</p>}
-
-      <ul className="post-list">
-        {list.map((post) => (
-          <li key={post.id}>
-            <h3>{post.title}</h3>
-            <p>{post.body}</p>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 };
 
 export default PostList;
-
