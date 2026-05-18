@@ -52,10 +52,8 @@ expense in balance sheet (done)
 purchase order Id not working well.2,4,6 (DONE)
 balance sheet with profit. (done)
 income statement  (done)
-
-
-stock transfer
-live connection with mongo db
+live connection with mongo db (done)
+Stock transfer
 fixed assets 
 load testing module.
 
