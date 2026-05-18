@@ -32,11 +32,7 @@ const Header = () => {
                 <i className="ni ni-box-2"></i>
               </a>
             </li>
-            <li className="breadcrumb-item text-sm text-white">
-              <a className="opacity-5 text-white" href="javascript:;">
-                Pages
-              </a>
-            </li>
+
             <li className="breadcrumb-item text-sm text-white active" aria-current="page">
               {firstSegment}
             </li>

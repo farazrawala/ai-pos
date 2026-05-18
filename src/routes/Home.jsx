@@ -1,7 +1,6 @@
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setName, clearUser } from '../features/user/userSlice.js';
-import PostList from '../components/PostList.jsx';
 
 const Home = () => {
   const dispatch = useDispatch();
@@ -31,10 +30,8 @@ const Home = () => {
           Continue as Guest
         </button>
       </section>
-      <PostList />
     </>
   );
 };
 
 export default Home;
-
