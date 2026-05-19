@@ -281,7 +281,7 @@ const Accounts = () => {
                     <thead className="thead-light">
                       <tr>
                         <th>S.No</th>
-                        <th>ID</th>
+                        <th>Trace No.</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('name')}
