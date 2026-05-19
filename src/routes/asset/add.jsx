@@ -56,7 +56,8 @@ const AssetAdd = () => {
     user_id: defaultUserId,
     description: '',
     asset_type: 'buy',
-    payment_type: '',
+    amount: '0',
+    account_id: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,8 +156,14 @@ const AssetAdd = () => {
     if (!String(form.asset_type || '').trim()) {
       newErrors.asset_type = 'Asset type is required';
     }
-    if (!String(form.payment_type || '').trim()) {
-      newErrors.payment_type = 'Please select a payment type';
+    if (!String(form.account_id || '').trim()) {
+      newErrors.account_id = 'Please select a payment type';
+    }
+    const amt = Number(form.amount);
+    if (form.amount === '' || form.amount == null || Number.isNaN(amt)) {
+      newErrors.amount = 'Enter a valid amount';
+    } else if (amt < 0) {
+      newErrors.amount = 'Amount cannot be negative';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -200,7 +207,8 @@ const AssetAdd = () => {
         user_id: form.user_id.trim(),
         description: form.description.trim(),
         asset_type: form.asset_type.trim(),
-        payment_type: form.payment_type.trim(),
+        amount: form.amount,
+        account_id: form.account_id.trim(),
       };
 
       await dispatch(createAsset({ assetFields })).unwrap();
@@ -231,7 +239,7 @@ const AssetAdd = () => {
                 <div>
                   <h5 className="mb-0">Add asset</h5>
                   <p className="text-sm mb-0 text-muted">
-                    Creates via <code className="text-xs">POST /assets/create</code>
+                    Saves via <code className="text-xs">POST /assets/save</code>
                   </p>
                 </div>
                 <button
@@ -312,14 +320,31 @@ const AssetAdd = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="payment_type" className="form-label">
+                  <label htmlFor="amount" className="form-label">
+                    Amount <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className={`form-control ${errors.amount ? 'is-invalid' : ''}`}
+                    id="amount"
+                    name="amount"
+                    value={form.amount}
+                    onChange={handleChange}
+                  />
+                  {errors.amount && <div className="invalid-feedback">{errors.amount}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="account_id" className="form-label">
                     Payment type <span className="text-danger">*</span>
                   </label>
                   <select
-                    className={`form-select ${errors.payment_type ? 'is-invalid' : ''}`}
-                    id="payment_type"
-                    name="payment_type"
-                    value={form.payment_type}
+                    className={`form-select ${errors.account_id ? 'is-invalid' : ''}`}
+                    id="account_id"
+                    name="account_id"
+                    value={form.account_id}
                     onChange={handleChange}
                     disabled={paymentTypeAccountsStatus === 'loading'}
                   >
@@ -335,11 +360,13 @@ const AssetAdd = () => {
                       </option>
                     ))}
                   </select>
-                  {errors.payment_type && (
-                    <div className="invalid-feedback d-block">{errors.payment_type}</div>
+                  {errors.account_id && (
+                    <div className="invalid-feedback d-block">{errors.account_id}</div>
                   )}
                   {paymentTypeAccountsStatus === 'failed' && (
-                    <small className="text-danger d-block mt-1">Could not load payment accounts.</small>
+                    <small className="text-danger d-block mt-1">
+                      Could not load payment accounts.
+                    </small>
                   )}
                   {paymentAccountFilterUrl && (
                     <small className="text-muted d-block mt-1">
@@ -348,8 +375,9 @@ const AssetAdd = () => {
                         {paymentAccountFilterUrl}
                       </code>
                       <span className="d-block">
-                        Uses <code className="text-xs">default_account_payable_account</code> (include)
-                        and <code className="text-xs">default_account_receivable_account</code>{' '}
+                        Uses <code className="text-xs">default_account_payable_account</code>{' '}
+                        (include) and{' '}
+                        <code className="text-xs">default_account_receivable_account</code>{' '}
                         (exclude) from company settings.
                       </span>
                     </small>
