@@ -176,7 +176,7 @@ const Sidebar = () => {
               <div className="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
                 <i className="ni ni-archive-2 text-dark text-sm opacity-10"></i>
               </div>
-              <span className="nav-link-text ms-1">Stock movements</span>
+              <span className="nav-link-text ms-1">Stock</span>
             </NavLink>
           </li>
           <li className="nav-item">

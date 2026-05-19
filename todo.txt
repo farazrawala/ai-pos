@@ -55,7 +55,11 @@ income statement  (done)
 live connection with mongo db (done)
 Stock transfer (done)
 
-fixed assets 
+fixed assets  (done)
 load testing module.
 
+Adjustments
+Tax
+Sales return
+Purchase return
 

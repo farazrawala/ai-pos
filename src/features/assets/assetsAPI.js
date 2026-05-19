@@ -31,8 +31,7 @@ const readResponseErrorDetails = async (response) => {
     }
   }
   const fromJson =
-    parsedJson &&
-    (parsedJson.message || parsedJson.error || parsedJson.msg || parsedJson.detail);
+    parsedJson && (parsedJson.message || parsedJson.error || parsedJson.msg || parsedJson.detail);
   const message =
     (typeof fromJson === 'string' && fromJson) ||
     (Array.isArray(fromJson) ? fromJson.join(', ') : null) ||
@@ -105,8 +104,7 @@ export async function fetchAssetsRequest(params = {}) {
   if (result.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
     const data = Array.isArray(rows) ? rows : [];
-    const page =
-      pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
+    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
     const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
     return {
       data,
@@ -125,8 +123,7 @@ export async function fetchAssetsRequest(params = {}) {
       total,
       page: result.page || params.page || 1,
       limit,
-      totalPages:
-        result.total_pages ?? result.totalPages ?? Math.ceil(total / (limit || 10)),
+      totalPages: result.total_pages ?? result.totalPages ?? Math.ceil(total / (limit || 10)),
     };
   }
 

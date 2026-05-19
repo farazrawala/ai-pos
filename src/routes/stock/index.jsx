@@ -133,7 +133,7 @@ const StockListing = () => {
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
                   <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <h5 className="mb-0">Stock movements</h5>
+                    <h5 className="mb-0">Stock</h5>
                     {canTransfer ? (
                       <button
                         type="button"
@@ -163,7 +163,7 @@ const StockListing = () => {
                         placeholder="Search…"
                         value={localSearch}
                         onChange={handleSearchChange}
-                        aria-label="Search stock movements"
+                        aria-label="Search stock"
                       />
                     </div>
                   </div>
@@ -277,7 +277,7 @@ const StockListing = () => {
                       {data.length === 0 ? (
                         <tr>
                           <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
-                            No stock movements found
+                            No stock found
                           </td>
                         </tr>
                       ) : (
