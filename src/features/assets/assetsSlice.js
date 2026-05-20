@@ -8,9 +8,13 @@ import {
 
 export const fetchAssets = createAsyncThunk(
   'assets/fetchAssets',
-  async (params = {}, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, getState }) => {
     try {
-      return await fetchAssetsRequest(params);
+      const stateToken = getState()?.user?.token;
+      return await fetchAssetsRequest({
+        ...params,
+        token: params.token || stateToken || undefined,
+      });
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch assets');
     }

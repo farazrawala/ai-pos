@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { NavLink, useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { fetchAssets, setSearch, setPage, setLimit, setSort } from '../../features/assets/assetsSlice.js';
+import { toast } from '../../utils/toast.js';
 
 const assetUserDisplayName = (userRef) => {
   if (userRef == null || userRef === '') return '—';
@@ -45,13 +46,13 @@ const AssetIndex = () => {
     search: searchTerm,
     sort,
   } = useSelector((state) => state.assets);
-  const loading = listStatus === 'loading';
+  const loading = listStatus === 'idle' || listStatus === 'loading';
   const error = listError;
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
-  useEffect(() => {
+  const loadAssets = useCallback(() => {
     const params = {
       page: pagination.page,
       limit: pagination.limit,
@@ -62,7 +63,18 @@ const AssetIndex = () => {
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchAssets(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
+
+  useEffect(() => {
+    loadAssets();
+  }, [loadAssets]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -120,6 +132,7 @@ const AssetIndex = () => {
   useEffect(() => {
     if (error) {
       console.error('[Asset module] Failed to fetch asset list', error);
+      toast.error(error);
     }
   }, [error]);
 
@@ -261,7 +274,10 @@ const AssetIndex = () => {
                 )}
                 {error && (
                   <div className="alert alert-danger m-3" role="alert">
-                    {error}
+                    <p className="mb-2">{error}</p>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={loadAssets}>
+                      Retry
+                    </button>
                   </div>
                 )}
                 {!loading && !error && (

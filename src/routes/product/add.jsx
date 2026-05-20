@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Multiselect from 'multiselect-react-dropdown';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createProduct } from '../../features/products/productsSlice.js';
@@ -91,6 +92,30 @@ const ProductAdd = () => {
     loadBrands();
   }, []);
 
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: String(cat._id || cat.id),
+        name: cat.name || cat.category_name || 'Category',
+      })),
+    [categories]
+  );
+
+  const selectedCategories = useMemo(
+    () => categoryOptions.filter((opt) => form.categoryId.includes(opt.id)),
+    [categoryOptions, form.categoryId]
+  );
+
+  const handleCategoryChange = (selectedList) => {
+    setForm((prev) => ({
+      ...prev,
+      categoryId: selectedList.map((item) => item.id),
+    }));
+    if (errors.categoryId) {
+      setErrors((prev) => ({ ...prev, categoryId: '' }));
+    }
+  };
+
   // Auto-generate slug from name
   const generateSlug = (name) => {
     return name
@@ -135,16 +160,7 @@ const ProductAdd = () => {
     setForm((prev) => {
       const updated = { ...prev };
 
-      // Handle multiselect for categories
-      if (name === 'categoryId' && type === 'select-multiple') {
-        const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-        updated.categoryId = selectedOptions;
-      } else if (name === 'categoryId' && type === 'select-one') {
-        // Single select - convert to array
-        updated.categoryId = value ? [value] : [];
-      } else {
-        updated[name] = value;
-      }
+      updated[name] = value;
 
       if (name === 'price_before_tax' || name === 'tax_rate') {
         const retail = calcRetailFromRate(
@@ -440,27 +456,24 @@ const ProductAdd = () => {
                   <label htmlFor="categoryId" className="form-label">
                     Categories
                   </label>
-                  <select
-                    className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
-                    style={errors.categoryId ? { borderColor: '#dc3545' } : undefined}
-                    id="categoryId"
-                    name="categoryId"
-                    multiple
-                    value={Array.isArray(form.categoryId) ? form.categoryId : []}
-                    onChange={handleChange}
-                    disabled={loadingCategories}
-                    size="5"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat._id || cat.id} value={cat._id || cat.id}>
-                        {cat.name || cat.category_name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={errors.categoryId ? 'is-invalid' : ''}>
+                    <Multiselect
+                      id="categoryId"
+                      options={categoryOptions}
+                      selectedValues={selectedCategories}
+                      onSelect={handleCategoryChange}
+                      onRemove={handleCategoryChange}
+                      displayValue="name"
+                      placeholder={loadingCategories ? 'Loading categories…' : 'Select categories'}
+                      showCheckbox
+                      emptyRecordMsg="No categories found"
+                      disable={loadingCategories || isSubmitting}
+                      className={errors.categoryId ? 'border border-danger rounded' : ''}
+                    />
+                  </div>
                   {errors.categoryId && (
                     <div className="text-danger text-sm mt-1">{errors.categoryId}</div>
                   )}
-                  <small className="text-muted">Hold Ctrl/Cmd to select multiple categories</small>
                 </div>
 
                 {/* Product Type Field */}

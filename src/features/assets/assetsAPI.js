@@ -58,12 +58,36 @@ export const ASSET_TYPE_OPTIONS = [
 
 export const ASSET_LIST_POPULATE = 'account_id,user_id';
 
-export async function fetchAssetsRequest(params = {}) {
-  const token = getAuthToken();
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+/** Extract asset rows from various API response shapes. */
+export function normalizeAssetsListRows(result) {
+  if (!result || typeof result !== 'object') return [];
+  if (Array.isArray(result)) return result;
+
+  const candidates = [
+    result.data,
+    result.assets,
+    result.items,
+    result.records,
+    result.data?.data,
+    result.data?.assets,
+    result.data?.items,
+    result.data?.records,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
   }
+  return [];
+}
+
+export async function fetchAssetsRequest(params = {}) {
+  const token = params.token || getAuthToken();
+  if (!token) {
+    throw new Error('You are not signed in. Please sign in again to load assets.');
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  headers.Authorization = `Bearer ${token}`;
 
   const queryParams = new URLSearchParams();
   if (params.page && params.limit) {
@@ -89,6 +113,12 @@ export async function fetchAssetsRequest(params = {}) {
     response = await fetch(url, { method: 'GET', headers });
   } catch (err) {
     logAssetModuleError('fetchAssetsRequest network error', { url, params, error: err });
+    const msg = err?.message || String(err);
+    if (msg === 'Failed to fetch' || msg.includes('ECONNREFUSED') || msg.includes('ECONNRESET')) {
+      throw new Error(
+        'Cannot reach the API server. Ensure the backend is running and VITE_API_PROXY_TARGET in .env points to it (default http://localhost:8000).'
+      );
+    }
     throw err;
   }
 
@@ -99,31 +129,53 @@ export async function fetchAssetsRequest(params = {}) {
   }
 
   const result = await response.json();
-  const rows = result.data ?? result.assets ?? [];
+
+  if (result.success === false) {
+    const message =
+      result.message || result.error || result.msg || 'Failed to fetch assets';
+    logAssetModuleError('fetchAssetsRequest API success=false', { url, params, result });
+    throw new Error(typeof message === 'string' ? message : String(message));
+  }
+
+  const data = normalizeAssetsListRows(result);
 
   if (result.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
-    const data = Array.isArray(rows) ? rows : [];
-    const page = pagination.limit > 0 ? Math.floor(pagination.skip / pagination.limit) + 1 : 1;
-    const totalPages = pagination.limit > 0 ? Math.ceil(pagination.total / pagination.limit) : 0;
+    const total = Number(pagination.total ?? data.length ?? 0);
+    const skip = Number(pagination.skip ?? 0);
+    const apiLimit = pagination.limit;
+
+    const limit =
+      apiLimit != null && Number(apiLimit) > 0
+        ? Number(apiLimit)
+        : Number(params.limit || 10);
+    const page =
+      limit > 0
+        ? Math.max(1, Math.floor(skip / limit) + 1)
+        : Number(params.page || 1);
+    const totalPages = limit > 0 ? Math.ceil(total / limit) : total > 0 ? 1 : 0;
+
     return {
       data,
-      total: pagination.total || 0,
+      total,
       page,
-      limit: pagination.limit || params.limit || 10,
+      limit,
       totalPages,
     };
   }
 
-  if (Array.isArray(rows)) {
-    const total = result.total ?? rows.length;
-    const limit = result.limit || result.per_page || params.limit || 10;
+  if (data.length > 0 || result.data != null || result.assets != null) {
+    const total = Number(result.total ?? data.length ?? 0);
+    const limit = Number(result.limit || result.per_page || params.limit || 10);
     return {
-      data: rows,
+      data,
       total,
-      page: result.page || params.page || 1,
+      page: Number(result.page || params.page || 1),
       limit,
-      totalPages: result.total_pages ?? result.totalPages ?? Math.ceil(total / (limit || 10)),
+      totalPages:
+        result.total_pages ??
+        result.totalPages ??
+        (limit > 0 ? Math.ceil(total / limit) : total > 0 ? 1 : 0),
     };
   }
 
