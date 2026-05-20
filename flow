@@ -1,4 +1,4 @@
-🧾 1. Basic POS System – What You Need
+🧾 1. Basic POS System – What You Need (done)
 Think of POS as: sell → record → update stock → create accounting entry
 Core Modules
 Products
@@ -38,7 +38,7 @@ Stock report
 Customer ledger
 Supplier ledger
 
-🔁 2. Transactions (VERY IMPORTANT)
+🔁 2. Transactions (VERY IMPORTANT) (DONE.)
 Every POS action should create double-entry accounting records.
 Example: Sale (Cash)
 Debit → Cash
@@ -46,7 +46,7 @@ Credit → Sales
 Debit → Cost of Goods Sold
 Credit → Inventory
 
-📊 3. Chart of Accounts (COA)
+📊 3. Chart of Accounts (COA) (DONE.)
 This is your accounting structure.
 🟢 Assets
 Cash
@@ -72,7 +72,7 @@ Utility Expense
 Salary Expense
 Misc Expense
 
-🧠 4. Mapping POS → Accounts (CRITICAL)
+🧠 4. Mapping POS → Accounts (CRITICAL) (DONE)
 Action Debit Credit
 Cash Sale Cash Sales
 Credit Sale Accounts Receivable Sales

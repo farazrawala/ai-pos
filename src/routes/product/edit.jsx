@@ -28,6 +28,7 @@ const ProductEdit = () => {
     slug: '',
     product_code: '',
     description: '',
+    price_before_tax: '',
     price: '',
     alert_qty: '',
     brand_id: '',
@@ -167,7 +168,46 @@ const ProductEdit = () => {
         slug: currentProduct.slug || currentProduct.product_slug || '',
         product_code: currentProduct.product_code || '',
         description: currentProduct.description || currentProduct.product_description || '',
-        price: currentProduct.price || currentProduct.product_price || '',
+        ...(() => {
+          const retailRaw = currentProduct.price ?? currentProduct.product_price ?? '';
+          const retailNum = parseFloat(retailRaw);
+          const beforeRaw = currentProduct.price_before_tax;
+          const rateRaw = currentProduct.tax_rate;
+          const beforeNum =
+            beforeRaw !== undefined && beforeRaw !== null && beforeRaw !== ''
+              ? parseFloat(beforeRaw)
+              : NaN;
+          const rateNum =
+            rateRaw !== undefined && rateRaw !== null && rateRaw !== ''
+              ? parseFloat(rateRaw)
+              : NaN;
+
+          if (!Number.isNaN(beforeNum)) {
+            const rateStr = !Number.isNaN(rateNum) ? String(rateRaw) : '';
+            const effectiveRate = Number.isNaN(rateNum) ? 0 : rateNum;
+            return {
+              price_before_tax: String(beforeRaw),
+              tax_rate: rateStr,
+              price: !Number.isNaN(retailNum)
+                ? String(retailRaw)
+                : String(Math.round(beforeNum * (1 + effectiveRate / 100) * 100) / 100),
+            };
+          }
+          if (!Number.isNaN(retailNum) && !Number.isNaN(rateNum) && rateNum > 0) {
+            const derivedBefore = retailNum / (1 + rateNum / 100);
+            return {
+              price_before_tax: String(Math.round(derivedBefore * 100) / 100),
+              tax_rate: String(rateRaw),
+              price: String(retailRaw),
+            };
+          }
+          return {
+            price_before_tax: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
+            tax_rate:
+              rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? String(rateRaw) : '',
+            price: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
+          };
+        })(),
         alert_qty: currentProduct.alert_qty !== undefined ? currentProduct.alert_qty : '',
         brand_id: currentProduct.brand_id || '',
         unit: currentProduct.unit || 'Piece',
@@ -176,7 +216,6 @@ const ProductEdit = () => {
         width: currentProduct.width !== undefined ? currentProduct.width : '',
         height: currentProduct.height !== undefined ? currentProduct.height : '',
         dimension: currentProduct.dimension || '',
-        tax_rate: currentProduct.tax_rate !== undefined ? currentProduct.tax_rate : '',
         barcode: currentProduct.barcode || '',
         sku: currentProduct.sku || '',
         product_type: currentProduct.product_type || 'Single',
@@ -473,6 +512,35 @@ const ProductEdit = () => {
     // Only close the modal
   };
 
+  const calcRetailFromRate = (before, rate) => {
+    const beforeNum = parseFloat(before);
+    if (before === '' || before == null || Number.isNaN(beforeNum)) return null;
+    const rateNum = parseFloat(rate);
+    const effectiveRate = rate === '' || rate == null || Number.isNaN(rateNum) ? 0 : rateNum;
+    return String(Math.round(beforeNum * (1 + effectiveRate / 100) * 100) / 100);
+  };
+
+  const getSavePriceBeforeTax = () => {
+    if (form.price_before_tax === '' || form.price_before_tax == null) return 0;
+    const n = parseFloat(form.price_before_tax);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const getSaveTaxRate = () => {
+    if (form.tax_rate === '' || form.tax_rate == null) return undefined;
+    const n = parseFloat(form.tax_rate);
+    return Number.isNaN(n) ? undefined : n;
+  };
+
+  const buildPricingSaveFields = () => {
+    const fields = { price_before_tax: getSavePriceBeforeTax() };
+    const rate = getSaveTaxRate();
+    if (rate !== undefined) {
+      fields.tax_rate = rate;
+    }
+    return fields;
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     setForm((prev) => {
@@ -487,6 +555,14 @@ const ProductEdit = () => {
         updated.categoryId = value ? [value] : [];
       } else {
         updated[name] = value;
+      }
+
+      if (name === 'price_before_tax' || name === 'tax_rate') {
+        const retail = calcRetailFromRate(
+          name === 'price_before_tax' ? value : updated.price_before_tax,
+          name === 'tax_rate' ? value : updated.tax_rate
+        );
+        if (retail != null) updated.price = retail;
       }
 
       // Auto-generate slug from name
@@ -616,7 +692,7 @@ const ProductEdit = () => {
     }
 
     if (!form.price || parseFloat(form.price) <= 0) {
-      newErrors.price = 'Valid price is required';
+      newErrors.price = 'Valid retail price is required';
     }
 
     if (form.stock !== '' && (isNaN(form.stock) || parseInt(form.stock) < 0)) {
@@ -651,7 +727,7 @@ const ProductEdit = () => {
       newErrors.slug = 'Slug can only contain lowercase letters, numbers, and hyphens';
     }
     if (!form.price || parseFloat(form.price) <= 0) {
-      newErrors.price = 'Valid price is required';
+      newErrors.price = 'Valid retail price is required';
     }
     if (!form.categoryId || (Array.isArray(form.categoryId) && form.categoryId.length === 0)) {
       newErrors.categoryId = 'At least one category is required';
@@ -707,6 +783,7 @@ const ProductEdit = () => {
           product_name: form.name.trim(),
           product_description: form.description.trim(),
           product_price: parseFloat(form.price),
+          ...buildPricingSaveFields(),
           category_id: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
           alert_qty: form.alert_qty ? parseInt(form.alert_qty) : 0,
           wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
@@ -772,6 +849,7 @@ const ProductEdit = () => {
           name: form.name.trim(),
           description: form.description.trim(),
           price: parseFloat(form.price),
+          ...buildPricingSaveFields(),
           categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
           sku: form.sku.trim(),
           product_code: form.product_code.trim(),
@@ -783,7 +861,6 @@ const ProductEdit = () => {
           width: form.width ? parseFloat(form.width) : undefined,
           height: form.height ? parseFloat(form.height) : undefined,
           dimension: form.dimension.trim() || undefined,
-          tax_rate: form.tax_rate ? parseFloat(form.tax_rate) : undefined,
           barcode: form.barcode.trim() || undefined,
           product_type: form.product_type,
           wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
@@ -1026,24 +1103,65 @@ const ProductEdit = () => {
                   </select>
                 </div>
 
-                {/* Price, Wholesale Price, and Alert Qty Row */}
+                {/* Price before tax, Tax rate, Retail, Wholesale, Alert Qty */}
                 <div className="row">
-                  <div className="col-md-4 mb-3">
-                    <label htmlFor="price" className="form-label">
-                      Product Price <span className="text-danger">*</span>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="price_before_tax" className="form-label">
+                      Price before tax
                     </label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      className={`form-control ${errors.price ? 'is-invalid' : ''}`}
+                      className={`form-control ${errors.price_before_tax ? 'is-invalid' : ''}`}
+                      id="price_before_tax"
+                      name="price_before_tax"
+                      placeholder="0.00"
+                      value={form.price_before_tax}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.price_before_tax && (
+                      <div className="invalid-feedback">{errors.price_before_tax}</div>
+                    )}
+                  </div>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="tax_rate" className="form-label">
+                      Tax rate (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className={`form-control ${errors.tax_rate ? 'is-invalid' : ''}`}
+                      id="tax_rate"
+                      name="tax_rate"
+                      placeholder="0.00"
+                      value={form.tax_rate}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.tax_rate && (
+                      <div className="invalid-feedback">{errors.tax_rate}</div>
+                    )}
+                  </div>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="price" className="form-label">
+                      Retail price <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className={`form-control bg-light ${errors.price ? 'is-invalid' : ''}`}
                       id="price"
                       name="price"
                       placeholder="0.00"
                       value={form.price}
-                      onChange={handleChange}
-                      required
+                      readOnly
                       disabled={isSubmitting}
+                      aria-readonly="true"
                     />
                     {errors.price && <div className="invalid-feedback">{errors.price}</div>}
                   </div>
@@ -1232,41 +1350,21 @@ const ProductEdit = () => {
                   </div>
                 </div>
 
-                {/* Dimension and Tax Rate Row */}
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="dimension" className="form-label">
-                      Dimension
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="dimension"
-                      name="dimension"
-                      placeholder="e.g., 10x20x30 (optional)"
-                      value={form.dimension}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="tax_rate" className="form-label">
-                      Tax Rate (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      className="form-control"
-                      id="tax_rate"
-                      name="tax_rate"
-                      placeholder="0.00"
-                      value={form.tax_rate}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                  </div>
+                {/* Dimension */}
+                <div className="mb-3">
+                  <label htmlFor="dimension" className="form-label">
+                    Dimension
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    id="dimension"
+                    name="dimension"
+                    placeholder="e.g., 10x20x30 (optional)"
+                    value={form.dimension}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                  />
                 </div>
 
                 {/* Description Field */}

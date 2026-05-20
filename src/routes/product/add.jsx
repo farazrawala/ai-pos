@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Multiselect from 'multiselect-react-dropdown';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createProduct } from '../../features/products/productsSlice.js';
@@ -15,6 +16,7 @@ const ProductAdd = () => {
     slug: '',
     product_code: '',
     description: '',
+    price_before_tax: '',
     price: '',
     alert_qty: '',
     brand_id: '',
@@ -90,6 +92,30 @@ const ProductAdd = () => {
     loadBrands();
   }, []);
 
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: String(cat._id || cat.id),
+        name: cat.name || cat.category_name || 'Category',
+      })),
+    [categories]
+  );
+
+  const selectedCategories = useMemo(
+    () => categoryOptions.filter((opt) => form.categoryId.includes(opt.id)),
+    [categoryOptions, form.categoryId]
+  );
+
+  const handleCategoryChange = (selectedList) => {
+    setForm((prev) => ({
+      ...prev,
+      categoryId: selectedList.map((item) => item.id),
+    }));
+    if (errors.categoryId) {
+      setErrors((prev) => ({ ...prev, categoryId: '' }));
+    }
+  };
+
   // Auto-generate slug from name
   const generateSlug = (name) => {
     return name
@@ -100,20 +126,48 @@ const ProductAdd = () => {
       .replace(/^-+|-+$/g, '');
   };
 
+  const calcRetailFromRate = (before, rate) => {
+    const beforeNum = parseFloat(before);
+    if (before === '' || before == null || Number.isNaN(beforeNum)) return null;
+    const rateNum = parseFloat(rate);
+    const effectiveRate = rate === '' || rate == null || Number.isNaN(rateNum) ? 0 : rateNum;
+    return String(Math.round(beforeNum * (1 + effectiveRate / 100) * 100) / 100);
+  };
+
+  const getSavePriceBeforeTax = () => {
+    if (form.price_before_tax === '' || form.price_before_tax == null) return 0;
+    const n = parseFloat(form.price_before_tax);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const getSaveTaxRate = () => {
+    if (form.tax_rate === '' || form.tax_rate == null) return undefined;
+    const n = parseFloat(form.tax_rate);
+    return Number.isNaN(n) ? undefined : n;
+  };
+
+  const buildPricingSaveFields = () => {
+    const fields = { price_before_tax: getSavePriceBeforeTax() };
+    const rate = getSaveTaxRate();
+    if (rate !== undefined) {
+      fields.tax_rate = rate;
+    }
+    return fields;
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     setForm((prev) => {
       const updated = { ...prev };
 
-      // Handle multiselect for categories
-      if (name === 'categoryId' && type === 'select-multiple') {
-        const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-        updated.categoryId = selectedOptions;
-      } else if (name === 'categoryId' && type === 'select-one') {
-        // Single select - convert to array
-        updated.categoryId = value ? [value] : [];
-      } else {
-        updated[name] = value;
+      updated[name] = value;
+
+      if (name === 'price_before_tax' || name === 'tax_rate') {
+        const retail = calcRetailFromRate(
+          name === 'price_before_tax' ? value : updated.price_before_tax,
+          name === 'tax_rate' ? value : updated.tax_rate
+        );
+        if (retail != null) updated.price = retail;
       }
 
       // Auto-generate slug from name
@@ -240,7 +294,7 @@ const ProductAdd = () => {
     }
 
     if (!form.price || parseFloat(form.price) <= 0) {
-      newErrors.price = 'Valid price is required';
+      newErrors.price = 'Valid retail price is required';
     }
 
     if (form.alert_qty !== '' && (isNaN(form.alert_qty) || parseInt(form.alert_qty) < 0)) {
@@ -267,7 +321,7 @@ const ProductAdd = () => {
       const fieldLabels = {
         name: 'Product Name',
         slug: 'Slug',
-        price: 'Product Price',
+        price: 'Retail price',
         alert_qty: 'Alert Quantity',
         unit: 'Unit',
         product_type: 'Product Type',
@@ -288,6 +342,7 @@ const ProductAdd = () => {
         name: form.name.trim(),
         description: form.description.trim(),
         price: parseFloat(form.price),
+        ...buildPricingSaveFields(),
         categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
         sku: form.sku.trim(),
         product_code: form.product_code.trim(),
@@ -299,7 +354,6 @@ const ProductAdd = () => {
         width: form.width ? parseFloat(form.width) : undefined,
         height: form.height ? parseFloat(form.height) : undefined,
         dimension: form.dimension.trim() || undefined,
-        tax_rate: form.tax_rate ? parseFloat(form.tax_rate) : undefined,
         barcode: form.barcode.trim() || undefined,
         product_type: form.product_type,
         wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
@@ -402,27 +456,24 @@ const ProductAdd = () => {
                   <label htmlFor="categoryId" className="form-label">
                     Categories
                   </label>
-                  <select
-                    className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
-                    style={errors.categoryId ? { borderColor: '#dc3545' } : undefined}
-                    id="categoryId"
-                    name="categoryId"
-                    multiple
-                    value={Array.isArray(form.categoryId) ? form.categoryId : []}
-                    onChange={handleChange}
-                    disabled={loadingCategories}
-                    size="5"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat._id || cat.id} value={cat._id || cat.id}>
-                        {cat.name || cat.category_name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={errors.categoryId ? 'is-invalid' : ''}>
+                    <Multiselect
+                      id="categoryId"
+                      options={categoryOptions}
+                      selectedValues={selectedCategories}
+                      onSelect={handleCategoryChange}
+                      onRemove={handleCategoryChange}
+                      displayValue="name"
+                      placeholder={loadingCategories ? 'Loading categories…' : 'Select categories'}
+                      showCheckbox
+                      emptyRecordMsg="No categories found"
+                      disable={loadingCategories || isSubmitting}
+                      className={errors.categoryId ? 'border border-danger rounded' : ''}
+                    />
+                  </div>
                   {errors.categoryId && (
                     <div className="text-danger text-sm mt-1">{errors.categoryId}</div>
                   )}
-                  <small className="text-muted">Hold Ctrl/Cmd to select multiple categories</small>
                 </div>
 
                 {/* Product Type Field */}
@@ -486,24 +537,63 @@ const ProductAdd = () => {
                   </select>
                 </div>
 
-                {/* Price, Wholesale Price, and Alert Qty Row */}
+                {/* Price before tax, Tax rate, Retail, Wholesale, Alert Qty */}
                 <div className="row">
-                  <div className="col-md-4 mb-3">
-                    <label htmlFor="price" className="form-label">
-                      Product Price <span className="text-danger">*</span>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="price_before_tax" className="form-label">
+                      Price before tax
                     </label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      className={`form-control ${errors.price ? 'is-invalid' : ''}`}
+                      className={`form-control ${errors.price_before_tax ? 'is-invalid' : ''}`}
+                      id="price_before_tax"
+                      name="price_before_tax"
+                      placeholder="0.00"
+                      value={form.price_before_tax}
+                      onChange={handleChange}
+                    />
+                    {errors.price_before_tax && (
+                      <div className="invalid-feedback">{errors.price_before_tax}</div>
+                    )}
+                  </div>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="tax_rate" className="form-label">
+                      Tax rate (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className={`form-control ${errors.tax_rate ? 'is-invalid' : ''}`}
+                      id="tax_rate"
+                      name="tax_rate"
+                      placeholder="0.00"
+                      value={form.tax_rate}
+                      onChange={handleChange}
+                    />
+                    {errors.tax_rate && (
+                      <div className="invalid-feedback">{errors.tax_rate}</div>
+                    )}
+                  </div>
+                  <div className="col-md-3 col-6 mb-3">
+                    <label htmlFor="price" className="form-label">
+                      Retail price <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className={`form-control bg-light ${errors.price ? 'is-invalid' : ''}`}
                       style={errors.price ? { borderColor: '#dc3545' } : undefined}
                       id="price"
                       name="price"
                       placeholder="0.00"
                       value={form.price}
-                      onChange={handleChange}
-                      required
+                      readOnly
+                      aria-readonly="true"
                     />
                     {errors.price && <div className="text-danger text-sm mt-1">{errors.price}</div>}
                   </div>
@@ -682,39 +772,20 @@ const ProductAdd = () => {
                   </div>
                 </div>
 
-                {/* Dimension and Tax Rate Row */}
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="dimension" className="form-label">
-                      Dimension
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="dimension"
-                      name="dimension"
-                      placeholder="e.g., 10x20x30 (optional)"
-                      value={form.dimension}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="tax_rate" className="form-label">
-                      Tax Rate (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      className="form-control"
-                      id="tax_rate"
-                      name="tax_rate"
-                      placeholder="0.00"
-                      value={form.tax_rate}
-                      onChange={handleChange}
-                    />
-                  </div>
+                {/* Dimension */}
+                <div className="mb-3">
+                  <label htmlFor="dimension" className="form-label">
+                    Dimension
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    id="dimension"
+                    name="dimension"
+                    placeholder="e.g., 10x20x30 (optional)"
+                    value={form.dimension}
+                    onChange={handleChange}
+                  />
                 </div>
 
                 {/* Description Field */}

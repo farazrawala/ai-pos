@@ -651,6 +651,12 @@ export const updateProductVariationRequest = async (
   if (productData.product_price !== undefined) {
     formData.append('product_price', String(productData.product_price));
   }
+  if (productData.price_before_tax !== undefined) {
+    formData.append('price_before_tax', String(productData.price_before_tax));
+  }
+  if (productData.tax_rate !== undefined) {
+    formData.append('tax_rate', String(productData.tax_rate));
+  }
   if (productData.alert_qty !== undefined) {
     formData.append('alert_qty', String(productData.alert_qty));
   }

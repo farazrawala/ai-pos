@@ -17,6 +17,7 @@ import stockMovementReducer from '../features/stockMovement/stockMovementSlice.j
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
 import paymentReceiptsReducer from '../features/paymentReceipts/paymentReceiptsSlice.js';
 import expensesReducer from '../features/expenses/expensesSlice.js';
+import assetsReducer from '../features/assets/assetsSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -39,6 +40,7 @@ const store = configureStore({
     incomeStatement: incomeStatementReducer,
     paymentReceipts: paymentReceiptsReducer,
     expenses: expensesReducer,
+    assets: assetsReducer,
   },
 });
 
