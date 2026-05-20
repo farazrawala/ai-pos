@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bootstrap navbar collapse — avoid Tailwind visibility:collapse on #navbar */
+#navbar.navbar-collapse {
+  visibility: visible;
+}
+
+/* react-icons inside Argon icon shapes */
+.icon-shape svg {
+  flex-shrink: 0;
+}
+
 .app-main {
   flex: 1;
   background: linear-gradient(180deg, #eef2ff, #f8fafc);

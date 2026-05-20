@@ -1,6 +1,17 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import {
+  FaArrowUp,
+  FaCamera,
+  FaCartShopping,
+  FaCoins,
+  FaFileInvoice,
+  FaGlobe,
+  FaLightbulb,
+  FaTrophy,
+} from 'react-icons/fa6';
 import Footer from '../components/Footer.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 
 const Dashboard = () => {
   const name = useSelector((state) => state.user.name);
@@ -154,11 +165,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="col-4 text-end">
-                        <div className="icon icon-shape bg-gradient-primary shadow-primary text-center rounded-circle">
-                          <i
-                            className="ni ni-money-coins text-lg opacity-10"
-                            aria-hidden="true"
-                          ></i>
+                        <div className="icon icon-shape bg-gradient-primary shadow-primary text-center rounded-circle d-flex align-items-center justify-content-center">
+                          <NavIcon icon={FaCoins} className="text-white opacity-10" size={22} />
                         </div>
                       </div>
                     </div>
@@ -182,8 +190,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="col-4 text-end">
-                        <div className="icon icon-shape bg-gradient-danger shadow-danger text-center rounded-circle">
-                          <i className="ni ni-world text-lg opacity-10" aria-hidden="true"></i>
+                        <div className="icon icon-shape bg-gradient-danger shadow-danger text-center rounded-circle d-flex align-items-center justify-content-center">
+                          <NavIcon icon={FaGlobe} className="text-white opacity-10" size={22} />
                         </div>
                       </div>
                     </div>
@@ -207,11 +215,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="col-4 text-end">
-                        <div className="icon icon-shape bg-gradient-success shadow-success text-center rounded-circle">
-                          <i
-                            className="ni ni-paper-diploma text-lg opacity-10"
-                            aria-hidden="true"
-                          ></i>
+                        <div className="icon icon-shape bg-gradient-success shadow-success text-center rounded-circle d-flex align-items-center justify-content-center">
+                          <NavIcon icon={FaFileInvoice} className="text-white opacity-10" size={22} />
                         </div>
                       </div>
                     </div>
@@ -233,8 +238,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="col-4 text-end">
-                        <div className="icon icon-shape bg-gradient-warning shadow-warning text-center rounded-circle">
-                          <i className="ni ni-cart text-lg opacity-10" aria-hidden="true"></i>
+                        <div className="icon icon-shape bg-gradient-warning shadow-warning text-center rounded-circle d-flex align-items-center justify-content-center">
+                          <NavIcon icon={FaCartShopping} className="text-white opacity-10" size={22} />
                         </div>
                       </div>
                     </div>
@@ -250,7 +255,7 @@ const Dashboard = () => {
               <div className="card-header pb-0 pt-3 bg-transparent">
                 <h6 className="text-capitalize">Sales overview</h6>
                 <p className="text-sm mb-0">
-                  <i className="fa fa-arrow-up text-success"></i>
+                  <NavIcon icon={FaArrowUp} className="text-success me-1" size={14} />
                   <span className="font-weight-bold">4% more</span> in 2021
                 </p>
               </div>
@@ -278,7 +283,7 @@ const Dashboard = () => {
                   >
                     <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
                       <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <i className="ni ni-camera-compact text-dark opacity-10"></i>
+                        <NavIcon icon={FaCamera} className="text-dark opacity-10" size={18} />
                       </div>
                       <h5 className="text-white mb-1">Get started with Argon</h5>
                       <p>
@@ -296,7 +301,7 @@ const Dashboard = () => {
                   >
                     <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
                       <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <i className="ni ni-bulb-61 text-dark opacity-10"></i>
+                        <NavIcon icon={FaLightbulb} className="text-dark opacity-10" size={18} />
                       </div>
                       <h5 className="text-white mb-1">Faster way to create web pages</h5>
                       <p>
@@ -314,7 +319,7 @@ const Dashboard = () => {
                   >
                     <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
                       <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <i className="ni ni-trophy text-dark opacity-10"></i>
+                        <NavIcon icon={FaTrophy} className="text-dark opacity-10" size={18} />
                       </div>
                       <h5 className="text-white mb-1">Share with us your design tips!</h5>
                       <p>

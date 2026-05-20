@@ -1,0 +1,40 @@
+/**
+ * Loaded after Argon + Font Awesome kit.
+ * Ensures Nucleo ::before glyphs keep the correct font (FA must not override).
+ */
+@font-face {
+  font-family: 'NucleoIcons';
+  src: url('/assets/fonts/nucleo-icons.woff2') format('woff2'),
+    url('/assets/fonts/nucleo-icons.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+i[class*='ni-'],
+.ni {
+  font-family: 'NucleoIcons' !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  speak: never;
+  display: inline-block;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+i[class*='ni-']::before,
+.ni::before {
+  font-family: 'NucleoIcons' !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+}
+
+/* FA kit must not replace Nucleo pseudo-element content */
+i[class*='ni-']:not(.fas):not(.far):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(
+    .fa
+  )::before {
+  font-family: 'NucleoIcons' !important;
+}
