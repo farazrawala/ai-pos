@@ -57,6 +57,7 @@ Stock transfer (done)
 
 fixed assets  (done)
 load testing module.
+alert (will done on )
 
 Adjustments
 Tax
