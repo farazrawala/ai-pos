@@ -6,9 +6,9 @@ import {
   FaBox,
   FaChevronDown,
   FaClock,
-  FaGear,
+  FaCog,
   FaRightFromBracket,
-  FaMagnifyingGlass,
+  FaSearch,
   FaUser,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
@@ -70,15 +70,15 @@ const Header = () => {
         >
           <NavIcon icon={FaBars} size={20} className="text-white" />
         </button>
-        <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
+        <motion.div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
           <div className="ms-md-auto pe-md-3 d-flex align-items-center">
             <div className="input-group">
               <span className="input-group-text text-body">
-                <NavIcon icon={FaMagnifyingGlass} size={14} />
+                <NavIcon icon={FaSearch} size={14} />
               </span>
               <input type="text" className="form-control" placeholder="Type here..." />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
           <ul className="navbar-nav justify-content-end">
             {isAuthenticated ? (
               <li className="nav-item dropdown pe-2 d-flex align-items-center">
@@ -95,7 +95,7 @@ const Header = () => {
                       {name || user?.name || user?.email || 'User'}
                     </span>
                     <NavIcon icon={FaChevronDown} className="text-white" size={12} />
-                  </div>
+                  </motion.div>
                 </a>
                 <ul
                   className="dropdown-menu dropdown-menu-end px-2 py-3 me-sm-n4"
@@ -106,7 +106,7 @@ const Header = () => {
                       <div className="d-flex align-items-center">
                         <NavIcon icon={FaUser} className="me-2" size={16} />
                         <span>Profile</span>
-                      </div>
+                      </motion.div>
                     </Link>
                   </li>
                   <li>
@@ -118,7 +118,7 @@ const Header = () => {
                       <div className="d-flex align-items-center">
                         <NavIcon icon={FaRightFromBracket} className="me-2" size={16} />
                         <span>Sign Out</span>
-                      </div>
+                      </motion.div>
                     </a>
                   </li>
                 </ul>
@@ -137,13 +137,13 @@ const Header = () => {
                   <i className="sidenav-toggler-line bg-white" />
                   <i className="sidenav-toggler-line bg-white" />
                   <i className="sidenav-toggler-line bg-white" />
-                </div>
+                </motion.div>
               </a>
             </li>
             <li className="nav-item px-3 d-flex align-items-center">
               <a href="javascript:;" className="nav-link text-white p-0">
                 <NavIcon
-                  icon={FaGear}
+                  icon={FaCog}
                   className="fixed-plugin-button-nav cursor-pointer text-white"
                   size={18}
                 />
@@ -166,13 +166,13 @@ const Header = () => {
                 <li className="mb-2">
                   <a className="dropdown-item border-radius-md" href="javascript:;">
                     <div className="d-flex py-1">
-                      <div className="my-auto">
+                      <motion.div className="my-auto">
                         <img
                           src="/assets/img/team-2.jpg"
                           className="avatar avatar-sm me-3"
                           alt="user"
                         />
-                      </div>
+                      </motion.div>
                       <div className="d-flex flex-column justify-content-center">
                         <h6 className="text-sm font-weight-normal mb-1">
                           <span className="font-weight-bold">New message</span> from Laur
@@ -181,15 +181,15 @@ const Header = () => {
                           <NavIcon icon={FaClock} className="me-1" size={12} />
                           13 minutes ago
                         </p>
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
                   </a>
                 </li>
               </ul>
             </li>
           </ul>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </nav>
   );
 };
