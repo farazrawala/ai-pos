@@ -47,14 +47,8 @@ const buildSessionFromUser = (userData) => {
     companyId,
     defaultAccounts,
     permissions:
-      userData?.permissions && typeof userData.permissions === 'object'
-        ? userData.permissions
-        : {},
-    roles: Array.isArray(userData?.role)
-      ? userData.role
-      : userData?.role
-        ? [userData.role]
-        : [],
+      userData?.permissions && typeof userData.permissions === 'object' ? userData.permissions : {},
+    roles: Array.isArray(userData?.role) ? userData.role : userData?.role ? [userData.role] : [],
   };
 };
 
@@ -241,12 +235,15 @@ export const selectDefaultReceivableAccountId = selectDefaultAccountId(
 
 export const selectDefaultCashAccountId = selectDefaultAccountId('default_cash_account');
 
+export const selectDefaultAdjustmentAccountId = selectDefaultAccountId(
+  'default_adjustment_account'
+);
+
 export const selectPermissions = (state) => state.user?.permissions ?? {};
 
 export const selectUserRoles = (state) => state.user?.roles ?? [];
 
-export const selectAuthToken = (state) =>
-  state.user?.token || state.user?.user?.token || '';
+export const selectAuthToken = (state) => state.user?.token || state.user?.user?.token || '';
 
 /** Matches protected routes: session can be token-only until user payload hydrates. */
 export const selectIsAuthenticated = (state) => {

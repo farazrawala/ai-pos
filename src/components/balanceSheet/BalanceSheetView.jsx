@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { BalanceSheetSummaryBar } from './BalanceSheetSummaryBar.jsx';
 import { formatCurrencyAccounting } from './formatCurrency.js';
 import {
@@ -6,11 +7,15 @@ import {
   fetchAccountsByTypeRequest,
 } from '../../features/accounts/accountsAPI.js';
 import {
+  buildBalanceSheetAdjustmentsUrl,
+  buildBalanceSheetEquityFetchParams,
   buildBalanceSheetInventoryCogUrl,
   buildBalanceSheetProfitUrl,
+  fetchBalanceSheetAdjustmentsRequest,
   fetchBalanceSheetInventoryCogRequest,
   fetchBalanceSheetProfitRequest,
 } from '../../features/balanceSheet/balanceSheetAPI.js';
+import { selectAuthUser, selectCompany } from '../../features/user/userSlice.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import {
   buildCompanyRemoveCacheUrl,
@@ -225,7 +230,13 @@ const REMOVE_COMPANY_CACHE_DEFINITION = {
   fetch: () => removeCompanyCacheRequest(),
 };
 
-const BALANCE_SHEET_API_DEFINITIONS = [
+function createBalanceSheetApiDefinitions(equityFetchParams = {}) {
+  const equityParams =
+    equityFetchParams.exclude_id != null && String(equityFetchParams.exclude_id).trim() !== ''
+      ? { exclude_id: String(equityFetchParams.exclude_id).trim() }
+      : {};
+
+  return [
   {
     key: 'current_asset',
     label: 'Current assets',
@@ -235,8 +246,8 @@ const BALANCE_SHEET_API_DEFINITIONS = [
   {
     key: 'equity',
     label: 'Equity',
-    url: buildFetchAccountsByTypeUrl('equity'),
-    fetch: () => fetchAccountsByTypeRequest('equity'),
+    url: buildFetchAccountsByTypeUrl('equity', equityParams),
+    fetch: () => fetchAccountsByTypeRequest('equity', equityParams),
   },
   {
     key: 'operating_expense',
@@ -249,6 +260,12 @@ const BALANCE_SHEET_API_DEFINITIONS = [
     label: "Owner's equity (profit)",
     url: buildBalanceSheetProfitUrl(),
     fetch: () => fetchBalanceSheetProfitRequest(),
+  },
+  {
+    key: 'adjustments',
+    label: "Owner's equity (adjustments)",
+    url: buildBalanceSheetAdjustmentsUrl(),
+    fetch: () => fetchBalanceSheetAdjustmentsRequest(),
   },
   {
     key: 'current_liability',
@@ -274,13 +291,16 @@ const BALANCE_SHEET_API_DEFINITIONS = [
     url: buildBalanceSheetInventoryCogUrl(),
     fetch: () => fetchBalanceSheetInventoryCogRequest(),
   },
-];
+  ];
+}
 
 function apiResult(results, key) {
   return results.find((r) => r.key === key);
 }
 
 export default function BalanceSheetView() {
+  const authUser = useSelector(selectAuthUser);
+  const authCompany = useSelector(selectCompany);
   const {
     sources: apiSources,
     wallDurationMs,
@@ -382,11 +402,17 @@ export default function BalanceSheetView() {
       setInventoryStatus({ loading: true, error: null });
       setInventoryGrandTotal(0);
 
+      const equityFetchParams = await buildBalanceSheetEquityFetchParams(authUser, authCompany);
+      if (cancelled) return;
+
+      const sheetApiDefinitions = createBalanceSheetApiDefinitions(equityFetchParams);
+
       const wallStart = performance.now();
       setApiSources(
-        buildPendingApiSources([REMOVE_COMPANY_CACHE_DEFINITION, ...BALANCE_SHEET_API_DEFINITIONS]).map(
-          (s) => ({ ...s, status: 'loading' })
-        )
+        buildPendingApiSources([
+          REMOVE_COMPANY_CACHE_DEFINITION,
+          ...sheetApiDefinitions,
+        ]).map((s) => ({ ...s, status: 'loading' }))
       );
 
       const cacheResult = await trackApiCall(REMOVE_COMPANY_CACHE_DEFINITION);
@@ -417,15 +443,13 @@ export default function BalanceSheetView() {
 
       setApiSources([
         cacheSourceEntry,
-        ...buildPendingApiSources(BALANCE_SHEET_API_DEFINITIONS).map((s) => ({
+        ...buildPendingApiSources(sheetApiDefinitions).map((s) => ({
           ...s,
           status: 'loading',
         })),
       ]);
 
-      const { results, sources: sheetSources } = await trackApiCallsParallel(
-        BALANCE_SHEET_API_DEFINITIONS
-      );
+      const { results, sources: sheetSources } = await trackApiCallsParallel(sheetApiDefinitions);
       if (cancelled) return;
 
       setApiSources([cacheSourceEntry, ...sheetSources]);
@@ -449,6 +473,7 @@ export default function BalanceSheetView() {
       const equityRes = apiResult(results, 'equity');
       const operatingExpenseRes = apiResult(results, 'operating_expense');
       const profitRes = apiResult(results, 'profit');
+      const adjustmentsRes = apiResult(results, 'adjustments');
       const equityAccounts =
         equityRes?.status === 'success' && Array.isArray(equityRes.value) ? equityRes.value : [];
       const operatingExpenseAccounts =
@@ -475,11 +500,22 @@ export default function BalanceSheetView() {
             });
           }
         }
-        setEquityLines([...equityAccountLines, ...profitLines, ...expenseDeductionLines]);
+        const adjustmentLines =
+          adjustmentsRes?.status === 'success' && Array.isArray(adjustmentsRes.value?.lines)
+            ? adjustmentsRes.value.lines
+            : [];
+        setEquityLines([
+          ...equityAccountLines,
+          ...profitLines,
+          ...adjustmentLines,
+          ...expenseDeductionLines,
+        ]);
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
+        const adjustmentErr =
+          adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
-          error: profitErr || null,
+          error: [profitErr, adjustmentErr].filter(Boolean).join(' · ') || null,
         });
       } else {
         setEquityLines([]);
@@ -487,10 +523,12 @@ export default function BalanceSheetView() {
         const expenseErr =
           operatingExpenseRes?.status === 'error' ? operatingExpenseRes.error : null;
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
+        const adjustmentErr =
+          adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
           error:
-            [equityErr, expenseErr, profitErr].filter(Boolean).join(' · ') ||
+            [equityErr, expenseErr, profitErr, adjustmentErr].filter(Boolean).join(' · ') ||
             'Failed to load equity',
         });
       }
@@ -555,7 +593,7 @@ export default function BalanceSheetView() {
     return () => {
       cancelled = true;
     };
-  }, [setApiSources, setWallDurationMs]);
+  }, [authUser, authCompany, setApiSources, setWallDurationMs]);
 
   const sheetData = useMemo(
     () => ({

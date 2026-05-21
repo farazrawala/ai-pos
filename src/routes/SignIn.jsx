@@ -54,8 +54,7 @@ const SignIn = () => {
       if (data?.user) {
         const userData = { ...data.user };
         if (!userData.token) {
-          userData.token =
-            data.token || data.access_token || data.accessToken || userData.token;
+          userData.token = data.token || data.access_token || data.accessToken || userData.token;
         }
         dispatch(setLoginSession({ ...data, user: userData }));
       } else if (data?._id || data?.email) {
@@ -71,8 +70,7 @@ const SignIn = () => {
           data?.user?.fullName ||
           form.email.split('@')[0] ||
           'User';
-        const token =
-          data?.token || data?.access_token || data?.accessToken || data?.user?.token;
+        const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
         dispatch(
           setLoginSession({
             success: true,

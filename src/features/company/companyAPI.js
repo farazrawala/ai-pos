@@ -40,6 +40,7 @@ export function pickAccountRefId(raw) {
 export const COMPANY_DEFAULT_ACCOUNT_KEYS = [
   'default_account_payable_account',
   'default_account_receivable_account',
+  'default_adjustment_account',
   'default_cash_account',
   'default_equity_account_id',
   'default_expense_account',
@@ -89,6 +90,41 @@ export function extractCompanyFromUser(user) {
   }
 
   return null;
+}
+
+/**
+ * Normalize login API body (`POST user/login`).
+ * Supports `{ success, message, user }` and nested `{ data: { ... } }`.
+ */
+export function normalizeLoginApiBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { user: null, token: '', company: null, message: '', success: false };
+  }
+
+  let root = body;
+  const nested = body.data;
+  if (nested && typeof nested === 'object' && (nested.user != null || nested.success != null)) {
+    root = nested;
+  }
+
+  const user = root.user ?? null;
+  const message = String(root.message ?? body.message ?? '').trim();
+  const token = String(
+    root.token ?? root.access_token ?? root.accessToken ?? user?.token ?? body.token ?? ''
+  ).trim();
+
+  let company = extractCompanyFromUser(user);
+  if (!company && root.company && typeof root.company === 'object' && !Array.isArray(root.company)) {
+    company = { ...root.company };
+  }
+
+  return {
+    success: root.success ?? body.success,
+    message,
+    user,
+    token,
+    company,
+  };
 }
 
 /** Resolve company id from login payload; prefers the user's `company_id`. */

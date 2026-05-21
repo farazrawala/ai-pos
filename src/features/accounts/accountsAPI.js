@@ -95,15 +95,17 @@ const normalizeSingleAccountPayload = (result) => {
 };
 
 /** GET URL for balance sheet / reports by account type. */
-export function buildFetchAccountsByTypeUrl(accountType) {
+export function buildFetchAccountsByTypeUrl(accountType, params = {}) {
   const query = new URLSearchParams();
   query.set('account_type', String(accountType));
+  if (params.include_id) query.set('include_id', String(params.include_id));
+  if (params.exclude_id) query.set('exclude_id', String(params.exclude_id));
   return `${BASE_URL}${ACCOUNT_FETCH_BY_TYPE_PATH}?${query.toString()}`;
 }
 
 /** GET `account/fetch-account-by-type?account_type=...` — returns accounts array (e.g. balance sheet by type). */
-export async function fetchAccountsByTypeRequest(accountType) {
-  const url = buildFetchAccountsByTypeUrl(accountType);
+export async function fetchAccountsByTypeRequest(accountType, params = {}) {
+  const url = buildFetchAccountsByTypeUrl(accountType, params);
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
