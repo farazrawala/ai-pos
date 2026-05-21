@@ -233,6 +233,42 @@ async function parseJsonResponse(res) {
   return { data, ok: res.ok, status: res.status };
 }
 
+/** DELETE URL to invalidate company-scoped API cache before balance sheet loads. */
+export function buildCompanyRemoveCacheUrl() {
+  return `${API_BASE_URL}/company/remove-cache`;
+}
+
+/**
+ * DELETE `company/remove-cache` — clear cached company data (run before balance sheet fetches).
+ */
+export async function removeCompanyCacheRequest() {
+  const token = getAuthToken();
+  const url = buildCompanyRemoveCacheUrl();
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok) {
+    const msg =
+      (typeof data?.message === 'string' && data.message) ||
+      (typeof data?.error === 'string' && data.error) ||
+      `Request failed (${status})`;
+    throw new Error(msg);
+  }
+  if (data && data.success === false) {
+    const msg =
+      (typeof data.message === 'string' && data.message) ||
+      (typeof data.error === 'string' && data.error) ||
+      'Failed to clear company cache';
+    throw new Error(msg);
+  }
+  return data;
+}
+
 export async function fetchCompanyById(companyId) {
   const token = getAuthToken();
   const url = `${API_BASE_URL}/company/get/${encodeURIComponent(companyId)}`;

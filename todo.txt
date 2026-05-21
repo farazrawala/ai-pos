@@ -57,10 +57,11 @@ Stock transfer (done)
 
 fixed assets  (done)
 load testing module.
-alert (will done on )
+
+Alert (will done on )
 
 Adjustments
 Tax
 Sales return
 Purchase return
-
+cash transfer.

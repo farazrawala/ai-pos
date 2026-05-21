@@ -17,6 +17,7 @@ import {
   getMovementType,
   getReferenceName,
   getReferenceType,
+  getCreatedByLabel,
 } from '../../features/stockMovement/stockMovementAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
@@ -147,7 +148,7 @@ const StockListing = () => {
                   </div>
                   <p className="text-sm mb-0 text-muted">
                     <code className="small">
-                      GET /inventory_movements/get-all-active?populate=product_id,warehouse_id
+                      GET /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
                     </code>
                   </p>
                 </div>
@@ -263,6 +264,7 @@ const StockListing = () => {
                           Status
                           {renderSortIcon('status')}
                         </th>
+                        <th>Created by</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('createdAt')}
@@ -276,7 +278,7 @@ const StockListing = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="11" className="text-center text-sm font-weight-normal p-4">
                             No stock found
                           </td>
                         </tr>
@@ -321,7 +323,6 @@ const StockListing = () => {
                               <td className="text-sm font-weight-normal">
                                 {refName || refType ? (
                                   <>
-                                    <div>{refName || '—'}</div>
                                     {refType ? (
                                       <span className="badge bg-light text-dark border mt-1">
                                         {refType
@@ -348,6 +349,9 @@ const StockListing = () => {
                                 ) : (
                                   '—'
                                 )}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {getCreatedByLabel(item)}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.createdAt

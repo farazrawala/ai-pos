@@ -482,21 +482,13 @@ const Product = () => {
                           Created At
                           {renderSortIcon('createdAt')}
                         </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
-                        </th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
                             No products found
                           </td>
                         </tr>
@@ -621,9 +613,6 @@ const Product = () => {
                                 {item.createdAt
                                   ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
                                   : '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.updatedAt ? moment(item.updatedAt).fromNow() : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex gap-1">

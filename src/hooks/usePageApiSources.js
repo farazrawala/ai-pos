@@ -85,5 +85,6 @@ export function usePageApiSources() {
     runAll,
     trackOne,
     setSources: setSourceEntries,
+    setWallDurationMs,
   };
 }

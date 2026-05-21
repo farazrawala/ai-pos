@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 const BASE_URL = `${API_BASE_URL}/`;
 const LIST_PATH = 'inventory_movements/get-all-active';
 const STOCK_TRANSFER_PATH = 'inventory_movements/stock-transfer';
+export const STOCK_MOVEMENT_LIST_POPULATE = 'product_id,warehouse_id,created_by';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -49,11 +50,16 @@ const normalizeListPayload = (result) => {
 };
 
 /**
- * GET /inventory_movements/get-all-active?populate=product_id,warehouse_id&skip=&limit=&search=&sortBy=&sortOrder=
+ * GET /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by&skip=&limit=&search=&sortBy=&sortOrder=
  */
 export async function fetchStockMovementsRequest(params = {}) {
   const queryParams = new URLSearchParams();
-  queryParams.set('populate', 'product_id,warehouse_id');
+  queryParams.set(
+    'populate',
+    params.populate != null && String(params.populate).trim() !== ''
+      ? String(params.populate)
+      : STOCK_MOVEMENT_LIST_POPULATE
+  );
 
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
@@ -189,6 +195,20 @@ export const getReferenceName = (row) => {
 export const getReferenceType = (row) => {
   if (!row || typeof row !== 'object') return '';
   return String(row.reference_type ?? '').trim();
+};
+
+/** Populated `created_by` display name. */
+export const getCreatedByLabel = (row) => {
+  if (!row || typeof row !== 'object') return '—';
+  const user = row.created_by;
+  if (isPopulatedRef(user)) {
+    const name = String(user.name ?? '').trim();
+    if (name) return name;
+    const email = String(user.email ?? '').trim();
+    if (email) return email;
+    return '—';
+  }
+  return '—';
 };
 
 /** POST URL for warehouse stock transfer. */

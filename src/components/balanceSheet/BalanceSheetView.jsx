@@ -12,7 +12,16 @@ import {
   fetchBalanceSheetProfitRequest,
 } from '../../features/balanceSheet/balanceSheetAPI.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import {
+  buildCompanyRemoveCacheUrl,
+  removeCompanyCacheRequest,
+} from '../../features/company/companyAPI.js';
 import { usePageApiSources } from '../../hooks/usePageApiSources.js';
+import {
+  buildPendingApiSources,
+  trackApiCall,
+  trackApiCallsParallel,
+} from '../../utils/pageApiSources.js';
 import '../common/devApiSources.css';
 import './balanceSheetGl.css';
 import './balanceSheetDark.css';
@@ -209,6 +218,13 @@ function mapAccountToLine(account, amountSource = 'credit_minus_debit') {
   };
 }
 
+const REMOVE_COMPANY_CACHE_DEFINITION = {
+  key: 'remove_cache',
+  label: 'Clear company cache',
+  url: buildCompanyRemoveCacheUrl(),
+  fetch: () => removeCompanyCacheRequest(),
+};
+
 const BALANCE_SHEET_API_DEFINITIONS = [
   {
     key: 'current_asset',
@@ -265,7 +281,12 @@ function apiResult(results, key) {
 }
 
 export default function BalanceSheetView() {
-  const { sources: apiSources, wallDurationMs, runAll } = usePageApiSources();
+  const {
+    sources: apiSources,
+    wallDurationMs,
+    setSources: setApiSources,
+    setWallDurationMs,
+  } = usePageApiSources();
   const [fromYear, setFromYear] = useState(() => new Date().getFullYear());
   const [fromMonth, setFromMonth] = useState(() => new Date().getMonth() + 1);
   const [toYear, setToYear] = useState(() => new Date().getFullYear());
@@ -361,8 +382,54 @@ export default function BalanceSheetView() {
       setInventoryStatus({ loading: true, error: null });
       setInventoryGrandTotal(0);
 
-      const { results } = await runAll(BALANCE_SHEET_API_DEFINITIONS);
+      const wallStart = performance.now();
+      setApiSources(
+        buildPendingApiSources([REMOVE_COMPANY_CACHE_DEFINITION, ...BALANCE_SHEET_API_DEFINITIONS]).map(
+          (s) => ({ ...s, status: 'loading' })
+        )
+      );
+
+      const cacheResult = await trackApiCall(REMOVE_COMPANY_CACHE_DEFINITION);
       if (cancelled) return;
+
+      const cacheSourceEntry = {
+        key: cacheResult.key,
+        label: cacheResult.label,
+        url: cacheResult.url,
+        status: cacheResult.status,
+        durationMs: cacheResult.durationMs,
+        error: cacheResult.error,
+      };
+
+      if (cacheResult.status !== 'success') {
+        setApiSources([cacheSourceEntry]);
+        setWallDurationMs(Math.round(performance.now() - wallStart));
+        const cacheErr = cacheResult.error || 'Failed to clear company cache';
+        const failed = { loading: false, error: cacheErr };
+        setCurrentAssetsStatus(failed);
+        setEquityStatus(failed);
+        setCurrentLiabilitiesStatus(failed);
+        setLongTermLiabilitiesStatus(failed);
+        setFixedAssetsStatus(failed);
+        setInventoryStatus(failed);
+        return;
+      }
+
+      setApiSources([
+        cacheSourceEntry,
+        ...buildPendingApiSources(BALANCE_SHEET_API_DEFINITIONS).map((s) => ({
+          ...s,
+          status: 'loading',
+        })),
+      ]);
+
+      const { results, sources: sheetSources } = await trackApiCallsParallel(
+        BALANCE_SHEET_API_DEFINITIONS
+      );
+      if (cancelled) return;
+
+      setApiSources([cacheSourceEntry, ...sheetSources]);
+      setWallDurationMs(Math.round(performance.now() - wallStart));
 
       const currentRes = apiResult(results, 'current_asset');
       if (currentRes?.status === 'success') {
@@ -488,7 +555,7 @@ export default function BalanceSheetView() {
     return () => {
       cancelled = true;
     };
-  }, [runAll]);
+  }, [setApiSources, setWallDurationMs]);
 
   const sheetData = useMemo(
     () => ({
