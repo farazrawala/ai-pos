@@ -237,60 +237,60 @@ function createBalanceSheetApiDefinitions(equityFetchParams = {}) {
       : {};
 
   return [
-  {
-    key: 'current_asset',
-    label: 'Current assets',
-    url: buildFetchAccountsByTypeUrl('current_asset'),
-    fetch: () => fetchAccountsByTypeRequest('current_asset'),
-  },
-  {
-    key: 'equity',
-    label: 'Equity',
-    url: buildFetchAccountsByTypeUrl('equity', equityParams),
-    fetch: () => fetchAccountsByTypeRequest('equity', equityParams),
-  },
-  {
-    key: 'operating_expense',
-    label: "Owner's equity (operating expenses)",
-    url: buildFetchAccountsByTypeUrl('operating_expense'),
-    fetch: () => fetchAccountsByTypeRequest('operating_expense'),
-  },
-  {
-    key: 'profit',
-    label: "Owner's equity (profit)",
-    url: buildBalanceSheetProfitUrl(),
-    fetch: () => fetchBalanceSheetProfitRequest(),
-  },
-  {
-    key: 'adjustments',
-    label: "Owner's equity (adjustments)",
-    url: buildBalanceSheetAdjustmentsUrl(),
-    fetch: () => fetchBalanceSheetAdjustmentsRequest(),
-  },
-  {
-    key: 'current_liability',
-    label: 'Current liabilities',
-    url: buildFetchAccountsByTypeUrl('current_liability'),
-    fetch: () => fetchAccountsByTypeRequest('current_liability'),
-  },
-  {
-    key: 'long_term_liability',
-    label: 'Long-term liabilities',
-    url: buildFetchAccountsByTypeUrl('long_term_liability'),
-    fetch: () => fetchAccountsByTypeRequest('long_term_liability'),
-  },
-  {
-    key: 'fixed_asset',
-    label: 'Fixed assets',
-    url: buildFetchAccountsByTypeUrl('fixed_asset'),
-    fetch: () => fetchAccountsByTypeRequest('fixed_asset'),
-  },
-  {
-    key: 'inventory',
-    label: 'Inventory (cost of goods)',
-    url: buildBalanceSheetInventoryCogUrl(),
-    fetch: () => fetchBalanceSheetInventoryCogRequest(),
-  },
+    {
+      key: 'current_asset',
+      label: 'Current assets',
+      url: buildFetchAccountsByTypeUrl('current_asset'),
+      fetch: () => fetchAccountsByTypeRequest('current_asset'),
+    },
+    {
+      key: 'equity',
+      label: 'Equity',
+      url: buildFetchAccountsByTypeUrl('equity', equityParams),
+      fetch: () => fetchAccountsByTypeRequest('equity', equityParams),
+    },
+    {
+      key: 'operating_expense',
+      label: "Owner's equity (operating expenses)",
+      url: buildFetchAccountsByTypeUrl('operating_expense'),
+      fetch: () => fetchAccountsByTypeRequest('operating_expense'),
+    },
+    {
+      key: 'profit',
+      label: "Owner's equity (profit)",
+      url: buildBalanceSheetProfitUrl(),
+      fetch: () => fetchBalanceSheetProfitRequest(),
+    },
+    {
+      key: 'adjustments',
+      label: "Owner's equity (adjustments)",
+      url: buildBalanceSheetAdjustmentsUrl(),
+      fetch: () => fetchBalanceSheetAdjustmentsRequest(),
+    },
+    {
+      key: 'current_liability',
+      label: 'Current liabilities',
+      url: buildFetchAccountsByTypeUrl('current_liability'),
+      fetch: () => fetchAccountsByTypeRequest('current_liability'),
+    },
+    {
+      key: 'long_term_liability',
+      label: 'Long-term liabilities',
+      url: buildFetchAccountsByTypeUrl('long_term_liability'),
+      fetch: () => fetchAccountsByTypeRequest('long_term_liability'),
+    },
+    {
+      key: 'fixed_asset',
+      label: 'Fixed assets',
+      url: buildFetchAccountsByTypeUrl('fixed_asset'),
+      fetch: () => fetchAccountsByTypeRequest('fixed_asset'),
+    },
+    {
+      key: 'inventory',
+      label: 'Inventory (cost of goods)',
+      url: buildBalanceSheetInventoryCogUrl(),
+      fetch: () => fetchBalanceSheetInventoryCogRequest(),
+    },
   ];
 }
 
@@ -409,10 +409,9 @@ export default function BalanceSheetView() {
 
       const wallStart = performance.now();
       setApiSources(
-        buildPendingApiSources([
-          REMOVE_COMPANY_CACHE_DEFINITION,
-          ...sheetApiDefinitions,
-        ]).map((s) => ({ ...s, status: 'loading' }))
+        buildPendingApiSources([REMOVE_COMPANY_CACHE_DEFINITION, ...sheetApiDefinitions]).map(
+          (s) => ({ ...s, status: 'loading' })
+        )
       );
 
       const cacheResult = await trackApiCall(REMOVE_COMPANY_CACHE_DEFINITION);
@@ -511,8 +510,7 @@ export default function BalanceSheetView() {
           ...expenseDeductionLines,
         ]);
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
-        const adjustmentErr =
-          adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
+        const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
           error: [profitErr, adjustmentErr].filter(Boolean).join(' · ') || null,
@@ -523,8 +521,7 @@ export default function BalanceSheetView() {
         const expenseErr =
           operatingExpenseRes?.status === 'error' ? operatingExpenseRes.error : null;
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
-        const adjustmentErr =
-          adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
+        const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
           error:

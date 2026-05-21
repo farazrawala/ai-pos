@@ -137,7 +137,7 @@ const AdjustmentAdd = () => {
                 <div>
                   <h5 className="mb-0">Add adjustment</h5>
                   <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /adjustment/create</code>
+                    Saves via <code className="text-xs">POST /adjustment/save</code>
                   </p>
                 </div>
                 <button

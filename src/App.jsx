@@ -57,6 +57,9 @@ import AssetAdd from './routes/asset/add.jsx';
 import AssetEdit from './routes/asset/edit.jsx';
 import AdjustmentIndex from './routes/adjustment/index.jsx';
 import AdjustmentAdd from './routes/adjustment/add.jsx';
+import AmountTransferIndex from './routes/amount_transfer/index.jsx';
+import AmountTransferAdd from './routes/amount_transfer/add.jsx';
+import AmountTransferEdit from './routes/amount_transfer/edit.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
@@ -131,6 +134,9 @@ const App = () => {
           <Route path="/stock" element={<StockListing />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
+          <Route path="/amount-transfers" element={<AmountTransferIndex />} />
+          <Route path="/amount-transfers/add" element={<AmountTransferAdd />} />
+          <Route path="/amount-transfers/edit/:id" element={<AmountTransferEdit />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
@@ -219,6 +225,9 @@ const App = () => {
           <Route path="/stock" element={<StockListing />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
+          <Route path="/amount-transfers" element={<AmountTransferIndex />} />
+          <Route path="/amount-transfers/add" element={<AmountTransferAdd />} />
+          <Route path="/amount-transfers/edit/:id" element={<AmountTransferEdit />} />
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />

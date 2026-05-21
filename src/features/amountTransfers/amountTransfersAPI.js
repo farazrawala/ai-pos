@@ -1,9 +1,17 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import {
+  extractCompanyFromUser,
+  extractCompanyRecord,
+  fetchCompanyById,
+  getCompanyIdFromUser,
+  pickAccountRefId,
+} from '../company/companyAPI.js';
+import { resolveDefaultExpenseListFilterIds } from '../expenses/expensesAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
-const logAdjustmentModuleError = (operation, details) => {
-  console.error(`[Adjustment module] ${operation}`, details);
+const logAmountTransferModuleError = (operation, details) => {
+  console.error(`[Amount transfer module] ${operation}`, details);
 };
 
 const readResponseErrorDetails = async (response) => {
@@ -47,25 +55,49 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken') || '';
 };
 
-export const ADJUSTMENT_TYPE_OPTIONS = [
-  { value: 'add', label: 'Add' },
-  { value: 'subtract', label: 'Remove' },
-];
+export const AMOUNT_TRANSFER_LIST_POPULATE = 'from_account_id,to_account_id';
+export const AMOUNT_TRANSFER_ACCOUNT_TYPE = 'current_asset';
 
-/** Default `populate` for adjustment list (`GET adjustment/get-all-active`). */
-export const ADJUSTMENT_LIST_POPULATE = 'product_id';
+/**
+ * Query params for from/to account dropdowns: `exclude_id` = company `default_account_receivable_account`.
+ */
+export async function buildAmountTransferAccountFilterParams(user = null, companyFromStore = null) {
+  let company = companyFromStore || extractCompanyFromUser(user);
+  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
 
-export function normalizeAdjustmentsListRows(result) {
+  let { excludeId } = resolveDefaultExpenseListFilterIds(user, company);
+  const needsFetch = companyId && !excludeId;
+
+  if (needsFetch) {
+    try {
+      const body = await fetchCompanyById(companyId);
+      company = extractCompanyRecord(body) || company;
+    } catch (err) {
+      console.warn(
+        '[Amount transfer module] Could not load company for default_account_receivable_account exclude filter',
+        err
+      );
+    }
+  }
+
+  ({ excludeId } = resolveDefaultExpenseListFilterIds(user, company));
+  const params = { account_type: AMOUNT_TRANSFER_ACCOUNT_TYPE };
+  if (excludeId) params.exclude_id = excludeId;
+  return params;
+}
+
+export function normalizeAmountTransfersListRows(result) {
   if (!result || typeof result !== 'object') return [];
   if (Array.isArray(result)) return result;
 
   const candidates = [
     result.data,
-    result.adjustments,
+    result.amount_transfers,
+    result.amountTransfers,
     result.items,
     result.records,
     result.data?.data,
-    result.data?.adjustments,
+    result.data?.amount_transfers,
   ];
 
   for (const candidate of candidates) {
@@ -74,32 +106,42 @@ export function normalizeAdjustmentsListRows(result) {
   return [];
 }
 
-/** Product display name from populated `product_id` or fallback when unpopulated. */
-export const getAdjustmentProductName = (row) => {
-  if (!row || typeof row !== 'object') return '—';
-  const p = row.product_id;
-  if (p && typeof p === 'object' && !Array.isArray(p)) {
-    const name = String(p.product_name ?? p.name ?? '').trim();
+export const accountIdFromRef = (ref) => {
+  if (ref == null || ref === '') return '';
+  if (typeof ref === 'object' && !Array.isArray(ref)) {
+    return String(ref._id ?? ref.id ?? '').trim();
+  }
+  return String(ref).trim();
+};
+
+export const accountDisplayName = (accountRef) => {
+  if (accountRef == null || accountRef === '') return '—';
+  if (typeof accountRef === 'object' && !Array.isArray(accountRef)) {
+    const name = String(accountRef.name ?? accountRef.account_name ?? '').trim();
     if (name) return name;
-    const sku = String(p.sku ?? p.product_code ?? p.barcode ?? '').trim();
-    if (sku) return sku;
+    const code = String(accountRef.code ?? accountRef.account_code ?? '').trim();
+    if (code) return code;
     return '—';
   }
   return '—';
 };
 
-export function formatAdjustmentType(value) {
-  const s = String(value ?? '').trim().toLowerCase();
-  if (!s) return '—';
-  if (s === 'subtract') return 'Remove';
-  if (s === 'add') return 'Add';
-  return s.charAt(0).toUpperCase() + s.slice(1);
+/** Body for POST /amount_transfer/save and PATCH /amount_transfer/update_record/:id */
+export function buildAmountTransferSaveBody(transferData = {}) {
+  const body = {
+    from_account_id: String(transferData.from_account_id ?? '').trim(),
+    to_account_id: String(transferData.to_account_id ?? '').trim(),
+    description: String(transferData.description ?? '').trim(),
+  };
+  const amount = Number(transferData.amount);
+  if (!Number.isNaN(amount)) body.amount = amount;
+  return body;
 }
 
-export async function fetchAdjustmentsRequest(params = {}) {
+export async function fetchAmountTransfersRequest(params = {}) {
   const token = params.token || getAuthToken();
   if (!token) {
-    throw new Error('You are not signed in. Please sign in again to load adjustments.');
+    throw new Error('You are not signed in. Please sign in again to load amount transfers.');
   }
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
@@ -118,47 +160,54 @@ export async function fetchAdjustmentsRequest(params = {}) {
     'populate',
     params.populate != null && String(params.populate).trim() !== ''
       ? String(params.populate)
-      : ADJUSTMENT_LIST_POPULATE
+      : AMOUNT_TRANSFER_LIST_POPULATE
   );
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}adjustment/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}amount_transfer/get-all-active${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {
     response = await fetch(url, { method: 'GET', headers });
   } catch (err) {
-    logAdjustmentModuleError('fetchAdjustmentsRequest network error', { url, params, error: err });
+    logAmountTransferModuleError('fetchAmountTransfersRequest network error', {
+      url,
+      params,
+      error: err,
+    });
     throw err;
   }
 
   if (!response.ok) {
     const details = await readResponseErrorDetails(response);
-    logAdjustmentModuleError('fetchAdjustmentsRequest failed', { url, params, ...details });
+    logAmountTransferModuleError('fetchAmountTransfersRequest failed', { url, params, ...details });
     throw new Error(details.message);
   }
 
   const result = await response.json();
 
   if (result.success === false) {
-    const message = result.message || result.error || result.msg || 'Failed to fetch adjustments';
-    logAdjustmentModuleError('fetchAdjustmentsRequest API success=false', { url, params, result });
+    const message =
+      result.message || result.error || result.msg || 'Failed to fetch amount transfers';
+    logAmountTransferModuleError('fetchAmountTransfersRequest API success=false', {
+      url,
+      params,
+      result,
+    });
     throw new Error(typeof message === 'string' ? message : String(message));
   }
 
-  const data = normalizeAdjustmentsListRows(result);
+  const data = normalizeAmountTransfersListRows(result);
 
   if (result.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
     const total = Number(pagination.total ?? data.length ?? 0);
     const skip = Number(pagination.skip ?? 0);
     const apiLimit = pagination.limit;
-
     const limit =
       apiLimit != null && Number(apiLimit) > 0 ? Number(apiLimit) : Number(params.limit || 10);
     const page = limit > 0 ? Math.max(1, Math.floor(skip / limit) + 1) : Number(params.page || 1);
     const totalPages = limit > 0 ? Math.ceil(total / limit) : total > 0 ? 1 : 0;
-
     return { data, total, page, limit, totalPages };
   }
 
@@ -186,40 +235,26 @@ export async function fetchAdjustmentsRequest(params = {}) {
   };
 }
 
-const normalizeSingleAdjustmentPayload = (result) => {
+const normalizeSingleAmountTransferPayload = (result) => {
   if (!result || typeof result !== 'object') return null;
   if (result.data != null && typeof result.data === 'object' && !Array.isArray(result.data)) {
     return result.data;
   }
   if (
-    result.adjustment != null &&
-    typeof result.adjustment === 'object' &&
-    !Array.isArray(result.adjustment)
+    result.amount_transfer != null &&
+    typeof result.amount_transfer === 'object' &&
+    !Array.isArray(result.amount_transfer)
   ) {
-    return result.adjustment;
+    return result.amount_transfer;
   }
   if (result._id || result.id) return result;
   return null;
 };
 
-/** Body for POST /adjustment/save and PATCH /adjustment/update_record/:id */
-export function buildAdjustmentSaveBody(adjustmentData = {}) {
-  const body = {
-    product_id: String(adjustmentData.product_id ?? '').trim(),
-    type: String(adjustmentData.type ?? 'add').trim() || 'add',
-    description: String(adjustmentData.description ?? '').trim(),
-  };
-  const qty = Number(adjustmentData.quantity);
-  if (!Number.isNaN(qty)) body.quantity = qty;
-  return body;
-}
-
-export const buildAdjustmentCreateBody = buildAdjustmentSaveBody;
-
-export async function fetchAdjustmentByIdRequest(adjustmentId, params = {}) {
+export async function fetchAmountTransferByIdRequest(transferId, params = {}) {
   const token = getAuthToken();
-  const id = String(adjustmentId ?? '').trim();
-  if (!id) throw new Error('Missing adjustment id');
+  const id = String(transferId ?? '').trim();
+  if (!id) throw new Error('Missing amount transfer id');
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -229,16 +264,16 @@ export async function fetchAdjustmentByIdRequest(adjustmentId, params = {}) {
     'populate',
     params.populate != null && String(params.populate).trim() !== ''
       ? String(params.populate)
-      : ADJUSTMENT_LIST_POPULATE
+      : AMOUNT_TRANSFER_LIST_POPULATE
   );
-  const url = `${BASE_URL}adjustment/get/${encodeURIComponent(id)}?${queryParams.toString()}`;
+  const url = `${BASE_URL}amount_transfer/get/${encodeURIComponent(id)}?${queryParams.toString()}`;
 
   let response;
   try {
     response = await fetch(url, { method: 'GET', headers });
   } catch (err) {
-    logAdjustmentModuleError('fetchAdjustmentByIdRequest network error', {
-      adjustmentId: id,
+    logAmountTransferModuleError('fetchAmountTransferByIdRequest network error', {
+      transferId: id,
       url,
       error: err,
     });
@@ -247,76 +282,30 @@ export async function fetchAdjustmentByIdRequest(adjustmentId, params = {}) {
 
   if (!response.ok) {
     const details = await readResponseErrorDetails(response);
-    logAdjustmentModuleError('fetchAdjustmentByIdRequest failed', { adjustmentId: id, ...details });
-    throw new Error(details.message);
-  }
-
-  const result = await response.json();
-  if (result.success === false) {
-    const message = result.message || result.error || result.msg || 'Failed to fetch adjustment';
-    throw new Error(typeof message === 'string' ? message : String(message));
-  }
-
-  const adjustment = normalizeSingleAdjustmentPayload(result);
-  if (!adjustment) throw new Error('Adjustment not found');
-  return adjustment;
-}
-
-/** PATCH /adjustment/update_record/:id */
-export async function updateAdjustmentRequest(adjustmentId, adjustmentData = {}) {
-  const token = getAuthToken();
-  const id = String(adjustmentId ?? '').trim();
-  if (!id) throw new Error('Missing adjustment id');
-
-  const url = `${BASE_URL}adjustment/update_record/${encodeURIComponent(id)}`;
-  const body = buildAdjustmentSaveBody(adjustmentData);
-
-  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let response;
-  try {
-    response = await fetch(url, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    logAdjustmentModuleError('updateAdjustmentRequest network error', {
-      adjustmentId: id,
-      url,
-      payloadKeys: Object.keys(body),
-      error: err,
-    });
-    throw err;
-  }
-
-  if (!response.ok) {
-    const details = await readResponseErrorDetails(response);
-    logAdjustmentModuleError('updateAdjustmentRequest failed', {
-      adjustmentId: id,
-      payloadKeys: Object.keys(body),
+    logAmountTransferModuleError('fetchAmountTransferByIdRequest failed', {
+      transferId: id,
       ...details,
     });
     throw new Error(details.message);
   }
 
-  try {
-    return await response.json();
-  } catch (parseErr) {
-    logAdjustmentModuleError('updateAdjustmentRequest invalid JSON on success', {
-      adjustmentId: id,
-      error: parseErr,
-    });
-    return { success: true };
+  const result = await response.json();
+  if (result.success === false) {
+    const message =
+      result.message || result.error || result.msg || 'Failed to fetch amount transfer';
+    throw new Error(typeof message === 'string' ? message : String(message));
   }
+
+  const transfer = normalizeSingleAmountTransferPayload(result);
+  if (!transfer) throw new Error('Amount transfer not found');
+  return transfer;
 }
 
-/** POST /adjustment/save */
-export async function saveAdjustmentRequest(adjustmentData = {}) {
+/** POST /amount_transfer/save */
+export async function saveAmountTransferRequest(transferData = {}) {
   const token = getAuthToken();
-  const url = `${BASE_URL}adjustment/save`;
-  const body = buildAdjustmentSaveBody(adjustmentData);
+  const url = `${BASE_URL}amount_transfer/save`;
+  const body = buildAmountTransferSaveBody(transferData);
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -329,7 +318,7 @@ export async function saveAdjustmentRequest(adjustmentData = {}) {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    logAdjustmentModuleError('saveAdjustmentRequest network error', {
+    logAmountTransferModuleError('saveAmountTransferRequest network error', {
       url,
       payloadKeys: Object.keys(body),
       error: err,
@@ -339,7 +328,7 @@ export async function saveAdjustmentRequest(adjustmentData = {}) {
 
   if (!response.ok) {
     const details = await readResponseErrorDetails(response);
-    logAdjustmentModuleError('saveAdjustmentRequest failed', {
+    logAmountTransferModuleError('saveAmountTransferRequest failed', {
       url,
       payloadKeys: Object.keys(body),
       ...details,
@@ -350,7 +339,7 @@ export async function saveAdjustmentRequest(adjustmentData = {}) {
   try {
     return await response.json();
   } catch (parseErr) {
-    logAdjustmentModuleError('saveAdjustmentRequest invalid JSON on success', {
+    logAmountTransferModuleError('saveAmountTransferRequest invalid JSON on success', {
       url,
       error: parseErr,
     });
@@ -358,5 +347,52 @@ export async function saveAdjustmentRequest(adjustmentData = {}) {
   }
 }
 
-/** @deprecated Use saveAdjustmentRequest */
-export const createAdjustmentRequest = saveAdjustmentRequest;
+/** PATCH /amount_transfer/update_record/:id */
+export async function updateAmountTransferRequest(transferId, transferData = {}) {
+  const token = getAuthToken();
+  const id = String(transferId ?? '').trim();
+  if (!id) throw new Error('Missing amount transfer id');
+
+  const url = `${BASE_URL}amount_transfer/update_record/${encodeURIComponent(id)}`;
+  const body = buildAmountTransferSaveBody(transferData);
+
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    logAmountTransferModuleError('updateAmountTransferRequest network error', {
+      transferId: id,
+      url,
+      payloadKeys: Object.keys(body),
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const details = await readResponseErrorDetails(response);
+    logAmountTransferModuleError('updateAmountTransferRequest failed', {
+      transferId: id,
+      payloadKeys: Object.keys(body),
+      ...details,
+    });
+    throw new Error(details.message);
+  }
+
+  try {
+    return await response.json();
+  } catch (parseErr) {
+    logAmountTransferModuleError('updateAmountTransferRequest invalid JSON on success', {
+      transferId: id,
+      error: parseErr,
+    });
+    return { success: true };
+  }
+}

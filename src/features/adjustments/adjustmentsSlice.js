@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { fetchAdjustmentsRequest, createAdjustmentRequest } from './adjustmentsAPI.js';
+import { fetchAdjustmentsRequest, saveAdjustmentRequest } from './adjustmentsAPI.js';
 
 export const fetchAdjustments = createAsyncThunk(
   'adjustments/fetchAdjustments',
@@ -23,7 +23,7 @@ export const createAdjustment = createAsyncThunk(
     const { adjustmentFields } = safe;
     try {
       const payload = adjustmentFields !== undefined ? { ...adjustmentFields } : { ...safe };
-      return await createAdjustmentRequest(payload);
+      return await saveAdjustmentRequest(payload);
     } catch (error) {
       const message = error?.message || String(error) || 'Failed to create adjustment';
       console.error('[Adjustment module] createAdjustment thunk error', { message, error });
