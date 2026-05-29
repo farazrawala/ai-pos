@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import AddNewButton from '../../components/AddNewButton.jsx';
 
 const permissionActionBadgeClass = (enabled) =>
   enabled ? 'badge bg-gradient-success me-1 mb-1' : 'badge bg-gradient-secondary me-1 mb-1';
@@ -226,16 +228,10 @@ const Users = () => {
                   <p className="text-sm mb-0">User list with role and permissions details.</p>
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-end align-items-center gap-2">
-                    {canCreate && (
-                      <button className="btn btn-primary btn-sm mb-0" onClick={() => navigate('/users/add')}>
-                        <i className="fas fa-plus me-1"></i>
-                        Add User
-                      </button>
-                    )}
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"
@@ -245,6 +241,7 @@ const Users = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    {canCreate && <AddNewButton to="/users/add" label="Add User" />}
                   </div>
                 </div>
               </div>

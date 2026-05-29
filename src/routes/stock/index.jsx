@@ -21,6 +21,7 @@ import {
 } from '../../features/stockMovement/stockMovementAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -156,7 +157,7 @@ const StockListing = () => {
                   <div className="d-flex justify-content-md-end align-items-center gap-2">
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"

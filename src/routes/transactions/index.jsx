@@ -18,6 +18,7 @@ import {
   sumDebitCreditForLines,
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const Transactions = () => {
   const dispatch = useDispatch();
@@ -222,7 +223,7 @@ const Transactions = () => {
                     </div>
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"

@@ -13,6 +13,7 @@ import {
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
 import PosProducts from './PosProducts.jsx';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '' };
 
@@ -521,7 +522,7 @@ const Pos = () => {
                 <div className="flex-grow-1 position-relative" ref={customerPickerRef}>
                   <div className="input-group input-group-sm">
                     <span className="input-group-text bg-white border-end-0 text-muted">
-                      <i className="fas fa-search" aria-hidden="true"></i>
+                      <SearchInputIcon />
                     </span>
                     <input
                       type="search"

@@ -12,16 +12,26 @@
   flex-shrink: 0;
 }
 
+/* Search addon in list page toolbars */
+.input-group-text svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 .app-main {
   flex: 1;
   background: linear-gradient(180deg, #eef2ff, #f8fafc);
 }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+/* Argon list pages: keep Bootstrap grid in card-header (title left, search right) */
+.card .card-header.pb-0 {
+  display: block;
+}
+
+.card .card-header.pb-0 > .row {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .muted {
@@ -212,7 +222,7 @@
   border: 1px solid #cbd5f5;
   color: #0f172a;
 }
-
+/* 
 .card button,
 .profile-card button {
   margin-top: 1rem;
@@ -227,7 +237,7 @@
 .card button:hover,
 .profile-card button:hover {
   background-color: #1d4ed8;
-}
+} */
 
 .profile-card {
   display: flex;

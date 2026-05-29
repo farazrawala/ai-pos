@@ -15,6 +15,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useNavigate } from 'react-router-dom';
 import { ACCOUNT_TYPE_OPTIONS } from '../../constants/accountTypes.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const Accounts = () => {
   const dispatch = useDispatch();
@@ -199,7 +200,19 @@ const Accounts = () => {
                   </p>
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-end align-items-center gap-2">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                      <span className="input-group-text text-body">
+                        <SearchInputIcon />
+                      </span>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Search accounts..."
+                        value={localSearch}
+                        onChange={handleSearchChange}
+                      />
+                    </div>
                     {canEdit && (
                       <button
                         type="button"
@@ -210,18 +223,6 @@ const Accounts = () => {
                         Add Account
                       </button>
                     )}
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
-                      <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Search accounts..."
-                        value={localSearch}
-                        onChange={handleSearchChange}
-                      />
-                    </div>
                   </div>
                 </div>
               </div>

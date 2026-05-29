@@ -9,6 +9,7 @@ import {
 import { formatCurrency as formatCurrencyFn } from '../balanceSheet/formatCurrency.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import './incomeStatementLedger.css';
+import SearchInputIcon from '../SearchInputIcon.jsx';
 
 const MONTH_NAMES = [
   'January',
@@ -696,7 +697,7 @@ export default function IncomeStatementView() {
               <div className="is-ledger-body">
                 <div className="is-ledger-toolbar">
                   <div className="is-ledger-search">
-                    <i className="fas fa-search" aria-hidden />
+                    <SearchInputIcon />
                     <input
                       type="search"
                       placeholder="Filter accounts…"

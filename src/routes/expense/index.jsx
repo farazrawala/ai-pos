@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchExpenses,
@@ -9,6 +9,8 @@ import {
   setLimit,
   setSort,
 } from '../../features/expenses/expensesSlice.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import AddNewButton from '../../components/AddNewButton.jsx';
 
 const shortenId = (id, len = 10) => {
   if (id == null || id === '') return '—';
@@ -252,7 +254,7 @@ const ExpenseIndex = () => {
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"
@@ -262,10 +264,7 @@ const ExpenseIndex = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
-                    <NavLink className="btn btn-primary btn-sm" to="/expenses/add">
-                      <i className="fas fa-plus me-1"></i>
-                      Add expense
-                    </NavLink>
+                    <AddNewButton to="/expenses/add" label="Add expense" />
                   </div>
                 </div>
               </div>

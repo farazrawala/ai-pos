@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { NavLink } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchAdjustments,
@@ -13,6 +12,8 @@ import {
   formatAdjustmentType,
   getAdjustmentProductName,
 } from '../../features/adjustments/adjustmentsAPI.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import AddNewButton from '../../components/AddNewButton.jsx';
 
 const AdjustmentIndex = () => {
   const dispatch = useDispatch();
@@ -204,7 +205,7 @@ const AdjustmentIndex = () => {
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"
@@ -214,10 +215,7 @@ const AdjustmentIndex = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
-                    <NavLink className="btn btn-primary btn-sm" to="/adjustments/add">
-                      <i className="fas fa-plus me-1"></i>
-                      Add adjustment
-                    </NavLink>
+                    <AddNewButton to="/adjustments/add" label="Add adjustment" />
                   </div>
                 </div>
               </div>

@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { fetchAssets, setSearch, setPage, setLimit, setSort } from '../../features/assets/assetsSlice.js';
 import { toast } from '../../utils/toast.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import AddNewButton from '../../components/AddNewButton.jsx';
 
 const assetUserDisplayName = (userRef) => {
   if (userRef == null || userRef === '') return '—';
@@ -246,7 +248,7 @@ const AssetIndex = () => {
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"
@@ -256,10 +258,7 @@ const AssetIndex = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
-                    <NavLink className="btn btn-primary btn-sm" to="/assets/add">
-                      <i className="fas fa-plus me-1"></i>
-                      Add asset
-                    </NavLink>
+                    <AddNewButton to="/assets/add" label="Add asset" />
                   </div>
                 </div>
               </div>

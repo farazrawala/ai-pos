@@ -11,6 +11,7 @@ import {
 } from '../../features/paymentReceipts/paymentReceiptsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { formatTransactionCreatedByLabel } from '../../components/ledger/ledgerTransactionMapper.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 function formatPKR(n) {
   const x = Number(n);
@@ -214,10 +215,10 @@ const PaymentReceiptsList = () => {
                   <p className="text-sm mb-0">Active receipts from the server (paginated list).</p>
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true"></i>
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"

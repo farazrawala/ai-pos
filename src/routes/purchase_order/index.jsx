@@ -12,6 +12,8 @@ import {
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { PURCHASE_ITEM_QUERY_KEY } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
 import { DEBUG } from '../../config/env.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import AddNewButton from '../../components/AddNewButton.jsx';
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -287,14 +289,11 @@ const PurchaseOrders = () => {
                 <div className="col-md-6">
                   <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
                     <h5 className="mb-0">Purchase orders</h5>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm flex-shrink-0"
-                      onClick={() => navigate('/purchase-orders/add')}
-                    >
-                      <i className="fas fa-plus me-1" aria-hidden="true" />
-                      Create purchase order
-                    </button>
+                    <AddNewButton
+                      to="/purchase-orders/add"
+                      label="Create purchase order"
+                      className="flex-shrink-0"
+                    />
                   </div>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
@@ -309,7 +308,7 @@ const PurchaseOrders = () => {
                   <div className="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2">
                     <div className="input-group input-group-sm" style={{ maxWidth: '100%' }}>
                       <span className="input-group-text text-body">
-                        <i className="fas fa-search" aria-hidden="true" />
+                        <SearchInputIcon />
                       </span>
                       <input
                         type="text"
@@ -417,14 +416,7 @@ const PurchaseOrders = () => {
                               No purchase orders found. Try adjusting search or optional purchase item
                               filter.
                             </p>
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              onClick={() => navigate('/purchase-orders/add')}
-                            >
-                              <i className="fas fa-plus me-1" aria-hidden="true" />
-                              Create purchase order
-                            </button>
+                            <AddNewButton to="/purchase-orders/add" label="Create purchase order" />
                           </td>
                         </tr>
                       ) : (

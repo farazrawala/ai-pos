@@ -32,7 +32,7 @@ const PostList = () => {
 
   return (
     <section className="card">
-      <header className="card-header">
+      <header className="card-header d-flex align-items-center justify-content-between mb-3">
         <div>
           <h2>Posts</h2>
           <p className="muted">Status: {status}</p>
