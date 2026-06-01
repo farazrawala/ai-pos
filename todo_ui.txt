@@ -2,6 +2,8 @@ pagination tables.
 balance sheet
 ledger.
 
+http://localhost:5173/
+get alerts ka table aega chota sa purple box ki jaga.
 
 http://localhost:5173/accounts/payments
 centeralize form.
