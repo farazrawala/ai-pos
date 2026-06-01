@@ -54,14 +54,14 @@ balance sheet with profit. (done)
 income statement  (done)
 live connection with mongo db (done)
 Stock transfer (done)
-
-fixed assets  (done)
-load testing module.
-
-Alert (will done on dashboard design )
-
 Adjustments (done)
-Tax
+fixed assets  (done)
+
+
++
+load testing module.
+Alert (will done on dashboard design )
+Tax (will be done with printing)
 Sales return
 Purchase return
 cash transfer add withdraw account.

@@ -1,0 +1,7 @@
+pagination tables.
+balance sheet
+ledger.
+
+
+http://localhost:5173/accounts/payments
+centeralize form.
