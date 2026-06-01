@@ -7,3 +7,5 @@ get alerts ka table aega chota sa purple box ki jaga.
 
 http://localhost:5173/accounts/payments
 centeralize form.
+
+http://localhost:5173/barcode-print
