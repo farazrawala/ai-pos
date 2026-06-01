@@ -139,7 +139,7 @@ const StockListing = () => {
                     {canTransfer ? (
                       <button
                         type="button"
-                        className="btn btn-sm btn-primary"
+                        className="btn btn-sm btn-primary mb-0 ml-4"
                         onClick={() => setShowTransferForm(true)}
                       >
                         <i className="fas fa-plus me-1" aria-hidden="true" />
@@ -149,7 +149,8 @@ const StockListing = () => {
                   </div>
                   <p className="text-sm mb-0 text-muted">
                     <code className="small">
-                      GET /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
+                      GET
+                      /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
                     </code>
                   </p>
                 </div>

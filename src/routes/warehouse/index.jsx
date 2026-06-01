@@ -108,11 +108,11 @@ const Warehouse = () => {
           <div className="card">
             <div className="card-header pb-0">
               <div className="row align-items-center">
-                <div className="col-md-12">
+                <div className="col-md-6">
                   <h5 className="mb-0">Warehouse</h5>
                   <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
                 </div>
-                <div className="col-md-12">
+                <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
