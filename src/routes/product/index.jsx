@@ -15,6 +15,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const Product = () => {
   const dispatch = useDispatch();
@@ -381,7 +382,9 @@ const Product = () => {
                   <h5 className="mb-0">
                     {firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1)}
                   </h5>
-                  <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
@@ -440,11 +443,43 @@ const Product = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('wholesale_price')}
+                          onDoubleClick={() => handleSort('wholesale_price', true)}
+                        >
+                          Wholesale price
+                          {renderSortIcon('wholesale_price')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('price')}
                           onDoubleClick={() => handleSort('price', true)}
                         >
                           Price
                           {renderSortIcon('price')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('tax_rate')}
+                          onDoubleClick={() => handleSort('tax_rate', true)}
+                        >
+                          Tax
+                          {renderSortIcon('tax_rate')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('alert_qty')}
+                          onDoubleClick={() => handleSort('alert_qty', true)}
+                        >
+                          Alert quantity
+                          {renderSortIcon('alert_qty')}
+                        </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('barcode')}
+                          onDoubleClick={() => handleSort('barcode', true)}
+                        >
+                          Barcode
+                          {renderSortIcon('barcode')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -478,13 +513,21 @@ const Product = () => {
                           Created At
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last updated at
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="14" className="text-center text-sm font-weight-normal p-4">
                             No products found
                           </td>
                         </tr>
@@ -537,9 +580,32 @@ const Product = () => {
                                 {item.name || item.product_name || '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
+                                {item.wholesale_price != null && item.wholesale_price !== ''
+                                  ? `$${parseFloat(item.wholesale_price).toFixed(2)}`
+                                  : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
                                 {item.price || item.product_price
                                   ? `$${parseFloat(item.price || item.product_price || 0).toFixed(2)}`
                                   : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {(() => {
+                                  const rate = item.tax_rate ?? item.taxRate;
+                                  if (rate == null || rate === '') return '-';
+                                  const n = parseFloat(rate);
+                                  return Number.isFinite(n) ? `${n}%` : String(rate);
+                                })()}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.alert_qty != null && item.alert_qty !== ''
+                                  ? item.alert_qty
+                                  : item.alertQty != null && item.alertQty !== ''
+                                    ? item.alertQty
+                                    : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.barcode ? String(item.barcode) : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.stock !== undefined ? item.stock : '-'}
@@ -608,6 +674,11 @@ const Product = () => {
                               <td className="text-sm font-weight-normal">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">

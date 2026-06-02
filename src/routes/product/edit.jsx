@@ -699,10 +699,6 @@ const ProductEdit = () => {
       newErrors.stock = 'Stock must be a valid number';
     }
 
-    if (!form.categoryId || (Array.isArray(form.categoryId) && form.categoryId.length === 0)) {
-      newErrors.categoryId = 'At least one category is required';
-    }
-
     if (!form.unit) {
       newErrors.unit = 'Unit is required';
     }
@@ -728,9 +724,6 @@ const ProductEdit = () => {
     }
     if (!form.price || parseFloat(form.price) <= 0) {
       newErrors.price = 'Valid retail price is required';
-    }
-    if (!form.categoryId || (Array.isArray(form.categoryId) && form.categoryId.length === 0)) {
-      newErrors.categoryId = 'At least one category is required';
     }
     if (!form.unit) {
       newErrors.unit = 'Unit is required';
@@ -1058,7 +1051,7 @@ const ProductEdit = () => {
                 {/* Category Field - Multiselect */}
                 <div className="mb-3">
                   <label htmlFor="categoryId" className="form-label">
-                    Categories <span className="text-danger">*</span>
+                    Categories
                   </label>
                   <select
                     className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
@@ -1067,7 +1060,6 @@ const ProductEdit = () => {
                     multiple
                     value={Array.isArray(form.categoryId) ? form.categoryId : []}
                     onChange={handleChange}
-                    required
                     disabled={isSubmitting || loadingCategories}
                     size="5"
                   >

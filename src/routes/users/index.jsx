@@ -6,9 +6,17 @@ import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../feature
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const permissionActionBadgeClass = (enabled) =>
   enabled ? 'badge bg-gradient-success me-1 mb-1' : 'badge bg-gradient-secondary me-1 mb-1';
+
+const userPhoneDisplay = (user) => {
+  if (!user || typeof user !== 'object') return '-';
+  const phone = user.phone ?? user.mobile ?? user.phoneNumber ?? '';
+  const trimmed = String(phone).trim();
+  return trimmed || '-';
+};
 
 const Users = () => {
   const dispatch = useDispatch();
@@ -225,7 +233,9 @@ const Users = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Users</h5>
-                  <p className="text-sm mb-0">User list with role and permissions details.</p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">User list with role and permissions details.</p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
@@ -280,6 +290,7 @@ const Users = () => {
                           Email
                           {renderSortIcon('email')}
                         </th>
+                        <th>Phone</th>
                         <th>Role</th>
                         <th>Permissions</th>
                         <th
@@ -304,7 +315,7 @@ const Users = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
                             No users found
                           </td>
                         </tr>
@@ -319,6 +330,7 @@ const Users = () => {
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
                               <td className="text-sm font-weight-normal">{item.name || '-'}</td>
                               <td className="text-sm font-weight-normal">{item.email || '-'}</td>
+                              <td className="text-sm font-weight-normal">{userPhoneDisplay(item)}</td>
                               <td className="text-sm font-weight-normal">{renderRoleCell(item.role)}</td>
                               <td className="text-sm font-weight-normal">
                                 {renderPermissionsCell(item.permissions)}

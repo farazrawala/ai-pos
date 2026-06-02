@@ -11,6 +11,11 @@ import {
   fetchUsersListRequest,
   formatUserOptionLabel,
   getUserOptionValue,
+  createCustomerUserRequest,
+  pickCreatedUserFromResponse,
+  POS_DEFAULT_CUSTOMER_PASSWORD,
+  resolvePosCustomerEmail,
+  digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
@@ -135,6 +140,8 @@ const normalizeProductDetail = (result) => {
 
 const newLineKey = () => `po-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+const ADD_VENDOR_INITIAL = { name: '', email: '', phone: '03' };
+
 const emptyForm = () => ({
   purchase_order_no: '',
   supplier_id: '',
@@ -207,6 +214,10 @@ const PurchaseOrderAdd = () => {
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
+  const [addVendorForm, setAddVendorForm] = useState(ADD_VENDOR_INITIAL);
+  const [addVendorErrors, setAddVendorErrors] = useState({});
+  const [createVendorSubmitting, setCreateVendorSubmitting] = useState(false);
+  const [createVendorError, setCreateVendorError] = useState('');
 
   const [lines, setLines] = useState([]);
   const [addProductQuery, setAddProductQuery] = useState('');
@@ -221,31 +232,34 @@ const PurchaseOrderAdd = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [warehousesStatus, setWarehousesStatus] = useState('idle');
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadUsers = useCallback(async (selectAfter) => {
     setUsersStatus('loading');
     setUsersError(null);
-    (async () => {
-      try {
-        const list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
-        const arr = Array.isArray(list) ? list : [];
-        if (!cancelled) {
-          setUsers(arr);
-          setUsersStatus('succeeded');
-        }
-      } catch (err) {
-        console.error('[Purchase order add] Failed to load users for supplier dropdown', err);
-        if (!cancelled) {
-          setUsers([]);
-          setUsersError(err?.message || 'Could not load users');
-          setUsersStatus('failed');
+    try {
+      const list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
+      const arr = Array.isArray(list) ? list : [];
+      setUsers(arr);
+      setUsersStatus('succeeded');
+      if (selectAfter?.preferId) {
+        setForm((p) => ({ ...p, supplier_id: String(selectAfter.preferId) }));
+      } else if (selectAfter?.fallbackEmail) {
+        const em = selectAfter.fallbackEmail.trim().toLowerCase();
+        const match = arr.find((u) => (u.email || '').toLowerCase() === em);
+        if (match) {
+          setForm((p) => ({ ...p, supplier_id: getUserOptionValue(match) }));
         }
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (err) {
+      console.error('[Purchase order add] Failed to load users for supplier dropdown', err);
+      setUsers([]);
+      setUsersError(err?.message || 'Could not load users');
+      setUsersStatus('failed');
+    }
   }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -564,6 +578,95 @@ const PurchaseOrderAdd = () => {
     }
   };
 
+  const openAddVendorModal = () => {
+    setAddVendorForm(ADD_VENDOR_INITIAL);
+    setAddVendorErrors({});
+    setCreateVendorError('');
+    const el = document.getElementById('poAddVendorModal');
+    if (el && window.bootstrap?.Modal) {
+      const M = window.bootstrap.Modal;
+      const instance =
+        typeof M.getOrCreateInstance === 'function'
+          ? M.getOrCreateInstance(el)
+          : M.getInstance(el) || new M(el);
+      instance.show();
+    }
+  };
+
+  const closeAddVendorModal = () => {
+    const el = document.getElementById('poAddVendorModal');
+    if (el && window.bootstrap?.Modal) {
+      const instance = window.bootstrap.Modal.getInstance(el);
+      instance?.hide();
+    }
+  };
+
+  const validateAddVendor = () => {
+    const next = {};
+    if (!addVendorForm.name.trim()) {
+      next.name = 'Name is required';
+    }
+    const emailTrim = addVendorForm.email.trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      next.email = 'Enter a valid email';
+    }
+    if (!addVendorForm.phone.trim()) {
+      next.phone = 'Phone is required';
+    } else {
+      const phoneDigits = digitsOnlyFromPhone(addVendorForm.phone);
+      if (phoneDigits.length < 7) {
+        next.phone = 'Enter a valid phone number (at least 7 digits)';
+      } else if (phoneDigits.length > 11) {
+        next.phone = 'Phone number must be 11 digits or less';
+      }
+    }
+    setAddVendorErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleAddVendorFieldChange = (e) => {
+    const { name, value } = e.target;
+    const nextValue = name === 'phone' ? digitsOnlyFromPhone(value).slice(0, 11) : value;
+    setAddVendorForm((prev) => ({ ...prev, [name]: nextValue }));
+    if (addVendorErrors[name]) {
+      setAddVendorErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    setCreateVendorError('');
+  };
+
+  const handleAddVendorSubmit = async (e) => {
+    e.preventDefault();
+    setCreateVendorError('');
+    if (!validateAddVendor()) {
+      return;
+    }
+    setCreateVendorSubmitting(true);
+    try {
+      const resolvedEmail = resolvePosCustomerEmail(addVendorForm.email, addVendorForm.phone);
+      const json = await createCustomerUserRequest({
+        name: addVendorForm.name,
+        email: addVendorForm.email,
+        phone: addVendorForm.phone,
+        password: POS_DEFAULT_CUSTOMER_PASSWORD,
+        role: ['VENDOR'],
+      });
+      const created = pickCreatedUserFromResponse(json);
+      const newId = getUserOptionValue(created);
+      await loadUsers({
+        preferId: newId || undefined,
+        fallbackEmail: newId ? undefined : resolvedEmail,
+      });
+      setAddVendorForm(ADD_VENDOR_INITIAL);
+      closeAddVendorModal();
+      toast.success('Vendor created and selected.');
+    } catch (err) {
+      console.error('[Purchase order add] Create vendor failed', err);
+      setCreateVendorError(err?.message || 'Could not create vendor');
+    } finally {
+      setCreateVendorSubmitting(false);
+    }
+  };
+
   const supplierSelectDisabled = isSubmitting || usersStatus === 'loading';
   const accountSelectDisabled = isSubmitting || accountsStatus === 'loading';
 
@@ -621,6 +724,16 @@ const PurchaseOrderAdd = () => {
           border-radius: 0.5rem;
           font-weight: 600;
           font-size: 0.8rem;
+        }
+        .po-add-vendor-btn {
+          background: #11cdef;
+          border-color: #11cdef;
+          color: #fff;
+        }
+        .po-add-vendor-btn:hover {
+          background: #0ea5c6;
+          border-color: #0ea5c6;
+          color: #fff;
         }
       `}</style>
 
@@ -713,23 +826,34 @@ const PurchaseOrderAdd = () => {
                   {usersError}
                 </div>
               ) : null}
-              <select
-                id="po-add-supplier"
-                className="form-select form-select-sm"
-                value={form.supplier_id}
-                onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value }))}
-                disabled={supplierSelectDisabled}
-              >
-                <option value="">No supplier</option>
-                {supplierOptions.map((u) => {
-                  const value = getUserOptionValue(u);
-                  return (
-                    <option key={value} value={value}>
-                      {formatUserOptionLabel(u)}
-                    </option>
-                  );
-                })}
-              </select>
+              <div className="d-flex gap-2 align-items-start">
+                <select
+                  id="po-add-supplier"
+                  className="form-select form-select-sm flex-grow-1"
+                  value={form.supplier_id}
+                  onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value }))}
+                  disabled={supplierSelectDisabled}
+                >
+                  <option value="">No supplier</option>
+                  {supplierOptions.map((u) => {
+                    const value = getUserOptionValue(u);
+                    return (
+                      <option key={value} value={value}>
+                        {formatUserOptionLabel(u)}
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-sm po-add-vendor-btn flex-shrink-0"
+                  title="Add new vendor"
+                  onClick={openAddVendorModal}
+                  disabled={isSubmitting}
+                >
+                  Add
+                </button>
+              </div>
             </div>
             <div className="col-md-6 text-md-end">
               <div className="small mb-2">
@@ -1143,6 +1267,131 @@ const PurchaseOrderAdd = () => {
           </div>
         </div>
       </form>
+
+      <div
+        className="modal fade"
+        id="poAddVendorModal"
+        tabIndex="-1"
+        aria-labelledby="poAddVendorModalLabel"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="poAddVendorModalLabel">
+                Add vendor
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <form onSubmit={handleAddVendorSubmit}>
+              <div className="modal-body">
+                <input type="hidden" name="role" value="VENDOR" readOnly />
+                <input
+                  type="hidden"
+                  name="password"
+                  value={POS_DEFAULT_CUSTOMER_PASSWORD}
+                  readOnly
+                  autoComplete="new-password"
+                />
+                <div className="mb-3">
+                  <label htmlFor="po_vendor_name" className="form-label">
+                    Name <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="po_vendor_name"
+                    name="name"
+                    type="text"
+                    className={`form-control ${addVendorErrors.name ? 'is-invalid' : ''}`}
+                    value={addVendorForm.name}
+                    onChange={handleAddVendorFieldChange}
+                    autoComplete="name"
+                  />
+                  {addVendorErrors.name && (
+                    <div className="invalid-feedback">{addVendorErrors.name}</div>
+                  )}
+                </div>
+                <div className="mb-0">
+                  <label htmlFor="po_vendor_phone" className="form-label">
+                    Phone <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="po_vendor_phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={11}
+                    className={`form-control ${addVendorErrors.phone ? 'is-invalid' : ''}`}
+                    value={addVendorForm.phone}
+                    onChange={handleAddVendorFieldChange}
+                    autoComplete="tel"
+                    placeholder="Digits only"
+                  />
+                  {addVendorErrors.phone && (
+                    <div className="invalid-feedback">{addVendorErrors.phone}</div>
+                  )}
+                </div>
+                <div className="mb-3">
+                  <label htmlFor="po_vendor_email" className="form-label">
+                    Email <span className="text-muted font-weight-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="po_vendor_email"
+                    name="email"
+                    type="email"
+                    className={`form-control ${addVendorErrors.email ? 'is-invalid' : ''}`}
+                    value={addVendorForm.email}
+                    onChange={handleAddVendorFieldChange}
+                    autoComplete="email"
+                    placeholder="Leave empty to use phone@gmail.com"
+                  />
+                  <small className="text-muted text-xs">
+                    If empty, the saved email is your phone digits + @gmail.com (e.g.
+                    03001234567@gmail.com).
+                  </small>
+                  {addVendorErrors.email && (
+                    <div className="invalid-feedback d-block">{addVendorErrors.email}</div>
+                  )}
+                </div>
+
+                {createVendorError && (
+                  <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">
+                    {createVendorError}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn po-add-vendor-btn"
+                  disabled={createVendorSubmitting}
+                >
+                  {createVendorSubmitting ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Saving…
+                    </>
+                  ) : (
+                    'Create vendor'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
