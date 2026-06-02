@@ -116,10 +116,10 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
-          <Route path="/accounts/income-statement" element={<IncomeStatementPage />} />
+          <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/payments" element={<PaymentManagementPage />} />
-          <Route path="/accounts/payment-receipts" element={<PaymentReceiptsList />} />
-          <Route path="/accounts/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
+          <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
+          <Route path="/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/expenses" element={<ExpenseIndex />} />
           <Route path="/expenses/add" element={<ExpenseAdd />} />
@@ -207,10 +207,10 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
-          <Route path="/accounts/income-statement" element={<IncomeStatementPage />} />
+          <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/payments" element={<PaymentManagementPage />} />
-          <Route path="/accounts/payment-receipts" element={<PaymentReceiptsList />} />
-          <Route path="/accounts/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
+          <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
+          <Route path="/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
           <Route path="/expenses" element={<ExpenseIndex />} />
           <Route path="/expenses/add" element={<ExpenseAdd />} />
