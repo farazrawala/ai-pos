@@ -59,6 +59,12 @@ fixed assets  (done)
 
 
 +
+User update with roles
+user navigation acc to roles.
+add vendor, popup:: in purchase order
+
+in user add multiple accounts to be include and not to be include.
+
 load testing module.
 Alert (will done on dashboard design )
 Tax (will be done with printing)

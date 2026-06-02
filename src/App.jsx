@@ -115,7 +115,7 @@ const App = () => {
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
-          <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
@@ -206,7 +206,7 @@ const App = () => {
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
-          <Route path="/accounts/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/accounts/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />

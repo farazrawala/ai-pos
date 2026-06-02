@@ -43,7 +43,7 @@ const navItems = [
   { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
   { to: '/branch', label: 'Branch', icon: FaBuilding },
   { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
-  { to: '/accounts/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
+  { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
   { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
   { to: '/accounts/payments', label: 'Payments', icon: FaBasketShopping },
   { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
