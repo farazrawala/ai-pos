@@ -16,6 +16,7 @@ import {
   getOrderLineItems,
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 
@@ -93,6 +94,16 @@ const Orders = () => {
     };
   }, []);
 
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      dispatch(setPage(newPage));
+    }
+  };
+
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
+  };
   const handleSearchChange = useCallback(
     (e) => {
       const value = e.target.value;
@@ -171,7 +182,7 @@ const Orders = () => {
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '100%' }}>
+          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
               <div className="row align-items-center">
                 <div className="col-md-6">
@@ -202,59 +213,19 @@ const Orders = () => {
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0">
-              {!loading && !error && pagination.total > 0 && (
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <div className="d-flex align-items-center">
-                    <span className="text-sm text-muted me-2">Show:</span>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ width: 'auto' }}
-                      value={pagination.limit}
-                      onChange={(e) => dispatch(setLimit(Number(e.target.value)))}
-                    >
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                    <span className="text-sm text-muted ms-2">
-                      Showing {startItem} to {endItem} of {pagination.total} entries
-                    </span>
-                  </div>
-                  <div className="d-flex gap-1">
-                    <button
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page === 1}
-                      onClick={() => dispatch(setPage(pagination.page - 1))}
-                    >
-                      Prev
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => dispatch(setPage(pagination.page + 1))}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive">
-                {loading && (
-                  <div className="text-center p-4">
-                    <p>Loading orders...</p>
-                  </div>
-                )}
-                {error && (
-                  <div className="alert alert-danger m-3" role="alert">
-                    Error loading orders: {error}
-                  </div>
-                )}
-                {!loading && !error && (
-                  <table className="table table-flush">
-                    <thead className="thead-light">
+            <div className="card-body pt-0 px-0 pb-0">
+              <ListDataTable
+                loading={loading}
+                loadingLabel="Loading orders…"
+                error={error}
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                selectId="orders-table-page-size"
+                showPagination={!loading && !error && pagination.total > 0}
+              >
+                <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
                         <th>S.No</th>
                         <th
@@ -411,8 +382,7 @@ const Orders = () => {
                       )}
                     </tbody>
                   </table>
-                )}
-              </div>
+              </ListDataTable>
             </div>
           </div>
         </div>

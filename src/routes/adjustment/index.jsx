@@ -12,6 +12,7 @@ import {
   formatAdjustmentType,
   getAdjustmentProductName,
 } from '../../features/adjustments/adjustmentsAPI.js';
+import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -67,8 +68,8 @@ const AdjustmentIndex = () => {
     }
   };
 
-  const handleLimitChange = (e) => {
-    dispatch(setLimit(Number(e.target.value)));
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
   };
 
   const handleSort = (sortBy, isDoubleClick = false) => {
@@ -106,86 +107,6 @@ const AdjustmentIndex = () => {
     dispatch(fetchAdjustments(params));
   };
 
-  const PaginationControls = () => {
-    if (pagination.totalPages <= 1 && pagination.total <= pagination.limit) return null;
-    return (
-      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <div className="d-flex align-items-center gap-2">
-          <label className="text-sm mb-0" htmlFor="adjustment-limit">
-            Show
-          </label>
-          <select
-            id="adjustment-limit"
-            className="form-select form-select-sm"
-            style={{ width: 'auto' }}
-            value={pagination.limit}
-            onChange={handleLimitChange}
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <span className="text-sm text-muted">
-            of {pagination.total} adjustment{pagination.total !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <nav aria-label="Adjustments pagination">
-          <ul className="pagination pagination-sm mb-0">
-            <li className={`page-item ${pagination.page <= 1 ? 'disabled' : ''}`}>
-              <button
-                type="button"
-                className="page-link"
-                onClick={() => handlePageChange(1)}
-                disabled={pagination.page <= 1}
-              >
-                First
-              </button>
-            </li>
-            <li className={`page-item ${pagination.page <= 1 ? 'disabled' : ''}`}>
-              <button
-                type="button"
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page <= 1}
-              >
-                Prev
-              </button>
-            </li>
-            <li className="page-item disabled">
-              <span className="page-link">
-                Page {pagination.page} of {pagination.totalPages || 1}
-              </span>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                type="button"
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Next
-              </button>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                type="button"
-                className="page-link"
-                onClick={() => handlePageChange(pagination.totalPages)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Last
-              </button>
-            </li>
-          </ul>
-        </nav>
-      </div>
-    );
-  };
 
   const colCount = 7;
 
@@ -193,7 +114,7 @@ const AdjustmentIndex = () => {
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '100%' }}>
+          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
               <div className="row align-items-center">
                 <div className="col-md-6">
@@ -223,29 +144,19 @@ const AdjustmentIndex = () => {
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0">
-              <PaginationControls />
-              <div className="table-responsive">
-                {loading && (
-                  <div className="text-center p-4">
-                    <p className="mb-0">Loading adjustments…</p>
-                  </div>
-                )}
-                {error && (
-                  <div className="alert alert-danger m-3" role="alert">
-                    <p className="mb-2">{error}</p>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={loadAdjustments}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-                {!loading && !error && (
-                  <table className="table table-flush table-sm align-middle">
-                    <thead className="thead-light">
+            <div className="card-body pt-0 px-0 pb-0">
+              <ListDataTable
+                loading={loading}
+                loadingLabel="Loading adjustments…"
+                error={error}
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                selectId="adjustments-table-page-size"
+                showPagination={!loading && !error && pagination.total > 0}
+              >
+                <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
                         <th>#</th>
                         <th>Product</th>
@@ -353,9 +264,7 @@ const AdjustmentIndex = () => {
                       )}
                     </tbody>
                   </table>
-                )}
-              </div>
-              {!loading && !error && <PaginationControls />}
+              </ListDataTable>
             </div>
           </div>
         </div>

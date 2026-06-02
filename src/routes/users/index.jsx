@@ -7,7 +7,7 @@ import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../feature
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
-import TablePagination from '../../components/TablePagination.jsx';
+import ListDataTable from '../../components/list/ListDataTable.jsx';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -144,8 +144,6 @@ const Users = () => {
     </th>
   );
 
-  const showPagination = !loading && !error && pagination.total > 0;
-
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
@@ -182,25 +180,18 @@ const Users = () => {
             </div>
 
             <div className="card-body pt-0 px-0 pb-0">
-              {loading && (
-                <div className="text-center py-5 px-3">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading…</span>
-                  </div>
-                  <p className="text-sm text-muted mt-3 mb-0">Loading users…</p>
-                </div>
-              )}
-
-              {error && (
-                <div className="alert alert-danger mx-3 mt-3" role="alert">
-                  Error loading users: {error}
-                </div>
-              )}
-
-              {!loading && !error && (
-                <div className="list-data-table mx-3 mb-3">
-                  <div className="list-data-table-scroll">
-                    <table className="table align-items-center mb-0">
+              <ListDataTable
+                loading={loading}
+                loadingLabel="Loading users…"
+                error={error}
+                errorPrefix="Error loading users"
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                selectId="users-table-page-size"
+                showPagination={!loading && !error && pagination.total > 0}
+              >
+                <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
                         <th className="text-center" style={{ width: '56px' }}>
@@ -280,18 +271,8 @@ const Users = () => {
                         })
                       )}
                     </tbody>
-                    </table>
-                  </div>
-                  <TablePagination
-                    className="list-table-toolbar--footer"
-                    selectId="users-table-page-size"
-                    pagination={pagination}
-                    onPageChange={handlePageChange}
-                    onLimitChange={handleLimitChange}
-                    hidden={!showPagination}
-                  />
-                </div>
-              )}
+                </table>
+              </ListDataTable>
             </div>
           </div>
         </div>
