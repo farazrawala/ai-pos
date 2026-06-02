@@ -25,9 +25,7 @@ import { toast } from '../../utils/toast.js';
 const accountOptionLabel = (a) => {
   if (!a || typeof a !== 'object') return 'Account';
   const name = a.name ?? a.accountName ?? '';
-  const type = a.account_type ?? a.accountType ?? '';
-  const bits = [name, type].filter(Boolean);
-  return bits.length ? bits.join(' — ') : 'Account';
+  return name || 'Account';
 };
 
 const accountOptionValue = (a) => {

@@ -1,0 +1,17 @@
+http://localhost:5173/accounts/income-statement
+
+
+http://localhost:5173/purchase-orders
+purchase order button.
+
+pagination tables.
+balance sheet
+ledger.
+
+http://localhost:5173/
+get alerts ka table aega chota sa purple box ki jaga.
+
+http://localhost:5173/accounts/payments
+centeralize form.
+
+http://localhost:5173/barcode-print

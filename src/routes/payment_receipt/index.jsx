@@ -348,7 +348,7 @@ const PaymentReceiptsList = () => {
                                     type="button"
                                     className="btn btn-sm btn-primary"
                                     onClick={() =>
-                                      navigate(`/accounts/payment-receipts/edit/${item._id}`, {
+                                      navigate(`/payment-receipts/edit/${item._id}`, {
                                         state: { receipt: item },
                                       })
                                     }

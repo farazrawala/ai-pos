@@ -130,7 +130,7 @@ export default function PaymentReceiptEditPage() {
   }, [canView, navigate]);
 
   useEffect(() => {
-    if (canEdit === false) navigate('/accounts/payment-receipts');
+    if (canEdit === false) navigate('/payment-receipts');
   }, [canEdit, navigate]);
 
   useEffect(() => {
@@ -295,7 +295,7 @@ export default function PaymentReceiptEditPage() {
       try {
         await dispatch(updatePaymentReceipt({ receiptId: id, payload })).unwrap();
         toast.success('Payment receipt updated.', { delay: 2500 });
-        navigate('/accounts/payment-receipts');
+        navigate('/payment-receipts');
       } catch (err) {
         toast.error(String(err?.message ?? err ?? 'Failed to update'));
       }
@@ -384,7 +384,7 @@ export default function PaymentReceiptEditPage() {
     return (
       <div className="container-fluid py-4">
         <div className="alert alert-danger">{receiptFetchError || 'Failed to load receipt.'}</div>
-        <Link to="/accounts/payment-receipts" className="btn btn-sm btn-outline-secondary">
+        <Link to="/payment-receipts" className="btn btn-sm btn-outline-secondary">
           Back to list
         </Link>
       </div>
@@ -402,7 +402,7 @@ export default function PaymentReceiptEditPage() {
               </Link>
             </li>
             <li className="breadcrumb-item">
-              <Link className="text-body" to="/accounts/payment-receipts">
+              <Link className="text-body" to="/payment-receipts">
                 Payment receipts
               </Link>
             </li>
@@ -425,7 +425,7 @@ export default function PaymentReceiptEditPage() {
           <button
             type="button"
             className="btn btn-sm btn-outline-secondary"
-            onClick={() => navigate('/accounts/payment-receipts')}
+            onClick={() => navigate('/payment-receipts')}
           >
             Cancel
           </button>
@@ -542,7 +542,7 @@ export default function PaymentReceiptEditPage() {
                   type="button"
                   className="btn btn-sm btn-outline-secondary"
                   disabled={isSubmitting}
-                  onClick={() => navigate('/accounts/payment-receipts')}
+                  onClick={() => navigate('/payment-receipts')}
                 >
                   Back to list
                 </button>

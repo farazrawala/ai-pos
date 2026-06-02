@@ -32,34 +32,6 @@ const productName = (p) => p?.name || p?.product_name || 'Product';
 
 const digitsOnly = (s) => String(s ?? '').replace(/\D/g, '');
 
-function businessLocation(product, user) {
-  if (!product && !user) return '';
-  return (
-    product?.location_name ||
-    product?.shop_name ||
-    product?.store_name ||
-    product?.branch_name ||
-    product?.branch?.name ||
-    user?.branch?.name ||
-    user?.branch_name ||
-    user?.company ||
-    user?.organization ||
-    ''
-  );
-}
-
-function warehouseLine(product) {
-  if (!product) return '';
-  if (product.warehouse_name) return String(product.warehouse_name);
-  const inv = product.warehouse_inventory;
-  if (Array.isArray(inv) && inv.length > 0) {
-    const row = inv[0];
-    return String(row?.warehouse_name || row?.warehouse?.name || row?.name || '');
-  }
-  if (product.warehouse?.name) return String(product.warehouse.name);
-  return String(product.warehouse || '');
-}
-
 function priceLine(product) {
   if (!product) return '';
   const raw = product.price ?? product.product_price ?? product.sale_price;
@@ -67,11 +39,6 @@ function priceLine(product) {
   const n = parseFloat(raw);
   if (Number.isNaN(n)) return String(raw);
   return `$${n.toFixed(2)}`;
-}
-
-function productCodeLine(product) {
-  if (!product) return '';
-  return String(product.product_code || product.sku || '').trim();
 }
 
 function wrapToMaxChars(text, maxChars) {
@@ -85,24 +52,14 @@ function wrapToMaxChars(text, maxChars) {
   return lines;
 }
 
-function buildLabelLines(product, user, settings) {
-  const {
-    showProductName,
-    showLocation,
-    showWarehouse,
-    showPrice,
-    showProductCode,
-    maxChars,
-  } = settings;
+function buildLabelLines(product, settings) {
+  const { showProductName, showPrice, maxChars } = settings;
   const lines = [];
   const pushBlock = (text) => {
     wrapToMaxChars(text, maxChars).forEach((ln) => lines.push(ln));
   };
   if (showProductName) pushBlock(productName(product));
-  if (showLocation) pushBlock(businessLocation(product, user));
-  if (showWarehouse) pushBlock(warehouseLine(product));
   if (showPrice) pushBlock(priceLine(product));
-  if (showProductCode) pushBlock(productCodeLine(product));
   return lines;
 }
 
@@ -329,10 +286,7 @@ const BarcodePrint = () => {
   const [barCodeHeightField, setBarCodeHeightField] = useState(30);
   const [fontSize, setFontSize] = useState(11);
   const [showProductName, setShowProductName] = useState(true);
-  const [showLocation, setShowLocation] = useState(true);
-  const [showWarehouse, setShowWarehouse] = useState(false);
   const [showPrice, setShowPrice] = useState(true);
-  const [showProductCode, setShowProductCode] = useState(true);
   const [maxChars, setMaxChars] = useState(50);
 
   const [settingsLoadError, setSettingsLoadError] = useState('');
@@ -437,10 +391,7 @@ const BarcodePrint = () => {
         if (norm.fontSize !== undefined) applyNum(norm.fontSize, setFontSize, 11);
         if (norm.maxChars !== undefined) applyStr(norm.maxChars, setMaxChars);
         applyBool(norm.showProductName, setShowProductName);
-        applyBool(norm.showLocation, setShowLocation);
-        applyBool(norm.showWarehouse, setShowWarehouse);
         applyBool(norm.showPrice, setShowPrice);
-        applyBool(norm.showProductCode, setShowProductCode);
       } catch (e) {
         if (!cancelled) {
           setSettingsLoadError(e?.message || 'Could not load company barcode settings');
@@ -470,28 +421,18 @@ const BarcodePrint = () => {
   const lineSettings = useMemo(
     () => ({
       showProductName,
-      showLocation,
-      showWarehouse,
       showPrice,
-      showProductCode,
       maxChars,
     }),
-    [
-      showProductName,
-      showLocation,
-      showWarehouse,
-      showPrice,
-      showProductCode,
-      maxChars,
-    ]
+    [showProductName, showPrice, maxChars]
   );
 
   const labelLines = useMemo(
     () =>
       selectedProduct
-        ? buildLabelLines(selectedProduct, user, lineSettings)
+        ? buildLabelLines(selectedProduct, lineSettings)
         : [],
-    [selectedProduct, user, lineSettings]
+    [selectedProduct, lineSettings]
   );
 
   const totalLabels = Math.min(200, Math.max(1, Number(labelCount) || 1));
@@ -531,10 +472,10 @@ const BarcodePrint = () => {
         barCodeHeightField: Number(barCodeHeightField) || 30,
         fontSize: Number(fontSize) || 11,
         showProductName,
-        showLocation,
-        showWarehouse,
+        showLocation: false,
+        showWarehouse: false,
         showPrice,
-        showProductCode,
+        showProductCode: false,
         maxChars: Number(maxChars) || 50,
       });
       await patchCompanyBarcodeSettings(companyId, payload);
@@ -874,20 +815,8 @@ const BarcodePrint = () => {
                   {yesNoSelect(showProductName, setShowProductName)}
                 </div>
                 <div className="col-6 col-md-4 col-lg-2">
-                  <label className="form-label">Business location</label>
-                  {yesNoSelect(showLocation, setShowLocation)}
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <label className="form-label">Warehouse</label>
-                  {yesNoSelect(showWarehouse, setShowWarehouse)}
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
                   <label className="form-label">Price</label>
                   {yesNoSelect(showPrice, setShowPrice)}
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <label className="form-label">Product code</label>
-                  {yesNoSelect(showProductCode, setShowProductCode)}
                 </div>
               </div>
 
