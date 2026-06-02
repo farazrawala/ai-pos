@@ -70,6 +70,113 @@
   margin-right: 0;
 }
 
+/* Income statement — account lines list */
+.income-statement-lines {
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #fff;
+}
+
+.income-statement-lines-head {
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 1.25rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
+.income-statement-lines-group {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.income-statement-lines-group-btn {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  background: #f8f9fa;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #344767;
+  transition: background-color 0.15s ease;
+}
+
+.income-statement-lines-group-btn:hover {
+  background: #eef1f6;
+}
+
+.income-statement-lines-group-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.income-statement-lines-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 0.875rem;
+  color: #525f7f;
+}
+
+.income-statement-lines-row--leaf {
+  padding-left: 2.5rem;
+  background: #fff;
+}
+
+.income-statement-lines-row--leaf:hover {
+  background: #fafbfc;
+}
+
+.income-statement-lines-row--section-total {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #344767;
+  border-top: 1px solid #e9ecef;
+}
+
+.income-statement-lines-row--gross {
+  background: rgba(17, 205, 239, 0.08);
+  font-weight: 700;
+  color: #344767;
+  border-top: 2px solid #11cdef;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.income-statement-lines-row--net {
+  background: linear-gradient(310deg, #141727 0%, #3a416f 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  border-bottom: 0;
+  margin-top: 0.25rem;
+}
+
+.income-statement-lines-row--net .income-statement-lines-amt {
+  color: #fff;
+}
+
+.income-statement-lines-desc {
+  flex: 1;
+  min-width: 0;
+}
+
+.income-statement-lines-amt {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #344767;
+}
+
 .muted {
   color: #64748b;
   font-size: 0.875rem;

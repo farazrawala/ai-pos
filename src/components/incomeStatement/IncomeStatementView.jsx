@@ -116,6 +116,88 @@ function priorAmountForLabel(lines, label) {
   return Number(row?.amount) || 0;
 }
 
+function subtotalRowVariant(label) {
+  const l = String(label || '').toLowerCase();
+  if (l.includes('net income')) return 'net';
+  if (l.includes('gross profit')) return 'gross';
+  return 'section';
+}
+
+function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
+  if (!rows.length) {
+    return (
+      <div className="text-center py-5 text-muted">
+        <p className="mb-0 text-sm">No accounts match your filter.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="income-statement-lines">
+      <div className="income-statement-lines-head d-none d-md-flex">
+        <span>Account description</span>
+        <span>Amount</span>
+      </div>
+      <ul className="list-unstyled mb-0">
+        {rows.map((row, idx) => {
+          if (row.type === 'group') {
+            const open = expanded.has(row.id);
+            return (
+              <li key={row.id} className="income-statement-lines-group">
+                <button
+                  type="button"
+                  className="income-statement-lines-group-btn"
+                  onClick={() => onToggleSection(row.id)}
+                  aria-expanded={open}
+                >
+                  <span className="income-statement-lines-group-label">
+                    <NavIcon
+                      icon={open ? FaChevronDown : FaChevronRight}
+                      size={12}
+                      className="text-secondary me-2"
+                    />
+                    {row.title}
+                  </span>
+                </button>
+              </li>
+            );
+          }
+
+          if (row.type === 'leaf') {
+            return (
+              <li
+                key={`leaf-${row.label}-${idx}`}
+                className="income-statement-lines-row income-statement-lines-row--leaf"
+              >
+                <span className="income-statement-lines-desc">{row.label}</span>
+                <span className="income-statement-lines-amt">{fmt(row.cur)}</span>
+              </li>
+            );
+          }
+
+          const variant = subtotalRowVariant(row.label);
+          const variantClass =
+            variant === 'net'
+              ? 'income-statement-lines-row--net'
+              : variant === 'gross'
+                ? 'income-statement-lines-row--gross'
+                : 'income-statement-lines-row--section-total';
+
+          return (
+            <li
+              key={`sub-${row.label}-${idx}`}
+              className={`income-statement-lines-row income-statement-lines-row--subtotal ${variantClass}`}
+            >
+              <span className="income-statement-lines-desc">{row.label}</span>
+              <span className="income-statement-lines-amt">{fmt(row.cur)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function SummaryStatCard({ title, value, delta, deltaKind, gradient, icon }) {
   return (
     <div className="col-lg-3 col-md-6 col-12">
@@ -758,97 +840,54 @@ export default function IncomeStatementView() {
 
           <div className="row">
             <div className="col-12">
-              <div className="card">
-                <div className="card-header pb-0">
-                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                    <h6 className="mb-0">Account lines</h6>
-                    <div className="d-flex flex-wrap align-items-center gap-2">
-                      <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
-                        <span className="input-group-text text-body">
-                          <SearchInputIcon />
-                        </span>
-                        <input
-                          type="search"
-                          className="form-control"
-                          placeholder="Filter accounts…"
-                          value={tableFilter}
-                          onChange={(e) => setTableFilter(e.target.value)}
-                          aria-label="Filter table"
-                        />
+              <div className="card shadow-sm">
+                <div className="card-header pb-3 border-bottom">
+                  <div className="row align-items-center g-3">
+                    <div className="col-md-5 col-lg-4">
+                      <h6 className="mb-1">Account lines</h6>
+                      <p className="text-sm text-muted mb-0">
+                        Expand sections to view detail. Amounts for the selected period.
+                      </p>
+                    </div>
+                    <div className="col-md-7 col-lg-8">
+                      <div className="d-flex flex-wrap align-items-center justify-content-md-end gap-2">
+                        <div
+                          className="input-group input-group-sm flex-grow-1"
+                          style={{ maxWidth: '320px', minWidth: '200px' }}
+                        >
+                          <span className="input-group-text text-body">
+                            <SearchInputIcon />
+                          </span>
+                          <input
+                            type="search"
+                            className="form-control"
+                            placeholder="Filter accounts…"
+                            value={tableFilter}
+                            onChange={(e) => setTableFilter(e.target.value)}
+                            aria-label="Filter accounts"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary mb-0 flex-shrink-0"
+                          aria-label="Export CSV"
+                          title="Export CSV"
+                          onClick={exportCsv}
+                        >
+                          <NavIcon icon={FaFileExport} className="me-1" size={14} />
+                          Export
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-primary mb-0"
-                        aria-label="Export CSV"
-                        title="Export CSV"
-                        onClick={exportCsv}
-                      >
-                        <NavIcon icon={FaFileExport} className="me-1" size={14} />
-                        Export
-                      </button>
                     </div>
                   </div>
                 </div>
-                <div className="card-body pt-0">
-                  <div className="table-responsive">
-                    <table className="table table-flush align-items-center mb-0">
-                      <thead className="thead-light">
-                        <tr>
-                          <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
-                            Account description
-                          </th>
-                          <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">
-                            Amount
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tableRows.map((row, idx) => {
-                          if (row.type === 'group') {
-                            const open = expanded.has(row.id);
-                            return (
-                              <tr key={row.id} className="table-active">
-                                <td colSpan={2} className="text-sm font-weight-bold">
-                                  <span
-                                    role="button"
-                                    tabIndex={0}
-                                    className="d-inline-flex align-items-center me-2 text-secondary"
-                                    onClick={() => toggleSection(row.id)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        toggleSection(row.id);
-                                      }
-                                    }}
-                                    aria-expanded={open}
-                                  >
-                                    <NavIcon
-                                      icon={open ? FaChevronDown : FaChevronRight}
-                                      size={12}
-                                    />
-                                  </span>
-                                  {row.title}
-                                </td>
-                              </tr>
-                            );
-                          }
-                          const rowClass = row.type === 'subtotal' ? 'fw-bold' : 'text-sm';
-                          return (
-                            <tr key={`${row.type}-${row.label}-${idx}`}>
-                              <td className={row.type === 'leaf' ? 'ps-4' : ''}>
-                                <span className={rowClass}>{row.label}</span>
-                              </td>
-                              <td className="text-end">
-                                <span className={`${rowClass} font-weight-bold`}>
-                                  {fmt(row.cur)}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="card-body pt-3">
+                  <AccountLinesStatement
+                    rows={tableRows}
+                    expanded={expanded}
+                    onToggleSection={toggleSection}
+                    fmt={fmt}
+                  />
 
                   <div className="row mt-4">
                     <div className="col-lg-7 mb-4 mb-lg-0">
