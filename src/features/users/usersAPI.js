@@ -145,6 +145,7 @@ export async function fetchUsersListRequest(params = {}) {
   const skip = params.skip ?? 0;
   query.set('limit', String(limit));
   query.set('skip', String(skip));
+  if (params.role) query.set('role', String(params.role));
 
   const url = `${BASE_URL}${USER_LIST_PATH}?${query.toString()}`;
 

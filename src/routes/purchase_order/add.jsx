@@ -236,7 +236,7 @@ const PurchaseOrderAdd = () => {
     setUsersStatus('loading');
     setUsersError(null);
     try {
-      const list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
+      const list = await fetchUsersListRequest({ limit: 2000, skip: 0, role: 'VENDOR' });
       const arr = Array.isArray(list) ? list : [];
       setUsers(arr);
       setUsersStatus('succeeded');

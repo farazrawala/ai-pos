@@ -70,3 +70,4 @@ Alert (will done on dashboard design )
 Tax (will be done with printing)
 Sales return
 Purchase return
+default user role will add customer/vendor both
