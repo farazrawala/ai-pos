@@ -8,8 +8,19 @@ import {
 } from '../../features/incomeStatement/incomeStatementAPI.js';
 import { formatCurrency as formatCurrencyFn } from '../balanceSheet/formatCurrency.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-import './incomeStatementLedger.css';
 import SearchInputIcon from '../SearchInputIcon.jsx';
+import NavIcon from '../NavIcon.jsx';
+import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import '../common/devApiSources.css';
+import {
+  FaBoxesStacked,
+  FaChevronDown,
+  FaChevronRight,
+  FaCoins,
+  FaFileExport,
+  FaMoneyBillWave,
+  FaChartLine,
+} from 'react-icons/fa6';
 
 const MONTH_NAMES = [
   'January',
@@ -93,18 +104,48 @@ function pctChange(curr, prior, { invert = false } = {}) {
   return { text, kind: economicallyPositive ? 'pos' : 'neg' };
 }
 
-function initials(name) {
-  const s = String(name || '').trim();
-  if (!s) return '?';
-  const parts = s.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return s.slice(0, 2).toUpperCase();
+function deltaTextClass(kind) {
+  if (kind === 'pos') return 'text-success';
+  if (kind === 'neg') return 'text-danger';
+  return 'text-muted';
 }
 
 function priorAmountForLabel(lines, label) {
   if (!Array.isArray(lines)) return 0;
   const row = lines.find((r) => String(r?.label || '').trim() === String(label || '').trim());
   return Number(row?.amount) || 0;
+}
+
+function SummaryStatCard({ title, value, delta, deltaKind, gradient, icon }) {
+  return (
+    <div className="col-lg-3 col-md-6 col-12">
+      <div className="card mb-3">
+        <div className="card-body p-3">
+          <div className="row">
+            <div className="col-8">
+              <div className="numbers">
+                <p className="text-sm mb-0 text-uppercase font-weight-bold">{title}</p>
+                <h5 className="font-weight-bolder mb-0">{value}</h5>
+                <p className="mb-0 mt-1">
+                  <span className={`text-sm font-weight-bolder ${deltaTextClass(deltaKind)}`}>
+                    {delta}
+                  </span>
+                  <span className="text-muted text-sm"> vs prior period</span>
+                </p>
+              </div>
+            </div>
+            <div className="col-4 text-end">
+              <div
+                className={`icon icon-shape bg-gradient-${gradient} shadow text-center rounded-circle d-inline-flex align-items-center justify-content-center`}
+              >
+                <NavIcon icon={icon} className="text-white opacity-10" size={22} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MonthlyBarsSvg({ labels, revenue, expenses }) {
@@ -141,7 +182,7 @@ function MonthlyBarsSvg({ labels, revenue, expenses }) {
             x2={chartW - pad.r}
             y1={tk.y}
             y2={tk.y}
-            stroke="#334155"
+            stroke="#e9ecef"
             strokeWidth="1"
           />
           <text x={4} y={tk.y + 4} fill="#8392ab" fontSize="10">
@@ -161,7 +202,7 @@ function MonthlyBarsSvg({ labels, revenue, expenses }) {
           <g key={lab}>
             <rect x={xR} y={yR} width={barW} height={hR} fill={revenueFill} rx={2} />
             <rect x={xE} y={yE} width={barW} height={hE} fill={expenseFill} rx={2} />
-            <text x={gx + groupW / 2} y={h - 6} fill="#94a3b8" fontSize="10" textAnchor="middle">
+            <text x={gx + groupW / 2} y={h - 6} fill="#67748e" fontSize="10" textAnchor="middle">
               {lab}
             </text>
           </g>
@@ -169,11 +210,11 @@ function MonthlyBarsSvg({ labels, revenue, expenses }) {
       })}
       <g transform={`translate(${chartW - 120}, ${pad.t})`}>
         <rect x={0} y={0} width={10} height={10} fill={revenueFill} rx={2} />
-        <text x={14} y={9} fill="#f8fafc" fontSize="10">
+        <text x={14} y={9} fill="#344767" fontSize="10">
           Revenue
         </text>
         <rect x={0} y={16} width={10} height={10} fill={expenseFill} rx={2} />
-        <text x={14} y={25} fill="#f8fafc" fontSize="10">
+        <text x={14} y={25} fill="#344767" fontSize="10">
           Expenses
         </text>
       </g>
@@ -203,7 +244,7 @@ function OpExDonut({ items, colors }) {
           borderRadius: '50%',
           background: gradient,
           flexShrink: 0,
-          boxShadow: 'inset 0 0 0 28px #273548',
+          boxShadow: 'inset 0 0 0 28px #fff',
         }}
         aria-hidden
       />
@@ -252,7 +293,6 @@ export default function IncomeStatementView() {
   const navigate = useNavigate();
   const { canView } = usePermissions('accounts');
   const { status, error, report, demo } = useSelector((state) => state.incomeStatement);
-  const userName = useSelector((state) => state.user?.name || state.user?.user?.name || 'User');
 
   const fmt = useCallback((n) => formatCurrencyFn(n, 'USD'), []);
 
@@ -525,286 +565,328 @@ export default function IncomeStatementView() {
     [priorReady, totals.netIncome, priorTotals.netIncome]
   );
 
+  const apiSources = useMemo(
+    () => [
+      { label: 'Income statement', url: 'GET /api/reports/income-statement?startDate=&endDate=' },
+      { label: 'Sales', url: 'GET /api/order/sales' },
+      { label: 'COGS', url: 'GET /api/order_item/cost-of-goods-sold-by-order-item' },
+      {
+        label: 'Operating expenses',
+        url: 'GET /api/account/fetch-account-by-type?account_type=operating_expense',
+      },
+    ],
+    []
+  );
+
   return (
-    <div className="is-ledger">
-      {/* <header className="is-ledger-topbar">
-        <div className="is-ledger-brand">
-          Ledger <span>Technology</span>
-        </div>
-        <div className="is-ledger-topbar-actions">
-          <button type="button" className="is-ledger-icon-btn" aria-label="Notifications">
-            <i className="fas fa-bell" />
-          </button>
-          <div className="is-ledger-user">
-            <div className="is-ledger-avatar" aria-hidden>
-              {initials(userName)}
-            </div>
-            <span className="is-ledger-user-name">{userName}</span>
-          </div>
-        </div>
-      </header> */}
-
-      <div className="is-ledger-main">
-        <div className="is-ledger-panel">
-          <div className="is-ledger-head">
-            <div>
-              <h1 className="is-ledger-title">
-                <span className="accent">Income Statement</span>
-                <span className="text-muted fw-normal"> | </span>
-                {rangeLabel}
-                {demo ? <span className="is-ledger-demo-pill">Demo data</span> : null}
-              </h1>
-              <p className="is-ledger-subtitle">
-                Revenue, COGS, operating expenses, and net income for the selected period.
-              </p>
-            </div>
-            <div className="d-flex flex-column align-items-stretch align-items-md-end gap-2">
-              <label className="small text-muted mb-0" htmlFor="is-ledger-quarter">
-                Year / quarter
-              </label>
-              <select
-                id="is-ledger-quarter"
-                className="is-ledger-select"
-                aria-label="Quick quarter preset"
-                defaultValue=""
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v) applyQuarterPreset(parseInt(v, 10));
-                  e.target.value = '';
-                }}
-              >
-                <option value="">Presets…</option>
-                <option value="1">Q1 (Jan–Mar)</option>
-                <option value="2">Q2 (Apr–Jun)</option>
-                <option value="3">Q3 (Jul–Sep)</option>
-                <option value="4">Q4 (Oct–Dec)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="is-ledger-period-row">
-            <div className="is-ledger-period-group">
-              <label>From</label>
-              <div className="d-flex gap-2">
-                <select
-                  className="is-ledger-select"
-                  value={String(fromMonth)}
-                  onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
-                  aria-label="From month"
-                >
-                  {MONTH_NAMES.map((name, idx) => (
-                    <option key={name} value={String(idx + 1)}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="is-ledger-select"
-                  value={String(fromYear)}
-                  onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
-                  aria-label="From year"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="is-ledger-period-group">
-              <label>To</label>
-              <div className="d-flex gap-2">
-                <select
-                  className="is-ledger-select"
-                  value={String(toMonth)}
-                  onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
-                  aria-label="To month"
-                >
-                  {MONTH_NAMES.map((name, idx) => (
-                    <option key={name} value={String(idx + 1)}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="is-ledger-select"
-                  value={String(toYear)}
-                  onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
-                  aria-label="To year"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {priorStatus === 'loading' ? (
-              <span className="small text-muted align-self-center ms-md-auto">
-                Loading prior period…
-              </span>
-            ) : null}
-          </div>
-
-          {loading ? (
-            <div className="is-ledger-body text-center py-5">
-              <div className="spinner-border is-ledger-spinner" role="status">
-                <span className="visually-hidden">Loading…</span>
-              </div>
-              <p className="small text-muted mt-3 mb-0">Loading statement…</p>
-            </div>
-          ) : null}
-
-          {!loading && error ? (
-            <div className="is-ledger-body">
-              <div className="alert alert-danger mb-0" role="alert">
-                {error}
-              </div>
-            </div>
-          ) : null}
-
-          {showData ? (
-            <>
-              <div className="is-ledger-cards">
-                <div className="is-ledger-card">
-                  <p className="is-ledger-card-title">Gross revenue</p>
-                  <p className="is-ledger-card-value">
-                    {formatCompactMillions(totals.totalRevenue)}
+    <div className="container-fluid py-3">
+      <div className="row">
+        <div className="col-12">
+          <div className="card mb-3">
+            <div className="card-header pb-3 pt-3">
+              <div className="row align-items-lg-end w-100 g-3">
+                <div className="col-lg-8">
+                  <h5 className="mb-1">Income Statement</h5>
+                  <p className="text-sm text-muted mb-1 d-flex flex-wrap align-items-center gap-2">
+                    <span>{rangeLabel}</span>
+                    {demo ? (
+                      <span className="badge bg-gradient-warning mb-0">Demo data</span>
+                    ) : null}
                   </p>
-                  <p className={`is-ledger-card-delta ${revDelta.kind}`}>{revDelta.text}</p>
-                </div>
-                <div className="is-ledger-card">
-                  <p className="is-ledger-card-title">Cost of goods sold</p>
-                  <p className="is-ledger-card-value">{formatCompactMillions(totals.totalCOGS)}</p>
-                  <p className={`is-ledger-card-delta ${cogsDelta.kind}`}>{cogsDelta.text}</p>
-                </div>
-                <div className="is-ledger-card">
-                  <p className="is-ledger-card-title">Operating expenses</p>
-                  <p className="is-ledger-card-value">
-                    {formatCompactMillions(totals.totalOperatingExpenses)}
+                  <p className="text-sm text-muted mb-0">
+                    Revenue, COGS, operating expenses, and net income for the selected period.
                   </p>
-                  <p className={`is-ledger-card-delta ${opexDelta.kind}`}>{opexDelta.text}</p>
                 </div>
-                <div className="is-ledger-card">
-                  <p className="is-ledger-card-title">Net income</p>
-                  <p className="is-ledger-card-value">{formatCompactMillions(totals.netIncome)}</p>
-                  <p className={`is-ledger-card-delta ${niDelta.kind}`}>{niDelta.text}</p>
-                </div>
-              </div>
-
-              <div className="is-ledger-body">
-                <div className="is-ledger-toolbar">
-                  <div className="is-ledger-search">
-                    <SearchInputIcon />
-                    <input
-                      type="search"
-                      placeholder="Filter accounts…"
-                      value={tableFilter}
-                      onChange={(e) => setTableFilter(e.target.value)}
-                      aria-label="Filter table"
-                    />
+                <div className="col-lg-4">
+                  <div className="d-flex flex-column align-items-stretch align-items-lg-end mt-2 mt-lg-0">
+                    <label
+                      className="form-label text-xs text-uppercase text-muted mb-2"
+                      htmlFor="is-quarter-preset"
+                    >
+                      Year / quarter
+                    </label>
+                    <select
+                      id="is-quarter-preset"
+                      className="form-select form-select-sm ms-lg-auto"
+                      style={{ maxWidth: '220px', width: '100%' }}
+                      aria-label="Quick quarter preset"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v) applyQuarterPreset(parseInt(v, 10));
+                        e.target.value = '';
+                      }}
+                    >
+                      <option value="">Presets…</option>
+                      <option value="1">Q1 (Jan–Mar)</option>
+                      <option value="2">Q2 (Apr–Jun)</option>
+                      <option value="3">Q3 (Jul–Sep)</option>
+                      <option value="4">Q4 (Oct–Dec)</option>
+                    </select>
                   </div>
-                  <button
-                    type="button"
-                    className="is-ledger-icon-btn"
-                    aria-label="Sort"
-                    title="Sort"
-                  >
-                    <i className="fas fa-sort" />
-                  </button>
-                  <button
-                    type="button"
-                    className="is-ledger-icon-btn"
-                    aria-label="Export CSV"
-                    title="Export"
-                    onClick={exportCsv}
-                  >
-                    <i className="fas fa-file-export" />
-                  </button>
                 </div>
+              </div>
+            </div>
+            <div className="card-body border-top pt-2 pb-4">
+              <div className="row g-4 align-items-end">
+                <div className="col-md-4 col-lg-3">
+                  <label className="form-label text-xs text-uppercase text-muted mb-2">From</label>
+                  <div className="d-flex gap-2">
+                    <select
+                      className="form-select form-select-sm"
+                      value={String(fromMonth)}
+                      onChange={(e) => setFrom(fromYear, parseInt(e.target.value, 10))}
+                      aria-label="From month"
+                    >
+                      {MONTH_NAMES.map((name, idx) => (
+                        <option key={name} value={String(idx + 1)}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="form-select form-select-sm"
+                      value={String(fromYear)}
+                      onChange={(e) => setFrom(parseInt(e.target.value, 10), fromMonth)}
+                      aria-label="From year"
+                    >
+                      {yearOptions.map((y) => (
+                        <option key={y} value={String(y)}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="col-md-4 col-lg-3">
+                  <label className="form-label text-xs text-uppercase text-muted mb-2">To</label>
+                  <div className="d-flex gap-2">
+                    <select
+                      className="form-select form-select-sm"
+                      value={String(toMonth)}
+                      onChange={(e) => setTo(toYear, parseInt(e.target.value, 10))}
+                      aria-label="To month"
+                    >
+                      {MONTH_NAMES.map((name, idx) => (
+                        <option key={name} value={String(idx + 1)}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="form-select form-select-sm"
+                      value={String(toYear)}
+                      onChange={(e) => setTo(parseInt(e.target.value, 10), toMonth)}
+                      aria-label="To year"
+                    >
+                      {yearOptions.map((y) => (
+                        <option key={y} value={String(y)}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {priorStatus === 'loading' ? (
+                  <div className="col-md-4 col-lg-6">
+                    <span className="text-sm text-muted">Loading prior period…</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-                <div className="is-ledger-table-wrap">
-                  <table className="is-ledger-table">
-                    <thead>
-                      <tr>
-                        <th>Account description</th>
-                        <th className="num">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tableRows.map((row, idx) => {
-                        if (row.type === 'group') {
-                          const open = expanded.has(row.id);
+      {loading ? (
+        <div className="row">
+          <div className="col-12 text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading…</span>
+            </div>
+            <p className="text-sm text-muted mt-3 mb-0">Loading statement…</p>
+          </div>
+        </div>
+      ) : null}
+
+      {!loading && error ? (
+        <div className="row">
+          <div className="col-12">
+            <div className="alert alert-danger" role="alert">
+              {error}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showData ? (
+        <>
+          <div className="row">
+            <SummaryStatCard
+              title="Gross revenue"
+              value={formatCompactMillions(totals.totalRevenue)}
+              delta={revDelta.text}
+              deltaKind={revDelta.kind}
+              gradient="primary"
+              icon={FaCoins}
+            />
+            <SummaryStatCard
+              title="Cost of goods sold"
+              value={formatCompactMillions(totals.totalCOGS)}
+              delta={cogsDelta.text}
+              deltaKind={cogsDelta.kind}
+              gradient="warning"
+              icon={FaBoxesStacked}
+            />
+            <SummaryStatCard
+              title="Operating expenses"
+              value={formatCompactMillions(totals.totalOperatingExpenses)}
+              delta={opexDelta.text}
+              deltaKind={opexDelta.kind}
+              gradient="danger"
+              icon={FaMoneyBillWave}
+            />
+            <SummaryStatCard
+              title="Net income"
+              value={formatCompactMillions(totals.netIncome)}
+              delta={niDelta.text}
+              deltaKind={niDelta.kind}
+              gradient="success"
+              icon={FaChartLine}
+            />
+          </div>
+
+          <div className="row">
+            <div className="col-12">
+              <div className="card">
+                <div className="card-header pb-0">
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <h6 className="mb-0">Account lines</h6>
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
+                        <span className="input-group-text text-body">
+                          <SearchInputIcon />
+                        </span>
+                        <input
+                          type="search"
+                          className="form-control"
+                          placeholder="Filter accounts…"
+                          value={tableFilter}
+                          onChange={(e) => setTableFilter(e.target.value)}
+                          aria-label="Filter table"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary mb-0"
+                        aria-label="Export CSV"
+                        title="Export CSV"
+                        onClick={exportCsv}
+                      >
+                        <NavIcon icon={FaFileExport} className="me-1" size={14} />
+                        Export
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="card-body pt-0">
+                  <div className="table-responsive">
+                    <table className="table table-flush align-items-center mb-0">
+                      <thead className="thead-light">
+                        <tr>
+                          <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                            Account description
+                          </th>
+                          <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end">
+                            Amount
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tableRows.map((row, idx) => {
+                          if (row.type === 'group') {
+                            const open = expanded.has(row.id);
+                            return (
+                              <tr key={row.id} className="table-active">
+                                <td colSpan={2} className="text-sm font-weight-bold">
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    className="d-inline-flex align-items-center me-2 text-secondary"
+                                    onClick={() => toggleSection(row.id)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        toggleSection(row.id);
+                                      }
+                                    }}
+                                    aria-expanded={open}
+                                  >
+                                    <NavIcon
+                                      icon={open ? FaChevronDown : FaChevronRight}
+                                      size={12}
+                                    />
+                                  </span>
+                                  {row.title}
+                                </td>
+                              </tr>
+                            );
+                          }
+                          const rowClass = row.type === 'subtotal' ? 'fw-bold' : 'text-sm';
                           return (
-                            <tr key={row.id} className="is-ledger-row-group">
-                              <td colSpan={2}>
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  className="is-ledger-chevron"
-                                  onClick={() => toggleSection(row.id)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      toggleSection(row.id);
-                                    }
-                                  }}
-                                  aria-expanded={open}
-                                >
-                                  <i className={`fas fa-chevron-${open ? 'down' : 'right'}`} />
+                            <tr key={`${row.type}-${row.label}-${idx}`}>
+                              <td className={row.type === 'leaf' ? 'ps-4' : ''}>
+                                <span className={rowClass}>{row.label}</span>
+                              </td>
+                              <td className="text-end">
+                                <span className={`${rowClass} font-weight-bold`}>
+                                  {fmt(row.cur)}
                                 </span>
-                                {row.title}
                               </td>
                             </tr>
                           );
-                        }
-                        const trClass =
-                          row.type === 'subtotal' ? 'is-ledger-row-sub' : 'is-ledger-row-leaf';
-                        return (
-                          <tr key={`${row.type}-${row.label}-${idx}`} className={trClass}>
-                            <td>{row.label}</td>
-                            <td className="num">{fmt(row.cur)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="is-ledger-charts">
-                  <div className="is-ledger-chart-card">
-                    <h3 className="is-ledger-chart-title">Monthly revenue vs. expenses</h3>
-                    <p className="small text-muted mb-2" style={{ fontSize: '0.7rem' }}>
-                      Illustrative split by month from current-period totals (no monthly API).
-                    </p>
-                    <MonthlyBarsSvg
-                      labels={monthlyBars.labels}
-                      revenue={monthlyBars.revenue}
-                      expenses={monthlyBars.expenses}
-                    />
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="is-ledger-chart-card">
-                    <h3 className="is-ledger-chart-title">Operating expense breakdown</h3>
-                    <OpExDonut items={report.operatingExpenses} colors={donutColors} />
-                  </div>
-                </div>
 
-                <p className="is-ledger-api-note mb-0">
-                  <code>GET /api/reports/income-statement?startDate=&amp;endDate=</code>
-                  {' · '}
-                  <code>GET /api/order/sales</code>
-                  {' · '}
-                  <code>GET /api/order_item/cost-of-goods-sold-by-order-item</code>
-                  {' · '}
-                  <code>GET /api/account/fetch-account-by-type?account_type=operating_expense</code>
-                </p>
+                  <div className="row mt-4">
+                    <div className="col-lg-7 mb-4 mb-lg-0">
+                      <div className="card h-100 shadow-sm border-0 bg-gray-100">
+                        <div className="card-header pb-0 bg-transparent">
+                          <h6 className="mb-0">Monthly revenue vs. expenses</h6>
+                          <p className="text-sm text-muted mb-0">
+                            Illustrative split by month from current-period totals (no monthly API).
+                          </p>
+                        </div>
+                        <div className="card-body pt-2">
+                          <MonthlyBarsSvg
+                            labels={monthlyBars.labels}
+                            revenue={monthlyBars.revenue}
+                            expenses={monthlyBars.expenses}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-lg-5">
+                      <div className="card h-100 shadow-sm border-0 bg-gray-100">
+                        <div className="card-header pb-0 bg-transparent">
+                          <h6 className="mb-0">Operating expense breakdown</h6>
+                        </div>
+                        <div className="card-body pt-2">
+                          <OpExDonut items={report.operatingExpenses} colors={donutColors} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <DevApiSourcesFooter sources={apiSources} className="mt-3" />
+                </div>
               </div>
-            </>
-          ) : null}
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
