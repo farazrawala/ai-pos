@@ -301,13 +301,21 @@ const Orders = () => {
                           Created At
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last Updated At
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="12" className="text-center text-sm font-weight-normal p-4">
                             No orders found
                           </td>
                         </tr>
@@ -360,6 +368,20 @@ const Orders = () => {
                               <td className="text-sm font-weight-normal">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
+                              </td>
+                              <td
+                                className="text-sm font-weight-normal text-muted"
+                                title={
+                                  item.updatedAt || item.updated_at
+                                    ? moment(item.updatedAt || item.updated_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">

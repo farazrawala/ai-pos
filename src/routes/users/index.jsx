@@ -204,6 +204,7 @@ const Users = () => {
                         <th className="col-permissions">Permissions</th>
                         {sortableTh('status', 'Status')}
                         {sortableTh('createdAt', 'Created')}
+                        {sortableTh('updatedAt', 'Last Updated At')}
                         <th className="text-center" style={{ width: '88px' }}>
                           Action
                         </th>
@@ -212,7 +213,7 @@ const Users = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="text-center py-5 text-muted">
+                          <td colSpan={10} className="text-center py-5 text-muted">
                             No users found
                           </td>
                         </tr>
@@ -249,6 +250,20 @@ const Users = () => {
                               <td className="text-sm text-muted">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '—'}
+                              </td>
+                              <td
+                                className="text-sm text-muted"
+                                title={
+                                  item.updatedAt || item.updated_at
+                                    ? moment(item.updatedAt || item.updated_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '—'}
                               </td>
                               <td className="text-center">

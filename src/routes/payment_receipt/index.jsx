@@ -218,13 +218,21 @@ const PaymentReceiptsList = () => {
                           Created
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last Updated At
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th className="text-end">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
                             No payment receipts found
                           </td>
                         </tr>
@@ -261,6 +269,20 @@ const PaymentReceiptsList = () => {
                               <td className="text-sm font-weight-normal">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
+                                  : '—'}
+                              </td>
+                              <td
+                                className="text-sm font-weight-normal"
+                                title={
+                                  item.updatedAt || item.updated_at
+                                    ? moment(item.updatedAt || item.updated_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '—'}
                               </td>
                               <td className="text-sm font-weight-normal text-end">

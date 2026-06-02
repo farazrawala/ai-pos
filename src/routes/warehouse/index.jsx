@@ -190,13 +190,21 @@ const Warehouse = () => {
                           Created At
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last Updated At
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="12" className="text-center text-sm font-weight-normal p-4">
                             No warehouses found
                           </td>
                         </tr>
@@ -228,6 +236,15 @@ const Warehouse = () => {
                               <td>
                                 {item.createdAt
                                   ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
+                              </td>
+                              <td title={
+                                item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).format('MM-DD-YYYY h:mm a')
+                                  : undefined
+                              }>
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '-'}
                               </td>
                               <td>

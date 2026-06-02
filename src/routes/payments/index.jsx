@@ -6,7 +6,11 @@ import { toast } from '../../utils/toast.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
-import { savePaymentReceiptRequest } from '../../features/paymentReceipts/paymentReceiptsAPI.js';
+import {
+  fetchPaymentReceiptsRequest,
+  savePaymentReceiptRequest,
+} from '../../features/paymentReceipts/paymentReceiptsAPI.js';
+import { formatTransactionCreatedByLabel } from '../../components/ledger/ledgerTransactionMapper.js';
 
 const todayISO = moment().format('YYYY-MM-DD');
 
@@ -32,6 +36,32 @@ function formatPKR(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return '0.00';
   return x.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function receiptUserLabel(item) {
+  const u = item?.user ?? item?.user_id;
+  if (u && typeof u === 'object') return u.name || u.fullName || '—';
+  return formatTransactionCreatedByLabel(u) || '—';
+}
+
+function receiptPaymentModeLabel(item) {
+  const pm = item?.payment_mode;
+  if (pm && typeof pm === 'object') return pm.name || '—';
+  return formatTransactionCreatedByLabel(pm) || String(pm || '—');
+}
+
+function mapReceiptToRecentRow(item) {
+  const id = item?._id ?? item?.id;
+  return {
+    id: String(id || `p_${Date.now()}`),
+    userName: receiptUserLabel(item),
+    paymentType: String(item?.payment_type || '—'),
+    paymentMode: receiptPaymentModeLabel(item),
+    amount: Number(item?.amount ?? 0),
+    date: String(item?.date || item?.createdAt || '').slice(0, 10),
+    status: String(item?.status || 'posted').toLowerCase(),
+    updatedAt: item?.updatedAt || item?.updated_at || item?.createdAt || null,
+  };
 }
 
 function CurrencyPrefixInput({ value, onChange, disabled }) {
@@ -71,6 +101,35 @@ export default function PaymentManagementPage() {
   const [assetAccounts, setAssetAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [recentPayments, setRecentPayments] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setRecentLoading(true);
+      try {
+        const result = await fetchPaymentReceiptsRequest({
+          page: 1,
+          limit: 10,
+          sortBy: 'updatedAt',
+          sortOrder: 'desc',
+        });
+        if (cancelled) return;
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        setRecentPayments(rows.map(mapReceiptToRecentRow));
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[PaymentManagement] Failed to load recent payments', e);
+          setRecentPayments([]);
+        }
+      } finally {
+        if (!cancelled) setRecentLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,17 +302,20 @@ export default function PaymentManagementPage() {
             : {};
         const createdId = created?._id ?? created?.id;
 
-        const newRow = {
-          id: String(createdId || `p_${Date.now()}`),
-          userName: user?.name || user?.fullName || '—',
-          paymentType: String(created.payment_type || form.paymentType || '—'),
-          paymentMode: payAcc?.name || form.paymentMode || '—',
-          amount: Number(created.amount ?? amountNum),
-          date: String(created.date || form.paymentDate || todayISO).slice(0, 10),
-          status: String(created.status || 'posted').toLowerCase(),
-        };
+        const newRow = mapReceiptToRecentRow({
+          ...created,
+          _id: createdId,
+          payment_type: created.payment_type || form.paymentType,
+          payment_mode: payAcc || created.payment_mode,
+          user_id: user || created.user_id,
+          amount: created.amount ?? amountNum,
+          date: created.date || form.paymentDate,
+        });
 
-        setRecentPayments((prev) => [newRow, ...prev]);
+        setRecentPayments((prev) => {
+          const withoutDup = prev.filter((row) => row.id !== newRow.id);
+          return [newRow, ...withoutDup];
+        });
         toast.success('Payment saved successfully.', { delay: 2500 });
         handleCancel();
       } catch (err) {
@@ -531,7 +593,7 @@ export default function PaymentManagementPage() {
             <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
                 <h6 className="mb-0">Recent transactions</h6>
-                <p className="text-xs text-muted mb-0">Latest payments saved from this session</p>
+                <p className="text-xs text-muted mb-0">Latest payment receipts from the server</p>
               </div>
             </div>
           </div>
@@ -545,13 +607,20 @@ export default function PaymentManagementPage() {
                     <th>Payment Mode</th>
                     <th className="text-end">Amount</th>
                     <th>Date</th>
+                    <th>Last Updated At</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentPayments.length === 0 ? (
+                  {recentLoading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-4 text-muted">
+                      <td colSpan={7} className="text-center py-4 text-muted">
+                        <p className="mb-0 text-sm">Loading recent payments…</p>
+                      </td>
+                    </tr>
+                  ) : recentPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-4 text-muted">
                         <p className="mb-0 text-sm">No payments recorded yet.</p>
                       </td>
                     </tr>
@@ -565,6 +634,16 @@ export default function PaymentManagementPage() {
                           {formatPKR(r.amount ?? 0)}
                         </td>
                         <td className="text-sm text-muted">{r.date}</td>
+                        <td
+                          className="text-sm text-muted"
+                          title={
+                            r.updatedAt
+                              ? moment(r.updatedAt).format('MM-DD-YYYY h:mm a')
+                              : undefined
+                          }
+                        >
+                          {r.updatedAt ? moment(r.updatedAt).fromNow() : '—'}
+                        </td>
                         <td>
                           <span
                             className={`badge text-xs ${

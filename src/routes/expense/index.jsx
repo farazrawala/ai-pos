@@ -157,7 +157,7 @@ const ExpenseIndex = () => {
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
 
-  const colCount = 11;
+  const colCount = 12;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -248,6 +248,14 @@ const ExpenseIndex = () => {
                           Created
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last Updated At
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -308,6 +316,20 @@ const ExpenseIndex = () => {
                               <td className="text-sm text-muted text-nowrap">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
+                                  : '—'}
+                              </td>
+                              <td
+                                className="text-sm text-muted text-nowrap"
+                                title={
+                                  item.updatedAt || item.updated_at
+                                    ? moment(item.updatedAt || item.updated_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '—'}
                               </td>
                               <td className="text-sm font-weight-normal">
