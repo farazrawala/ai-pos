@@ -60,7 +60,7 @@ fixed assets  (done)
 6.2.26
 User update with roles
 Add vendor, popup:: in purchase order
-
+cash transfer add withdraw account.
 
 // Remaining
 User navigation acc to roles.
@@ -70,4 +70,3 @@ Alert (will done on dashboard design )
 Tax (will be done with printing)
 Sales return
 Purchase return
-cash transfer add withdraw account.
