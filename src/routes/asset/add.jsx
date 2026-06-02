@@ -8,6 +8,7 @@ import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 
 const PAYMENT_TYPE_ACCOUNT_TYPE = 'current_asset';
 
@@ -238,9 +239,11 @@ const AssetAdd = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add asset</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /assets/save</code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Saves via <code className="text-xs">POST /assets/save</code>
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"

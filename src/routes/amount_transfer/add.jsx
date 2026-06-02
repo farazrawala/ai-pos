@@ -5,6 +5,7 @@ import { createAmountTransfer } from '../../features/amountTransfers/amountTrans
 import { buildAmountTransferAccountFilterParams } from '../../features/amountTransfers/amountTransfersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { toast } from '../../utils/toast.js';
+import { DEBUG } from '../../config/env.js';
 
 const accountOptionValue = (a) => a?._id ?? a?.id ?? '';
 const accountOptionLabel = (a) => {
@@ -132,9 +133,11 @@ const AmountTransferAdd = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add amount transfer</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /amount_transfer/save</code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Saves via <code className="text-xs">POST /amount_transfer/save</code>
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"

@@ -5,6 +5,7 @@ import { createAdjustment } from '../../features/adjustments/adjustmentsSlice.js
 import { ADJUSTMENT_TYPE_OPTIONS } from '../../features/adjustments/adjustmentsAPI.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import { toast } from '../../utils/toast.js';
+import { DEBUG } from '../../config/env.js';
 
 const getProductLabel = (p) =>
   p?.product_name || p?.name || p?.sku || p?.product_code || 'Product';
@@ -136,9 +137,11 @@ const AdjustmentAdd = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add adjustment</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /adjustment/save</code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Saves via <code className="text-xs">POST /adjustment/save</code>
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"

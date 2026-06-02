@@ -10,6 +10,7 @@ import {
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
@@ -315,10 +316,12 @@ const ExpenseAdd = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add expense</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Saves via <code className="text-xs">POST /expense/save</code> (multipart when
-                    attachment is added)
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Saves via <code className="text-xs">POST /expense/save</code> (multipart when
+                      attachment is added)
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -428,7 +431,9 @@ const ExpenseAdd = () => {
                     </code>
                   </small>
                   {expenseAccountsStatus === 'failed' && (
-                    <small className="text-danger d-block mt-1">Could not load expense accounts.</small>
+                    <small className="text-danger d-block mt-1">
+                      Could not load expense accounts.
+                    </small>
                   )}
                 </div>
 
@@ -486,9 +491,10 @@ const ExpenseAdd = () => {
                         {paymentAccountFilterUrl}
                       </code>
                       <span className="d-block">
-                        Uses <code className="text-xs">default_account_payable_account</code> (include)
-                        and <code className="text-xs">default_account_receivable_account</code> (exclude)
-                        from company settings.
+                        Uses <code className="text-xs">default_account_payable_account</code>{' '}
+                        (include) and{' '}
+                        <code className="text-xs">default_account_receivable_account</code>{' '}
+                        (exclude) from company settings.
                       </span>
                     </small>
                   )}
@@ -512,9 +518,7 @@ const ExpenseAdd = () => {
                     onChange={handleImageChange}
                     disabled={isSubmitting}
                   />
-                  {errors.image && (
-                    <div className="invalid-feedback d-block">{errors.image}</div>
-                  )}
+                  {errors.image && <div className="invalid-feedback d-block">{errors.image}</div>}
                   <small className="text-muted d-block">
                     Optional. Uploaded as field <code className="text-xs">image</code> on{' '}
                     <code className="text-xs">POST /expense/save</code>.
