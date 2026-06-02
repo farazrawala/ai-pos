@@ -17,6 +17,7 @@ import {
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const getOrderStatusDisplay = (row) => {
   if (!row || typeof row !== 'object') return '';
@@ -175,11 +176,13 @@ const Orders = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Orders</h5>
-                  <p className="text-sm mb-0">
-                    List and edit both use <code>order/get-order-by-order-item</code> (list:
-                    pagination query only; edit: same API with the first line item id). Invoice:{' '}
-                    <code>/pos/invoice/:order_no</code> when available.
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">
+                      List and edit both use <code>order/get-order-by-order-item</code> (list:
+                      pagination query only; edit: same API with the first line item id). Invoice:{' '}
+                      <code>/pos/invoice/:order_no</code> when available.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">

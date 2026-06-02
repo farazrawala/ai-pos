@@ -22,6 +22,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -147,12 +148,14 @@ const StockListing = () => {
                       </button>
                     ) : null}
                   </div>
-                  <p className="text-sm mb-0 text-muted">
-                    <code className="small">
-                      GET
-                      /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
-                    </code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      <code className="small">
+                        GET
+                        /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
+                      </code>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2">

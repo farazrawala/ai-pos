@@ -19,6 +19,7 @@ import {
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const Transactions = () => {
   const dispatch = useDispatch();
@@ -194,10 +195,12 @@ const Transactions = () => {
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
                   <h5 className="mb-0">Transactions</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Double-entry journals (grouped lines). API:{' '}
-                    <code className="small">GET /transaction/get-all-active?populate=account_id</code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Double-entry journals (grouped lines). API:{' '}
+                      <code className="small">GET /transaction/get-all-active?populate=account_id</code>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
