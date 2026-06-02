@@ -71,15 +71,7 @@ const Header = () => {
           <NavIcon icon={FaBars} size={20} className="text-white" />
         </button>
         <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
-          <div className="ms-md-auto pe-md-3 d-flex align-items-center">
-            <div className="input-group">
-              <span className="input-group-text text-body">
-                <NavIcon icon={FaMagnifyingGlass} size={14} />
-              </span>
-              <input type="text" className="form-control" placeholder="Type here..." />
-            </div>
-          </div>
-          <ul className="navbar-nav justify-content-end">
+          <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (
               <li className="nav-item dropdown pe-2 d-flex align-items-center">
                 <a
