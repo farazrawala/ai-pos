@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -28,9 +29,7 @@ const USER_CREATE_PATH = 'user/create';
 const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
 
-/** Must match user add/edit forms (`MODULES` / `ACTIONS`). */
-const PERMISSION_MODULES = ['category', 'integration', 'order', 'process', 'proces'];
-const PERMISSION_ACTIONS = ['view', 'add', 'edit', 'delete'];
+/** Must match user add/edit forms (`PERMISSION_MODULE_KEYS` / `PERMISSION_ACTIONS`). */
 
 function clonePlainJson(obj) {
   try {
@@ -46,7 +45,7 @@ function clonePlainJson(obj) {
 export function normalizePermissionsForApi(raw) {
   const input = raw && typeof raw === 'object' ? raw : {};
   const out = {};
-  for (const m of PERMISSION_MODULES) {
+  for (const m of PERMISSION_MODULE_KEYS) {
     out[m] = {};
     for (const a of PERMISSION_ACTIONS) {
       const v = input[m]?.[a];
@@ -313,6 +312,9 @@ export async function updateUserRequest(userId, payload = {}) {
   };
   if (payload.password != null && String(payload.password).trim()) {
     body.password = String(payload.password);
+  }
+  if (payload.phone != null && String(payload.phone).trim() !== '') {
+    body.phone = String(payload.phone).trim();
   }
 
   const url = `${BASE_URL}${USER_UPDATE_PATH}/${userId}`;

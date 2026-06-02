@@ -117,7 +117,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
-          <Route path="/accounts/payments" element={<PaymentManagementPage />} />
+          <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
           <Route path="/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />
@@ -208,7 +208,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
-          <Route path="/accounts/payments" element={<PaymentManagementPage />} />
+          <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
           <Route path="/payment-receipts/edit/:id" element={<PaymentReceiptEditPage />} />
           <Route path="/accounts/edit/:id" element={<AccountsEdit />} />

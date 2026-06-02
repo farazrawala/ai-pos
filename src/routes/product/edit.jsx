@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Multiselect from 'multiselect-react-dropdown';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -119,6 +120,33 @@ const ProductEdit = () => {
     loadBrands();
   }, []);
 
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: String(cat._id || cat.id),
+        name: cat.name || cat.category_name || 'Category',
+      })),
+    [categories]
+  );
+
+  const selectedCategories = useMemo(
+    () =>
+      categoryOptions.filter((opt) =>
+        (Array.isArray(form.categoryId) ? form.categoryId : []).map(String).includes(opt.id)
+      ),
+    [categoryOptions, form.categoryId]
+  );
+
+  const handleCategoryChange = (selectedList) => {
+    setForm((prev) => ({
+      ...prev,
+      categoryId: selectedList.map((item) => item.id),
+    }));
+    if (errors.categoryId) {
+      setErrors((prev) => ({ ...prev, categoryId: '' }));
+    }
+  };
+
   // Fetch attributes when modal opens
   useEffect(() => {
     if (showVariationsModal) {
@@ -162,6 +190,12 @@ const ProductEdit = () => {
           ? currentProduct.categoryId
           : [currentProduct.categoryId];
       }
+      categoryIds = categoryIds
+        .map((cid) => {
+          if (cid && typeof cid === 'object') return String(cid._id ?? cid.id ?? '');
+          return String(cid ?? '');
+        })
+        .filter(Boolean);
 
       setForm({
         name: currentProduct.name || currentProduct.product_name || '',
@@ -542,20 +576,9 @@ const ProductEdit = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     setForm((prev) => {
-      const updated = { ...prev };
-
-      // Handle multiselect for categories
-      if (name === 'categoryId' && type === 'select-multiple') {
-        const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-        updated.categoryId = selectedOptions;
-      } else if (name === 'categoryId' && type === 'select-one') {
-        // Single select - convert to array
-        updated.categoryId = value ? [value] : [];
-      } else {
-        updated[name] = value;
-      }
+      const updated = { ...prev, [name]: value };
 
       if (name === 'price_before_tax' || name === 'tax_rate') {
         const retail = calcRetailFromRate(
@@ -1053,24 +1076,24 @@ const ProductEdit = () => {
                   <label htmlFor="categoryId" className="form-label">
                     Categories
                   </label>
-                  <select
-                    className={`form-select ${errors.categoryId ? 'is-invalid' : ''}`}
-                    id="categoryId"
-                    name="categoryId"
-                    multiple
-                    value={Array.isArray(form.categoryId) ? form.categoryId : []}
-                    onChange={handleChange}
-                    disabled={isSubmitting || loadingCategories}
-                    size="5"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat._id || cat.id} value={cat._id || cat.id}>
-                        {cat.name || cat.category_name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.categoryId && <div className="invalid-feedback">{errors.categoryId}</div>}
-                  <small className="text-muted">Hold Ctrl/Cmd to select multiple categories</small>
+                  <div className={errors.categoryId ? 'is-invalid' : ''}>
+                    <Multiselect
+                      id="categoryId"
+                      options={categoryOptions}
+                      selectedValues={selectedCategories}
+                      onSelect={handleCategoryChange}
+                      onRemove={handleCategoryChange}
+                      displayValue="name"
+                      placeholder={loadingCategories ? 'Loading categories…' : 'Select categories'}
+                      showCheckbox
+                      emptyRecordMsg="No categories found"
+                      disable={loadingCategories || isSubmitting}
+                      className={errors.categoryId ? 'border border-danger rounded' : ''}
+                    />
+                  </div>
+                  {errors.categoryId && (
+                    <div className="text-danger text-sm mt-1">{errors.categoryId}</div>
+                  )}
                 </div>
 
                 {/* Brand Field */}

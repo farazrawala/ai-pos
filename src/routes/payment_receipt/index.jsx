@@ -153,7 +153,7 @@ const PaymentReceiptsList = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
-                    <Link to="/accounts/payments" className="btn btn-outline-primary btn-sm">
+                    <Link to="/payments" className="btn btn-outline-primary btn-sm">
                       <i className="ni ni-fat-add me-1"></i>
                       Record payment
                     </Link>

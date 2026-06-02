@@ -9,21 +9,20 @@ import {
   clearUpdateStatus,
 } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-
-const MODULES = ['category', 'integration', 'order', 'process', 'proces'];
-const ACTIONS = ['view', 'add', 'edit', 'delete'];
+import { digitsOnlyFromPhone } from '../../features/users/usersAPI.js';
+import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
 const normalizePermissions = (input) => {
-  const base = MODULES.reduce((acc, moduleName) => {
-    acc[moduleName] = ACTIONS.reduce((obj, action) => {
+  const base = PERMISSION_MODULE_KEYS.reduce((acc, moduleName) => {
+    acc[moduleName] = PERMISSION_ACTIONS.reduce((obj, action) => {
       obj[action] = false;
       return obj;
     }, {});
     return acc;
   }, {});
   if (!input || typeof input !== 'object') return base;
-  MODULES.forEach((moduleName) => {
-    ACTIONS.forEach((action) => {
+  PERMISSION_MODULE_KEYS.forEach((moduleName) => {
+    PERMISSION_ACTIONS.forEach((action) => {
       base[moduleName][action] = Boolean(input?.[moduleName]?.[action]);
     });
   });
@@ -44,6 +43,8 @@ const EditUser = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    phone: '',
+    password: '',
     initial_balance: '0',
     status: 'active',
     role: ['USER'],
@@ -70,6 +71,10 @@ const EditUser = () => {
     setForm({
       name: currentUser.name || '',
       email: currentUser.email || '',
+      phone: digitsOnlyFromPhone(
+        currentUser.mobile || currentUser.phone || currentUser.phoneNumber || ''
+      ),
+      password: '',
       initial_balance:
         currentUser.initial_balance ?? currentUser.initialBalance ?? currentUser.opening_balance ?? 0,
       status: currentUser.status || 'active',
@@ -100,8 +105,18 @@ const EditUser = () => {
   const validateForm = () => {
     const nextErrors = {};
     if (!form.name.trim()) nextErrors.name = 'Name is required';
-    if (!form.email.trim()) nextErrors.email = 'Email is required';
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = 'Valid email is required';
+    const emailTrim = form.email.trim();
+    if (emailTrim && !/^\S+@\S+\.\S+$/.test(emailTrim)) {
+      nextErrors.email = 'Enter a valid email address';
+    }
+    const phoneDigits = digitsOnlyFromPhone(form.phone);
+    if (!phoneDigits) {
+      nextErrors.phone = 'Phone is required';
+    } else if (phoneDigits.length < 7) {
+      nextErrors.phone = 'Enter a valid phone number (at least 7 digits)';
+    } else if (phoneDigits.length > 11) {
+      nextErrors.phone = 'Phone number must be 11 digits or less';
+    }
     if (!Array.isArray(form.role) || form.role.length === 0) nextErrors.role = 'Select at least one role';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -140,6 +155,8 @@ const EditUser = () => {
           payload: {
             name: form.name.trim(),
             email: form.email.trim(),
+            phone: digitsOnlyFromPhone(form.phone),
+            password: form.password,
             initial_balance,
             role: form.role,
             permissions: form.permissions,
@@ -197,7 +214,7 @@ const EditUser = () => {
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
                 <div className="row">
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">
                       Name <span className="text-danger">*</span>
                     </label>
@@ -209,10 +226,8 @@ const EditUser = () => {
                     />
                     {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                   </div>
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">
-                      Email <span className="text-danger">*</span>
-                    </label>
+                  <div className="col-md-4 mb-3">
+                    <label className="form-label">Email</label>
                     <input
                       type="email"
                       className={`form-control ${errors.email ? 'is-invalid' : ''}`}
@@ -222,10 +237,48 @@ const EditUser = () => {
                     />
                     {errors.email && <div className="invalid-feedback">{errors.email}</div>}
                   </div>
+                  <div className="col-md-4 mb-3">
+                    <label className="form-label" htmlFor="user-edit-phone">
+                      Phone <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      id="user-edit-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={11}
+                      className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
+                      value={form.phone}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          phone: digitsOnlyFromPhone(e.target.value).slice(0, 11),
+                        }))
+                      }
+                      placeholder="Digits only"
+                      autoComplete="tel"
+                      disabled={isSubmitting}
+                    />
+                    {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
+                  </div>
                 </div>
 
                 <div className="row">
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
+                    <label className="form-label" htmlFor="user-edit-password">
+                      Password
+                    </label>
+                    <input
+                      id="user-edit-password"
+                      type="password"
+                      className="form-control"
+                      value={form.password}
+                      onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                      placeholder="Leave blank to keep current"
+                      autoComplete="new-password"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">Initial balance</label>
                     <input
                       type="number"
@@ -238,7 +291,7 @@ const EditUser = () => {
                       disabled={isSubmitting}
                     />
                   </div>
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">Status</label>
                     <select
                       className="form-select"
@@ -283,7 +336,7 @@ const EditUser = () => {
                       <thead>
                         <tr>
                           <th>Module</th>
-                          {ACTIONS.map((action) => (
+                          {PERMISSION_ACTIONS.map((action) => (
                             <th key={action} className="text-uppercase text-xs">
                               {action}
                             </th>
@@ -291,10 +344,10 @@ const EditUser = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {MODULES.map((moduleName) => (
+                        {PERMISSION_MODULE_KEYS.map((moduleName) => (
                           <tr key={moduleName}>
                             <td className="text-uppercase text-xs fw-bold">{moduleName}</td>
-                            {ACTIONS.map((action) => (
+                            {PERMISSION_ACTIONS.map((action) => (
                               <td key={`${moduleName}-${action}`}>
                                 <input
                                   type="checkbox"

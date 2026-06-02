@@ -5,16 +5,14 @@ import moment from 'moment';
 import { createUser, clearCreateStatus } from '../../features/users/usersSlice.js';
 import { digitsOnlyFromPhone } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-
-const MODULES = ['category', 'integration', 'order', 'process', 'proces'];
-const ACTIONS = ['view', 'add', 'edit', 'delete'];
+import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
 /** Backend accepts multiple `role[]` values on create user. */
 const USER_ROLE_OPTIONS = ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'];
 
 const buildInitialPermissions = () =>
-  MODULES.reduce((acc, moduleName) => {
-    acc[moduleName] = ACTIONS.reduce((obj, action) => {
+  PERMISSION_MODULE_KEYS.reduce((acc, moduleName) => {
+    acc[moduleName] = PERMISSION_ACTIONS.reduce((obj, action) => {
       obj[action] = false;
       return obj;
     }, {});
@@ -64,10 +62,14 @@ const AddUser = () => {
   const validateForm = () => {
     const nextErrors = {};
     if (!form.name.trim()) nextErrors.name = 'Name is required';
-    if (!form.email.trim()) nextErrors.email = 'Email is required';
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = 'Valid email is required';
+    const emailTrim = form.email.trim();
+    if (emailTrim && !/^\S+@\S+\.\S+$/.test(emailTrim)) {
+      nextErrors.email = 'Enter a valid email address';
+    }
     const phoneDigits = digitsOnlyFromPhone(form.phone);
-    if (form.phone.trim() && phoneDigits.length < 7) {
+    if (!phoneDigits) {
+      nextErrors.phone = 'Phone is required';
+    } else if (phoneDigits.length < 7) {
       nextErrors.phone = 'Enter a valid phone number (at least 7 digits)';
     } else if (phoneDigits.length > 11) {
       nextErrors.phone = 'Phone number must be 11 digits or less';
@@ -79,9 +81,15 @@ const AddUser = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleRolesMultiChange = (e) => {
-    const selected = Array.from(e.target.selectedOptions, (opt) => opt.value);
-    setForm((prev) => ({ ...prev, role: selected }));
+  const handleRoleToggle = (roleName) => {
+    setForm((prev) => {
+      const hasRole = prev.role.includes(roleName);
+      const nextRole = hasRole ? prev.role.filter((item) => item !== roleName) : [...prev.role, roleName];
+      return { ...prev, role: nextRole };
+    });
+    if (errors.role) {
+      setErrors((prev) => ({ ...prev, role: '' }));
+    }
   };
 
   const handlePermissionToggle = (moduleName, actionName) => {
@@ -159,9 +167,7 @@ const AddUser = () => {
                     {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                   </div>
                   <div className="col-md-4 mb-3">
-                    <label className="form-label">
-                      Email <span className="text-danger">*</span>
-                    </label>
+                    <label className="form-label">Email</label>
                     <input
                       type="email"
                       className={`form-control ${errors.email ? 'is-invalid' : ''}`}
@@ -173,7 +179,7 @@ const AddUser = () => {
                   </div>
                   <div className="col-md-4 mb-3">
                     <label className="form-label" htmlFor="user-add-phone">
-                      Phone
+                      Phone <span className="text-danger">*</span>
                     </label>
                     <input
                       id="user-add-phone"
@@ -238,28 +244,25 @@ const AddUser = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label" htmlFor="user-roles-multiselect">
+                  <label className="form-label">
                     Roles <span className="text-danger">*</span>
                   </label>
-                  <select
-                    id="user-roles-multiselect"
-                    multiple
-                    size={Math.min(6, USER_ROLE_OPTIONS.length)}
-                    className={`form-select ${errors.role ? 'is-invalid' : ''}`}
-                    value={form.role}
-                    onChange={handleRolesMultiChange}
-                    disabled={isSubmitting}
-                    aria-describedby="user-roles-hint"
-                  >
+                  <div className={`d-flex flex-wrap gap-3 ${errors.role ? 'is-invalid' : ''}`}>
                     {USER_ROLE_OPTIONS.map((roleName) => (
-                      <option key={roleName} value={roleName}>
-                        {roleName}
-                      </option>
+                      <div className="form-check" key={roleName}>
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={form.role.includes(roleName)}
+                          onChange={() => handleRoleToggle(roleName)}
+                          id={`add-role-${roleName}`}
+                          disabled={isSubmitting}
+                        />
+                        <label className="form-check-label" htmlFor={`add-role-${roleName}`}>
+                          {roleName}
+                        </label>
+                      </div>
                     ))}
-                  </select>
-                  <div id="user-roles-hint" className="form-text">
-                    Select one or more types. Use Ctrl+click (Windows) or ⌘+click (Mac) to add or remove
-                    a selection.
                   </div>
                   {errors.role && <div className="invalid-feedback d-block">{errors.role}</div>}
                 </div>
@@ -271,7 +274,7 @@ const AddUser = () => {
                       <thead>
                         <tr>
                           <th>Module</th>
-                          {ACTIONS.map((action) => (
+                          {PERMISSION_ACTIONS.map((action) => (
                             <th key={action} className="text-uppercase text-xs">
                               {action}
                             </th>
@@ -279,10 +282,10 @@ const AddUser = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {MODULES.map((moduleName) => (
+                        {PERMISSION_MODULE_KEYS.map((moduleName) => (
                           <tr key={moduleName}>
                             <td className="text-uppercase text-xs fw-bold">{moduleName}</td>
-                            {ACTIONS.map((action) => (
+                            {PERMISSION_ACTIONS.map((action) => (
                               <td key={`${moduleName}-${action}`}>
                                 <input
                                   type="checkbox"
