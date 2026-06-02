@@ -2,20 +2,21 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
 import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import TablePagination from '../../components/TablePagination.jsx';
+import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 
-const permissionActionBadgeClass = (enabled) =>
-  enabled ? 'badge bg-gradient-success me-1 mb-1' : 'badge bg-gradient-secondary me-1 mb-1';
-
 const userPhoneDisplay = (user) => {
-  if (!user || typeof user !== 'object') return '-';
+  if (!user || typeof user !== 'object') return '—';
   const phone = user.phone ?? user.mobile ?? user.phoneNumber ?? '';
   const trimmed = String(phone).trim();
-  return trimmed || '-';
+  return trimmed || '—';
 };
 
 const Users = () => {
@@ -84,8 +85,8 @@ const Users = () => {
     }
   };
 
-  const handleLimitChange = (e) => {
-    dispatch(setLimit(Number(e.target.value)));
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
   };
 
   const handleSort = (sortBy, isDoubleClick = false) => {
@@ -107,134 +108,57 @@ const Users = () => {
 
   const renderSortIcon = (columnName) => {
     if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
+      return <NavIcon icon={FaSort} className="text-muted ms-1 opacity-6" size={12} />;
     }
     return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
+      <NavIcon icon={FaSortUp} className="text-primary ms-1" size={12} />
     ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
+      <NavIcon icon={FaSortDown} className="text-primary ms-1" size={12} />
     );
   };
-
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
   const renderRoleCell = (role) => {
     const roles = Array.isArray(role) ? role : role ? [role] : [];
-    if (roles.length === 0) return <span className="text-muted">-</span>;
-    return roles.map((item) => (
-      <span key={item} className="badge bg-gradient-info me-1 mb-1">
-        {item}
-      </span>
-    ));
-  };
-
-  const renderPermissionsCell = (permissions) => {
-    if (!permissions || typeof permissions !== 'object') {
-      return <span className="text-muted">-</span>;
-    }
-
-    const modules = Object.entries(permissions);
-    if (modules.length === 0) {
-      return <span className="text-muted">-</span>;
-    }
-
-    return modules.map(([moduleName, actions]) => (
-      <div key={moduleName} className="mb-1">
-        <span className="text-xs fw-bold text-uppercase me-1">{moduleName}:</span>
-        <span className={permissionActionBadgeClass(Boolean(actions?.view))}>V</span>
-        <span className={permissionActionBadgeClass(Boolean(actions?.add))}>A</span>
-        <span className={permissionActionBadgeClass(Boolean(actions?.edit))}>E</span>
-        <span className={permissionActionBadgeClass(Boolean(actions?.delete))}>D</span>
-      </div>
-    ));
-  };
-
-  const PaginationControls = () => {
-    if (loading || error || pagination.total === 0) return null;
+    if (roles.length === 0) return <span className="text-muted">—</span>;
     return (
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div className="d-flex align-items-center">
-          <span className="text-sm text-muted me-2">Show:</span>
-          <select
-            className="form-select form-select-sm"
-            style={{ width: 'auto' }}
-            value={pagination.limit}
-            onChange={handleLimitChange}
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-          <span className="text-sm text-muted ms-2">
-            Showing {startItem} to {endItem} of {pagination.total} entries
+      <div className="d-flex flex-wrap gap-1">
+        {roles.map((item) => (
+          <span key={item} className="badge bg-gradient-info mb-0">
+            {item}
           </span>
-        </div>
-        <nav>
-          <ul className="pagination pagination-sm mb-0">
-            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(1)}
-                disabled={pagination.page === 1}
-              >
-                First
-              </button>
-            </li>
-            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page === 1}
-              >
-                Previous
-              </button>
-            </li>
-            <li className="page-item active">
-              <span className="page-link">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Next
-              </button>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.totalPages)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Last
-              </button>
-            </li>
-          </ul>
-        </nav>
+        ))}
       </div>
     );
   };
+
+  const sortableTh = (column, label) => (
+    <th
+      className="list-data-table-sortable"
+      onClick={() => handleSort(column)}
+      onDoubleClick={() => handleSort(column, true)}
+    >
+      <span className="d-inline-flex align-items-center">
+        {label}
+        {renderSortIcon(column)}
+      </span>
+    </th>
+  );
+
+  const showPagination = !loading && !error && pagination.total > 0;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center">
+          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
                 <div className="col-md-6">
-                  <h5 className="mb-0">Users</h5>
+                  <h5 className="mb-1">Users</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0">User list with role and permissions details.</p>
+                    <p className="text-sm text-muted mb-0">
+                      User list with role and permissions details.
+                    </p>
                   ) : null}
                 </div>
                 <div className="col-md-6">
@@ -256,103 +180,99 @@ const Users = () => {
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0">
-              <PaginationControls />
-              <div className="table-responsive">
-                {loading && (
-                  <div className="text-center p-4">
-                    <p>Loading users...</p>
+
+            <div className="card-body pt-0 px-0 pb-0">
+              {loading && (
+                <div className="text-center py-5 px-3">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading…</span>
                   </div>
-                )}
-                {error && (
-                  <div className="alert alert-danger m-3" role="alert">
-                    Error loading users: {error}
-                  </div>
-                )}
-                {!loading && !error && (
-                  <table className="table table-flush">
-                    <thead className="thead-light">
+                  <p className="text-sm text-muted mt-3 mb-0">Loading users…</p>
+                </div>
+              )}
+
+              {error && (
+                <div className="alert alert-danger mx-3 mt-3" role="alert">
+                  Error loading users: {error}
+                </div>
+              )}
+
+              {!loading && !error && (
+                <div className="list-data-table mx-3 mb-3">
+                  <div className="list-data-table-scroll">
+                    <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
+                        <th className="text-center" style={{ width: '56px' }}>
+                          #
                         </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('email')}
-                          onDoubleClick={() => handleSort('email', true)}
-                        >
-                          Email
-                          {renderSortIcon('email')}
-                        </th>
+                        {sortableTh('name', 'Name')}
+                        {sortableTh('email', 'Email')}
                         <th>Phone</th>
                         <th>Role</th>
-                        <th>Permissions</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
+                        <th className="col-permissions">Permissions</th>
+                        {sortableTh('status', 'Status')}
+                        {sortableTh('createdAt', 'Created')}
+                        <th className="text-center" style={{ width: '88px' }}>
+                          Action
                         </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan={9} className="text-center py-5 text-muted">
                             No users found
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                          const seriesNumber =
+                            (pagination.page - 1) * pagination.limit + index + 1;
                           const key = item._id || item.id || index;
-                          const status = item.status || '-';
-                          const isActive = String(status).toLowerCase() === 'active';
+                          const statusVal = item.status || '—';
+                          const isActive = String(statusVal).toLowerCase() === 'active';
                           return (
                             <tr key={key}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{item.name || '-'}</td>
-                              <td className="text-sm font-weight-normal">{item.email || '-'}</td>
-                              <td className="text-sm font-weight-normal">{userPhoneDisplay(item)}</td>
-                              <td className="text-sm font-weight-normal">{renderRoleCell(item.role)}</td>
-                              <td className="text-sm font-weight-normal">
-                                {renderPermissionsCell(item.permissions)}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <span className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}>
-                                  {status}
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td>
+                                <span className="font-weight-bold text-dark text-sm">
+                                  {item.name || '—'}
                                 </span>
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt ? moment(item.createdAt).format('MM-DD-YYYY h:mm a') : '-'}
+                              <td className="text-sm">{item.email || '—'}</td>
+                              <td className="text-sm">{userPhoneDisplay(item)}</td>
+                              <td>{renderRoleCell(item.role)}</td>
+                              <td className="col-permissions">
+                                <UsersPermissionsCell permissions={item.permissions} />
                               </td>
-                              <td className="text-sm font-weight-normal">
+                              <td>
+                                <span
+                                  className={`badge mb-0 ${
+                                    isActive ? 'bg-gradient-success' : 'bg-gradient-secondary'
+                                  }`}
+                                >
+                                  {statusVal}
+                                </span>
+                              </td>
+                              <td className="text-sm text-muted">
+                                {item.createdAt
+                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '—'}
+                              </td>
+                              <td className="text-center">
                                 {canEdit ? (
                                   <button
-                                    className="btn btn-outline-info btn-sm mb-0"
-                                    onClick={() => navigate(`/users/edit/${item._id || item.id}`)}
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary mb-0"
+                                    onClick={() =>
+                                      navigate(`/users/edit/${item._id || item.id}`)
+                                    }
                                   >
                                     Edit
                                   </button>
                                 ) : (
-                                  '-'
+                                  <span className="text-muted">—</span>
                                 )}
                               </td>
                             </tr>
@@ -360,10 +280,18 @@ const Users = () => {
                         })
                       )}
                     </tbody>
-                  </table>
-                )}
-              </div>
-              <PaginationControls />
+                    </table>
+                  </div>
+                  <TablePagination
+                    className="list-table-toolbar--footer"
+                    selectId="users-table-page-size"
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
+                    hidden={!showPagination}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

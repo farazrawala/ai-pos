@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  overflow-x: hidden;
+}
+
 /* Bootstrap navbar collapse — avoid Tailwind visibility:collapse on #navbar */
 #navbar.navbar-collapse {
   visibility: visible;
@@ -175,6 +179,255 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: #344767;
+}
+
+/* List pages — pagination toolbar (fixes cramped / overlapping controls) */
+.list-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid #e9ecef;
+  background: #fff;
+}
+
+.list-table-toolbar--footer {
+  border-bottom: 0;
+  border-top: 1px solid #e9ecef;
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.list-table-toolbar-entries {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  min-width: 0;
+}
+
+.list-table-toolbar-label {
+  font-size: 0.875rem;
+  color: #67748e;
+  white-space: nowrap;
+}
+
+.list-table-toolbar-select {
+  width: auto !important;
+  min-width: 4.25rem;
+  flex-shrink: 0;
+}
+
+.list-table-toolbar-range {
+  white-space: nowrap;
+}
+
+.list-table-toolbar-nav {
+  flex-shrink: 0;
+}
+
+.list-pagination-pills {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.list-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
+  border: 1px solid #dee2e6;
+  border-radius: 50%;
+  background: #fff;
+  color: #344767;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.list-pagination-btn--page {
+  font-variant-numeric: tabular-nums;
+}
+
+.list-pagination-btn:hover:not(:disabled):not(.is-active) {
+  border-color: #5e72e4;
+  color: #5e72e4;
+  background: #f8f9fe;
+}
+
+.list-pagination-btn.is-active {
+  background: linear-gradient(310deg, #5e72e4 0%, #825ee4 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 7px -1px rgba(94, 114, 228, 0.4);
+}
+
+.list-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.list-pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  color: #8392ab;
+  font-size: 0.875rem;
+  font-weight: 600;
+  user-select: none;
+}
+
+/* List data table */
+.list-data-table {
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.list-data-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.list-data-table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.list-data-table-scroll::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 4px;
+}
+
+.list-data-table-scroll::-webkit-scrollbar-thumb {
+  background: #c1c9d2;
+  border-radius: 4px;
+}
+
+.list-data-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #8392ab;
+}
+
+.list-data-table .table {
+  margin-bottom: 0;
+  min-width: 1080px;
+  width: 100%;
+}
+
+.list-data-table-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.list-data-table thead th {
+  background: #f8f9fa;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8392ab;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0.75rem 1rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.list-data-table tbody td {
+  padding: 0.85rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 0.875rem;
+  color: #525f7f;
+}
+
+.list-data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.list-data-table tbody tr:hover td {
+  background: #fafbfc;
+}
+
+.list-data-table .col-permissions {
+  min-width: 200px;
+  max-width: 280px;
+}
+
+/* Users — permissions column */
+.users-permissions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.users-permissions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.users-permissions-module {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #67748e;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.users-permissions-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.2rem;
+}
+
+.users-permissions-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.users-permissions-pill.is-on {
+  background: #2dce89;
+  color: #fff;
+}
+
+.users-permissions-pill.is-off {
+  background: #e9ecef;
+  color: #adb5bd;
 }
 
 .muted {
