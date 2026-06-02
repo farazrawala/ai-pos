@@ -12,6 +12,7 @@ import {
   clearDeleteStatus,
 } from '../../features/warehouse/warehouseSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -49,6 +50,16 @@ const Warehouse = () => {
     dispatch(fetchWarehouses(params));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
 
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      dispatch(setPage(newPage));
+    }
+  };
+
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
+  };
   const handleSearchChange = useCallback(
     (e) => {
       const value = e.target.value;
@@ -134,51 +145,19 @@ const Warehouse = () => {
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0">
-              {!loading && !error && pagination.total > 0 && (
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <div className="d-flex align-items-center">
-                    <span className="text-sm text-muted me-2">Show:</span>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ width: 'auto' }}
-                      value={pagination.limit}
-                      onChange={(e) => dispatch(setLimit(Number(e.target.value)))}
-                    >
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                    <span className="text-sm text-muted ms-2">
-                      Showing {startItem} to {endItem} of {pagination.total} entries
-                    </span>
-                  </div>
-                  <div className="d-flex gap-1">
-                    <button
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page === 1}
-                      onClick={() => dispatch(setPage(pagination.page - 1))}
-                    >
-                      Prev
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => dispatch(setPage(pagination.page + 1))}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive">
-                {loading && <div className="text-center p-4">Loading warehouses...</div>}
-                {error && <div className="alert alert-danger m-3">Error loading data: {error}</div>}
-                {!loading && !error && (
-                  <table className="table table-flush">
-                    <thead className="thead-light">
+            <div className="card-body pt-0 px-0 pb-0">
+              <ListDataTable
+                loading={loading}
+                loadingLabel="Loading warehouses…"
+                error={error}
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                selectId="warehouse-table-page-size"
+                showPagination={!loading && !error && pagination.total > 0}
+              >
+                <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
                         <th>S.No</th>
                         <th
@@ -278,9 +257,12 @@ const Warehouse = () => {
                       )}
                     </tbody>
                   </table>
-                )}
-              </div>
-              {deleteError && <div className="alert alert-danger mt-3 mb-0">{deleteError}</div>}
+              </ListDataTable>
+              {deleteError && (
+                <div className="alert alert-danger mx-3 mb-3" role="alert">
+                  {deleteError}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 
@@ -93,8 +94,8 @@ const Logs = () => {
     }
   };
 
-  const handleLimitChange = (e) => {
-    dispatch(setLimit(Number(e.target.value)));
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
   };
 
   const handleSort = (sortBy, isDoubleClick = false) => {
@@ -148,85 +149,12 @@ const Logs = () => {
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
-  const PaginationControls = () => {
-    if (loading || error || pagination.total === 0) return null;
-    return (
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div className="d-flex align-items-center">
-          <span className="text-sm text-muted me-2">Show:</span>
-          <select
-            className="form-select form-select-sm"
-            style={{ width: 'auto' }}
-            value={pagination.limit}
-            onChange={handleLimitChange}
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-          <span className="text-sm text-muted ms-2">
-            Showing {startItem} to {endItem} of {pagination.total} entries
-          </span>
-        </div>
-        <nav>
-          <ul className="pagination pagination-sm mb-0">
-            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(1)}
-                disabled={pagination.page === 1}
-              >
-                First
-              </button>
-            </li>
-            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page === 1}
-              >
-                Previous
-              </button>
-            </li>
-            <li className="page-item active">
-              <span className="page-link">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Next
-              </button>
-            </li>
-            <li
-              className={`page-item ${pagination.page >= pagination.totalPages ? 'disabled' : ''}`}
-            >
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(pagination.totalPages)}
-                disabled={pagination.page >= pagination.totalPages}
-              >
-                Last
-              </button>
-            </li>
-          </ul>
-        </nav>
-      </div>
-    );
-  };
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '100%' }}>
+          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
               <div className="row align-items-center">
                 <div className="col-md-6">
@@ -255,22 +183,19 @@ const Logs = () => {
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0">
-              <PaginationControls />
-              <div className="table-responsive">
-                {loading && (
-                  <div className="text-center p-4">
-                    <p>Loading logs...</p>
-                  </div>
-                )}
-                {error && (
-                  <div className="alert alert-danger m-3" role="alert">
-                    Error loading data: {error}
-                  </div>
-                )}
-                {!loading && !error && (
-                  <table className="table table-flush">
-                    <thead className="thead-light">
+            <div className="card-body pt-0 px-0 pb-0">
+              <ListDataTable
+                loading={loading}
+                loadingLabel="Loading logs…"
+                error={error}
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                selectId="logs-table-page-size"
+                showPagination={!loading && !error && pagination.total > 0}
+              >
+                <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
                         <th>S.No</th>
                         <th>User</th>
@@ -387,9 +312,7 @@ const Logs = () => {
                       )}
                     </tbody>
                   </table>
-                )}
-              </div>
-              <PaginationControls />
+              </ListDataTable>
             </div>
           </div>
         </div>

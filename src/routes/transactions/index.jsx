@@ -19,6 +19,7 @@ import {
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import TablePagination from '../../components/TablePagination.jsx';
 import { DEBUG } from '../../config/env.js';
 
 const Transactions = () => {
@@ -151,8 +152,15 @@ const Transactions = () => {
     dispatch(clearDateFilters());
   };
 
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      dispatch(setPage(newPage));
+    }
+  };
+
+  const handleLimitChange = (limit) => {
+    dispatch(setLimit(limit));
+  };
 
   const debitCreditCells = (row) => {
     const t = String(row.type || '').toLowerCase().trim();
@@ -271,46 +279,6 @@ const Transactions = () => {
                 </div>
               </div>
 
-              {!loading && !error && pagination.total > 0 && (
-                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                  <div className="d-flex align-items-center flex-wrap">
-                    <span className="text-sm text-muted me-2">Show:</span>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ width: 'auto' }}
-                      value={pagination.limit}
-                      onChange={(e) => dispatch(setLimit(Number(e.target.value)))}
-                    >
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                    <span className="text-sm text-muted ms-2">
-                      Showing {startItem} to {endItem} of {pagination.total} entries
-                    </span>
-                  </div>
-                  <div className="d-flex gap-1">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page === 1}
-                      onClick={() => dispatch(setPage(pagination.page - 1))}
-                    >
-                      Prev
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => dispatch(setPage(pagination.page + 1))}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {loading && (
                 <div className="text-center p-4">
                   <p className="mb-0">Loading transactions…</p>
@@ -413,9 +381,10 @@ const Transactions = () => {
               )}
 
               {!loading && !error && viewMode === 'lines' && (
-                <div className="table-responsive w-100">
-                  <table className="table table-flush w-100">
-                    <thead className="thead-light">
+                <div className="list-data-table mx-3 mb-3">
+                  <div className="list-data-table-scroll">
+                  <table className="table align-items-center mb-0 w-100">
+                    <thead>
                       <tr>
                         <th>S.No</th>
                         <th
@@ -526,6 +495,26 @@ const Transactions = () => {
                       )}
                     </tbody>
                   </table>
+                  </div>
+                  <TablePagination
+                    className="list-table-toolbar--footer"
+                    selectId="transactions-table-page-size"
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
+                    hidden={pagination.total === 0}
+                  />
+                </div>
+              )}
+
+              {!loading && !error && viewMode === 'journal' && pagination.total > 0 && (
+                <div className="mx-3 mb-3">
+                  <TablePagination
+                    selectId="transactions-journal-page-size"
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
+                  />
                 </div>
               )}
             </div>
