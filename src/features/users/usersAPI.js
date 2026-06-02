@@ -272,6 +272,9 @@ export async function createUserRequest(payload = {}) {
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     permissions,
   };
+  if (payload.phone != null && String(payload.phone).trim() !== '') {
+    body.phone = String(payload.phone).trim();
+  }
 
   const url = `${BASE_URL}${USER_CREATE_PATH}`;
   const response = await fetch(url, {

@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createUser, clearCreateStatus } from '../../features/users/usersSlice.js';
+import { digitsOnlyFromPhone } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 
 const MODULES = ['category', 'integration', 'order', 'process', 'proces'];
@@ -30,6 +31,7 @@ const AddUser = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    phone: '',
     password: '',
     initial_balance: '0',
     status: 'active',
@@ -64,6 +66,12 @@ const AddUser = () => {
     if (!form.name.trim()) nextErrors.name = 'Name is required';
     if (!form.email.trim()) nextErrors.email = 'Email is required';
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = 'Valid email is required';
+    const phoneDigits = digitsOnlyFromPhone(form.phone);
+    if (form.phone.trim() && phoneDigits.length < 7) {
+      nextErrors.phone = 'Enter a valid phone number (at least 7 digits)';
+    } else if (phoneDigits.length > 11) {
+      nextErrors.phone = 'Phone number must be 11 digits or less';
+    }
     if (!form.password.trim()) nextErrors.password = 'Password is required';
     if (!Array.isArray(form.role) || form.role.length === 0)
       nextErrors.role = 'Select at least one role';
@@ -100,6 +108,7 @@ const AddUser = () => {
         createUser({
           name: form.name.trim(),
           email: form.email.trim(),
+          phone: digitsOnlyFromPhone(form.phone),
           password: form.password,
           initial_balance,
           role: form.role,
@@ -137,7 +146,7 @@ const AddUser = () => {
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
                 <div className="row">
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">
                       Name <span className="text-danger">*</span>
                     </label>
@@ -149,7 +158,7 @@ const AddUser = () => {
                     />
                     {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                   </div>
-                  <div className="col-md-6 mb-3">
+                  <div className="col-md-4 mb-3">
                     <label className="form-label">
                       Email <span className="text-danger">*</span>
                     </label>
@@ -161,6 +170,29 @@ const AddUser = () => {
                       disabled={isSubmitting}
                     />
                     {errors.email && <div className="invalid-feedback">{errors.email}</div>}
+                  </div>
+                  <div className="col-md-4 mb-3">
+                    <label className="form-label" htmlFor="user-add-phone">
+                      Phone
+                    </label>
+                    <input
+                      id="user-add-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={11}
+                      className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
+                      value={form.phone}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          phone: digitsOnlyFromPhone(e.target.value).slice(0, 11),
+                        }))
+                      }
+                      placeholder="Digits only"
+                      autoComplete="tel"
+                      disabled={isSubmitting}
+                    />
+                    {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
                   </div>
                 </div>
 
