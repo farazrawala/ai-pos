@@ -385,7 +385,9 @@ export default function IncomeStatementView() {
   const [priorReport, setPriorReport] = useState(null);
   const [priorStatus, setPriorStatus] = useState('idle');
   const [tableFilter, setTableFilter] = useState('');
-  const [expanded, setExpanded] = useState(() => new Set(['revenue', 'cogs', 'opex']));
+  const [expanded, setExpanded] = useState(
+    () => new Set(['revenue', 'cogs', 'opex', 'otherIncome', 'otherExpenses'])
+  );
 
   const periodStart = useMemo(
     () => startOfCalendarMonth(fromYear, fromMonth),
@@ -589,6 +591,41 @@ export default function IncomeStatementView() {
         const pri = priorAmountForLabel(pr.operatingExpenses, row.label);
         pushLeaf(row.label, row.amount, pri, true);
       });
+      pushSubtotal(
+        'Total operating expenses',
+        totals.totalOperatingExpenses,
+        priorTotals.totalOperatingExpenses,
+        true
+      );
+    }
+
+    pushLeaf('Operating income', totals.operatingIncome, priorTotals.operatingIncome, false);
+
+    if ((report.otherIncome || []).length > 0 || totals.totalOtherIncome !== 0) {
+      pushGroup('otherIncome', 'Other income');
+      if (expanded.has('otherIncome')) {
+        (report.otherIncome || []).forEach((row) => {
+          const pri = priorAmountForLabel(pr.otherIncome, row.label);
+          pushLeaf(row.label, row.amount, pri, false);
+        });
+        pushSubtotal('Total other income', totals.totalOtherIncome, priorTotals.totalOtherIncome, false);
+      }
+    }
+
+    if ((report.otherExpenses || []).length > 0 || totals.totalOtherExpenses !== 0) {
+      pushGroup('otherExpenses', 'Other expenses');
+      if (expanded.has('otherExpenses')) {
+        (report.otherExpenses || []).forEach((row) => {
+          const pri = priorAmountForLabel(pr.otherExpenses, row.label);
+          pushLeaf(row.label, row.amount, pri, true);
+        });
+        pushSubtotal(
+          'Total other expenses',
+          totals.totalOtherExpenses,
+          priorTotals.totalOtherExpenses,
+          true
+        );
+      }
     }
 
     pushSubtotal('Net income', totals.netIncome, priorTotals.netIncome, false);

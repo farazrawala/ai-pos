@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createAmountTransfer } from '../../features/amountTransfers/amountTransfersSlice.js';
-import { buildAmountTransferAccountFilterParams } from '../../features/amountTransfers/amountTransfersAPI.js';
+import { buildAmountTransferAccountFilterParams, buildAmountTransferToAccountFilterParams } from '../../features/amountTransfers/amountTransfersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
@@ -30,7 +30,8 @@ const AmountTransferAdd = () => {
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [accounts, setAccounts] = useState([]);
+  const [fromAccounts, setFromAccounts] = useState([]);
+  const [toAccounts, setToAccounts] = useState([]);
   const [accountsStatus, setAccountsStatus] = useState('idle');
 
   useEffect(() => {
@@ -38,24 +39,37 @@ const AmountTransferAdd = () => {
     const params = { page: 1, limit: 500, sortBy: 'name', sortOrder: 'asc' };
 
     setAccountsStatus('loading');
-    buildAmountTransferAccountFilterParams(authUser, authCompany)
-      .then((accountFilters) =>
-        fetchAccountsRequest({
-          ...params,
-          account_type: accountFilters.account_type,
-          exclude_id: accountFilters.exclude_id,
-        })
+    Promise.all([
+      buildAmountTransferAccountFilterParams(authUser, authCompany),
+      buildAmountTransferToAccountFilterParams(authUser, authCompany),
+    ])
+      .then(([fromFilters, toFilters]) =>
+        Promise.all([
+          fetchAccountsRequest({
+            ...params,
+            account_type: fromFilters.account_type,
+            exclude_id: fromFilters.exclude_id,
+          }),
+          fetchAccountsRequest({
+            ...params,
+            account_type: toFilters.account_type,
+            exclude_id: toFilters.exclude_id,
+            include_id: toFilters.include_id,
+          }),
+        ])
       )
-      .then((res) => {
+      .then(([fromRes, toRes]) => {
         if (!cancelled) {
-          setAccounts(Array.isArray(res.data) ? res.data : []);
+          setFromAccounts(Array.isArray(fromRes.data) ? fromRes.data : []);
+          setToAccounts(Array.isArray(toRes.data) ? toRes.data : []);
           setAccountsStatus('succeeded');
         }
       })
       .catch((err) => {
         console.error('[Amount transfer module] Failed to load accounts for add form', err);
         if (!cancelled) {
-          setAccounts([]);
+          setFromAccounts([]);
+          setToAccounts([]);
           setAccountsStatus('failed');
         }
       });
@@ -163,7 +177,7 @@ const AmountTransferAdd = () => {
                     disabled={isSubmitting || accountsStatus === 'loading'}
                   >
                     <option value="">Select account…</option>
-                    {accounts.map((a) => (
+                    {fromAccounts.map((a) => (
                       <option key={accountOptionValue(a)} value={accountOptionValue(a)}>
                         {accountOptionLabel(a)}
                       </option>
@@ -190,7 +204,7 @@ const AmountTransferAdd = () => {
                     disabled={isSubmitting || accountsStatus === 'loading'}
                   >
                     <option value="">Select account…</option>
-                    {accounts.map((a) => (
+                    {toAccounts.map((a) => (
                       <option key={accountOptionValue(a)} value={accountOptionValue(a)}>
                         {accountOptionLabel(a)}
                       </option>

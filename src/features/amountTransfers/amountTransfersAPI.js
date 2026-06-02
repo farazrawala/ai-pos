@@ -86,6 +86,48 @@ export async function buildAmountTransferAccountFilterParams(user = null, compan
   return params;
 }
 
+/** Company `default_withdraw_account` id for the to-account dropdown `include_id`. */
+export function resolveDefaultWithdrawAccountId(user, company) {
+  const sources = [
+    company,
+    user,
+    user?.company && typeof user.company === 'object' ? user.company : null,
+  ].filter(Boolean);
+
+  for (const src of sources) {
+    const id = pickAccountRefId(src.default_withdraw_account ?? src.defaultWithdrawAccount);
+    if (id) return id;
+  }
+  return '';
+}
+
+/**
+ * To-account dropdown: same filters as from-account, plus `include_id` = `default_withdraw_account`.
+ */
+export async function buildAmountTransferToAccountFilterParams(user = null, companyFromStore = null) {
+  const base = await buildAmountTransferAccountFilterParams(user, companyFromStore);
+  let company = companyFromStore || extractCompanyFromUser(user);
+  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
+
+  let includeId = resolveDefaultWithdrawAccountId(user, company);
+  if (companyId && !includeId) {
+    try {
+      const body = await fetchCompanyById(companyId);
+      company = extractCompanyRecord(body) || company;
+      includeId = resolveDefaultWithdrawAccountId(user, company);
+    } catch (err) {
+      console.warn(
+        '[Amount transfer module] Could not load company for default_withdraw_account include filter',
+        err
+      );
+    }
+  }
+
+  const params = { ...base };
+  if (includeId) params.include_id = includeId;
+  return params;
+}
+
 export function normalizeAmountTransfersListRows(result) {
   if (!result || typeof result !== 'object') return [];
   if (Array.isArray(result)) return result;

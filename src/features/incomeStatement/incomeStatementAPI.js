@@ -125,6 +125,11 @@ export async function fetchIncomeStatementRequest(params = {}) {
 
   let { report, demo } = reportOutcome.value;
 
+  // Demo payload includes sample other income/expense lines; do not mix those with live sales/COGS/opex.
+  if (demo) {
+    report = { ...report, otherIncome: [], otherExpenses: [] };
+  }
+
   if (salesOutcome.status === 'fulfilled') {
     report = mergeOrderSalesIntoReport(report, salesOutcome.value);
   } else {

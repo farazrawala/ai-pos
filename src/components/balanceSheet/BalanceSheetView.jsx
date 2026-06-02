@@ -256,6 +256,12 @@ function createBalanceSheetApiDefinitions(equityFetchParams = {}) {
       fetch: () => fetchAccountsByTypeRequest('operating_expense'),
     },
     {
+      key: 'other_expense',
+      label: "Owner's equity (other expenses)",
+      url: buildFetchAccountsByTypeUrl('other_expense'),
+      fetch: () => fetchAccountsByTypeRequest('other_expense'),
+    },
+    {
       key: 'profit',
       label: "Owner's equity (profit)",
       url: buildBalanceSheetProfitUrl(),
@@ -471,6 +477,7 @@ export default function BalanceSheetView() {
 
       const equityRes = apiResult(results, 'equity');
       const operatingExpenseRes = apiResult(results, 'operating_expense');
+      const otherExpenseRes = apiResult(results, 'other_expense');
       const profitRes = apiResult(results, 'profit');
       const adjustmentsRes = apiResult(results, 'adjustments');
       const equityAccounts =
@@ -479,13 +486,21 @@ export default function BalanceSheetView() {
         operatingExpenseRes?.status === 'success' && Array.isArray(operatingExpenseRes.value)
           ? operatingExpenseRes.value
           : [];
+      const otherExpenseAccounts =
+        otherExpenseRes?.status === 'success' && Array.isArray(otherExpenseRes.value)
+          ? otherExpenseRes.value
+          : [];
 
       const equityOk = equityRes?.status === 'success';
       const operatingExpenseOk = operatingExpenseRes?.status === 'success';
+      const otherExpenseOk = otherExpenseRes?.status === 'success';
 
-      if (equityOk && operatingExpenseOk) {
+      if (equityOk && operatingExpenseOk && otherExpenseOk) {
         const equityAccountLines = equityAccounts.map(mapAccountToLine);
         const expenseDeductionLines = operatingExpenseAccounts.map((account) =>
+          mapAccountToLine(account, 'credit_minus_debit')
+        );
+        const otherExpenseDeductionLines = otherExpenseAccounts.map((account) =>
           mapAccountToLine(account, 'credit_minus_debit')
         );
         const profitLines = [];
@@ -508,6 +523,7 @@ export default function BalanceSheetView() {
           ...profitLines,
           ...adjustmentLines,
           ...expenseDeductionLines,
+          ...otherExpenseDeductionLines,
         ]);
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
@@ -520,13 +536,16 @@ export default function BalanceSheetView() {
         const equityErr = equityRes?.status === 'error' ? equityRes.error : null;
         const expenseErr =
           operatingExpenseRes?.status === 'error' ? operatingExpenseRes.error : null;
+        const otherExpenseErr =
+          otherExpenseRes?.status === 'error' ? otherExpenseRes.error : null;
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
           error:
-            [equityErr, expenseErr, profitErr, adjustmentErr].filter(Boolean).join(' · ') ||
-            'Failed to load equity',
+            [equityErr, expenseErr, otherExpenseErr, profitErr, adjustmentErr]
+              .filter(Boolean)
+              .join(' · ') || 'Failed to load equity',
         });
       }
 

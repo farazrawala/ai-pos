@@ -106,7 +106,7 @@ const AmountTransferIndex = () => {
   };
 
 
-  const colCount = 7;
+  const colCount = 8;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -179,6 +179,14 @@ const AmountTransferIndex = () => {
                           Created
                           {renderSortIcon('createdAt')}
                         </th>
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last updated
+                          {renderSortIcon('updatedAt')}
+                        </th>
                         <th className="text-end">Actions</th>
                       </tr>
                     </thead>
@@ -232,6 +240,11 @@ const AmountTransferIndex = () => {
                               <td className="text-sm text-muted text-nowrap">
                                 {item.createdAt
                                   ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
+                                  : '—'}
+                              </td>
+                              <td className="text-sm text-muted text-nowrap">
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '—'}
                               </td>
                               <td className="text-sm text-end">
