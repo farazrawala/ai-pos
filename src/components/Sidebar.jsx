@@ -31,28 +31,33 @@ import SidebarNavIcon from './SidebarNavIcon.jsx';
 
 const navItems = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
-  { to: '/categories', label: 'Categories', icon: FaFolder },
+  { to: '/pos', label: 'POS', icon: FaLaptop },
+  { to: '/orders', label: 'Orders', icon: FaCartShopping },
+  { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
   { to: '/products', label: 'Products', icon: FaBox },
-  { to: '/barcode-print', label: 'Barcode print', icon: FaQrcode },
-  { to: '/attributes', label: 'Attributes', icon: FaTags },
-  { to: '/logs', label: 'Logs', icon: FaClipboardList },
-  { to: '/users', label: 'Users', icon: FaUser },
+  { to: '/categories', label: 'Categories', icon: FaFolder },
   { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
   { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
   { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
+
+  { to: '/barcode-print', label: 'Barcode print', icon: FaQrcode },
+  { to: '/attributes', label: 'Attributes', icon: FaTags },
+
+  { to: '/users', label: 'Users', icon: FaUser },
   { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
   { to: '/branch', label: 'Branch', icon: FaBuilding },
+
   { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
   { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
   { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
+  { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
+
   { to: '/accounts/payments', label: 'Payments', icon: FaBasketShopping },
   { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
-  { to: '/orders', label: 'Orders', icon: FaCartShopping },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
-  { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
-  { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
-  { to: '/pos', label: 'POS', icon: FaLaptop },
+
+  { to: '/logs', label: 'Logs', icon: FaClipboardList },
   { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane },
 ];
 

@@ -12,6 +12,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { formatTransactionCreatedByLabel } from '../../components/ledger/ledgerTransactionMapper.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 function formatPKR(n) {
   const x = Number(n);
@@ -212,7 +213,9 @@ const PaymentReceiptsList = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Payment receipts</h5>
-                  <p className="text-sm mb-0">Active receipts from the server (paginated list).</p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">Active receipts from the server (paginated list).</p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap mt-2 mt-md-0">
