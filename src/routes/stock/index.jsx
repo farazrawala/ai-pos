@@ -266,7 +266,7 @@ const StockListing = () => {
                           Status
                           {renderSortIcon('status')}
                         </th>
-                        <th>Created by</th>
+                        <th>Moved by</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('createdAt')}

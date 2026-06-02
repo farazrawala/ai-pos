@@ -14,6 +14,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const Branch = () => {
   const dispatch = useDispatch();
@@ -110,7 +111,9 @@ const Branch = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Branch</h5>
-                  <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">

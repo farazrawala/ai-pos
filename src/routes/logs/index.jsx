@@ -5,6 +5,7 @@ import moment from 'moment';
 import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 /** Logs list: show at most 40 chars; full URL in native tooltip on hover. */
 function LogUrlCell({ url }) {
@@ -230,9 +231,11 @@ const Logs = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">{title}</h5>
-                  <p className="text-sm mb-0">
-                    Audit log entries (read-only). Server-side pagination.
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">
+                      Audit log entries (read-only). Server-side pagination.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">

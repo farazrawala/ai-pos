@@ -57,14 +57,15 @@ Stock transfer (done)
 Adjustments (done)
 fixed assets  (done)
 
-
-+
+6.2.26
 User update with roles
-user navigation acc to roles.
-add vendor, popup:: in purchase order
 
+
+
+// Remaining
+User navigation acc to roles.
+Add vendor, popup:: in purchase order
 in user add multiple accounts to be include and not to be include.
-
 load testing module.
 Alert (will done on dashboard design )
 Tax (will be done with printing)

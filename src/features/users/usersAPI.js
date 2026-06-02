@@ -94,21 +94,23 @@ export function pickCreatedUserFromResponse(result) {
 }
 
 /**
- * Create a user with role customer (POS). Expects auth like other management APIs.
+ * Create a user with role CUSTOMER (POS). Expects auth like other management APIs.
+ * Sends `role: ['CUSTOMER']` (backend `role[0]`).
  */
-export async function createCustomerUserRequest({ name, email, phone, password }) {
+export async function createCustomerUserRequest({ name, email, phone, password, role }) {
   const token = getAuthToken();
   const headers = { 'Content-Type': 'application/json' };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const roleList = Array.isArray(role) ? role : role ? [role] : ['CUSTOMER'];
   const body = {
     name: String(name || '').trim(),
     email: resolvePosCustomerEmail(email, phone),
     phone: String(phone || '').trim(),
     password: String(password || POS_DEFAULT_CUSTOMER_PASSWORD),
-    role: 'customer',
+    role: roleList.map((r) => String(r)),
   };
 
   const url = `${BASE_URL}${USER_CREATE_PATH}`;

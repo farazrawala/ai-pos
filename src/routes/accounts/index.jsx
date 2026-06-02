@@ -16,6 +16,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useNavigate } from 'react-router-dom';
 import { ACCOUNT_TYPE_OPTIONS } from '../../constants/accountTypes.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { DEBUG } from '../../config/env.js';
 
 const Accounts = () => {
   const dispatch = useDispatch();
@@ -195,9 +196,11 @@ const Accounts = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Accounts</h5>
-                  <p className="text-sm mb-0">
-                    Account list with server-side pagination and search.
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0">
+                      Account list with server-side pagination and search.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">

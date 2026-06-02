@@ -15,7 +15,7 @@ import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
-const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '' };
+const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
 
 const parsePosUnitPrice = (product) => {
   const v = product?.price ?? product?.product_price;
@@ -306,8 +306,13 @@ const Pos = () => {
     }
     if (!addCustomerForm.phone.trim()) {
       next.phone = 'Phone is required';
-    } else if (!emailTrim && !/\d/.test(addCustomerForm.phone)) {
-      next.phone = 'Phone must include digits (used as name@gmail.com when email is empty)';
+    } else {
+      const phoneDigits = digitsOnlyFromPhone(addCustomerForm.phone);
+      if (phoneDigits.length < 7) {
+        next.phone = 'Enter a valid phone number (at least 7 digits)';
+      } else if (phoneDigits.length > 11) {
+        next.phone = 'Phone number must be 11 digits or less';
+      }
     }
     setAddCustomerErrors(next);
     return Object.keys(next).length === 0;
@@ -315,7 +320,9 @@ const Pos = () => {
 
   const handleAddCustomerFieldChange = (e) => {
     const { name, value } = e.target;
-    setAddCustomerForm((prev) => ({ ...prev, [name]: value }));
+    const nextValue =
+      name === 'phone' ? digitsOnlyFromPhone(value).slice(0, 11) : value;
+    setAddCustomerForm((prev) => ({ ...prev, [name]: nextValue }));
     if (addCustomerErrors[name]) {
       setAddCustomerErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -854,10 +861,14 @@ const Pos = () => {
                     id="pos_customer_phone"
                     name="phone"
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={11}
                     className={`form-control ${addCustomerErrors.phone ? 'is-invalid' : ''}`}
                     value={addCustomerForm.phone}
                     onChange={handleAddCustomerFieldChange}
                     autoComplete="tel"
+                    placeholder="Digits only"
                   />
                   {addCustomerErrors.phone && (
                     <div className="invalid-feedback">{addCustomerErrors.phone}</div>
