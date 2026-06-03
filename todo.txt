@@ -62,14 +62,18 @@ User update with roles
 Add vendor, popup:: in purchase order
 cash transfer add withdraw account.
 default user role will add customer/vendor both
-
+User navigation acc to roles.
 
 
 // Remaining
-User navigation acc to roles.
+stock according to warehouse. 
+add/edit variant product.
+Alert 
+dashboard dynamic.
+
+
 in user add multiple accounts to be include and not to be include.
 load testing module.
-Alert (will done on dashboard design )
 Tax (will be done with printing)
 Sales return
 Purchase return

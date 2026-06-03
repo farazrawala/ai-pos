@@ -55,6 +55,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/expenses': 'expenses',
   '/transactions': 'transactions',
   '/logs': 'logs',
+  '/company-cache': null,
 };
 
 export function getPermissionModuleForPath(pathname = '') {

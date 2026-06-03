@@ -48,6 +48,7 @@ import PaymentManagementPage from './routes/payments/index.jsx';
 import PaymentReceiptsList from './routes/payment_receipt/index.jsx';
 import PaymentReceiptEditPage from './routes/payment_receipt/edit.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
+import CompanyCachePage from './routes/companyCache/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
@@ -232,6 +233,7 @@ const App = () => {
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
+          <Route path="/company-cache" element={<CompanyCachePage />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

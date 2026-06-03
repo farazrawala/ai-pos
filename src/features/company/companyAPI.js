@@ -269,6 +269,44 @@ async function parseJsonResponse(res) {
   return { data, ok: res.ok, status: res.status };
 }
 
+/** GET URL to list company-scoped list-cache entries (Redis + memory). */
+export function buildCompanyListCacheUrl(includeValues = false) {
+  const base = `${API_BASE_URL}/company/list-cache`;
+  if (!includeValues) return base;
+  return `${base}?include_values=true`;
+}
+
+/**
+ * GET `company/list-cache` — list cached list entries for the signed-in user's company.
+ */
+export async function fetchCompanyListCache(includeValues = false) {
+  const token = getAuthToken();
+  const url = buildCompanyListCacheUrl(includeValues);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok) {
+    const msg =
+      (typeof data?.message === 'string' && data.message) ||
+      (typeof data?.error === 'string' && data.error) ||
+      `Request failed (${status})`;
+    throw new Error(msg);
+  }
+  if (data && data.success === false) {
+    const msg =
+      (typeof data.message === 'string' && data.message) ||
+      (typeof data.error === 'string' && data.error) ||
+      'Failed to load company cache';
+    throw new Error(msg);
+  }
+  return data;
+}
+
 /** DELETE URL to invalidate company-scoped API cache before balance sheet loads. */
 export function buildCompanyRemoveCacheUrl() {
   return `${API_BASE_URL}/company/remove-cache`;

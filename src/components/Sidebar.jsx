@@ -10,6 +10,7 @@ import {
   FaChartPie,
   FaClipboardList,
   FaCoins,
+  FaDatabase,
   FaCreditCard,
   FaFileInvoice,
   FaFolder,
@@ -29,6 +30,7 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
+import { DEBUG } from '../config/env.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
@@ -56,14 +58,16 @@ const navItems = [
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
   { to: '/logs', label: 'Logs', icon: FaClipboardList },
-  { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane, adminOnly: true },
+  { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane, adminOnly: true, debugOnly: true },
+  { to: '/company-cache', label: 'Company cache', icon: FaDatabase, debugOnly: true },
 ];
 
 const Sidebar = () => {
   const { isAdmin, canView } = usePermissions();
 
   const visibleNavItems = useMemo(() => {
-    return navItems.filter(({ to, adminOnly }) => {
+    return navItems.filter(({ to, adminOnly, debugOnly }) => {
+      if (debugOnly && !DEBUG) return false;
       if (adminOnly) return isAdmin;
       const moduleKey = ROUTE_PERMISSION_MODULE[to];
       if (moduleKey == null) return true;
