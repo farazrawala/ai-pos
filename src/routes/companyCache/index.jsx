@@ -1,9 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
+import moment from 'moment';
 import {
   fetchCompanyListCache,
   removeCompanyCacheRequest,
 } from '../../features/company/companyAPI.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+
+/** Seconds left → e.g. `2 hr 5 min 30 sec` (moment duration). */
+function formatTtlRemaining(seconds, { expired = false } = {}) {
+  if (expired) return '0 sec';
+  if (seconds == null || seconds === '') return '—';
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total < 0) return '—';
+
+  const d = moment.duration(Math.floor(total), 'seconds');
+  const hours = Math.floor(d.asHours());
+  const mins = d.minutes();
+  const secs = d.seconds();
+
+  const parts = [];
+  if (hours > 0) parts.push(`${hours} hr`);
+  if (mins > 0) parts.push(`${mins} min`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
+  return parts.join(' ');
+}
 
 function formatValueSummary(summary) {
   if (summary == null) return '—';
@@ -197,7 +217,7 @@ const CompanyCachePage = () => {
                       <th>Module</th>
                       <th>Action</th>
                       <th>Backend</th>
-                      <th>TTL (sec)</th>
+                      <th>Time left</th>
                       <th>Status</th>
                       <th>Cache key</th>
                       {includeValues ? <th>Value summary</th> : null}
@@ -226,10 +246,17 @@ const CompanyCachePage = () => {
                               {row.backend || '—'}
                             </span>
                           </td>
-                          <td className="text-sm font-weight-normal">
-                            {row.ttl_seconds_remaining != null ?
-                              row.ttl_seconds_remaining
-                            : '—'}
+                          <td
+                            className="text-sm font-weight-normal"
+                            title={
+                              row.ttl_seconds_remaining != null ?
+                                `${row.ttl_seconds_remaining} sec`
+                              : undefined
+                            }
+                          >
+                            {formatTtlRemaining(row.ttl_seconds_remaining, {
+                              expired: row.expired,
+                            })}
                           </td>
                           <td className="text-sm font-weight-normal">
                             {row.expired ?

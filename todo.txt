@@ -65,6 +65,9 @@ default user role will add customer/vendor both
 User navigation acc to roles.
 
 
+3.6.26
+
+
 // Remaining
 stock according to warehouse. 
 add/edit variant product.
