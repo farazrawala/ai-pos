@@ -325,9 +325,18 @@ const StockListing = () => {
                               <td className="text-sm font-weight-normal">
                                 {getCreatedByLabel(item)}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                              <td
+                                className="text-sm font-weight-normal"
+                                title={
+                                  item.createdAt || item.created_at
+                                    ? moment(item.createdAt || item.created_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {item.createdAt || item.created_at
+                                  ? moment(item.createdAt || item.created_at).fromNow()
                                   : '—'}
                               </td>
                             </tr>

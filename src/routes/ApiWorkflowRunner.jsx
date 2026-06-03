@@ -86,7 +86,7 @@ function createInitialSteps() {
       method: 'POST',
       url: '{{url}}api/warehouse/create',
       body: {
-        name: 'Ware House 1 3',
+        name: 'Ware House 1',
       },
       save: {},
     },
@@ -138,7 +138,7 @@ function createInitialSteps() {
       url: '{{url}}api/product/create-product-variation',
       body: {
         product_name: 'product 1',
-        product_price: 100,
+        product_price: 300,
         alert_qty: 0,
         product_description: 'Lorem ipsum',
         wholesale_price: 250,
@@ -155,7 +155,7 @@ function createInitialSteps() {
       url: '{{url}}api/product/create-product-variation',
       body: {
         product_name: 'product 2',
-        product_price: 200,
+        product_price: 300,
         alert_qty: 0,
         product_description: 'Lorem ipsum',
         wholesale_price: 250,
@@ -171,7 +171,7 @@ function createInitialSteps() {
       method: 'POST',
       url: '{{url}}api/product/create-product-variation',
       body: {
-        product_name: 'Apple banana 105 product 3',
+        product_name: 'product 2',
         product_price: 300,
         alert_qty: 0,
         product_description: 'Lorem ipsum',

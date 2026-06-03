@@ -17,7 +17,56 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
 import { DEBUG } from '../../config/env.js';
+
+const sumWarehouseInventory = (inventory) => {
+  if (!Array.isArray(inventory) || inventory.length === 0) return null;
+  return inventory.reduce((sum, inv) => sum + (Number(inv?.quantity) || 0), 0);
+};
+
+const getProductStock = (item) => {
+  if (!item || typeof item !== 'object') return null;
+
+  const direct = item.stock ?? item.total_stock ?? item.totalStock ?? item.quantity;
+  if (direct != null && direct !== '') {
+    const n = Number(direct);
+    if (Number.isFinite(n)) return n;
+  }
+
+  const wi = sumWarehouseInventory(item.warehouse_inventory ?? item.warehouseInventory);
+  if (wi != null) return wi;
+
+  const children = item.childproducts ?? item.child_products ?? item.variations;
+  if (Array.isArray(children) && children.length > 0) {
+    let total = 0;
+    let hasQty = false;
+    for (const child of children) {
+      const childDirect = child.stock ?? child.quantity;
+      if (childDirect != null && childDirect !== '') {
+        const n = Number(childDirect);
+        if (Number.isFinite(n)) {
+          total += n;
+          hasQty = true;
+          continue;
+        }
+      }
+      const childWi = sumWarehouseInventory(child.warehouse_inventory ?? child.warehouseInventory);
+      if (childWi != null) {
+        total += childWi;
+        hasQty = true;
+      }
+    }
+    if (hasQty) return total;
+  }
+
+  return null;
+};
+
+const formatProductStock = (stock) => {
+  if (stock == null || !Number.isFinite(stock)) return '—';
+  return Number(stock).toLocaleString();
+};
 
 const Product = () => {
   const dispatch = useDispatch();
@@ -36,6 +85,7 @@ const Product = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const [togglingProductId, setTogglingProductId] = useState(null);
+  const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -359,6 +409,15 @@ const Product = () => {
                           {renderSortIcon('name')}
                         </th>
                         <th
+                          className="text-end"
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('stock')}
+                          onDoubleClick={() => handleSort('stock', true)}
+                        >
+                          Stock
+                          {renderSortIcon('stock')}
+                        </th>
+                        <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('wholesale_price')}
                           onDoubleClick={() => handleSort('wholesale_price', true)}
@@ -397,14 +456,6 @@ const Product = () => {
                         >
                           Barcode
                           {renderSortIcon('barcode')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('stock')}
-                          onDoubleClick={() => handleSort('stock', true)}
-                        >
-                          Stock
-                          {renderSortIcon('stock')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -459,6 +510,7 @@ const Product = () => {
                             (item.images && item.images.length > 0 ? item.images[0] : null) ||
                             item.image ||
                             null;
+                          const stock = getProductStock(item);
                           return (
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
@@ -497,6 +549,27 @@ const Product = () => {
                                 {item.name || item.product_name || '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
+                                <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
+                                  <span>{formatProductStock(stock)}</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary mb-0"
+                                    title="Stock by warehouse"
+                                    onClick={() =>
+                                      setWarehouseStockTarget({
+                                        productId:
+                                          item._id || item.id || item.product_id,
+                                        productName:
+                                          item.name || item.product_name || 'Product',
+                                      })
+                                    }
+                                  >
+                                    <i className="fas fa-warehouse me-1" aria-hidden />
+                                    By warehouse
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="text-sm font-weight-normal">
                                 {item.wholesale_price != null && item.wholesale_price !== ''
                                   ? `$${parseFloat(item.wholesale_price).toFixed(2)}`
                                   : '-'}
@@ -523,9 +596,6 @@ const Product = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.barcode ? String(item.barcode) : '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.stock !== undefined ? item.stock : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.product_type || item.productType || '-'}
@@ -642,6 +712,13 @@ const Product = () => {
           </div>
         </div>
       </div>
+
+      <ProductWarehouseStockModal
+        open={Boolean(warehouseStockTarget)}
+        onClose={() => setWarehouseStockTarget(null)}
+        productId={warehouseStockTarget?.productId}
+        productName={warehouseStockTarget?.productName}
+      />
 
       {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">

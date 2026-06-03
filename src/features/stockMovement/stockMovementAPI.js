@@ -211,6 +211,39 @@ export const getCreatedByLabel = (row) => {
   return '—';
 };
 
+const STOCK_BY_PRODUCT_PATH = 'inventory_movements/stock-by-product';
+
+/**
+ * GET `inventory_movements/stock-by-product/:productId`
+ * @param {string} productId
+ */
+export async function fetchStockByProductRequest(productId) {
+  const id = String(productId ?? '').trim();
+  if (!id) throw new Error('Product id is required');
+
+  const url = `${BASE_URL}${STOCK_BY_PRODUCT_PATH}/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  } catch (err) {
+    logStockMovementError('fetchStockByProductRequest network error', { url, productId: id, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    logStockMovementError('fetchStockByProductRequest failed', {
+      status: response.status,
+      productId: id,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  return response.json().catch(() => ({}));
+}
+
 /** POST URL for warehouse stock transfer. */
 export function buildStockTransferUrl() {
   return `${BASE_URL}${STOCK_TRANSFER_PATH}`;

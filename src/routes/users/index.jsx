@@ -12,6 +12,10 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
+
+const userOpeningBalance = (user) =>
+  Number(user?.initial_balance ?? user?.initialBalance ?? user?.opening_balance ?? 0) || 0;
 
 const userPhoneDisplay = (user) => {
   if (!user || typeof user !== 'object') return '—';
@@ -197,6 +201,7 @@ const Users = () => {
                         {sortableTh('email', 'Email')}
                         <th>Phone</th>
                         <th>Role</th>
+                        {sortableTh('initial_balance', 'Opening balance')}
                         <th className="col-permissions">Permissions</th>
                         {sortableTh('status', 'Status')}
                         {sortableTh('createdAt', 'Created')}
@@ -209,7 +214,7 @@ const Users = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="text-center py-5 text-muted">
+                          <td colSpan={11} className="text-center py-5 text-muted">
                             No users found
                           </td>
                         </tr>
@@ -220,6 +225,7 @@ const Users = () => {
                           const key = item._id || item.id || index;
                           const statusVal = item.status || '—';
                           const isActive = String(statusVal).toLowerCase() === 'active';
+                          const openingBalance = userOpeningBalance(item);
                           return (
                             <tr key={key}>
                               <td className="text-center text-muted text-sm">{seriesNumber}</td>
@@ -231,6 +237,13 @@ const Users = () => {
                               <td className="text-sm">{item.email || '—'}</td>
                               <td className="text-sm">{userPhoneDisplay(item)}</td>
                               <td>{renderRoleCell(item.role)}</td>
+                              <td
+                                className={`text-sm text-end font-weight-bold ${balanceTextClass(
+                                  openingBalance
+                                )}`}
+                              >
+                                {fmtMoney(openingBalance)}
+                              </td>
                               <td className="col-permissions">
                                 <UsersPermissionsCell permissions={item.permissions} />
                               </td>

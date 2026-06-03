@@ -36,11 +36,7 @@ function LogDescriptionCell({ text, maxWidth = 'min(22rem, 38vw)' }) {
     return <span className="text-muted">—</span>;
   }
   return (
-    <div
-      className="text-truncate text-sm"
-      style={{ maxWidth }}
-      title={raw}
-    >
+    <div className="text-truncate text-sm" style={{ maxWidth }} title={raw}>
       {raw}
     </div>
   );
@@ -55,6 +51,8 @@ const LOG_FILTER_TABS = [
   { id: 'delete', label: 'DELETE' },
   { id: 'remove-cache', label: 'REMOVE-CACHE' },
   { id: 'error', label: 'ERROR' },
+  { id: 'rollback', label: 'ROLLBACK' },
+  { id: 'update', label: 'UPDATE' },
 ];
 
 const Logs = () => {
@@ -73,7 +71,7 @@ const Logs = () => {
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
-  const { canView } = usePermissions('logs');
+  usePermissions('logs');
   useRequireModuleAccess('logs');
 
   useEffect(() => {
@@ -171,7 +169,6 @@ const Logs = () => {
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
-
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
@@ -240,132 +237,134 @@ const Logs = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th>S.No</th>
+                      <th>User</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('action')}
+                        onDoubleClick={() => handleSort('action', true)}
+                      >
+                        Action
+                        {renderSortIcon('action')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('url')}
+                        onDoubleClick={() => handleSort('url', true)}
+                      >
+                        URL
+                        {renderSortIcon('url')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('description')}
+                        onDoubleClick={() => handleSort('description', true)}
+                      >
+                        Description
+                        {renderSortIcon('description')}
+                      </th>
+                      <th>Tags</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('status')}
+                        onDoubleClick={() => handleSort('status', true)}
+                      >
+                        Status
+                        {renderSortIcon('status')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('createdAt')}
+                        onDoubleClick={() => handleSort('createdAt', true)}
+                      >
+                        Created at
+                        {renderSortIcon('createdAt')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th>S.No</th>
-                        <th>User</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('action')}
-                          onDoubleClick={() => handleSort('action', true)}
-                        >
-                          Action
-                          {renderSortIcon('action')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('url')}
-                          onDoubleClick={() => handleSort('url', true)}
-                        >
-                          URL
-                          {renderSortIcon('url')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('description')}
-                          onDoubleClick={() => handleSort('description', true)}
-                        >
-                          Description
-                          {renderSortIcon('description')}
-                        </th>
-                        <th>Tags</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created at
-                          {renderSortIcon('createdAt')}
-                        </th>
+                        <td colSpan={8} className="text-center text-sm font-weight-normal p-4">
+                          No log entries found
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="text-center text-sm font-weight-normal p-4">
-                            No log entries found
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const tags = Array.isArray(item.tags) ? item.tags : [];
-                          const creatorName =
-                            item?.created_by?.name ||
-                            item?.createdBy?.name ||
-                            item?.user?.name ||
-                            item?.created_by_name ||
-                            item?.createdByName ||
-                            item?.userName ||
-                            (typeof item?.created_by === 'string' ? item.created_by : '') ||
-                            (typeof item?.createdBy === 'string' ? item.createdBy : '') ||
-                            '—';
-                          return (
-                            <tr key={item._id || index}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{creatorName}</td>
-                              <td className="text-sm font-weight-normal align-middle">
-                                <LogDescriptionCell
-                                  text={item.action ?? item.title ?? item.event}
-                                  maxWidth="min(16rem, 28vw)"
-                                />
-                              </td>
-                              <td className="text-sm font-weight-normal text-break">
-                                <LogUrlCell url={item.url} />
-                              </td>
-                              <td className="text-sm font-weight-normal align-middle">
-                                <LogDescriptionCell
-                                  text={item.description ?? item.details ?? item.detail ?? item.message}
-                                />
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-wrap gap-1">
-                                  {tags.length === 0 ? (
-                                    <span className="text-muted">—</span>
-                                  ) : (
-                                    tags.map((t) => (
-                                      <span key={t} className="badge bg-gradient-secondary">
-                                        {t}
-                                      </span>
-                                    ))
-                                  )}
-                                </div>
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
-                                >
-                                  {item.status || '—'}
-                                </span>
-                              </td>
-                              <td
-                                className="text-sm font-weight-normal"
-                                title={
-                                  item.createdAt || item.created_at
-                                    ? moment(item.createdAt || item.created_at).format(
-                                        'MM-DD-YYYY h:mm a'
-                                      )
-                                    : undefined
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const tags = Array.isArray(item.tags) ? item.tags : [];
+                        const creatorName =
+                          item?.created_by?.name ||
+                          item?.createdBy?.name ||
+                          item?.user?.name ||
+                          item?.created_by_name ||
+                          item?.createdByName ||
+                          item?.userName ||
+                          (typeof item?.created_by === 'string' ? item.created_by : '') ||
+                          (typeof item?.createdBy === 'string' ? item.createdBy : '') ||
+                          '—';
+                        return (
+                          <tr key={item._id || index}>
+                            <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                            <td className="text-sm font-weight-normal">{creatorName}</td>
+                            <td className="text-sm font-weight-normal align-middle">
+                              <LogDescriptionCell
+                                text={item.action ?? item.title ?? item.event}
+                                maxWidth="min(16rem, 28vw)"
+                              />
+                            </td>
+                            <td className="text-sm font-weight-normal text-break">
+                              <LogUrlCell url={item.url} />
+                            </td>
+                            <td className="text-sm font-weight-normal align-middle">
+                              <LogDescriptionCell
+                                text={
+                                  item.description ?? item.details ?? item.detail ?? item.message
                                 }
+                              />
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              <div className="d-flex flex-wrap gap-1">
+                                {tags.length === 0 ? (
+                                  <span className="text-muted">—</span>
+                                ) : (
+                                  tags.map((t) => (
+                                    <span key={t} className="badge bg-gradient-secondary">
+                                      {t}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              <span
+                                className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
                               >
-                                {item.createdAt || item.created_at
-                                  ? moment(item.createdAt || item.created_at).fromNow()
-                                  : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                {item.status || '—'}
+                              </span>
+                            </td>
+                            <td
+                              className="text-sm font-weight-normal"
+                              title={
+                                item.createdAt || item.created_at
+                                  ? moment(item.createdAt || item.created_at).format(
+                                      'MM-DD-YYYY h:mm a'
+                                    )
+                                  : undefined
+                              }
+                            >
+                              {item.createdAt || item.created_at
+                                ? moment(item.createdAt || item.created_at).fromNow()
+                                : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>
