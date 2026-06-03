@@ -331,6 +331,9 @@ export async function updateUserRequest(userId, payload = {}) {
   }
 
   const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || result.error || 'Failed to update user');
+  }
   return normalizeSingleUserPayload(result) || result;
 }
 
