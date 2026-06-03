@@ -53,6 +53,12 @@ const LOG_FILTER_TABS = [
   { id: 'error', label: 'ERROR' },
   { id: 'rollback', label: 'ROLLBACK' },
   { id: 'update', label: 'UPDATE' },
+  { id: 'inventory_movement', label: 'inventory_movement' },
+  { id: 'sync', label: 'sync' },
+  { id: 'in', label: 'in' },
+  { id: 'wholesale_price', label: 'Wholesale Price' },
+  { id: 'stock_alert', label: 'Stock Alert' },
+  ,
 ];
 
 const Logs = () => {

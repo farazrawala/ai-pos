@@ -171,7 +171,7 @@ function createInitialSteps() {
       method: 'POST',
       url: '{{url}}api/product/create-product-variation',
       body: {
-        product_name: 'product 2',
+        product_name: 'product 3',
         product_price: 300,
         alert_qty: 0,
         product_description: 'Lorem ipsum',
