@@ -1,22 +1,26 @@
+const DEFAULT_LOCALE = 'en-PK';
+
 /**
  * @param {number} value
- * @param {string} [currency='USD']
+ * @param {number} fractionDigits
  */
-export function formatCurrency(value, currency = 'USD') {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+function formatRs(value, fractionDigits) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'Rs. —';
+  return `Rs. ${n.toLocaleString(DEFAULT_LOCALE, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}`;
+}
+
+/**
+ * @param {number} value
+ */
+export function formatCurrency(value) {
+  return formatRs(value, 0);
 }
 
 /** Two decimals — typical for general-ledger / financial statements. */
-export function formatCurrencyAccounting(value, currency = 'USD') {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+export function formatCurrencyAccounting(value) {
+  return formatRs(value, 2);
 }

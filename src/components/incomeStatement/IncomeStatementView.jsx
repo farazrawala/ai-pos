@@ -378,7 +378,7 @@ export default function IncomeStatementView() {
   useRequireModuleAccess('income-statement');
   const { status, error, report, demo } = useSelector((state) => state.incomeStatement);
 
-  const fmt = useCallback((n) => formatCurrencyFn(n, 'USD'), []);
+  const fmt = useCallback((n) => formatCurrencyFn(n), []);
 
   const [fromYear, setFromYear] = useState(() => new Date().getFullYear());
   const [fromMonth, setFromMonth] = useState(() => new Date().getMonth() + 1);

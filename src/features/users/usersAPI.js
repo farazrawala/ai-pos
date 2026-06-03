@@ -28,6 +28,8 @@ const USER_LIST_PATH = 'user/get-all-active';
 const USER_CREATE_PATH = 'user/create';
 const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
+const TOTAL_CUSTOMERS_PATH = 'user/total-customers';
+const TOTAL_USERS_PATH = 'user/total-users';
 
 /** Must match user add/edit forms (`PERMISSION_MODULE_KEYS` / `PERMISSION_ACTIONS`). */
 
@@ -335,6 +337,74 @@ export async function updateUserRequest(userId, payload = {}) {
     throw new Error(result.message || result.error || 'Failed to update user');
   }
   return normalizeSingleUserPayload(result) || result;
+}
+
+/**
+ * GET `user/total-customers` — `{ success, customer_count }`.
+ */
+export async function fetchTotalCustomersRequest() {
+  const token = getAuthToken();
+  const headers = { Accept: 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}${TOTAL_CUSTOMERS_PATH}`;
+  const response = await fetch(url, { method: 'GET', headers });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || `HTTP ${response.status}`);
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || 'Could not load customer count');
+  }
+
+  const raw = result.customer_count ?? result.customerCount ?? result.total ?? result.count;
+  const customerCount =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseInt(String(raw ?? ''), 10);
+
+  return {
+    customerCount: Number.isFinite(customerCount) ? customerCount : 0,
+  };
+}
+
+/**
+ * GET `user/total-users` — `{ success, user_count }`.
+ */
+export async function fetchTotalUsersRequest() {
+  const token = getAuthToken();
+  const headers = { Accept: 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}${TOTAL_USERS_PATH}`;
+  const response = await fetch(url, { method: 'GET', headers });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || `HTTP ${response.status}`);
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || 'Could not load user count');
+  }
+
+  const raw = result.user_count ?? result.userCount ?? result.total ?? result.count;
+  const userCount =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseInt(String(raw ?? ''), 10);
+
+  return {
+    userCount: Number.isFinite(userCount) ? userCount : 0,
+  };
 }
 
 export function formatUserOptionLabel(user) {

@@ -89,8 +89,117 @@ export async function getErrorMessageFromResponse(response) {
   return oneLine.length > 500 ? `${oneLine.slice(0, 500)}…` : oneLine;
 }
 
+const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
+const SALES_DAY_WISE_PATH = 'order/sales-day-wise';
+
 /** All order reads go through this route (paginated list without `order_item_id`, or one order when `order_item_id` is set). */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
+
+function parseOrderSalesTotals(result) {
+  const raw = result?.total_amount ?? result?.totalAmount ?? result?.sales;
+  const totalAmount =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+
+  const orderCountRaw = result?.order_count ?? result?.orderCount;
+  const orderCount =
+    typeof orderCountRaw === 'number' && Number.isFinite(orderCountRaw)
+      ? orderCountRaw
+      : parseInt(String(orderCountRaw ?? ''), 10);
+
+  return {
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+  };
+}
+
+/**
+ * GET `order/total-sales-current-month`
+ * Supports flat `{ total_amount, order_count, period }` or nested
+ * `{ current_month, last_month }` month blocks.
+ */
+export async function fetchTotalSalesCurrentMonthRequest() {
+  const url = `${BASE_URL}${TOTAL_SALES_CURRENT_MONTH_PATH}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load current month sales';
+    throw new Error(msg);
+  }
+
+  const currentBlock =
+    result?.current_month && typeof result.current_month === 'object'
+      ? result.current_month
+      : result;
+  const lastBlock =
+    result?.last_month && typeof result.last_month === 'object' ? result.last_month : null;
+
+  return {
+    currentMonth: parseOrderSalesTotals(currentBlock),
+    lastMonth: lastBlock ? parseOrderSalesTotals(lastBlock) : null,
+  };
+}
+
+function parseSalesDayEntry(day) {
+  if (!day || typeof day !== 'object') {
+    return { date: '', totalAmount: 0, orderCount: 0 };
+  }
+  const amountRaw = day.total_amount ?? day.totalAmount ?? 0;
+  const totalAmount =
+    typeof amountRaw === 'number' && Number.isFinite(amountRaw)
+      ? amountRaw
+      : parseFloat(String(amountRaw ?? '').replace(/,/g, '').trim());
+  const countRaw = day.order_count ?? day.orderCount ?? 0;
+  const orderCount =
+    typeof countRaw === 'number' && Number.isFinite(countRaw)
+      ? countRaw
+      : parseInt(String(countRaw ?? ''), 10);
+  return {
+    date: String(day.date ?? ''),
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
+  };
+}
+
+/**
+ * GET `order/sales-day-wise` — daily sales for the current month.
+ */
+export async function fetchSalesDayWiseRequest() {
+  const url = `${BASE_URL}${SALES_DAY_WISE_PATH}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load day-wise sales';
+    throw new Error(msg);
+  }
+
+  const days = Array.isArray(result.days) ? result.days.map(parseSalesDayEntry) : [];
+  const summary = parseOrderSalesTotals(result.summary ?? result);
+
+  return {
+    days,
+    summary,
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+  };
+}
 
 const ORDER_INVOICE_UPDATE_PATH = 'order/invoice-update';
 

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import {
-  FaArrowUp,
   FaCamera,
   FaCartShopping,
   FaCoins,
@@ -12,104 +11,24 @@ import {
 } from 'react-icons/fa6';
 import Footer from '../components/Footer.jsx';
 import NavIcon from '../components/NavIcon.jsx';
+import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
+import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
+import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
+import { useTotalCustomers } from '../hooks/useTotalCustomers.js';
+import { useTotalUsers } from '../hooks/useTotalUsers.js';
 
 const Dashboard = () => {
   const name = useSelector((state) => state.user.name);
+  const { loading: salesLoading, totalAmount, orderCount, momPercent, error: salesError } =
+    useCurrentMonthSales();
+  const {
+    loading: customersLoading,
+    customerCount,
+    error: customersError,
+  } = useTotalCustomers();
+  const { loading: usersLoading, userCount, error: usersError } = useTotalUsers();
 
   useEffect(() => {
-    // Chart.js initialization
-    const initChart = () => {
-      const chartElement = document.getElementById('chart-line');
-      if (chartElement && window.Chart) {
-        try {
-          const ctx1 = chartElement.getContext('2d');
-          const gradientStroke1 = ctx1.createLinearGradient(0, 230, 0, 50);
-
-          gradientStroke1.addColorStop(1, 'rgba(94, 114, 228, 0.2)');
-          gradientStroke1.addColorStop(0.2, 'rgba(94, 114, 228, 0.0)');
-          gradientStroke1.addColorStop(0, 'rgba(94, 114, 228, 0)');
-
-          new window.Chart(ctx1, {
-            type: 'line',
-            data: {
-              labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-              datasets: [
-                {
-                  label: 'Mobile apps',
-                  tension: 0.4,
-                  pointRadius: 0,
-                  borderColor: '#5e72e4',
-                  backgroundColor: gradientStroke1,
-                  borderWidth: 3,
-                  fill: true,
-                  data: [50, 40, 300, 220, 500, 250, 400, 230, 500],
-                  maxBarThickness: 6,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: false,
-                },
-              },
-              interaction: {
-                intersect: false,
-                mode: 'index',
-              },
-              scales: {
-                y: {
-                  grid: {
-                    drawBorder: false,
-                    display: true,
-                    drawOnChartArea: true,
-                    drawTicks: false,
-                    borderDash: [5, 5],
-                  },
-                  ticks: {
-                    display: true,
-                    padding: 10,
-                    color: '#fbfbfb',
-                    font: {
-                      size: 11,
-                      family: 'Open Sans',
-                      style: 'normal',
-                      lineHeight: 2,
-                    },
-                  },
-                },
-                x: {
-                  grid: {
-                    drawBorder: false,
-                    display: false,
-                    drawOnChartArea: false,
-                    drawTicks: false,
-                    borderDash: [5, 5],
-                  },
-                  ticks: {
-                    display: true,
-                    color: '#ccc',
-                    padding: 20,
-                    font: {
-                      size: 11,
-                      family: 'Open Sans',
-                      style: 'normal',
-                      lineHeight: 2,
-                    },
-                  },
-                },
-              },
-            },
-          });
-        } catch (error) {
-          console.error('Chart initialization error:', error);
-        }
-      }
-    };
-
-    // Scrollbar initialization
     const initScrollbar = () => {
       if (window.Scrollbar) {
         try {
@@ -129,7 +48,6 @@ const Dashboard = () => {
 
     // Wait for scripts to load
     const checkAndInit = () => {
-      initChart();
       initScrollbar();
     };
 
@@ -182,10 +100,21 @@ const Dashboard = () => {
                           <p className="text-sm mb-0 text-uppercase font-weight-bold">
                             Today's Users
                           </p>
-                          <h5 className="font-weight-bolder">2,300</h5>
+                          <h5 className="font-weight-bolder">
+                            {usersLoading
+                              ? '—'
+                              : usersError
+                                ? '—'
+                                : (userCount ?? 0).toLocaleString()}
+                          </h5>
                           <p className="mb-0">
-                            <span className="text-success text-sm font-weight-bolder">+3%</span>
-                            since last week
+                            {usersLoading ? (
+                              <span className="text-secondary text-sm">Loading…</span>
+                            ) : usersError ? (
+                              <span className="text-danger text-sm">{usersError}</span>
+                            ) : (
+                              <span className="text-secondary text-sm">total users</span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -207,10 +136,21 @@ const Dashboard = () => {
                           <p className="text-sm mb-0 text-uppercase font-weight-bold">
                             New Clients
                           </p>
-                          <h5 className="font-weight-bolder">+3,462</h5>
+                          <h5 className="font-weight-bolder">
+                            {customersLoading
+                              ? '—'
+                              : customersError
+                                ? '—'
+                                : (customerCount ?? 0).toLocaleString()}
+                          </h5>
                           <p className="mb-0">
-                            <span className="text-danger text-sm font-weight-bolder">-2%</span>
-                            last quarter
+                            {customersLoading ? (
+                              <span className="text-secondary text-sm">Loading…</span>
+                            ) : customersError ? (
+                              <span className="text-danger text-sm">{customersError}</span>
+                            ) : (
+                              <span className="text-secondary text-sm">total customers</span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -230,10 +170,36 @@ const Dashboard = () => {
                       <div className="col-8">
                         <div className="numbers">
                           <p className="text-sm mb-0 text-uppercase font-weight-bold">Sales</p>
-                          <h5 className="font-weight-bolder">$103,430</h5>
+                          <h5 className="font-weight-bolder">
+                            {salesLoading
+                              ? '—'
+                              : salesError
+                                ? '—'
+                                : formatCurrency(totalAmount ?? 0)}
+                          </h5>
                           <p className="mb-0">
-                            <span className="text-success text-sm font-weight-bolder">+5%</span>{' '}
-                            than last month
+                            {salesLoading ? (
+                              <span className="text-secondary text-sm">Loading…</span>
+                            ) : salesError ? (
+                              <span className="text-danger text-sm">{salesError}</span>
+                            ) : momPercent != null ? (
+                              <>
+                                <span
+                                  className={`text-sm font-weight-bolder ${
+                                    momPercent >= 0 ? 'text-success' : 'text-danger'
+                                  }`}
+                                >
+                                  {momPercent >= 0 ? '+' : ''}
+                                  {Math.round(momPercent)}%
+                                </span>{' '}
+                                than last month
+                              </>
+                            ) : (
+                              <span className="text-secondary text-sm">
+                                {orderCount ?? 0} order{(orderCount ?? 0) === 1 ? '' : 's'} this
+                                month
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -251,20 +217,7 @@ const Dashboard = () => {
         </div>
         <div className="row">
           <div className="col-lg-7 mb-4 mb-lg-0">
-            <div className="card z-index-2 h-100">
-              <div className="card-header pb-0 pt-3 bg-transparent">
-                <h6 className="text-capitalize">Sales overview</h6>
-                <p className="text-sm mb-0">
-                  <NavIcon icon={FaArrowUp} className="text-success me-1" size={14} />
-                  <span className="font-weight-bold">4% more</span> in 2021
-                </p>
-              </div>
-              <div className="card-body p-3">
-                <div className="chart">
-                  <canvas id="chart-line" className="chart-canvas" height="300"></canvas>
-                </div>
-              </div>
-            </div>
+            <SalesOverviewCard />
           </div>
           <div className="col-lg-5">
             <div className="card card-carousel overflow-hidden h-100 p-0">

@@ -66,12 +66,12 @@ User navigation acc to roles.
 
 
 3.6.26
+Alert
+stock according to warehouse. 
 
 
 // Remaining
-stock according to warehouse. 
-add/edit variant product.
-Alert 
+add/edit variant product. 
 dashboard dynamic.
 
 
