@@ -28,7 +28,11 @@ export const isAdmin = (state) => {
  * @returns {Object|null} - Permissions object or null
  */
 export const getPermissions = (state) => {
-  return state?.user?.user?.permissions || null;
+  const fromUser = state?.user?.user?.permissions;
+  if (fromUser && typeof fromUser === 'object') return fromUser;
+  const fromSession = state?.user?.permissions;
+  if (fromSession && typeof fromSession === 'object') return fromSession;
+  return null;
 };
 
 /**

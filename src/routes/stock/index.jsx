@@ -20,6 +20,7 @@ import {
   getCreatedByLabel,
 } from '../../features/stockMovement/stockMovementAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -36,7 +37,8 @@ const StockListing = () => {
     search: searchTerm,
     sort,
   } = useSelector((state) => state.stockMovement);
-  const { canView, canCreate, canEdit } = usePermissions('warehouse');
+  const { canView, canCreate, canEdit } = usePermissions('stock');
+  useRequireModuleAccess('stock');
   const canTransfer = canCreate || canEdit;
 
   const loading = status === 'loading';
@@ -44,10 +46,6 @@ const StockListing = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };

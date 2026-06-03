@@ -15,6 +15,7 @@ import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -73,6 +74,7 @@ const poTransactionNumber = (row) => {
 };
 
 const PurchaseOrders = () => {
+  useRequireModuleAccess('purchase-orders');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {

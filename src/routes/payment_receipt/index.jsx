@@ -10,6 +10,7 @@ import {
   setSort,
 } from '../../features/paymentReceipts/paymentReceiptsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { formatTransactionCreatedByLabel } from '../../components/ledger/ledgerTransactionMapper.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -32,16 +33,13 @@ const PaymentReceiptsList = () => {
     search: searchTerm,
     sort,
   } = useSelector((state) => state.paymentReceipts);
-  const { canView, canEdit } = usePermissions('accounts');
+  const { canView, canEdit } = usePermissions('payment-receipts');
+  useRequireModuleAccess('payment-receipts');
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = {

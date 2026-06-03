@@ -5,6 +5,7 @@ import moment from 'moment';
 import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
 import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -32,16 +33,11 @@ const Users = () => {
   } = useSelector((state) => state.users);
 
   const { canView, canCreate, canEdit } = usePermissions('users');
+  useRequireModuleAccess('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = {

@@ -17,7 +17,7 @@ const AttributeAdd = () => {
   const [newValue, setNewValue] = useState('');
 
   // Get attribute permissions
-  const { canCreate } = usePermissions('attribute');
+  const { canCreate } = usePermissions('attributes');
 
   // Redirect if user doesn't have create permission
   useEffect(() => {

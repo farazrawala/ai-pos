@@ -13,6 +13,7 @@ import {
   clearDeleteStatus,
 } from '../../features/accounts/accountsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { useNavigate } from 'react-router-dom';
 import { ACCOUNT_TYPE_OPTIONS } from '../../constants/accountTypes.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -35,6 +36,7 @@ const Accounts = () => {
     deleteError,
   } = useSelector((state) => state.accounts);
   const { canView, canEdit, canDelete } = usePermissions('accounts');
+  useRequireModuleAccess('accounts');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [createForm, setCreateForm] = useState({
@@ -47,10 +49,6 @@ const Accounts = () => {
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
   const isCreating = createStatus === 'loading';
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = {

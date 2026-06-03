@@ -13,6 +13,7 @@ import {
   clearDeleteStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
@@ -37,14 +38,8 @@ const Product = () => {
   const [togglingProductId, setTogglingProductId] = useState(null);
 
   // Get product permissions
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('product');
-
-  // Redirect if user doesn't have view permission
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
+  useRequireModuleAccess('products');
 
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {

@@ -28,7 +28,7 @@ const AttributeEdit = () => {
   const isLoading = fetchStatus === 'loading';
 
   // Get attribute permissions
-  const { canEdit } = usePermissions('attribute');
+  const { canEdit } = usePermissions('attributes');
 
   // Redirect if user doesn't have edit permission
   useEffect(() => {

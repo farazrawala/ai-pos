@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   FaBasketShopping,
@@ -28,6 +29,8 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
+import { usePermissions } from '../hooks/usePermissions.js';
+import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
 const navItems = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
@@ -39,29 +42,36 @@ const navItems = [
   { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
   { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
   { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
-
   { to: '/barcode-print', label: 'Barcode print', icon: FaQrcode },
   { to: '/attributes', label: 'Attributes', icon: FaTags },
-
   { to: '/users', label: 'Users', icon: FaUser },
   { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
   { to: '/branch', label: 'Branch', icon: FaBuilding },
-
   { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
   { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
   { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
   { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
-
   { to: '/payments', label: 'Payments', icon: FaBasketShopping },
   { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
-
   { to: '/logs', label: 'Logs', icon: FaClipboardList },
-  { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane },
+  { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane, adminOnly: true },
 ];
 
 const Sidebar = () => {
+  const { isAdmin, canView } = usePermissions();
+
+  const visibleNavItems = useMemo(() => {
+    return navItems.filter(({ to, adminOnly }) => {
+      if (adminOnly) return isAdmin;
+      const moduleKey = ROUTE_PERMISSION_MODULE[to];
+      if (moduleKey == null) return true;
+      if (isAdmin) return true;
+      return canView(moduleKey);
+    });
+  }, [canView, isAdmin]);
+
   return (
     <aside
       className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
@@ -90,7 +100,7 @@ const Sidebar = () => {
       <hr className="horizontal dark mt-0" />
       <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
         <ul className="navbar-nav">
-          {navItems.map(({ to, label, icon, end }) => (
+          {visibleNavItems.map(({ to, label, icon, end }) => (
             <li className="nav-item" key={to}>
               <NavLink
                 to={to}

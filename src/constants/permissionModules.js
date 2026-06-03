@@ -29,3 +29,41 @@ export const PERMISSION_MODULE_KEYS = [
 ];
 
 export const PERMISSION_ACTIONS = ['view', 'add', 'edit', 'delete'];
+
+/** Map sidebar routes to login `permissions` module keys (`null` = always visible when logged in). */
+export const ROUTE_PERMISSION_MODULE = {
+  '/': null,
+  '/pos': 'pos',
+  '/orders': 'orders',
+  '/purchase-orders': 'purchase-orders',
+  '/products': 'products',
+  '/categories': 'categories',
+  '/warehouse': 'warehouse',
+  '/stock': 'stock',
+  '/adjustments': 'adjustments',
+  '/barcode-print': 'barcode-print',
+  '/attributes': 'attributes',
+  '/users': 'users',
+  '/amount-transfers': 'amount-transfers',
+  '/branch': 'branch',
+  '/accounts': 'accounts',
+  '/balance-sheet': 'balance-sheet',
+  '/income-statement': 'income-statement',
+  '/ledger': 'ledger',
+  '/payments': 'payments',
+  '/payment-receipts': 'payment-receipts',
+  '/expenses': 'expenses',
+  '/transactions': 'transactions',
+  '/logs': 'logs',
+};
+
+export function getPermissionModuleForPath(pathname = '') {
+  const path = String(pathname || '').split('?')[0].replace(/\/+$/, '') || '/';
+  if (ROUTE_PERMISSION_MODULE[path] !== undefined) {
+    return ROUTE_PERMISSION_MODULE[path];
+  }
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 0) return null;
+  const base = `/${segments[0]}`;
+  return ROUTE_PERMISSION_MODULE[base] ?? null;
+}

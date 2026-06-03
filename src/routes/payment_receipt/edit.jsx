@@ -104,7 +104,7 @@ export default function PaymentReceiptEditPage() {
     receiptUpdateError,
   } = useSelector((state) => state.paymentReceipts);
 
-  const { canView, canEdit } = usePermissions('accounts');
+  const { canEdit } = usePermissions('payment-receipts');
   const canSubmit = Boolean(canEdit);
 
   const [users, setUsers] = useState([]);
@@ -124,10 +124,6 @@ export default function PaymentReceiptEditPage() {
   }));
   const [errors, setErrors] = useState({});
   const [hydratedFromList, setHydratedFromList] = useState(false);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     if (canEdit === false) navigate('/payment-receipts');

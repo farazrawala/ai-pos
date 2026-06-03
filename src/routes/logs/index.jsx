@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -56,12 +57,7 @@ const Logs = () => {
   const sortClickTimeoutRef = useRef(null);
 
   const { canView } = usePermissions('logs');
-
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
+  useRequireModuleAccess('logs');
 
   useEffect(() => {
     const params = {

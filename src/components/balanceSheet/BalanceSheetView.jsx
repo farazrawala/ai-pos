@@ -22,6 +22,7 @@ import {
   removeCompanyCacheRequest,
 } from '../../features/company/companyAPI.js';
 import { usePageApiSources } from '../../hooks/usePageApiSources.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import {
   buildPendingApiSources,
   trackApiCall,
@@ -305,6 +306,7 @@ function apiResult(results, key) {
 }
 
 export default function BalanceSheetView() {
+  useRequireModuleAccess('balance-sheet');
   const authUser = useSelector(selectAuthUser);
   const authCompany = useSelector(selectCompany);
   const {

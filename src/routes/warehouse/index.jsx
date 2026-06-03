@@ -12,6 +12,7 @@ import {
   clearDeleteStatus,
 } from '../../features/warehouse/warehouseSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
@@ -31,14 +32,11 @@ const Warehouse = () => {
     deleteError,
   } = useSelector((state) => state.warehouse);
   const { canView, canCreate, canEdit, canDelete } = usePermissions('warehouse');
+  useRequireModuleAccess('warehouse');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };

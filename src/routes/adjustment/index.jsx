@@ -16,8 +16,10 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const AdjustmentIndex = () => {
+  useRequireModuleAccess('adjustments');
   const dispatch = useDispatch();
   const {
     list: data,

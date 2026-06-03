@@ -391,7 +391,7 @@ const CategoryAdd = () => {
     }
   };
   // Get category permissions using the smart permission hook
-  const { canEdit, canView, canDelete, canCreate } = usePermissions('category');
+  const { canEdit, canView, canDelete, canCreate } = usePermissions('categories');
 
   // Redirect if user doesn't have create permission
   useEffect(() => {

@@ -73,7 +73,7 @@ const ProductEdit = () => {
   const isLoading = fetchStatus === 'loading';
 
   // Get product permissions
-  const { canEdit } = usePermissions('product');
+  const { canEdit } = usePermissions('products');
 
   // Redirect if user doesn't have edit permission
   useEffect(() => {

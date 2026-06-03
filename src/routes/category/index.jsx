@@ -13,6 +13,7 @@ import {
   clearDeleteStatus,
 } from '../../features/categories/categoriesSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -44,14 +45,8 @@ const Category = () => {
   const [togglingCategoryId, setTogglingCategoryId] = useState(null);
 
   // Get category permissions
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('category');
-
-  // Redirect if user doesn't have view permission
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('categories');
+  useRequireModuleAccess('categories');
 
   // useEffect(() => {
   //   console.log('canCreate', canCreate);

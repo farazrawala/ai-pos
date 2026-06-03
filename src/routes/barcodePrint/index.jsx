@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import JsBarcode from 'jsbarcode';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
@@ -11,7 +10,7 @@ import {
   normalizeIncomingBarcodeSettings,
   buildBarcodeSettingsPayload,
 } from '../../features/company/companyAPI.js';
-import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const B_TYPES = [
   { value: '1', format: 'EAN13', label: 'EAN-13' },
@@ -260,10 +259,9 @@ const PRINT_DOC_STYLES = `
 `;
 
 const BarcodePrint = () => {
-  const navigate = useNavigate();
+  useRequireModuleAccess('barcode-print');
   const userSlice = useSelector((state) => state.user);
   const user = userSlice?.user;
-  const { canView } = usePermissions('product');
 
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
@@ -305,12 +303,6 @@ const BarcodePrint = () => {
           : null;
     return getCompanyIdFromUser(merged);
   }, [user, userSlice?.company_id]);
-
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);

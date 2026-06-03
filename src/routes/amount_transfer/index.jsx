@@ -14,8 +14,10 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const AmountTransferIndex = () => {
+  useRequireModuleAccess('amount-transfers');
   const dispatch = useDispatch();
   const {
     list: data,

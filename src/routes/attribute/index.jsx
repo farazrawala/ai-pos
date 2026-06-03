@@ -13,6 +13,7 @@ import {
   clearDeleteStatus,
 } from '../../features/attributes/attributesSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
@@ -37,14 +38,8 @@ const Attribute = () => {
   const [togglingAttributeId, setTogglingAttributeId] = useState(null);
 
   // Get attribute permissions
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('attribute');
-
-  // Redirect if user doesn't have view permission
-  useEffect(() => {
-    if (canView === false) {
-      navigate('/dashboard');
-    }
-  }, [canView, navigate]);
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('attributes');
+  useRequireModuleAccess('attributes');
 
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {

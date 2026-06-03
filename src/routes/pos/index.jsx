@@ -14,6 +14,7 @@ import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.
 import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
 
@@ -25,6 +26,7 @@ const parsePosUnitPrice = (product) => {
 };
 
 const Pos = () => {
+  useRequireModuleAccess('pos');
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);

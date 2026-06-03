@@ -13,6 +13,7 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const shortenId = (id, len = 10) => {
   if (id == null || id === '') return '—';
@@ -58,6 +59,7 @@ const expenseAccountDisplayName = (accountRef) => {
 };
 
 const ExpenseIndex = () => {
+  useRequireModuleAccess('expenses');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {

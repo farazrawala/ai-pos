@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import LedgerListingSummaryCards from '../../components/ledger/users-list/LedgerListingSummaryCards.jsx';
@@ -35,7 +36,8 @@ function needsClientSideLedgerFilters(f) {
 
 export default function LedgerListingPage() {
   const navigate = useNavigate();
-  const { canView } = usePermissions('orders');
+  const { canView } = usePermissions('ledger');
+  useRequireModuleAccess('ledger');
 
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
@@ -49,10 +51,6 @@ export default function LedgerListingPage() {
   /** Sample for summary cards (capped); `totalUsers` comes from API total when available. */
   const [aggregateSample, setAggregateSample] = useState([]);
   const [aggregateTotalUsers, setAggregateTotalUsers] = useState(0);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     let cancelled = false;

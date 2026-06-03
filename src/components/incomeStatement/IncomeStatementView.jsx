@@ -8,6 +8,7 @@ import {
 } from '../../features/incomeStatement/incomeStatementAPI.js';
 import { formatCurrency as formatCurrencyFn } from '../balanceSheet/formatCurrency.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../SearchInputIcon.jsx';
 import NavIcon from '../NavIcon.jsx';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
@@ -373,7 +374,8 @@ function OpExDonut({ items, colors }) {
 export default function IncomeStatementView() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { canView } = usePermissions('accounts');
+  const { canView } = usePermissions('income-statement');
+  useRequireModuleAccess('income-statement');
   const { status, error, report, demo } = useSelector((state) => state.incomeStatement);
 
   const fmt = useCallback((n) => formatCurrencyFn(n, 'USD'), []);
@@ -441,10 +443,6 @@ export default function IncomeStatementView() {
     setFrom(y, a);
     setTo(y, b);
   };
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const startDate = toYmd(periodStart);

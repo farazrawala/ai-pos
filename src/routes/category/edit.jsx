@@ -125,7 +125,7 @@ const CategoryEdit = () => {
   };
 
   // Get category permissions
-  const { canEdit } = usePermissions('category');
+  const { canEdit } = usePermissions('categories');
 
   // Redirect if user doesn't have edit permission
   useEffect(() => {

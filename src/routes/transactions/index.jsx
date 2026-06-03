@@ -18,6 +18,7 @@ import {
   sumDebitCreditForLines,
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import TablePagination from '../../components/TablePagination.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -34,7 +35,8 @@ const Transactions = () => {
     sort,
     filters,
   } = useSelector((state) => state.transactions);
-  const { canView } = usePermissions('orders');
+  const { canView } = usePermissions('transactions');
+  useRequireModuleAccess('transactions');
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -46,10 +48,6 @@ const Transactions = () => {
   const sortClickTimeoutRef = useRef(null);
 
   const journals = useMemo(() => groupTransactionsIntoJournals(data), [data]);
-
-  useEffect(() => {
-    if (canView === false) navigate('/dashboard');
-  }, [canView, navigate]);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };

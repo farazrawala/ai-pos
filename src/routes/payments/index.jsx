@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import { Link } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
@@ -92,7 +93,8 @@ function FieldError({ error }) {
 }
 
 export default function PaymentManagementPage() {
-  const { canView, canCreate } = usePermissions('accounts');
+  const { canView, canCreate, isAdmin } = usePermissions('payments');
+  useRequireModuleAccess('payments');
   const canSubmit = Boolean(canCreate);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -389,7 +391,7 @@ export default function PaymentManagementPage() {
     </>
   ) : null;
 
-  if (canView === false) {
+  if (!isAdmin && canView === false) {
     return (
       <div className="container-fluid py-4">
         <div className="alert alert-warning mb-0">You do not have access to Payment Management.</div>

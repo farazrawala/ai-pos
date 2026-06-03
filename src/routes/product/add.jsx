@@ -49,7 +49,7 @@ const ProductAdd = () => {
   const bulkImagesInputRef = useRef(null);
 
   // Get product permissions
-  const { canCreate } = usePermissions('product');
+  const { canCreate } = usePermissions('products');
 
   // Redirect if user doesn't have create permission
   useEffect(() => {
