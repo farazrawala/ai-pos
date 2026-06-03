@@ -1,8 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { fetchLogs, setSearch, setPage, setLimit, setSort } from '../../features/logs/logsSlice.js';
+import {
+  fetchLogs,
+  setSearch,
+  setLogTag,
+  setPage,
+  setLimit,
+  setSort,
+} from '../../features/logs/logsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -40,15 +46,26 @@ function LogDescriptionCell({ text, maxWidth = 'min(22rem, 38vw)' }) {
   );
 }
 
+const LOG_FILTER_TABS = [
+  { id: '', label: 'ALL' },
+  { id: 'API', label: 'API' },
+  { id: 'get', label: 'GET' },
+  { id: 'get-all-active', label: 'GET-ALL-ACTIVE' },
+  { id: 'Cache', label: 'CACHE' },
+  { id: 'delete', label: 'DELETE' },
+  { id: 'remove-cache', label: 'REMOVE-CACHE' },
+  { id: 'error', label: 'ERROR' },
+];
+
 const Logs = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const {
     list: data,
     status,
     error,
     pagination,
     search: searchTerm,
+    logTag,
     sort,
   } = useSelector((state) => state.logs);
   const loading = status === 'loading';
@@ -65,12 +82,21 @@ const Logs = () => {
       limit: pagination.limit,
     };
     if (searchTerm) params.search = searchTerm;
+    if (logTag) params.tag = logTag;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchLogs(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    logTag,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -177,6 +203,29 @@ const Logs = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+            <div className="px-3 pt-3 pb-0">
+              <div
+                className="btn-group btn-group-sm flex-wrap"
+                role="group"
+                aria-label="Filter logs by tag"
+              >
+                {LOG_FILTER_TABS.map(({ id, label }) => {
+                  const active = logTag === id;
+                  return (
+                    <button
+                      key={id || 'all'}
+                      type="button"
+                      aria-pressed={active}
+                      className={`btn mb-0 ${active ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => dispatch(setLogTag(id))}
+                      disabled={loading}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="card-body pt-0 px-0 pb-0">

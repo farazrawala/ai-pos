@@ -35,6 +35,7 @@ export const fetchLogsRequest = async (params = {}) => {
   if (params.search) queryParams.append('search', params.search);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  if (params.tag) queryParams.append('tag', params.tag);
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}logs/get-all-active${queryString ? `?${queryString}` : ''}&created_by=true`;

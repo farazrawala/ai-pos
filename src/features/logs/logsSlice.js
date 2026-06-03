@@ -24,6 +24,8 @@ const initialState = {
     totalPages: 0,
   },
   search: '',
+  /** Filter by exact tag match (`API`, `get`, `Cache`, …). Empty = all (first toggle). */
+  logTag: '',
   sort: {
     sortBy: null,
     sortOrder: 'desc',
@@ -39,6 +41,10 @@ const logsSlice = createSlice({
     },
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setLogTag: (state, action) => {
+      state.logTag = action.payload ?? '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -87,5 +93,6 @@ const logsSlice = createSlice({
   },
 });
 
-export const { clearError, setSearch, setPage, setLimit, setSort } = logsSlice.actions;
+export const { clearError, setSearch, setLogTag, setPage, setLimit, setSort } =
+  logsSlice.actions;
 export default logsSlice.reducer;
