@@ -3,8 +3,10 @@ import axios from 'axios';
 import WorkflowList from '../components/apiWorkflow/WorkflowList.jsx';
 import ApiEditor from '../components/apiWorkflow/ApiEditor.jsx';
 import ResponseViewer from '../components/apiWorkflow/ResponseViewer.jsx';
+import InventoryCostLedger from '../components/apiWorkflow/InventoryCostLedger.jsx';
 import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableReplace.js';
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
+import { objectToFormData } from '../utils/apiWorkflow/formData.js';
 
 const DEFAULT_BASE = '';
 
@@ -16,8 +18,63 @@ function compRandEmail() {
   return `comp_${Math.random().toString(36).slice(2, 11)}${Math.random().toString(36).slice(2, 7)}@gmail.com`;
 }
 
+const PRODUCT_ID_SAVE = [
+  'response.data.data._id',
+  'response.data.data.product._id',
+  'response.data.data.product_id',
+  'response.data.product._id',
+  'response.data._id',
+  'response.data.id',
+];
+
+const WAREHOUSE_ID_SAVE = [
+  'response.data.data._id',
+  'response.data.data.warehouse._id',
+  'response.data.warehouse._id',
+  'response.data._id',
+];
+
+const USER_ID_SAVE = [
+  'response.data.data.user._id',
+  'response.data.data.user.id',
+  'response.data.data._id',
+  'response.data.user._id',
+  'response.data._id',
+];
+
+/** @param {string} name @param {string} refNo @param {number} qty @param {number} price */
+function purchaseLedgerStep(name, refNo, qty, price) {
+  const total = qty * price;
+  return {
+    name,
+    method: 'POST',
+    url: '{{url}}api/purchase_order/purchase_order_create',
+    bodyType: 'form',
+    body: {
+      vendor_id: '{{vendor_id}}',
+      ref_no: refNo,
+      discount: '0',
+      shipment: '0',
+      payment_method_accounts_id: '{{payment_account_id}}',
+      account_id: '{{payment_account_id}}',
+      amount_paid: String(total),
+      remaining_amount: '0',
+      total_amount: String(total),
+      'product_id[0]': '{{product_1_id}}',
+      'qty[0]': String(qty),
+      'price[0]': String(price),
+      'warehouse_id[0]': '{{warehouse_1_id}}',
+      'shipping_per_unit[0]': '0',
+      'total_shipping[0]': '0',
+    },
+    ledger: { type: 'purchase', qty, unitCost: price },
+    save: {},
+  };
+}
+
 function createInitialSteps() {
   const email = compRandEmail();
+  const vendorEmail = compRandEmail().replace('comp_', 'vendor_');
   return [
     {
       name: 'Create master user + company',
@@ -88,7 +145,9 @@ function createInitialSteps() {
       body: {
         name: 'Ware House 1',
       },
-      save: {},
+      save: {
+        warehouse_1_id: WAREHOUSE_ID_SAVE,
+      },
     },
     {
       name: 'Create warehouse — Ware House 2',
@@ -147,7 +206,9 @@ function createInitialSteps() {
         length: 25,
         width: 124,
       },
-      save: {},
+      save: {
+        product_1_id: PRODUCT_ID_SAVE,
+      },
     },
     {
       name: 'Create product variation — product 2',
@@ -183,6 +244,39 @@ function createInitialSteps() {
       },
       save: {},
     },
+    {
+      name: 'Create vendor',
+      method: 'POST',
+      url: '{{url}}api/user/create',
+      body: {
+        name: 'Vendor 1',
+        email: vendorEmail,
+        password: '123456',
+        phone: '03001234567',
+        role: ['VENDOR'],
+      },
+      save: {
+        vendor_id: USER_ID_SAVE,
+      },
+    },
+    {
+      name: 'Get payment account',
+      method: 'GET',
+      url: '{{url}}api/account/get-all-active?limit=5&account_type=current_asset',
+      body: {},
+      save: {
+        payment_account_id: [
+          'response.data.data.0._id',
+          'response.data.data.0.id',
+          'response.data.0._id',
+          'response.data.0.id',
+        ],
+      },
+    },
+    purchaseLedgerStep('Purchase 10 @ 200', 'PO-WAC-1', 10, 200),
+    purchaseLedgerStep('Purchase 10 @ 220', 'PO-WAC-2', 10, 220),
+    purchaseLedgerStep('Purchase 10 @ 250', 'PO-WAC-3', 10, 250),
+    purchaseLedgerStep('Purchase 20 @ 300', 'PO-WAC-4', 20, 300),
   ];
 }
 
@@ -322,7 +416,12 @@ const ApiWorkflowRunner = () => {
         };
         const headers = {};
         if (method !== 'GET' && method !== 'HEAD') {
-          headers['Content-Type'] = 'application/json';
+          if (step.bodyType === 'form') {
+            cfg.data = objectToFormData(body);
+          } else {
+            headers['Content-Type'] = 'application/json';
+            cfg.data = body;
+          }
         }
         const token = interpVars.auth_token ?? interpVars.token;
         if (typeof token === 'string' && token.trim()) {
@@ -330,9 +429,6 @@ const ApiWorkflowRunner = () => {
         }
         if (Object.keys(headers).length) {
           cfg.headers = headers;
-        }
-        if (method !== 'GET' && method !== 'HEAD') {
-          cfg.data = body;
         }
 
         const res = await axios(cfg);
@@ -546,6 +642,7 @@ const ApiWorkflowRunner = () => {
                 {varsDisplay}
               </pre>
             </div>
+            <InventoryCostLedger steps={steps} statuses={statuses} />
           </div>
         </div>
       </div>

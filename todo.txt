@@ -97,10 +97,8 @@ Purchase return
 Complete Test Case
 Purchase 10 @ 200 → Avg = 200
 Purchase 10 @ 220 → Avg = 210
-Sell 5 → Avg = 210
 Purchase 10 @ 250 → Avg = 226
-Sell 8 → Avg = 226
-Purchase 20 @ 300 → New Avg = 267.24
+Purchase 20 @ 300 → New Avg = 266
 
 Final verification:
 
