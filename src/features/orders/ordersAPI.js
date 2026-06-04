@@ -829,3 +829,42 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
 
   return result;
 }
+
+const ORDER_DELETE_PATH = 'order/order_delete';
+
+/**
+ * DELETE `order/order_delete/:orderId`
+ */
+export async function deleteOrderRequest(orderId) {
+  const id = String(orderId ?? '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+
+  const url = `${BASE_URL}${ORDER_DELETE_PATH}/${encodeURIComponent(id)}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: getHeaders({ json: false }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not delete order';
+    throw new Error(msg);
+  }
+
+  return result;
+}

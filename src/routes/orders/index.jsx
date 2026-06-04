@@ -4,13 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchOrders,
+  deleteOrder,
   setSearch,
   setPage,
   setLimit,
   setSort,
+  clearDeleteStatus,
 } from '../../features/orders/ordersSlice.js';
 import {
   pickInvoiceRouteId,
+  pickOrderDocumentId,
   getNoOfItemsDisplay,
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -18,6 +21,7 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+import { toast } from '../../utils/toast.js';
 
 const getOrderStatusDisplay = (row) => {
   if (!row || typeof row !== 'object') return '';
@@ -49,8 +53,9 @@ const Orders = () => {
     pagination,
     search: searchTerm,
     sort,
+    deleteStatus,
   } = useSelector((state) => state.orders);
-  const { canView, canEdit } = usePermissions('orders');
+  const { canEdit, canDelete } = usePermissions('orders');
   useRequireModuleAccess('orders');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -149,6 +154,27 @@ const Orders = () => {
     }
   };
 
+  const handleDelete = async (row) => {
+    const orderId = pickOrderDocumentId(row);
+    if (!orderId) {
+      toast.error('Could not delete: missing order id.');
+      return;
+    }
+    const orderNo = row.order_no || row.orderNo || orderId;
+    if (
+      !window.confirm(`Delete order "${orderNo}"? This action cannot be undone.`)
+    ) {
+      return;
+    }
+    const result = await dispatch(deleteOrder(orderId));
+    if (deleteOrder.fulfilled.match(result)) {
+      toast.success('Order deleted successfully.');
+    } else {
+      toast.error(result.payload || 'Failed to delete order.');
+    }
+    dispatch(clearDeleteStatus());
+  };
+
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
@@ -164,7 +190,8 @@ const Orders = () => {
                   {DEBUG ? (
                     <p className="text-sm mb-0">
                       List uses <code>order/get-order-by-order-item</code>. Invoice edit:{' '}
-                      <code>order/get-order-by-order-no/:order_id</code>.
+                      <code>order/get-order-by-order-no/:order_id</code>. Delete:{' '}
+                      <code>order/order_delete/:order_id</code>.
                     </p>
                   ) : null}
                 </div>
@@ -358,18 +385,29 @@ const Orders = () => {
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                {canEdit ? (
-                                  <button
-                                    className="btn btn-outline-info btn-sm mb-0"
-                                    type="button"
-                                    disabled={editLoadingId === rowKey}
-                                    onClick={() => handleOpenInvoice(item)}
-                                  >
-                                    {isRowLoading ? 'Opening…' : 'Edit'}
-                                  </button>
-                                ) : (
-                                  '-'
-                                )}
+                                <div className="d-flex flex-wrap gap-1">
+                                  {canEdit ? (
+                                    <button
+                                      className="btn btn-outline-info btn-sm mb-0"
+                                      type="button"
+                                      disabled={editLoadingId === rowKey}
+                                      onClick={() => handleOpenInvoice(item)}
+                                    >
+                                      {isRowLoading ? 'Opening…' : 'Edit'}
+                                    </button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <button
+                                      className="btn btn-sm btn-danger mb-0"
+                                      type="button"
+                                      onClick={() => handleDelete(item)}
+                                      disabled={deleteStatus === 'loading'}
+                                    >
+                                      Delete
+                                    </button>
+                                  ) : null}
+                                  {!canEdit && !canDelete ? '—' : null}
+                                </div>
                               </td>
                             </tr>
                           );

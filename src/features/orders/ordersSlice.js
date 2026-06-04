@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { fetchOrdersRequest } from './ordersAPI.js';
+import { fetchOrdersRequest, deleteOrderRequest, pickOrderDocumentId } from './ordersAPI.js';
 
 export const fetchOrders = createAsyncThunk(
   'orders/fetchOrders',
@@ -12,6 +12,18 @@ export const fetchOrders = createAsyncThunk(
   }
 );
 
+export const deleteOrder = createAsyncThunk(
+  'orders/deleteOrder',
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const response = await deleteOrderRequest(orderId);
+      return { orderId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to delete order');
+    }
+  }
+);
+
 const initialState = {
   status: 'idle',
   list: [],
@@ -19,6 +31,8 @@ const initialState = {
   pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   search: '',
   sort: { sortBy: null, sortOrder: 'asc' },
+  deleteStatus: 'idle',
+  deleteError: null,
 };
 
 const ordersSlice = createSlice({
@@ -49,6 +63,10 @@ const ordersSlice = createSlice({
       }
       state.pagination.page = 1;
     },
+    clearDeleteStatus: (state) => {
+      state.deleteStatus = 'idle';
+      state.deleteError = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -70,9 +88,27 @@ const ordersSlice = createSlice({
         state.status = 'failed';
         state.error = action.payload || action.error.message || 'Failed to fetch orders';
         state.list = [];
+      })
+      .addCase(deleteOrder.pending, (state) => {
+        state.deleteStatus = 'loading';
+        state.deleteError = null;
+      })
+      .addCase(deleteOrder.fulfilled, (state, action) => {
+        state.deleteStatus = 'succeeded';
+        const deletedId = String(action.payload.orderId ?? '');
+        state.list = state.list.filter(
+          (item) => pickOrderDocumentId(item) !== deletedId
+        );
+        if (state.pagination.total > 0) {
+          state.pagination.total -= 1;
+        }
+      })
+      .addCase(deleteOrder.rejected, (state, action) => {
+        state.deleteStatus = 'failed';
+        state.deleteError = action.payload || action.error.message || 'Failed to delete order';
       });
   },
 });
 
-export const { setSearch, setPage, setLimit, setSort } = ordersSlice.actions;
+export const { setSearch, setPage, setLimit, setSort, clearDeleteStatus } = ordersSlice.actions;
 export default ordersSlice.reducer;
