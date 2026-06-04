@@ -68,16 +68,41 @@ User navigation acc to roles.
 3.6.26
 Alert
 stock according to warehouse. 
+dashboard dynamic.
 
 
 // Remaining
 add/edit variant product. 
-dashboard dynamic.
 
 
 in user add multiple accounts to be include and not to be include.
 load testing module.
 Tax (will be done with printing)
+
 Sales return
 Purchase return
 
+
+
+
+
+
+
+
+
+
+
+
+
+Complete Test Case
+Purchase 10 @ 200 → Avg = 200
+Purchase 10 @ 220 → Avg = 210
+Sell 5 → Avg = 210
+Purchase 10 @ 250 → Avg = 226
+Sell 8 → Avg = 226
+Purchase 20 @ 300 → New Avg = 267.24
+
+Final verification:
+
+Qty	Value	Avg Cost
+37	9,888	267.24

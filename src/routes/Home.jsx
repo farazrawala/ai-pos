@@ -14,6 +14,7 @@ import NavIcon from '../components/NavIcon.jsx';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
+import { useTodaySales } from '../hooks/useTodaySales.js';
 import { useTotalCustomers } from '../hooks/useTotalCustomers.js';
 import { useTotalUsers } from '../hooks/useTotalUsers.js';
 import { setName, clearUser } from '../features/user/userSlice.js';
@@ -31,6 +32,13 @@ const Home = () => {
     error: customersError,
   } = useTotalCustomers();
   const { loading: usersLoading, userCount, error: usersError } = useTotalUsers();
+  const {
+    loading: todayLoading,
+    todayAmount,
+    dodPercent,
+    orderCount: todayOrderCount,
+    error: todayError,
+  } = useTodaySales();
 
   useEffect(() => {
     const initScrollbar = () => {
@@ -79,10 +87,36 @@ const Home = () => {
                           <p className="text-sm mb-0 text-uppercase font-weight-bold">
                             Today's Money
                           </p>
-                          <h5 className="font-weight-bolder">$53,000</h5>
+                          <h5 className="font-weight-bolder">
+                            {todayLoading
+                              ? '—'
+                              : todayError
+                                ? '—'
+                                : formatCurrency(todayAmount ?? 0)}
+                          </h5>
                           <p className="mb-0">
-                            <span className="text-success text-sm font-weight-bolder">+55%</span>
-                            since yesterday
+                            {todayLoading ? (
+                              <span className="text-secondary text-sm">Loading…</span>
+                            ) : todayError ? (
+                              <span className="text-danger text-sm">{todayError}</span>
+                            ) : dodPercent != null ? (
+                              <>
+                                <span
+                                  className={`text-sm font-weight-bolder ${
+                                    dodPercent >= 0 ? 'text-success' : 'text-danger'
+                                  }`}
+                                >
+                                  {dodPercent >= 0 ? '+' : ''}
+                                  {Math.round(dodPercent)}%
+                                </span>{' '}
+                                since yesterday
+                              </>
+                            ) : (
+                              <span className="text-secondary text-sm">
+                                {todayOrderCount ?? 0} order
+                                {(todayOrderCount ?? 0) === 1 ? '' : 's'} today
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>

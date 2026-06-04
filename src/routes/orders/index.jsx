@@ -47,6 +47,10 @@ const firstOrderItemId = (row) => {
   if (row.order_item && typeof row.order_item === 'string') return String(row.order_item);
   if (row.order_item?._id) return String(row.order_item._id);
   const items = getOrderLineItems(row);
+  // List rows from get-order-by-order-item are often the line item itself.
+  if (!items.length && (row.order_id || row.orderId) && (row._id || row.id)) {
+    return String(row._id || row.id);
+  }
   if (items[0]?._id) return String(items[0]._id);
   if (items[0]?.id) return String(items[0].id);
   return '';
@@ -142,16 +146,11 @@ const Orders = () => {
   };
 
   const handleOpenInvoice = async (row) => {
-    const rowKey = String(row._id || row.id || '');
+    const rowKey = String(row._id || row.id || row.order_no || row.orderNo || '');
     setEditLoadingId(rowKey);
     try {
       const orderItemId = firstOrderItemId(row);
       let invoiceId = pickInvoiceRouteId(row);
-
-      if (invoiceId && getOrderLineItems(row).length > 0) {
-        navigate(`/pos/invoice/${rowKey}`);
-        return;
-      }
 
       if (orderItemId) {
         const order = await fetchOrderByOrderItemRequest(orderItemId);

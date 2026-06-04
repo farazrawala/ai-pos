@@ -467,7 +467,7 @@ export async function fetchOrderForInvoiceRequest(slug) {
 
   const isLikelyMongoId = /^[a-f0-9]{24}$/i.test(id);
   const attempts = isLikelyMongoId
-    ? [{ order_id: id }, { order_item_id: id }]
+    ? [{ order_item_id: id }, { order_id: id }]
     : [{ order_no: id }, { order_item_id: id }];
 
   let lastError = null;
