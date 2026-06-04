@@ -68,6 +68,45 @@ const formatProductStock = (stock) => {
   return Number(stock).toLocaleString();
 };
 
+const warehouseNameFromInventoryRow = (row) => {
+  if (!row || typeof row !== 'object') return 'Warehouse';
+  const w = row.warehouse_id ?? row.warehouseId;
+  if (w && typeof w === 'object' && !Array.isArray(w)) {
+    const n = w.name ?? w.warehouse_name ?? w.title;
+    if (n != null && String(n).trim() !== '') return String(n).trim();
+  }
+  if (w != null && typeof w !== 'object') return String(w);
+  const fallback = row.warehouse_name ?? row.warehouseName;
+  return fallback != null && String(fallback).trim() !== '' ? String(fallback).trim() : 'Warehouse';
+};
+
+/** Per-warehouse qty from list API `warehouse_inventory` (populated `warehouse_id`). */
+const getWarehouseStockLines = (item) => {
+  if (!item || typeof item !== 'object') return [];
+  const inv = item.warehouse_inventory ?? item.warehouseInventory;
+  if (!Array.isArray(inv) || inv.length === 0) return [];
+  return inv.map((row, index) => ({
+    key: String(row?._id ?? row?.id ?? `${warehouseNameFromInventoryRow(row)}-${index}`),
+    name: warehouseNameFromInventoryRow(row),
+    qty: Number(row?.quantity) || 0,
+  }));
+};
+
+/** Total qty plus optional per-warehouse lines for the stock column. */
+const getProductStockDisplay = (item) => {
+  const lines = getWarehouseStockLines(item);
+  const warehouseTotal = lines.reduce((sum, line) => sum + line.qty, 0);
+  const fieldTotal = getProductStock(item);
+
+  if (lines.length > 0) {
+    const total =
+      fieldTotal != null && Number.isFinite(fieldTotal) ? fieldTotal : warehouseTotal;
+    return { total, lines };
+  }
+
+  return { total: fieldTotal, lines: [] };
+};
+
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -510,7 +549,8 @@ const Product = () => {
                             (item.images && item.images.length > 0 ? item.images[0] : null) ||
                             item.image ||
                             null;
-                          const stock = getProductStock(item);
+                          const { total: stockTotal, lines: warehouseLines } =
+                            getProductStockDisplay(item);
                           return (
                             <tr key={item._id || index}>
                               <td className="text-sm font-weight-normal">{seriesNumber}</td>
@@ -549,24 +589,43 @@ const Product = () => {
                                 {item.name || item.product_name || '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
-                                  <span>{formatProductStock(stock)}</span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0"
-                                    title="Stock by warehouse"
-                                    onClick={() =>
-                                      setWarehouseStockTarget({
-                                        productId:
-                                          item._id || item.id || item.product_id,
-                                        productName:
-                                          item.name || item.product_name || 'Product',
-                                      })
-                                    }
-                                  >
-                                    <i className="fas fa-warehouse me-1" aria-hidden />
-                                    By warehouse
-                                  </button>
+                                <div className="d-flex flex-column align-items-end gap-1">
+                                  <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
+                                    <span>
+                                      <span className="text-muted">Total:</span>{' '}
+                                      <span className="fw-semibold text-body">
+                                        {formatProductStock(stockTotal)}
+                                      </span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary mb-0 py-0 px-2"
+                                      title="Stock movements by warehouse"
+                                      onClick={() =>
+                                        setWarehouseStockTarget({
+                                          productId:
+                                            item._id || item.id || item.product_id,
+                                          productName:
+                                            item.name || item.product_name || 'Product',
+                                        })
+                                      }
+                                    >
+                                      <i className="fas fa-warehouse" aria-hidden />
+                                    </button>
+                                  </div>
+                                  {warehouseLines.length > 0 ? (
+                                    <div className="d-flex flex-wrap justify-content-end gap-1">
+                                      {warehouseLines.map((line) => (
+                                        <span
+                                          key={line.key}
+                                          className="badge bg-light text-dark border mb-0"
+                                          title={`${line.name} quantity`}
+                                        >
+                                          {line.name}: {formatProductStock(line.qty)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="text-sm font-weight-normal">
