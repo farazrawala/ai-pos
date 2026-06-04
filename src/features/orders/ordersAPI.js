@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import { createOrderSaveError } from '../../utils/posOrderErrors.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -42,6 +43,68 @@ function stringifyValidationErrors(errors) {
     else if (v != null) parts.push(`${k}: ${v}`);
   }
   return parts.join('; ') || '';
+}
+
+async function readOrderSaveFailure(response) {
+  const status = response.status;
+  const text = await response.text().catch(() => '');
+  const trimmed = text.trim();
+  let json = null;
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      json = JSON.parse(trimmed);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
+    if (typeof json.message === 'string' && json.message) {
+      throw createOrderSaveError(json.message, json);
+    }
+    if (
+      json.error &&
+      typeof json.error === 'object' &&
+      typeof json.error.message === 'string'
+    ) {
+      throw createOrderSaveError(json.error.message, json);
+    }
+    if (typeof json.error === 'string' && json.error) {
+      throw createOrderSaveError(json.error, json);
+    }
+    if (typeof json.msg === 'string' && json.msg) {
+      throw createOrderSaveError(json.msg, json);
+    }
+    if (typeof json.detail === 'string' && json.detail) {
+      throw createOrderSaveError(json.detail, json);
+    }
+    if (typeof json.details === 'string' && json.details.trim()) {
+      throw createOrderSaveError(json.details.trim(), json);
+    }
+    if (json.data && typeof json.data === 'object' && typeof json.data.message === 'string') {
+      throw createOrderSaveError(json.data.message, json);
+    }
+    const fromErrors = stringifyValidationErrors(json.errors);
+    if (fromErrors) {
+      throw createOrderSaveError(fromErrors, json);
+    }
+  }
+
+  if (trimmed.startsWith('<')) {
+    throw createOrderSaveError(`HTTP ${status} (HTML response — server error; check API logs).`, json);
+  }
+
+  const oneLine = trimmed.replace(/\s+/g, ' ');
+  const message = oneLine
+    ? oneLine.length > 500
+      ? `${oneLine.slice(0, 500)}…`
+      : oneLine
+    : status === 500
+      ? 'HTTP 500 — server returned an empty body (check API logs / Laravel storage/logs).'
+      : `HTTP ${status}`;
+
+  throw createOrderSaveError(message, json);
 }
 
 /**
@@ -92,8 +155,9 @@ export async function getErrorMessageFromResponse(response) {
 const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
 const SALES_DAY_WISE_PATH = 'order/sales-day-wise';
 
-/** All order reads go through this route (paginated list without `order_item_id`, or one order when `order_item_id` is set). */
+/** Paginated order list (no id in path). Single-order invoice uses `ORDER_BY_ORDER_NO_PATH`. */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
+const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
 
 function parseOrderSalesTotals(result) {
   const raw = result?.total_amount ?? result?.totalAmount ?? result?.sales;
@@ -455,9 +519,8 @@ export function extractOrderFromApiJson(result) {
 }
 
 /**
- * Load one order for the POS invoice screen from `order/get-order-by-order-item`.
- * Tries query params in order: for Mongo-like ids → `order_id`, then `order_item_id`; otherwise `order_no` then `order_item_id`.
- * Adjust param names in `attempts` if your backend uses different keys.
+ * Load one order for the POS invoice screen.
+ * GET `order/get-order-by-order-no/:id` — `id` is order `_id` or order number.
  */
 export async function fetchOrderForInvoiceRequest(slug) {
   const id = decodeURIComponent(String(slug || '').trim());
@@ -465,35 +528,34 @@ export async function fetchOrderForInvoiceRequest(slug) {
     throw new Error('Missing order reference');
   }
 
-  const isLikelyMongoId = /^[a-f0-9]{24}$/i.test(id);
-  const attempts = isLikelyMongoId
-    ? [{ order_item_id: id }, { order_id: id }]
-    : [{ order_no: id }, { order_item_id: id }];
+  const url = `${BASE_URL}${ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders({ json: false }),
+    cache: 'no-store',
+  });
 
-  let lastError = null;
-  for (const params of attempts) {
-    try {
-      const q = new URLSearchParams(params);
-      const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}?${q.toString()}`;
-      const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
-      if (!response.ok) {
-        const err = new Error(await getErrorMessageFromResponse(response));
-        err.status = response.status;
-        throw err;
-      }
-      const result = await response.json().catch(() => ({}));
-      const order = extractOrderFromApiJson(result);
-      if (order) return order;
-      const hint =
-        result && typeof result === 'object' && !Array.isArray(result)
-          ? ` (top-level keys: ${Object.keys(result).join(', ')})`
-          : '';
-      throw new Error(`Invalid order response format${hint}`);
-    } catch (e) {
-      lastError = e;
-    }
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
   }
-  throw lastError || new Error('Could not load order');
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load order';
+    throw new Error(msg);
+  }
+
+  const order = extractOrderFromApiJson(result);
+  if (order) return order;
+
+  const hint =
+    result && typeof result === 'object' && !Array.isArray(result)
+      ? ` (top-level keys: ${Object.keys(result).join(', ')})`
+      : '';
+  throw new Error(`Invalid order response format${hint}`);
 }
 
 /**
@@ -522,8 +584,45 @@ export async function updateOrderInvoiceRequest(orderId, payload = {}) {
   }
 }
 
-/** Pick a stable id for the POS invoice URL from an order object. Prefer human-readable `order_no`. */
+/** True when `o` is an order line row (has `order_id` + line fields, not a full order header). */
+const looksLikeOrderLineRow = (o) => {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+  const has = (k) => Object.prototype.hasOwnProperty.call(o, k);
+  return (
+    has('order_id') &&
+    !has('order_items') &&
+    !has('orderItems') &&
+    (has('product_id') || has('qty') || has('price'))
+  );
+};
+
+const idFromRef = (ref) => {
+  if (ref == null) return '';
+  if (typeof ref === 'object' && !Array.isArray(ref)) {
+    const id = ref._id ?? ref.id;
+    return id != null ? String(id).trim() : '';
+  }
+  return String(ref).trim();
+};
+
+/** Resolve the parent order document `_id` (not line-item id, not order number). */
+export function pickOrderDocumentId(order) {
+  if (!order || typeof order !== 'object') return '';
+
+  if (looksLikeOrderLineRow(order)) {
+    return idFromRef(order.order_id ?? order.orderId);
+  }
+
+  const candidates = [order._id, order.id];
+  const found = candidates.find((v) => v != null && String(v).trim() !== '');
+  return found != null ? String(found).trim() : '';
+}
+
+/** Pick id for the POS invoice URL — prefer order Mongo `_id` over human-readable order number. */
 export function pickInvoiceRouteId(order) {
+  const docId = pickOrderDocumentId(order);
+  if (docId) return docId;
+
   if (!order || typeof order !== 'object') return '';
   const candidates = [
     order.order_no,
@@ -531,8 +630,6 @@ export function pickInvoiceRouteId(order) {
     order.invoice_no,
     order.invoiceNo,
     order.reference,
-    order._id,
-    order.id,
   ];
   const found = candidates.find((v) => v != null && String(v).trim() !== '');
   return found != null ? String(found).trim() : '';
@@ -618,14 +715,25 @@ export async function createPosOrderRequest(payload = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
+    await readOrderSaveFailure(response);
   }
 
+  let result;
   try {
-    return await response.json();
+    result = await response.json();
   } catch {
     return { success: true };
   }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not save order';
+    throw createOrderSaveError(msg, result);
+  }
+
+  return result;
 }
 
 /**
@@ -701,12 +809,23 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
+    await readOrderSaveFailure(response);
   }
 
+  let result;
   try {
-    return await response.json();
+    result = await response.json();
   } catch {
     return { success: true };
   }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not update order';
+    throw createOrderSaveError(msg, result);
+  }
+
+  return result;
 }

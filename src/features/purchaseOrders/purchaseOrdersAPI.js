@@ -676,3 +676,39 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
   assertPurchaseOrderJsonSuccess(result);
   return result;
 }
+
+/**
+ * DELETE `purchase_order/purchase_order_delete/:purchaseOrderId`
+ */
+export async function deletePurchaseOrderRequest(purchaseOrderId) {
+  const id = String(purchaseOrderId ?? '').trim();
+  if (!id) {
+    throw new Error('Purchase order id is required');
+  }
+
+  const url = `${BASE_URL}purchase_order/purchase_order_delete/${encodeURIComponent(id)}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'DELETE',
+      headers: getJsonReadHeaders(),
+    });
+  } catch (err) {
+    logPurchaseOrderModuleError('deletePurchaseOrderRequest network error', { url, id, err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    logPurchaseOrderModuleError('deletePurchaseOrderRequest failed', {
+      id,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const result = await response.json().catch(() => ({}));
+  assertPurchaseOrderJsonSuccess(result);
+  return result;
+}

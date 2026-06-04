@@ -13,6 +13,8 @@ import {
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import { toast } from '../../utils/toast.js';
+import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -146,6 +148,52 @@ const normalizeOrderStatus = (value) => {
   return ORDER_STATUS_OPTIONS.includes(s) ? s : DEFAULT_ORDER_STATUS;
 };
 
+const paymentMethodIdFromOrder = (order) => {
+  if (!order || typeof order !== 'object') return '';
+  const rawPayAccount = order.payment_method_accounts_id;
+  return String(
+    (rawPayAccount && typeof rawPayAccount === 'object'
+      ? rawPayAccount._id ?? rawPayAccount.id
+      : rawPayAccount) ??
+      order.posPayMethod ??
+      order.payment_method_id ??
+      order.account_id ??
+      ''
+  ).trim();
+};
+
+const accountLabelFromRef = (ref) => {
+  if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return '';
+  return String(ref.name ?? ref.accountName ?? ref.account_name ?? '').trim();
+};
+
+/** Human-readable payment method / receive-in account label (never a raw Mongo id). */
+const resolvePaymentMethodLabel = (order, accounts = [], selectedId = '') => {
+  if (order && typeof order === 'object') {
+    const fromPayAccount = accountLabelFromRef(order.payment_method_accounts_id);
+    if (fromPayAccount) return fromPayAccount;
+
+    const fromPaymentMethod = accountLabelFromRef(order.payment_method);
+    if (fromPaymentMethod) return fromPaymentMethod;
+
+    if (order.paymentMethodName) {
+      return String(order.paymentMethodName).trim();
+    }
+  }
+
+  const id = String(selectedId || paymentMethodIdFromOrder(order)).trim();
+  if (id && Array.isArray(accounts) && accounts.length > 0) {
+    const match = accounts.find((method) => String(method._id ?? method.id ?? '') === id);
+    const name = match?.name ?? match?.accountName ?? match?.account_name;
+    if (name != null && String(name).trim() !== '') {
+      return String(name).trim();
+    }
+  }
+
+  if (/^[a-f0-9]{24}$/i.test(id)) return '—';
+  return id || '—';
+};
+
 /** Map API order (`data` payload) into the invoice UI shape used by this page. */
 const mapOrderToInvoiceView = (order) => {
   if (!order || typeof order !== 'object') {
@@ -196,25 +244,7 @@ const mapOrderToInvoiceView = (order) => {
   const total = Math.max(0, totalBeforeAdjust - discount + shipping);
   const orderId = order._id != null ? order._id : order.id;
 
-  const rawPayAccount = order.payment_method_accounts_id;
-  const payMethodId = String(
-    (rawPayAccount && typeof rawPayAccount === 'object'
-      ? rawPayAccount._id ?? rawPayAccount.id
-      : rawPayAccount) ??
-      order.posPayMethod ??
-      order.payment_method_id ??
-      order.account_id ??
-      ''
-  ).trim();
-  let paymentMethodLabel = '—';
-  if (order.payment_method && typeof order.payment_method === 'object') {
-    paymentMethodLabel =
-      order.payment_method.name || order.payment_method.accountName || paymentMethodLabel;
-  } else if (order.paymentMethodName) {
-    paymentMethodLabel = String(order.paymentMethodName);
-  } else if (payMethodId) {
-    paymentMethodLabel = payMethodId;
-  }
+  const paymentMethodLabel = resolvePaymentMethodLabel(order);
 
   return {
     ...DEMO_INVOICE,
@@ -396,10 +426,16 @@ const PosInvoice = () => {
     setView(null);
     setSourceOrder(null);
     setInvoiceSaveMessage({ type: null, text: '' });
+    setInvoiceDraftLines([]);
+    setInvoiceCustomerId('');
+    setInvoicePosPayMethod('');
+    setInvoiceDiscountInput('');
+    setInvoiceShippingInput('');
 
     (async () => {
+      const requestedId = invoiceId;
       try {
-        const order = await fetchOrderForInvoiceRequest(invoiceId);
+        const order = await fetchOrderForInvoiceRequest(requestedId);
         if (cancelled) return;
         setSourceOrder(order);
         setView(mapOrderToInvoiceView(order));
@@ -437,11 +473,19 @@ const PosInvoice = () => {
     return { ...base, lines, termsBody, billTo, summary, authorizedPerson };
   })();
 
+  const paymentMethodDisplay = useMemo(
+    () => resolvePaymentMethodLabel(sourceOrder, paymentMethods, invoicePosPayMethod),
+    [sourceOrder, paymentMethods, invoicePosPayMethod]
+  );
+
   const handleThermalPrint = useCallback(() => {
     if (view) {
-      openThermalReceiptPrint(view, { documentTitlePrefix: 'Receipt POS' });
+      openThermalReceiptPrint(
+        { ...view, paymentMethod: paymentMethodDisplay },
+        { documentTitlePrefix: 'Receipt POS' }
+      );
     }
-  }, [view]);
+  }, [view, paymentMethodDisplay]);
 
   const handlePdfPrint = useCallback(() => {
     window.print();
@@ -539,7 +583,19 @@ const PosInvoice = () => {
       setView(mapOrderToInvoiceView(refreshed));
       setInvoiceSaveMessage({ type: 'success', text: 'Invoice updated successfully.' });
     } catch (e) {
-      setInvoiceSaveMessage({ type: 'danger', text: e?.message || 'Could not update invoice.' });
+      console.error('[POS invoice] Failed to update invoice', e);
+      const cartLines = invoiceDraftLines.map((line) => ({
+        productId: line?.productId,
+        name: line?.label,
+      }));
+      toast.error(
+        formatPosOrderErrorMessage(e?.message, {
+          cartLines,
+          productId: e?.productId,
+          productName: e?.productName,
+        }),
+        { delay: 8000 }
+      );
     } finally {
       setInvoiceSaving(false);
     }
@@ -1294,7 +1350,7 @@ const PosInvoice = () => {
             ) : null}
             <div className="small mb-3">
               <span className="text-muted">Payment Method: </span>
-              <span className="pos-inv-underline fw-semibold">{data.paymentMethod}</span>
+              <span className="pos-inv-underline fw-semibold">{paymentMethodDisplay}</span>
             </div>
             <label className="form-label small text-muted mb-1">Note</label>
             <textarea

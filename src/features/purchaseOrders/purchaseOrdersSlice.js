@@ -5,6 +5,7 @@ import {
   fetchPurchaseOrderByIdRequest,
   createPurchaseOrderRequest,
   updatePurchaseOrderRequest,
+  deletePurchaseOrderRequest,
   unwrapPurchaseOrderRecord,
 } from './purchaseOrdersAPI.js';
 
@@ -57,6 +58,18 @@ export const updatePurchaseOrder = createAsyncThunk(
   }
 );
 
+export const deletePurchaseOrder = createAsyncThunk(
+  'purchaseOrders/deletePurchaseOrder',
+  async (purchaseOrderId, { rejectWithValue }) => {
+    try {
+      const response = await deletePurchaseOrderRequest(purchaseOrderId);
+      return { purchaseOrderId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to delete purchase order');
+    }
+  }
+);
+
 export const fetchPurchaseOrderByPurchaseItem = createAsyncThunk(
   'purchaseOrders/fetchPurchaseOrderByPurchaseItem',
   async (purchaseItemId, { rejectWithValue }) => {
@@ -90,6 +103,8 @@ const initialState = {
   fetchError: null,
   updateStatus: 'idle',
   updateError: null,
+  deleteStatus: 'idle',
+  deleteError: null,
 
   byPurchaseItemStatus: 'idle',
   byPurchaseItemError: null,
@@ -146,6 +161,10 @@ const purchaseOrdersSlice = createSlice({
     clearUpdateStatus: (state) => {
       state.updateStatus = 'idle';
       state.updateError = null;
+    },
+    clearDeleteStatus: (state) => {
+      state.deleteStatus = 'idle';
+      state.deleteError = null;
     },
   },
   extraReducers: (builder) => {
@@ -213,6 +232,25 @@ const purchaseOrdersSlice = createSlice({
         state.updateError =
           action.payload || action.error.message || 'Failed to update purchase order';
       })
+      .addCase(deletePurchaseOrder.pending, (state) => {
+        state.deleteStatus = 'loading';
+        state.deleteError = null;
+      })
+      .addCase(deletePurchaseOrder.fulfilled, (state, action) => {
+        state.deleteStatus = 'succeeded';
+        const deletedId = String(action.payload.purchaseOrderId ?? '');
+        state.list = state.list.filter(
+          (item) => String(item._id ?? item.id ?? '') !== deletedId
+        );
+        if (state.pagination.total > 0) {
+          state.pagination.total -= 1;
+        }
+      })
+      .addCase(deletePurchaseOrder.rejected, (state, action) => {
+        state.deleteStatus = 'failed';
+        state.deleteError =
+          action.payload || action.error.message || 'Failed to delete purchase order';
+      })
       .addCase(fetchPurchaseOrderByPurchaseItem.pending, (state) => {
         state.byPurchaseItemStatus = 'loading';
         state.byPurchaseItemError = null;
@@ -242,5 +280,6 @@ export const {
   clearPurchaseOrderByItem,
   clearCurrentPurchaseOrder,
   clearUpdateStatus,
+  clearDeleteStatus,
 } = purchaseOrdersSlice.actions;
 export default purchaseOrdersSlice.reducer;

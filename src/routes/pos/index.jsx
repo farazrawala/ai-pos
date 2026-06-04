@@ -15,6 +15,8 @@ import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { toast } from '../../utils/toast.js';
+import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
 
@@ -49,7 +51,6 @@ const Pos = () => {
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
-  const [orderError, setOrderError] = useState('');
 
   const showToast = (toastId, body) => {
     const toastElement = document.getElementById(toastId);
@@ -229,7 +230,6 @@ const Pos = () => {
         return;
       }
 
-      setOrderError('');
       setOrderSaving(true);
       try {
         const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
@@ -266,7 +266,14 @@ const Pos = () => {
         setExtraDiscount('');
       } catch (e) {
         console.error('[POS] Failed to save order', e);
-        setOrderError(e?.message || 'Could not save order');
+        toast.error(
+          formatPosOrderErrorMessage(e?.message, {
+            cartLines,
+            productId: e?.productId,
+            productName: e?.productName,
+          }),
+          { delay: 8000 }
+        );
       } finally {
         setOrderSaving(false);
       }
@@ -783,11 +790,6 @@ const Pos = () => {
                     aria-hidden="true"
                   ></span>
                   Saving order…
-                </p>
-              )}
-              {orderError && !orderSaving && (
-                <p className="text-xs text-danger mt-2 mb-0" role="alert">
-                  {orderError}
                 </p>
               )}
             </div>

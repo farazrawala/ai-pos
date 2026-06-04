@@ -106,3 +106,17 @@ Final verification:
 
 Qty	Value	Avg Cost
 37	9,888	267.24
+
+
+
+//delete api.
+create an api for purchase order delete 
+where i will pass purchase_order _id in url 
+
+
+and it will soft delete 
+purchase_order
+fetch trans no  from  purchase_order_item 
+softdelete Transaction_no 
+insert qty in inventory_movements in
+update qty in warehouse_inventory. 

@@ -10,10 +10,8 @@ import {
   setSort,
 } from '../../features/orders/ordersSlice.js';
 import {
-  fetchOrderByOrderItemRequest,
   pickInvoiceRouteId,
   getNoOfItemsDisplay,
-  getOrderLineItems,
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -39,21 +37,6 @@ const getOrderItemsTotalDisplay = (row) => {
   const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
   if (!Number.isFinite(n)) return String(raw);
   return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-const firstOrderItemId = (row) => {
-  if (!row || typeof row !== 'object') return '';
-  if (row.order_item_id) return String(row.order_item_id);
-  if (row.order_item && typeof row.order_item === 'string') return String(row.order_item);
-  if (row.order_item?._id) return String(row.order_item._id);
-  const items = getOrderLineItems(row);
-  // List rows from get-order-by-order-item are often the line item itself.
-  if (!items.length && (row.order_id || row.orderId) && (row._id || row.id)) {
-    return String(row._id || row.id);
-  }
-  if (items[0]?._id) return String(items[0]._id);
-  if (items[0]?.id) return String(items[0].id);
-  return '';
 };
 
 const Orders = () => {
@@ -149,13 +132,7 @@ const Orders = () => {
     const rowKey = String(row._id || row.id || row.order_no || row.orderNo || '');
     setEditLoadingId(rowKey);
     try {
-      const orderItemId = firstOrderItemId(row);
-      let invoiceId = pickInvoiceRouteId(row);
-
-      if (orderItemId) {
-        const order = await fetchOrderByOrderItemRequest(orderItemId);
-        invoiceId = pickInvoiceRouteId(order) || invoiceId;
-      }
+      const invoiceId = pickInvoiceRouteId(row);
 
       if (!invoiceId) {
         console.error('[Orders module] open invoice: could not resolve invoice id', { row });
@@ -186,9 +163,8 @@ const Orders = () => {
                   <h5 className="mb-0">Orders</h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0">
-                      List and edit both use <code>order/get-order-by-order-item</code> (list:
-                      pagination query only; edit: same API with the first line item id). Invoice:{' '}
-                      <code>/pos/invoice/:order_no</code> when available.
+                      List uses <code>order/get-order-by-order-item</code>. Invoice edit:{' '}
+                      <code>order/get-order-by-order-no/:order_id</code>.
                     </p>
                   ) : null}
                 </div>

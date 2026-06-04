@@ -4,18 +4,22 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchPurchaseOrders,
+  deletePurchaseOrder,
   setSearch,
   setPage,
   setLimit,
   setSort,
   setFilterPurchaseItemId,
+  clearDeleteStatus,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import { PURCHASE_ITEM_QUERY_KEY } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
 import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { toast } from '../../utils/toast.js';
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -75,6 +79,7 @@ const poTransactionNumber = (row) => {
 
 const PurchaseOrders = () => {
   useRequireModuleAccess('purchase-orders');
+  const { canEdit, canDelete } = usePermissions('purchase-orders');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -85,6 +90,7 @@ const PurchaseOrders = () => {
     search: searchTerm,
     sort,
     filterPurchaseItemId,
+    deleteStatus,
   } = useSelector((state) => state.purchaseOrders);
 
   const loading = status === 'loading';
@@ -200,6 +206,20 @@ const PurchaseOrders = () => {
       if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
+
+  const handleDelete = async (purchaseOrderId, referenceLabel) => {
+    const label = referenceLabel && referenceLabel !== '—' ? referenceLabel : 'this purchase order';
+    if (!window.confirm(`Delete "${label}"? This action cannot be undone.`)) {
+      return;
+    }
+    const result = await dispatch(deletePurchaseOrder(purchaseOrderId));
+    if (deletePurchaseOrder.fulfilled.match(result)) {
+      toast.success('Purchase order deleted successfully.');
+    } else {
+      toast.error(result.payload || 'Failed to delete purchase order.');
+    }
+    dispatch(clearDeleteStatus());
+  };
 
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
@@ -368,13 +388,32 @@ const PurchaseOrders = () => {
                               </td>
                               <td className="text-sm">
                                 {id ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    onClick={() => navigate(`/purchase-orders/edit/${encodeURIComponent(id)}`)}
-                                  >
-                                    Edit
-                                  </button>
+                                  <div className="d-flex flex-wrap gap-1">
+                                    {canEdit ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-primary mb-0"
+                                        onClick={() =>
+                                          navigate(`/purchase-orders/edit/${encodeURIComponent(id)}`)
+                                        }
+                                      >
+                                        Edit
+                                      </button>
+                                    ) : null}
+                                    {canDelete ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-danger mb-0"
+                                        onClick={() => handleDelete(id, poRef(item))}
+                                        disabled={deleteStatus === 'loading'}
+                                      >
+                                        Delete
+                                      </button>
+                                    ) : null}
+                                    {!canEdit && !canDelete ? (
+                                      <span className="text-muted">—</span>
+                                    ) : null}
+                                  </div>
                                 ) : (
                                   <span className="text-muted">—</span>
                                 )}
