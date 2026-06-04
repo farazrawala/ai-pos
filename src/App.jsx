@@ -38,6 +38,9 @@ import Orders from './routes/orders/index.jsx';
 import PurchaseOrderLookup from './routes/purchase_order/index.jsx';
 import PurchaseOrderAdd from './routes/purchase_order/add.jsx';
 import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
+import PurchaseOrderReturnLookup from './routes/purchase_order_return/index.jsx';
+import PurchaseOrderReturnAdd from './routes/purchase_order_return/add.jsx';
+import PurchaseOrderReturnEdit from './routes/purchase_order_return/edit.jsx';
 import Transactions from './routes/transactions/index.jsx';
 import StockListing from './routes/stock/index.jsx';
 import LedgerListingPage from './routes/ledger/index.jsx';
@@ -141,6 +144,9 @@ const App = () => {
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
+          <Route path="/purchase-order-returns" element={<PurchaseOrderReturnLookup />} />
+          <Route path="/purchase-order-returns/add" element={<PurchaseOrderReturnAdd />} />
+          <Route path="/purchase-order-returns/edit/:id" element={<PurchaseOrderReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route
             path="/"
@@ -232,6 +238,9 @@ const App = () => {
           <Route path="/purchase-orders" element={<PurchaseOrderLookup />} />
           <Route path="/purchase-orders/add" element={<PurchaseOrderAdd />} />
           <Route path="/purchase-orders/edit/:id" element={<PurchaseOrderEdit />} />
+          <Route path="/purchase-order-returns" element={<PurchaseOrderReturnLookup />} />
+          <Route path="/purchase-order-returns/add" element={<PurchaseOrderReturnAdd />} />
+          <Route path="/purchase-order-returns/edit/:id" element={<PurchaseOrderReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route path="/company-cache" element={<CompanyCachePage />} />
           <Route

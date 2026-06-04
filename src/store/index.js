@@ -12,6 +12,7 @@ import branchReducer from '../features/branch/branchSlice.js';
 import accountsReducer from '../features/accounts/accountsSlice.js';
 import ordersReducer from '../features/orders/ordersSlice.js';
 import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlice.js';
+import purchaseOrderReturnsReducer from '../features/purchaseOrderReturns/purchaseOrderReturnsSlice.js';
 import transactionsReducer from '../features/transactions/transactionsSlice.js';
 import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
@@ -37,6 +38,7 @@ const store = configureStore({
     accounts: accountsReducer,
     orders: ordersReducer,
     purchaseOrders: purchaseOrdersReducer,
+    purchaseOrderReturns: purchaseOrderReturnsReducer,
     transactions: transactionsReducer,
     stockMovement: stockMovementReducer,
     incomeStatement: incomeStatementReducer,
