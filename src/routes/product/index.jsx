@@ -19,6 +19,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
 import { DEBUG } from '../../config/env.js';
+import { formatMoney } from '../../utils/formatMoney.js';
 
 const sumWarehouseInventory = (inventory) => {
   if (!Array.isArray(inventory) || inventory.length === 0) return null;
@@ -645,12 +646,12 @@ const Product = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.wholesale_price != null && item.wholesale_price !== ''
-                                  ? `$${parseFloat(item.wholesale_price).toFixed(2)}`
+                                  ? formatMoney(item.wholesale_price)
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.price || item.product_price
-                                  ? `$${parseFloat(item.price || item.product_price || 0).toFixed(2)}`
+                                  ? formatMoney(item.price || item.product_price || 0)
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">

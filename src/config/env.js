@@ -17,3 +17,7 @@ function parseEnvBool(value) {
 }
 
 export const DEBUG = parseEnvBool(import.meta.env.VITE_DEBUG);
+
+/** Currency label and locale (e.g. PKR / en-PK). */
+export const CURRENCY_CODE = import.meta.env.VITE_CURRENCY_CODE || 'PKR';
+export const CURRENCY_LOCALE = import.meta.env.VITE_CURRENCY_LOCALE || 'en-PK';

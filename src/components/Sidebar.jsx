@@ -40,9 +40,9 @@ const navItems = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
   { to: '/pos', label: 'POS', icon: FaLaptop },
   { to: '/orders', label: 'Orders', icon: FaCartShopping },
+  { to: '/products', label: 'Products', icon: FaBox },
   { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
   { to: '/purchase-order-returns', label: 'Purchase order returns', icon: FaArrowRotateLeft },
-  { to: '/products', label: 'Products', icon: FaBox },
   { to: '/categories', label: 'Categories', icon: FaFolder },
   { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
   { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
@@ -62,7 +62,13 @@ const navItems = [
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
   { to: '/logs', label: 'Logs', icon: FaClipboardList },
-  { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane, adminOnly: true, debugOnly: true },
+  {
+    to: '/api-workflow',
+    label: 'API workflow',
+    icon: FaPaperPlane,
+    adminOnly: true,
+    debugOnly: true,
+  },
   { to: '/company-cache', label: 'Company cache', icon: FaDatabase, debugOnly: true },
 ];
 
