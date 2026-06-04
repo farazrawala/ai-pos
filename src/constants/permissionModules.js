@@ -7,6 +7,7 @@ export const PERMISSION_MODULE_KEYS = [
   'products',
   'categories',
   'warehouse',
+  'warehouse-inventory',
   'stock',
   'adjustments',
 
@@ -41,6 +42,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/products': 'products',
   '/categories': 'categories',
   '/warehouse': 'warehouse',
+  '/warehouse-inventory': 'warehouse-inventory',
   '/stock': 'stock',
   '/adjustments': 'adjustments',
   '/barcode-print': 'barcode-print',

@@ -92,19 +92,14 @@ const getWarehouseStockLines = (item) => {
   }));
 };
 
-/** Total qty plus optional per-warehouse lines for the stock column. */
+/** Total qty plus per-warehouse lines for the stock column. */
 const getProductStockDisplay = (item) => {
   const lines = getWarehouseStockLines(item);
-  const warehouseTotal = lines.reduce((sum, line) => sum + line.qty, 0);
-  const fieldTotal = getProductStock(item);
-
   if (lines.length > 0) {
-    const total =
-      fieldTotal != null && Number.isFinite(fieldTotal) ? fieldTotal : warehouseTotal;
-    return { total, lines };
+    const warehouseTotal = lines.reduce((sum, line) => sum + line.qty, 0);
+    return { total: warehouseTotal, lines };
   }
-
-  return { total: fieldTotal, lines: [] };
+  return { total: getProductStock(item), lines: [] };
 };
 
 const Product = () => {
@@ -590,17 +585,50 @@ const Product = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 <div className="d-flex flex-column align-items-end gap-1">
-                                  <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
-                                    <span>
-                                      <span className="text-muted">Total:</span>{' '}
-                                      <span className="fw-semibold text-body">
-                                        {formatProductStock(stockTotal)}
-                                      </span>
-                                    </span>
+                                  <span
+                                    className="badge bg-gradient-dark text-white mb-0"
+                                    title="Total quantity"
+                                  >
+                                    Total: {formatProductStock(stockTotal)}
+                                  </span>
+                                  {warehouseLines.length > 0 ? (
+                                    <div className="d-flex flex-wrap justify-content-end gap-1">
+                                      {warehouseLines.map((line) => (
+                                        <span
+                                          key={line.key}
+                                          role="button"
+                                          tabIndex={0}
+                                          className="badge bg-light text-dark border mb-0"
+                                          style={{ cursor: 'pointer' }}
+                                          title={`${line.name} — open stock movements`}
+                                          onClick={() =>
+                                            setWarehouseStockTarget({
+                                              productId:
+                                                item._id || item.id || item.product_id,
+                                              productName:
+                                                item.name || item.product_name || 'Product',
+                                            })
+                                          }
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              setWarehouseStockTarget({
+                                                productId:
+                                                  item._id || item.id || item.product_id,
+                                                productName:
+                                                  item.name || item.product_name || 'Product',
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          {line.name}: {formatProductStock(line.qty)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-secondary mb-0 py-0 px-2"
-                                      title="Stock movements by warehouse"
+                                      className="btn btn-link btn-sm text-secondary p-0 mb-0"
                                       onClick={() =>
                                         setWarehouseStockTarget({
                                           productId:
@@ -610,22 +638,9 @@ const Product = () => {
                                         })
                                       }
                                     >
-                                      <i className="fas fa-warehouse" aria-hidden />
+                                      Stock details
                                     </button>
-                                  </div>
-                                  {warehouseLines.length > 0 ? (
-                                    <div className="d-flex flex-wrap justify-content-end gap-1">
-                                      {warehouseLines.map((line) => (
-                                        <span
-                                          key={line.key}
-                                          className="badge bg-light text-dark border mb-0"
-                                          title={`${line.name} quantity`}
-                                        >
-                                          {line.name}: {formatProductStock(line.qty)}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : null}
+                                  )}
                                 </div>
                               </td>
                               <td className="text-sm font-weight-normal">

@@ -43,6 +43,7 @@ import PurchaseOrderReturnAdd from './routes/purchase_order_return/add.jsx';
 import PurchaseOrderReturnEdit from './routes/purchase_order_return/edit.jsx';
 import Transactions from './routes/transactions/index.jsx';
 import StockListing from './routes/stock/index.jsx';
+import WarehouseInventoryListing from './routes/warehouse_inventory/index.jsx';
 import LedgerListingPage from './routes/ledger/index.jsx';
 import UserLedgerDetailPage from './routes/ledger/UserLedgerDetailPage.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
@@ -136,6 +137,7 @@ const App = () => {
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
+          <Route path="/warehouse-inventory" element={<WarehouseInventoryListing />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
           <Route path="/amount-transfers" element={<AmountTransferIndex />} />
@@ -230,6 +232,7 @@ const App = () => {
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
+          <Route path="/warehouse-inventory" element={<WarehouseInventoryListing />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
           <Route path="/amount-transfers" element={<AmountTransferIndex />} />

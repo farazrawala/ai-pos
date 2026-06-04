@@ -21,6 +21,7 @@ import expensesReducer from '../features/expenses/expensesSlice.js';
 import assetsReducer from '../features/assets/assetsSlice.js';
 import adjustmentsReducer from '../features/adjustments/adjustmentsSlice.js';
 import amountTransfersReducer from '../features/amountTransfers/amountTransfersSlice.js';
+import warehouseInventoryReducer from '../features/warehouseInventory/warehouseInventorySlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -47,6 +48,7 @@ const store = configureStore({
     assets: assetsReducer,
     adjustments: adjustmentsReducer,
     amountTransfers: amountTransfersReducer,
+    warehouseInventory: warehouseInventoryReducer,
   },
 });
 
