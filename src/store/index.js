@@ -13,6 +13,7 @@ import accountsReducer from '../features/accounts/accountsSlice.js';
 import ordersReducer from '../features/orders/ordersSlice.js';
 import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlice.js';
 import purchaseOrderReturnsReducer from '../features/purchaseOrderReturns/purchaseOrderReturnsSlice.js';
+import salesReturnsReducer from '../features/salesReturns/salesReturnsSlice.js';
 import transactionsReducer from '../features/transactions/transactionsSlice.js';
 import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
@@ -40,6 +41,7 @@ const store = configureStore({
     orders: ordersReducer,
     purchaseOrders: purchaseOrdersReducer,
     purchaseOrderReturns: purchaseOrderReturnsReducer,
+    salesReturns: salesReturnsReducer,
     transactions: transactionsReducer,
     stockMovement: stockMovementReducer,
     incomeStatement: incomeStatementReducer,

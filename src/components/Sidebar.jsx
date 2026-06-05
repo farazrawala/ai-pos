@@ -43,6 +43,7 @@ const navItems = [
   { to: '/products', label: 'Products', icon: FaBox },
   { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
   { to: '/purchase-order-returns', label: 'Purchase order returns', icon: FaArrowRotateLeft },
+  { to: '/sales-returns', label: 'Sales returns', icon: FaArrowRotateLeft },
   { to: '/categories', label: 'Categories', icon: FaFolder },
   { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
   { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
