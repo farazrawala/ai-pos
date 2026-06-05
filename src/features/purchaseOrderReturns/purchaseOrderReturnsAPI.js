@@ -17,6 +17,7 @@ const BASE_URL = `${API_BASE_URL}/`;
 
 const ENDPOINT_PATH = 'purchase_order_return/get-purchase-order-return-by-purchase-item';
 const LIST_ALL_ACTIVE_PATH = 'purchase_return/get-all-active';
+const GET_BY_RETURN_NO_PATH = 'purchase_return/get-purchase-return-by-return-no';
 
 /** Appended on GET list/detail for this route so `vendor_id` is populated (e.g. Mongoose). */
 const PURCHASE_RETURN_GET_POPULATE = 'vendor_id';
@@ -358,6 +359,8 @@ export function unwrapPurchaseOrderReturnRecord(result) {
   if (typeof result !== 'object' || Array.isArray(result)) return result;
   const r =
     result.data ??
+    result.purchase_return ??
+    result.purchaseReturn ??
     result.purchase_order_return ??
     result.purchaseOrderReturn ??
     result.purchase_order ??
@@ -369,14 +372,14 @@ export function unwrapPurchaseOrderReturnRecord(result) {
 }
 
 /**
- * GET `purchase_order_return/get-purchase-order-return-by-purchase-item/:id?populate=vendor_id`
- * (purchase order return id in path). Response shape: `{ data: [ purchaseOrder ], ... }`.
+ * GET `purchase_return/get-purchase-return-by-return-no/:id?populate=vendor_id`
+ * — `id` is purchase return `_id` or `purchase_return_no`.
  */
 export async function fetchPurchaseOrderReturnByIdRequest(purchaseOrderReturnId) {
   const id = String(purchaseOrderReturnId ?? '').trim();
   if (!id) throw new Error('Purchase order return id is required');
-  const qs = new URLSearchParams({ populate: PURCHASE_ORDER_GET_POPULATE }).toString();
-  const url = `${BASE_URL}${ENDPOINT_PATH}/${encodeURIComponent(id)}?${qs}`;
+  const qs = new URLSearchParams({ populate: PURCHASE_RETURN_GET_POPULATE }).toString();
+  const url = `${BASE_URL}${GET_BY_RETURN_NO_PATH}/${encodeURIComponent(id)}?${qs}`;
   let response;
   try {
     response = await fetch(url, { method: 'GET', headers: getJsonReadHeaders() });
@@ -394,6 +397,7 @@ export async function fetchPurchaseOrderReturnByIdRequest(purchaseOrderReturnId)
     throw new Error(message);
   }
   const json = await response.json().catch(() => null);
+  assertPurchaseOrderReturnJsonSuccess(json);
   if (json && typeof json === 'object' && Array.isArray(json.data)) {
     if (json.data.length === 0) {
       const err = new Error('Purchase order return not found');
@@ -404,7 +408,8 @@ export async function fetchPurchaseOrderReturnByIdRequest(purchaseOrderReturnId)
     if (first && typeof first === 'object') return first;
   }
   const unwrapped = unwrapPurchaseOrderReturnRecord(json);
-  if (unwrapped && typeof unwrapped === 'object') return unwrapped;
+  if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) return unwrapped;
+  if (json && typeof json === 'object' && !Array.isArray(json)) return json;
   return json ?? {};
 }
 

@@ -205,9 +205,15 @@ const resolveProductId = (it) => {
 
 const linesFromPurchaseOrder = (po) => {
   if (!po || typeof po !== 'object') return [];
-  const raw = [po.items, po.purchase_order_items, po.purchaseOrderItems, po.lines, po.products].find(
-    Array.isArray
-  );
+  const raw = [
+    po.items,
+    po.purchase_return_items,
+    po.purchaseReturnItems,
+    po.purchase_order_items,
+    po.purchaseOrderItems,
+    po.lines,
+    po.products,
+  ].find(Array.isArray);
   if (!raw) return [];
   return raw
     .map((it) => {
@@ -285,7 +291,14 @@ const linesFromPurchaseOrder = (po) => {
 
 const recordToForm = (po) => ({
   purchase_order_no:
-    po?.purchase_order_no ?? po?.po_no ?? po?.order_no ?? po?.reference ?? po?.ref_no ?? '',
+    po?.purchase_return_no ??
+    po?.purchaseReturnNo ??
+    po?.purchase_order_no ??
+    po?.po_no ??
+    po?.order_no ??
+    po?.reference ??
+    po?.ref_no ??
+    '',
   supplier_id: (() => {
     if (po?.supplier_id != null && po.supplier_id !== '') return pickIdString(po.supplier_id);
     if (po?.vendor_id != null && po.vendor_id !== '') return pickIdString(po.vendor_id);
@@ -296,7 +309,13 @@ const recordToForm = (po) => ({
     return '';
   })(),
   order_status:
-    po?.order_status ?? po?.status ?? po?.purchase_order_status ?? po?.po_status ?? 'placed',
+    po?.return_status ??
+    po?.returnStatus ??
+    po?.order_status ??
+    po?.status ??
+    po?.purchase_order_status ??
+    po?.po_status ??
+    'placed',
   notes: po?.notes ?? po?.remarks ?? po?.description ?? '',
   expected_delivery_date: (() => {
     const raw = po?.expected_delivery_date ?? po?.expectedDeliveryDate ?? '';
@@ -850,7 +869,7 @@ const PurchaseOrderReturnEdit = () => {
             <div className="col-md-6 text-md-end">
               <div className="po-add-title mb-2">EDIT PURCHASE ORDER RETURN RETURN</div>
               <p className="small text-muted mb-1">
-                <code>PATCH purchase_order_return/purchase_order_return_update/{id}</code>
+                <code>GET purchase_return/get-purchase-return-by-return-no/{id}</code>
               </p>
               <div className="mb-1">
                 <span className="text-muted">Reference / PO no. </span>
