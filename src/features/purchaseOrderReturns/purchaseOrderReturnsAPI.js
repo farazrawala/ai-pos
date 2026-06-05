@@ -16,9 +16,12 @@ function assertPurchaseOrderReturnJsonSuccess(result) {
 const BASE_URL = `${API_BASE_URL}/`;
 
 const ENDPOINT_PATH = 'purchase_order_return/get-purchase-order-return-by-purchase-item';
+const LIST_ALL_ACTIVE_PATH = 'purchase_return/get-all-active';
 
 /** Appended on GET list/detail for this route so `vendor_id` is populated (e.g. Mongoose). */
-const PURCHASE_ORDER_GET_POPULATE = 'vendor_id';
+const PURCHASE_RETURN_GET_POPULATE = 'vendor_id';
+/** @deprecated use PURCHASE_RETURN_GET_POPULATE */
+const PURCHASE_ORDER_GET_POPULATE = PURCHASE_RETURN_GET_POPULATE;
 
 /**
  * Query / JSON body keys to try (in order). Backends vary: snake_case, camelCase, generic `id`.
@@ -83,6 +86,8 @@ const firstArrayDeep = (obj, depth = 0) => {
     'results',
     'purchase_order_returns',
     'purchaseOrderReturns',
+    'purchase_returns',
+    'purchaseReturns',
     'purchase_order_items',
     'purchaseOrderItems',
   ];
@@ -173,7 +178,7 @@ export const fetchPurchaseOrderReturnByPurchaseItemRequest = async (purchaseItem
   for (const key of paramKeys) {
     const query = new URLSearchParams();
     query.set(key, id);
-    query.set('populate', PURCHASE_ORDER_GET_POPULATE);
+    query.set('populate', PURCHASE_RETURN_GET_POPULATE);
     const url = `${baseUrl}?${query.toString()}`;
     try {
       const result = await fetchJsonOnce('GET', url, { headers: getJsonReadHeaders() });
@@ -239,6 +244,8 @@ export function normalizePurchaseOrderReturnsListResponse(result, params = {}) {
     const pagination = result.pagination;
     const raw =
       result.data ||
+      result.purchase_returns ||
+      result.purchaseReturns ||
       result.purchase_order_returns ||
       result.purchaseOrderReturns ||
       result.purchase_orders ||
@@ -248,10 +255,31 @@ export function normalizePurchaseOrderReturnsListResponse(result, params = {}) {
       [];
     const data = Array.isArray(raw) ? raw : [];
     const skip = Number(pagination.skip) || 0;
-    const lim = Number(pagination.limit) || limit;
-    const p = lim > 0 ? Math.floor(skip / lim) + 1 : page;
-    const total = Number(pagination.total) || data.length;
-    const totalPages = lim > 0 ? Math.ceil(total / lim) : 0;
+    const apiLimit = pagination.limit;
+    const lim =
+      apiLimit != null && Number(apiLimit) > 0 ? Number(apiLimit) : Math.max(1, Number(params.limit) || 10);
+    const total = Number(pagination.total ?? data.length ?? 0);
+    const p =
+      apiLimit != null && Number(apiLimit) > 0
+        ? Math.max(1, Math.floor(skip / lim) + 1)
+        : Math.max(1, Number(params.page) || 1);
+
+    if (apiLimit == null || Number(apiLimit) <= 0) {
+      const page = Math.max(1, Number(params.page) || 1);
+      const limit = Math.max(1, Number(params.limit) || 10);
+      const start = (page - 1) * limit;
+      const pagedData = data.slice(start, start + limit);
+      const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+      return {
+        data: pagedData,
+        total,
+        page,
+        limit,
+        totalPages,
+      };
+    }
+
+    const totalPages = lim > 0 ? Math.ceil(total / lim) : total > 0 ? 1 : 0;
     return {
       data,
       total,
@@ -277,15 +305,15 @@ export function normalizePurchaseOrderReturnsListResponse(result, params = {}) {
 }
 
 /**
- * Paginated list: `GET purchase_order_return/get-purchase-order-return-by-purchase-item`
- * with `populate=vendor_id`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
+ * Paginated list: `GET purchase_return/get-all-active`
+ * with optional `populate=vendor_id`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`.
  */
 export async function fetchPurchaseOrderReturnsListRequest(params = {}) {
   const queryParams = new URLSearchParams();
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 10);
   const skip = (page - 1) * limit;
-  queryParams.append('populate', PURCHASE_ORDER_GET_POPULATE);
+  queryParams.append('populate', PURCHASE_RETURN_GET_POPULATE);
   queryParams.append('skip', String(skip));
   queryParams.append('limit', String(limit));
   if (params.search != null && String(params.search).trim() !== '') {
@@ -294,13 +322,8 @@ export async function fetchPurchaseOrderReturnsListRequest(params = {}) {
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
 
-  const filterId = params.purchase_item_id ?? params.filterPurchaseReturnItemId;
-  if (filterId != null && String(filterId).trim() !== '') {
-    queryParams.append(getParamKeysToTry()[0], String(filterId).trim());
-  }
-
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}${ENDPOINT_PATH}${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${LIST_ALL_ACTIVE_PATH}${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {
@@ -323,6 +346,7 @@ export async function fetchPurchaseOrderReturnsListRequest(params = {}) {
   }
 
   const result = await response.json().catch(() => null);
+  assertPurchaseOrderReturnJsonSuccess(result);
   return normalizePurchaseOrderReturnsListResponse(result, { page, limit });
 }
 
@@ -385,7 +409,7 @@ export async function fetchPurchaseOrderReturnByIdRequest(purchaseOrderReturnId)
 }
 
 /**
- * POST `purchase_order_return/purchase_order_return_create` — multipart form fields:
+ * POST `purchase_return/purchase_return_create` — multipart form fields:
  * `vendor_id`, `description`, `ref_no`, `discount`, `shipment`, `account_id`,
  * `payment_method_accounts_id`, `amount_paid` (from UI `amount_received` / `amount_paid`),
  * `remaining_amount`, `total_amount`, `expected_delivery_date`,
@@ -510,7 +534,7 @@ export async function createPurchaseOrderReturnRequest(payload = {}) {
     idx += 1;
   });
 
-  const url = `${BASE_URL}purchase_order_return/purchase_order_return_create`;
+  const url = `${BASE_URL}purchase_return/purchase_return_create`;
   let response;
   try {
     response = await fetch(url, {
@@ -687,6 +711,42 @@ export async function updatePurchaseOrderReturnRequest(purchaseOrderReturnId, pa
     });
     throw new Error(message);
   }
+  const result = await response.json().catch(() => ({}));
+  assertPurchaseOrderReturnJsonSuccess(result);
+  return result;
+}
+
+/**
+ * DELETE `purchase_return/purchase_return_delete/:purchaseOrderReturnId`
+ */
+export async function deletePurchaseOrderReturnRequest(purchaseOrderReturnId) {
+  const id = String(purchaseOrderReturnId ?? '').trim();
+  if (!id) {
+    throw new Error('Purchase order return id is required');
+  }
+
+  const url = `${BASE_URL}purchase_return/purchase_return_delete/${encodeURIComponent(id)}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'DELETE',
+      headers: getJsonReadHeaders(),
+    });
+  } catch (err) {
+    logPurchaseOrderReturnModuleError('deletePurchaseOrderReturnRequest network error', { url, id, err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    logPurchaseOrderReturnModuleError('deletePurchaseOrderReturnRequest failed', {
+      id,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+
   const result = await response.json().catch(() => ({}));
   assertPurchaseOrderReturnJsonSuccess(result);
   return result;

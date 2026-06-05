@@ -4,20 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchPurchaseOrderReturns,
+  deletePurchaseOrderReturn,
   setSearch,
   setPage,
   setLimit,
   setSort,
-  setFilterPurchaseReturnItemId,
+  clearDeleteStatus,
 } from '../../features/purchaseOrderReturns/purchaseOrderReturnsSlice.js';
-import { PURCHASE_ITEM_QUERY_KEY } from '../../features/purchaseOrderReturns/purchaseOrderReturnsAPI.js';
 import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { toast } from '../../utils/toast.js';
 
 const poRef = (row) =>
+  row?.purchase_return_no ??
+  row?.purchaseReturnNo ??
   row?.purchase_order_no ??
   row?.po_no ??
   row?.order_no ??
@@ -26,7 +30,13 @@ const poRef = (row) =>
   '—';
 
 const poStatus = (row) =>
-  row?.order_status ?? row?.status ?? row?.purchase_order_status ?? row?.po_status ?? '—';
+  row?.return_status ??
+  row?.returnStatus ??
+  row?.order_status ??
+  row?.status ??
+  row?.purchase_order_status ??
+  row?.po_status ??
+  '—';
 
 const vendorDisplayName = (vendor) => {
   if (vendor == null || typeof vendor !== 'object' || Array.isArray(vendor)) return null;
@@ -46,6 +56,7 @@ const poSupplier = (row) =>
   vendorDisplayName(row?.vendor_id) ??
   row?.supplier?.name ??
   row?.vendor_name ??
+  (row?.vendor_id != null && typeof row.vendor_id !== 'object' ? String(row.vendor_id) : null) ??
   (row?.supplier_id != null && typeof row.supplier_id !== 'object'
     ? String(row.supplier_id)
     : null) ??
@@ -75,6 +86,7 @@ const poTransactionNumber = (row) => {
 
 const PurchaseOrderReturns = () => {
   useRequireModuleAccess('purchase-order-returns');
+  const { canView, canDelete } = usePermissions('purchase-order-returns');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -84,14 +96,12 @@ const PurchaseOrderReturns = () => {
     pagination,
     search: searchTerm,
     sort,
-    filterPurchaseReturnItemId,
+    deleteStatus,
   } = useSelector((state) => state.purchaseOrderReturns);
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
-  const [localFilterId, setLocalFilterId] = useState(filterPurchaseReturnItemId || '');
   const searchTimeoutRef = useRef(null);
-  const filterTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -104,19 +114,8 @@ const PurchaseOrderReturns = () => {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    if (filterPurchaseReturnItemId && String(filterPurchaseReturnItemId).trim()) {
-      params.filterPurchaseReturnItemId = String(filterPurchaseReturnItemId).trim();
-    }
     dispatch(fetchPurchaseOrderReturns(params));
-  }, [
-    dispatch,
-    pagination.page,
-    pagination.limit,
-    searchTerm,
-    sort.sortBy,
-    sort.sortOrder,
-    filterPurchaseReturnItemId,
-  ]);
+  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -130,25 +129,9 @@ const PurchaseOrderReturns = () => {
     [dispatch]
   );
 
-  const handleFilterIdChange = useCallback(
-    (e) => {
-      const value = e.target.value;
-      setLocalFilterId(value);
-      if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
-      filterTimeoutRef.current = setTimeout(() => {
-        dispatch(setFilterPurchaseReturnItemId(value));
-      }, 500);
-    },
-    [dispatch]
-  );
-
   useEffect(() => {
     setLocalSearch(searchTerm || '');
   }, [searchTerm]);
-
-  useEffect(() => {
-    setLocalFilterId(filterPurchaseReturnItemId || '');
-  }, [filterPurchaseReturnItemId]);
 
   useEffect(() => {
     if (error) {
@@ -196,10 +179,24 @@ const PurchaseOrderReturns = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
       if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
+
+  const handleDelete = async (purchaseOrderReturnId, returnLabel) => {
+    const label =
+      returnLabel && returnLabel !== '—' ? returnLabel : 'this purchase order return';
+    if (!window.confirm(`Delete "${label}"? This action cannot be undone.`)) {
+      return;
+    }
+    const result = await dispatch(deletePurchaseOrderReturn(purchaseOrderReturnId));
+    if (deletePurchaseOrderReturn.fulfilled.match(result)) {
+      toast.success('Purchase order return deleted successfully.');
+    } else {
+      toast.error(result.payload || 'Failed to delete purchase order return.');
+    }
+    dispatch(clearDeleteStatus());
+  };
 
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
@@ -225,14 +222,14 @@ const PurchaseOrderReturns = () => {
                     <p className="text-sm mb-0 text-muted">
                       Server-side pagination and search —{' '}
                       <code className="small">
-                        GET /purchase_order_return/get-purchase-order-return-by-purchase-item?populate=vendor_id
+                        GET /purchase_return/get-all-active?populate=vendor_id
                       </code>
                     </p>
                   ) : null}
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '100%' }}>
+                  <div className="d-flex justify-content-md-end align-items-center gap-2">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
@@ -243,19 +240,6 @@ const PurchaseOrderReturns = () => {
                         value={localSearch}
                         onChange={handleSearchChange}
                         aria-label="Search purchase order returns"
-                      />
-                    </div>
-                    <div className="input-group input-group-sm" style={{ maxWidth: '100%' }}>
-                      <span className="input-group-text text-body text-nowrap" title={PURCHASE_ITEM_QUERY_KEY}>
-                        Item id
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder={`Optional ${PURCHASE_ITEM_QUERY_KEY}`}
-                        value={localFilterId}
-                        onChange={handleFilterIdChange}
-                        aria-label="Filter by purchase item id"
                       />
                     </div>
                   </div>
@@ -279,11 +263,11 @@ const PurchaseOrderReturns = () => {
                         <th>S.No</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('purchase_order_no')}
-                          onDoubleClick={() => handleSort('purchase_order_no', true)}
+                          onClick={() => handleSort('purchase_return_no')}
+                          onDoubleClick={() => handleSort('purchase_return_no', true)}
                         >
-                          Reference
-                          {renderSortIcon('purchase_order_no')}
+                          Return no
+                          {renderSortIcon('purchase_return_no')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -295,11 +279,11 @@ const PurchaseOrderReturns = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('order_status')}
-                          onDoubleClick={() => handleSort('order_status', true)}
+                          onClick={() => handleSort('return_status')}
+                          onDoubleClick={() => handleSort('return_status', true)}
                         >
-                          Status
-                          {renderSortIcon('order_status')}
+                          Return status
+                          {renderSortIcon('return_status')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -334,10 +318,7 @@ const PurchaseOrderReturns = () => {
                       {data.length === 0 ? (
                         <tr>
                           <td colSpan={9} className="text-center text-sm p-4 text-muted">
-                            <p className="mb-3">
-                              No purchase order returns found. Try adjusting search or optional purchase item
-                              filter.
-                            </p>
+                            <p className="mb-3">No purchase order returns found. Try adjusting search.</p>
                             <AddNewButton to="/purchase-order-returns/add" label="Create purchase order return" />
                           </td>
                         </tr>
@@ -368,13 +349,32 @@ const PurchaseOrderReturns = () => {
                               </td>
                               <td className="text-sm">
                                 {id ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    onClick={() => navigate(`/purchase-order-returns/edit/${encodeURIComponent(id)}`)}
-                                  >
-                                    Edit
-                                  </button>
+                                  <div className="d-flex flex-wrap gap-1">
+                                    {canView ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-info mb-0"
+                                        onClick={() =>
+                                          navigate(`/purchase-order-returns/edit/${encodeURIComponent(id)}`)
+                                        }
+                                      >
+                                        View
+                                      </button>
+                                    ) : null}
+                                    {canDelete ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-danger mb-0"
+                                        onClick={() => handleDelete(id, poRef(item))}
+                                        disabled={deleteStatus === 'loading'}
+                                      >
+                                        Delete
+                                      </button>
+                                    ) : null}
+                                    {!canView && !canDelete ? (
+                                      <span className="text-muted">—</span>
+                                    ) : null}
+                                  </div>
                                 ) : (
                                   <span className="text-muted">—</span>
                                 )}
