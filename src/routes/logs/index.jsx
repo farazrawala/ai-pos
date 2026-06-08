@@ -1,19 +1,25 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import {
   fetchLogs,
   setSearch,
   setLogTag,
+  setProductReference,
   setPage,
   setLimit,
   setSort,
 } from '../../features/logs/logsSlice.js';
+import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+
+const productId = (p) => String(p?._id || p?.id || p?.product_id || '');
+const productName = (p) => p?.name || p?.product_name || 'Product';
 
 /** Logs list: show at most 40 chars; full URL in native tooltip on hover. */
 function LogUrlCell({ url }) {
@@ -59,7 +65,6 @@ const LOG_FILTER_TABS = [
   { id: 'out', label: 'out' },
   { id: 'wholesale_price', label: 'Wholesale Price' },
   { id: 'stock_alert', label: 'Stock Alert' },
-  ,
 ];
 
 const Logs = () => {
@@ -71,15 +76,62 @@ const Logs = () => {
     pagination,
     search: searchTerm,
     logTag,
+    referenceId,
+    referenceType,
     sort,
   } = useSelector((state) => state.logs);
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [products, setProducts] = useState([]);
+  const [productsStatus, setProductsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
   usePermissions('logs');
   useRequireModuleAccess('logs');
+
+  useEffect(() => {
+    let cancelled = false;
+    setProductsStatus('loading');
+    (async () => {
+      try {
+        const res = await fetchProductsRequest({ page: 1, limit: 2000 });
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        rows.sort((a, b) =>
+          String(productName(a)).localeCompare(String(productName(b)), undefined, {
+            sensitivity: 'base',
+          })
+        );
+        setProducts(rows);
+        setProductsStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Logs module] Failed to load products for filter', err);
+        setProducts([]);
+        setProductsStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const productOptions = useMemo(() => {
+    const rows = products
+      .map((p) => {
+        const id = productId(p);
+        if (!id) return null;
+        const sku = p.sku || p.product_code || '';
+        return {
+          value: id,
+          label: productName(p),
+          subLabel: sku || undefined,
+        };
+      })
+      .filter(Boolean);
+    return [{ value: '', label: 'All products' }, ...rows];
+  }, [products]);
 
   useEffect(() => {
     const params = {
@@ -88,6 +140,10 @@ const Logs = () => {
     };
     if (searchTerm) params.search = searchTerm;
     if (logTag) params.tag = logTag;
+    if (referenceId) {
+      params.reference_id = referenceId;
+      params.reference_type = referenceType || 'product';
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -99,6 +155,8 @@ const Logs = () => {
     pagination.limit,
     searchTerm,
     logTag,
+    referenceId,
+    referenceType,
     sort.sortBy,
     sort.sortOrder,
   ]);
@@ -192,8 +250,20 @@ const Logs = () => {
                   ) : null}
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0 flex-wrap">
+                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
+                      <SearchableSelect
+                        options={productOptions}
+                        value={referenceId}
+                        placeholder="All products"
+                        disabled={loading || productsStatus === 'loading'}
+                        onChange={(next) => dispatch(setProductReference(next))}
+                      />
+                      {productsStatus === 'loading' && (
+                        <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
+                      )}
+                    </div>
+                    <div className="input-group" style={{ maxWidth: '300px', flex: '1 1 200px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>

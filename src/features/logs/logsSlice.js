@@ -26,6 +26,9 @@ const initialState = {
   search: '',
   /** Filter by exact tag match (`API`, `get`, `Cache`, …). Empty = all (first toggle). */
   logTag: '',
+  /** Filter logs for a specific entity (e.g. product). */
+  referenceId: '',
+  referenceType: '',
   sort: {
     sortBy: null,
     sortOrder: 'desc',
@@ -45,6 +48,12 @@ const logsSlice = createSlice({
     },
     setLogTag: (state, action) => {
       state.logTag = action.payload ?? '';
+      state.pagination.page = 1;
+    },
+    setProductReference: (state, action) => {
+      const productId = action.payload ?? '';
+      state.referenceId = productId;
+      state.referenceType = productId ? 'product' : '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -93,6 +102,6 @@ const logsSlice = createSlice({
   },
 });
 
-export const { clearError, setSearch, setLogTag, setPage, setLimit, setSort } =
+export const { clearError, setSearch, setLogTag, setProductReference, setPage, setLimit, setSort } =
   logsSlice.actions;
 export default logsSlice.reducer;

@@ -36,9 +36,12 @@ export const fetchLogsRequest = async (params = {}) => {
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   if (params.tag) queryParams.append('tag', params.tag);
+  if (params.reference_id) queryParams.append('reference_id', params.reference_id);
+  if (params.reference_type) queryParams.append('reference_type', params.reference_type);
+  queryParams.append('created_by', 'true');
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}logs/get-all-active${queryString ? `?${queryString}` : ''}&created_by=true`;
+  const url = `${BASE_URL}logs/get-all-active${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {
