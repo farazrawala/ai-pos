@@ -262,7 +262,7 @@ function createInitialSteps() {
     {
       name: 'Get payment account',
       method: 'GET',
-      url: '{{url}}api/account/get-all-active?limit=5&account_type=current_asset',
+      url: '{{url}}api/account/get-all-active?limit=5&account_type=current_liability',
       body: {},
       save: {
         payment_account_id: [
