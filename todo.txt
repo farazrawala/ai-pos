@@ -69,18 +69,19 @@ User navigation acc to roles.
 Alert
 stock according to warehouse. 
 dashboard dynamic.
+Sales return
+Purchase return
 
 
 // Remaining
 add/edit variant product. 
-
-
+company info : details
+printer.
 in user add multiple accounts to be include and not to be include.
-load testing module.
+
+load testing module
 Tax (will be done with printing)
 
-Sales return
-Purchase return
 
 
 
