@@ -282,9 +282,13 @@ const Pos = () => {
   );
 
   const openAddCustomerModal = () => {
-    setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+    const qDigits = digitsOnlyFromPhone(customerFilter).slice(0, 11);
+    setAddCustomerForm(
+      qDigits ? { ...ADD_CUSTOMER_INITIAL, phone: qDigits } : ADD_CUSTOMER_INITIAL
+    );
     setAddCustomerErrors({});
     setCreateCustomerError('');
+    setCustomerMenuOpen(false);
     const el = document.getElementById('posAddCustomerModal');
     if (el && window.bootstrap?.Modal) {
       const M = window.bootstrap.Modal;
