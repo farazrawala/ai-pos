@@ -11,7 +11,10 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
-import { createPosOrderRequest, pickInvoiceRouteId } from '../../features/orders/ordersAPI.js';
+import {
+  createPosOrderRequest,
+  pickOrderInvoiceNoFromSaveResponse,
+} from '../../features/orders/ordersAPI.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -25,18 +28,6 @@ const shopName =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
     ? String(import.meta.env.VITE_SHOP_NAME)
     : 'Store';
-
-function orderFromSaveResponse(result) {
-  if (!result || typeof result !== 'object') return null;
-  const data = result.data;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    if (data.order && typeof data.order === 'object') return data.order;
-    if (data._id || data.order_no || data.orderNo) return data;
-  }
-  if (result.order && typeof result.order === 'object') return result.order;
-  if (result._id || result.order_no || result.orderNo) return result;
-  return null;
-}
 
 function buildThermalReceiptFromCart({
   cartLines,
@@ -367,8 +358,8 @@ const Pos = () => {
         const saved = await savePosOrder(payment);
         if (!saved) return;
 
-        const order = orderFromSaveResponse(saved.result);
-        const invoiceNo = pickInvoiceRouteId(order) || moment().format('YYYYMMDDHHmmss');
+        const invoiceNo =
+          pickOrderInvoiceNoFromSaveResponse(saved.result) || moment().format('YYYYMMDDHHmmss');
         const receipt = buildThermalReceiptFromCart({
           cartLines: saved.cartSnapshot,
           customerName: saved.customerName,
@@ -380,7 +371,10 @@ const Pos = () => {
           invoiceNo,
         });
 
-        const printed = openThermalReceiptPrint(receipt, { documentTitlePrefix: 'Receipt POS' });
+        const printed = openThermalReceiptPrint(receipt, {
+          documentTitlePrefix: 'Receipt',
+          invoiceNumberPrefix: 'Invoice no.',
+        });
         if (!printed) {
           toast.error('Allow pop-ups to print the thermal receipt.', { delay: 6000 });
         }

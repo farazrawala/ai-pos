@@ -623,16 +623,50 @@ export function pickInvoiceRouteId(order) {
   const docId = pickOrderDocumentId(order);
   if (docId) return docId;
 
+  return pickOrderInvoiceNo(order);
+}
+
+/** Human-readable invoice / order number for receipts and UI (never prefers Mongo `_id`). */
+export function pickOrderInvoiceNo(order) {
   if (!order || typeof order !== 'object') return '';
   const candidates = [
     order.order_no,
     order.orderNo,
     order.invoice_no,
     order.invoiceNo,
+    order.ref_no,
     order.reference,
   ];
   const found = candidates.find((v) => v != null && String(v).trim() !== '');
   return found != null ? String(found).trim() : '';
+}
+
+/** Invoice number from `order_save` / create-order API envelope. */
+export function pickOrderInvoiceNoFromSaveResponse(result) {
+  if (!result || typeof result !== 'object') return '';
+
+  const order = extractOrderFromSaveResponse(result);
+  const fromOrder = pickOrderInvoiceNo(order);
+  if (fromOrder) return fromOrder;
+
+  const roots = [result.data, result].filter((r) => r && typeof r === 'object' && !Array.isArray(r));
+  for (const root of roots) {
+    const direct = pickOrderInvoiceNo(root);
+    if (direct) return direct;
+  }
+  return '';
+}
+
+function extractOrderFromSaveResponse(result) {
+  if (!result || typeof result !== 'object') return null;
+  const data = result.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.order && typeof data.order === 'object') return data.order;
+    if (isOrderShape(data)) return data;
+  }
+  if (result.order && typeof result.order === 'object') return result.order;
+  if (isOrderShape(result)) return result;
+  return null;
 }
 
 /**
