@@ -118,10 +118,16 @@ export async function fetchBalanceSheetInventoryCogRequest() {
 }
 
 const PROFIT_BY_ORDER_ITEM_PATH = 'order/profit-by-order-item';
+const PROFIT_BY_SALES_RETURN_ITEM_PATH = 'sales_return/profit-by-sales-return-item';
 
 /** GET URL for order profit on the balance sheet (Owner's equity). */
 export function buildBalanceSheetProfitUrl() {
   return `${BASE_URL}${PROFIT_BY_ORDER_ITEM_PATH}`;
+}
+
+/** GET URL for sales return profit on the balance sheet (Owner's equity). */
+export function buildBalanceSheetSalesReturnProfitUrl() {
+  return `${BASE_URL}${PROFIT_BY_SALES_RETURN_ITEM_PATH}`;
 }
 
 /**
@@ -173,6 +179,51 @@ export async function fetchBalanceSheetProfitRequest() {
     profit: Number.isFinite(profit) ? profit : 0,
     lineCount: Number.isFinite(lineCount) ? lineCount : 0,
     orderItemIds,
+  };
+}
+
+/**
+ * Sales return profit for balance sheet Owner's equity.
+ * Expects `{ success, profit, line_count? }`.
+ *
+ * @returns {Promise<{ profit: number; lineCount: number }>}
+ */
+export async function fetchBalanceSheetSalesReturnProfitRequest() {
+  const url = buildBalanceSheetSalesReturnProfitUrl();
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Sales return profit request was not successful';
+    throw new Error(msg);
+  }
+
+  const raw = result.profit ?? result.total_profit ?? result.totalProfit;
+  const profit =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseFloat(
+          String(raw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
+
+  const lineCountRaw = result.line_count ?? result.lineCount;
+  const lineCount =
+    typeof lineCountRaw === 'number' && Number.isFinite(lineCountRaw)
+      ? lineCountRaw
+      : parseInt(String(lineCountRaw ?? ''), 10);
+
+  return {
+    profit: Number.isFinite(profit) ? profit : 0,
+    lineCount: Number.isFinite(lineCount) ? lineCount : 0,
   };
 }
 

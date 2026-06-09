@@ -74,6 +74,9 @@ Purchase return
 
 
 // Remaining
+company settings.
+printer settings.
+
 add/edit variant product. 
 company info : details
 printer.

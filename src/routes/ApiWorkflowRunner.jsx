@@ -273,10 +273,10 @@ function createInitialSteps() {
         ],
       },
     },
-    purchaseLedgerStep('Purchase 10 @ 200', 'PO-WAC-1', 10, 200),
-    purchaseLedgerStep('Purchase 10 @ 220', 'PO-WAC-2', 10, 220),
-    purchaseLedgerStep('Purchase 10 @ 250', 'PO-WAC-3', 10, 250),
-    purchaseLedgerStep('Purchase 20 @ 300', 'PO-WAC-4', 20, 300),
+    // purchaseLedgerStep('Purchase 10 @ 200', 'PO-WAC-1', 10, 200),
+    // purchaseLedgerStep('Purchase 10 @ 220', 'PO-WAC-2', 10, 220),
+    // purchaseLedgerStep('Purchase 10 @ 250', 'PO-WAC-3', 10, 250),
+    // purchaseLedgerStep('Purchase 20 @ 300', 'PO-WAC-4', 20, 300),
   ];
 }
 

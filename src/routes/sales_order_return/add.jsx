@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createSalesReturn } from '../../features/salesReturns/salesReturnsSlice.js';
@@ -21,6 +21,7 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const shopName =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
@@ -108,25 +109,14 @@ const productPickerUnitPrice = (p) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const productPickerWholesalePrice = (p) => {
-  if (!p || typeof p !== 'object') return null;
-  const nested = p.product && typeof p.product === 'object' ? p.product : null;
-  const wRaw =
-    p.wholesale_price ??
-    p.wholesalePrice ??
-    nested?.wholesale_price ??
-    nested?.wholesalePrice;
-  if (wRaw == null || wRaw === '') return null;
-  const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
-  return Number.isFinite(w) ? roundMoney2(w) : null;
+const productHasListedPrice = (p) => {
+  if (!p || typeof p !== 'object') return false;
+  const v = p.product_price ?? p.price;
+  return v != null && String(v).trim() !== '';
 };
 
-/** PO line rate: `wholesale_price` when present (including 0), else retail fallback. */
-const productPickerDefaultLineRate = (p) => {
-  const wholesale = productPickerWholesalePrice(p);
-  if (wholesale !== null) return wholesale;
-  return roundMoney2(productPickerUnitPrice(p));
-};
+/** Sales return line rate: `product_price`. */
+const productPickerDefaultLineRate = (p) => roundMoney2(productPickerUnitPrice(p));
 
 const normalizeProductDetail = (result) => {
   if (!result || typeof result !== 'object') return null;
@@ -218,6 +208,9 @@ const SalesReturnAdd = () => {
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
   const [createCustomerSubmitting, setCreateVendorSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
+  const customerPickerRef = useRef(null);
 
   const [lines, setLines] = useState([]);
   const [addProductQuery, setAddProductQuery] = useState('');
@@ -260,6 +253,16 @@ const SalesReturnAdd = () => {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (!customerPickerRef.current?.contains(e.target)) {
+        setCustomerMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,6 +360,26 @@ const SalesReturnAdd = () => {
     [users]
   );
 
+  const filteredCustomers = useMemo(() => {
+    const withId = customerOptions;
+    const q = customerFilter.trim().toLowerCase();
+    const qDigits = digitsOnlyFromPhone(customerFilter);
+    let list = withId;
+    if (q || qDigits) {
+      list = withId.filter((u) => {
+        const label = formatUserOptionLabel(u).toLowerCase();
+        const email = String(u.email || '').toLowerCase();
+        const phoneDigits = digitsOnlyFromPhone(u.mobile || u.phone || u.phoneNumber || '');
+        if (label.includes(q)) return true;
+        if (email && email.includes(q)) return true;
+        if (qDigits && phoneDigits.includes(qDigits)) return true;
+        return false;
+      });
+    }
+    const cap = 150;
+    return { rows: list.slice(0, cap), capped: list.length > cap };
+  }, [customerOptions, customerFilter]);
+
   const customerLabel = useMemo(() => {
     const id = String(form.customer_id ?? '').trim();
     if (!id) return 'No customer selected';
@@ -397,13 +420,13 @@ const SalesReturnAdd = () => {
       if (!id) return;
 
       let resolved = product;
-      if (productPickerWholesalePrice(product) === null) {
+      if (!productHasListedPrice(product)) {
         try {
           const detail = await fetchProductByIdRequest(id);
           const full = normalizeProductDetail(detail);
           if (full) resolved = { ...product, ...full };
         } catch (err) {
-          console.warn('[Sales return add] Could not load product wholesale price', err);
+          console.warn('[Sales return add] Could not load product price', err);
         }
       }
 
@@ -579,9 +602,13 @@ const SalesReturnAdd = () => {
   };
 
   const openAddCustomerModal = () => {
-    setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+    const qDigits = digitsOnlyFromPhone(customerFilter).slice(0, 11);
+    setAddCustomerForm(
+      qDigits ? { ...ADD_CUSTOMER_INITIAL, phone: qDigits } : ADD_CUSTOMER_INITIAL
+    );
     setAddCustomerErrors({});
     setCreateCustomerError('');
+    setCustomerMenuOpen(false);
     const el = document.getElementById('srAddCustomerModal');
     if (el && window.bootstrap?.Modal) {
       const M = window.bootstrap.Modal;
@@ -658,7 +685,7 @@ const SalesReturnAdd = () => {
       });
       setAddCustomerForm(ADD_CUSTOMER_INITIAL);
       closeAddCustomerModal();
-      toast.success('Vendor created and selected.');
+      toast.success('Customer created and selected.');
     } catch (err) {
       console.error('[Sales return add] Create customer failed', err);
       setCreateCustomerError(err?.message || 'Could not create customer');
@@ -802,9 +829,9 @@ const SalesReturnAdd = () => {
               </div>
             </div>
             <div className="col-md-6 text-md-end">
-              <div className="po-add-title mb-2">PURCHASE ORDER RETURN</div>
+              <div className="po-add-title mb-2">SALES RETURN</div>
               <div className="mb-1">
-                <span className="text-muted">Reference / PO no. </span>
+                <span className="text-muted">Reference / Return no. </span>
                 <span className="fw-bold">{form.sales_order_no.trim() || '—'}</span>
               </div>
               <div className="small text-muted mb-2">
@@ -819,7 +846,7 @@ const SalesReturnAdd = () => {
               <div className="text-uppercase text-muted small fw-bold mb-2">Customer</div>
               <div className="po-add-customer-name mb-2">{customerLabel}</div>
               <label className="form-label small text-muted mb-1" htmlFor="po-add-customer">
-                Vendor <span className="text-danger">*</span>
+                Customer <span className="text-danger">*</span>
               </label>
               {usersStatus === 'failed' && usersError ? (
                 <div className="alert alert-warning py-2 mb-2" role="alert">
@@ -827,23 +854,83 @@ const SalesReturnAdd = () => {
                 </div>
               ) : null}
               <div className="d-flex gap-2 align-items-start">
-                <select
-                  id="po-add-customer"
-                  className="form-select form-select-sm flex-grow-1"
-                  value={form.customer_id}
-                  onChange={(e) => setForm((p) => ({ ...p, customer_id: e.target.value }))}
-                  disabled={customerSelectDisabled}
-                >
-                  <option value="">No customer</option>
-                  {customerOptions.map((u) => {
-                    const value = getUserOptionValue(u);
-                    return (
-                      <option key={value} value={value}>
-                        {formatUserOptionLabel(u)}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="flex-grow-1 position-relative" ref={customerPickerRef}>
+                  <div className="input-group input-group-sm">
+                    <span className="input-group-text bg-white border-end-0 text-muted">
+                      <SearchInputIcon />
+                    </span>
+                    <input
+                      id="po-add-customer"
+                      type="search"
+                      className="form-control form-control-sm border-start-0"
+                      placeholder="Search name, phone, or email…"
+                      value={customerFilter}
+                      onChange={(e) => {
+                        setCustomerFilter(e.target.value);
+                        setCustomerMenuOpen(true);
+                      }}
+                      onFocus={() => setCustomerMenuOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setCustomerMenuOpen(false);
+                      }}
+                      disabled={customerSelectDisabled}
+                      autoComplete="off"
+                      aria-label="Search customers"
+                      aria-expanded={customerMenuOpen}
+                      aria-controls="sr-customer-picker-list"
+                    />
+                  </div>
+                  {customerMenuOpen && usersStatus !== 'loading' && (
+                    <div
+                      id="sr-customer-picker-list"
+                      className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white"
+                      style={{ zIndex: 1050, maxHeight: 240, overflowY: 'auto' }}
+                      role="listbox"
+                    >
+                      <button
+                        type="button"
+                        className={`list-group-item list-group-item-action py-2 px-3 border-0 rounded-0 text-start small ${
+                          !form.customer_id ? 'active' : ''
+                        }`}
+                        onClick={() => {
+                          setForm((p) => ({ ...p, customer_id: '' }));
+                          setCustomerFilter('');
+                          setCustomerMenuOpen(false);
+                        }}
+                      >
+                        No customer
+                      </button>
+                      {filteredCustomers.rows.map((u) => {
+                        const value = getUserOptionValue(u);
+                        const selected = String(form.customer_id) === String(value);
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            className={`list-group-item list-group-item-action py-2 px-3 border-0 border-top rounded-0 text-start small ${
+                              selected ? 'active' : ''
+                            }`}
+                            onClick={() => {
+                              setForm((p) => ({ ...p, customer_id: value }));
+                              setCustomerFilter('');
+                              setCustomerMenuOpen(false);
+                            }}
+                          >
+                            {formatUserOptionLabel(u)}
+                          </button>
+                        );
+                      })}
+                      {filteredCustomers.rows.length === 0 && (
+                        <div className="px-3 py-2 text-muted small">No matching customers</div>
+                      )}
+                      {filteredCustomers.capped && (
+                        <div className="px-3 py-2 text-muted small border-top bg-light">
+                          Showing first {filteredCustomers.rows.length} — type to narrow results
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn btn-sm po-add-customer-btn flex-shrink-0"
@@ -940,7 +1027,7 @@ const SalesReturnAdd = () => {
                       >
                         <span className="fw-semibold">{productPickerLabel(p)}</span>
                         <span className="text-muted ms-2">
-                          Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                          Price {fmt(productPickerUnitPrice(p))}
                         </span>
                       </button>
                     </li>
@@ -951,7 +1038,7 @@ const SalesReturnAdd = () => {
           </div>
 
           <p className="small text-muted mb-2">
-            Set <strong>Warehouse</strong>, <strong>Rate</strong> (wholesale price),{' '}
+            Set <strong>Warehouse</strong>, <strong>Rate</strong> (product price),{' '}
             <strong>Qty</strong>, and optional <strong>Total Shipping</strong> per line.{' '}
             <strong>Shipping per unit</strong> is calculated automatically; <strong>Amount</strong>{' '}
             uses final rate (rate + shipping per unit) × qty. Remove rows you do not need.

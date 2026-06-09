@@ -11,9 +11,11 @@ import {
   buildBalanceSheetEquityFetchParams,
   buildBalanceSheetInventoryCogUrl,
   buildBalanceSheetProfitUrl,
+  buildBalanceSheetSalesReturnProfitUrl,
   fetchBalanceSheetAdjustmentsRequest,
   fetchBalanceSheetInventoryCogRequest,
   fetchBalanceSheetProfitRequest,
+  fetchBalanceSheetSalesReturnProfitRequest,
 } from '../../features/balanceSheet/balanceSheetAPI.js';
 import { selectAuthUser, selectCompany } from '../../features/user/userSlice.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
@@ -269,6 +271,12 @@ function createBalanceSheetApiDefinitions(equityFetchParams = {}) {
       fetch: () => fetchBalanceSheetProfitRequest(),
     },
     {
+      key: 'sales_return_profit',
+      label: "Owner's equity (sales return profit)",
+      url: buildBalanceSheetSalesReturnProfitUrl(),
+      fetch: () => fetchBalanceSheetSalesReturnProfitRequest(),
+    },
+    {
       key: 'adjustments',
       label: "Owner's equity (adjustments)",
       url: buildBalanceSheetAdjustmentsUrl(),
@@ -481,6 +489,7 @@ export default function BalanceSheetView() {
       const operatingExpenseRes = apiResult(results, 'operating_expense');
       const otherExpenseRes = apiResult(results, 'other_expense');
       const profitRes = apiResult(results, 'profit');
+      const salesReturnProfitRes = apiResult(results, 'sales_return_profit');
       const adjustmentsRes = apiResult(results, 'adjustments');
       const equityAccounts =
         equityRes?.status === 'success' && Array.isArray(equityRes.value) ? equityRes.value : [];
@@ -516,6 +525,17 @@ export default function BalanceSheetView() {
             });
           }
         }
+        const salesReturnProfitLines = [];
+        if (salesReturnProfitRes?.status === 'success' && salesReturnProfitRes.value) {
+          const salesReturnProfitNum = Number(salesReturnProfitRes.value.profit);
+          if (Number.isFinite(salesReturnProfitNum)) {
+            salesReturnProfitLines.push({
+              id: 'sales-return-profit-by-item',
+              label: 'Sales Return Profit',
+              amount: salesReturnProfitNum,
+            });
+          }
+        }
         const adjustmentLines =
           adjustmentsRes?.status === 'success' && Array.isArray(adjustmentsRes.value?.lines)
             ? adjustmentsRes.value.lines
@@ -523,15 +543,18 @@ export default function BalanceSheetView() {
         setEquityLines([
           ...equityAccountLines,
           ...profitLines,
+          ...salesReturnProfitLines,
           ...adjustmentLines,
           ...expenseDeductionLines,
           ...otherExpenseDeductionLines,
         ]);
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
+        const salesReturnProfitErr =
+          salesReturnProfitRes?.status === 'error' ? salesReturnProfitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
-          error: [profitErr, adjustmentErr].filter(Boolean).join(' · ') || null,
+          error: [profitErr, salesReturnProfitErr, adjustmentErr].filter(Boolean).join(' · ') || null,
         });
       } else {
         setEquityLines([]);
@@ -541,11 +564,20 @@ export default function BalanceSheetView() {
         const otherExpenseErr =
           otherExpenseRes?.status === 'error' ? otherExpenseRes.error : null;
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
+        const salesReturnProfitErr =
+          salesReturnProfitRes?.status === 'error' ? salesReturnProfitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
         setEquityStatus({
           loading: false,
           error:
-            [equityErr, expenseErr, otherExpenseErr, profitErr, adjustmentErr]
+            [
+              equityErr,
+              expenseErr,
+              otherExpenseErr,
+              profitErr,
+              salesReturnProfitErr,
+              adjustmentErr,
+            ]
               .filter(Boolean)
               .join(' · ') || 'Failed to load equity',
         });

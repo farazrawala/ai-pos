@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
@@ -21,6 +21,7 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const shopName =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
@@ -218,6 +219,9 @@ const PurchaseOrderAdd = () => {
   const [addVendorErrors, setAddVendorErrors] = useState({});
   const [createVendorSubmitting, setCreateVendorSubmitting] = useState(false);
   const [createVendorError, setCreateVendorError] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [vendorMenuOpen, setVendorMenuOpen] = useState(false);
+  const vendorPickerRef = useRef(null);
 
   const [lines, setLines] = useState([]);
   const [addProductQuery, setAddProductQuery] = useState('');
@@ -260,6 +264,16 @@ const PurchaseOrderAdd = () => {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (!vendorPickerRef.current?.contains(e.target)) {
+        setVendorMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,6 +370,26 @@ const PurchaseOrderAdd = () => {
         .sort((a, b) => formatUserOptionLabel(a).localeCompare(formatUserOptionLabel(b))),
     [users]
   );
+
+  const filteredVendors = useMemo(() => {
+    const withId = supplierOptions;
+    const q = vendorFilter.trim().toLowerCase();
+    const qDigits = digitsOnlyFromPhone(vendorFilter);
+    let list = withId;
+    if (q || qDigits) {
+      list = withId.filter((u) => {
+        const label = formatUserOptionLabel(u).toLowerCase();
+        const email = String(u.email || '').toLowerCase();
+        const phoneDigits = digitsOnlyFromPhone(u.mobile || u.phone || u.phoneNumber || '');
+        if (label.includes(q)) return true;
+        if (email && email.includes(q)) return true;
+        if (qDigits && phoneDigits.includes(qDigits)) return true;
+        return false;
+      });
+    }
+    const cap = 150;
+    return { rows: list.slice(0, cap), capped: list.length > cap };
+  }, [supplierOptions, vendorFilter]);
 
   const supplierLabel = useMemo(() => {
     const id = String(form.supplier_id ?? '').trim();
@@ -579,9 +613,13 @@ const PurchaseOrderAdd = () => {
   };
 
   const openAddVendorModal = () => {
-    setAddVendorForm(ADD_VENDOR_INITIAL);
+    const qDigits = digitsOnlyFromPhone(vendorFilter).slice(0, 11);
+    setAddVendorForm(
+      qDigits ? { ...ADD_VENDOR_INITIAL, phone: qDigits } : ADD_VENDOR_INITIAL
+    );
     setAddVendorErrors({});
     setCreateVendorError('');
+    setVendorMenuOpen(false);
     const el = document.getElementById('poAddVendorModal');
     if (el && window.bootstrap?.Modal) {
       const M = window.bootstrap.Modal;
@@ -827,23 +865,83 @@ const PurchaseOrderAdd = () => {
                 </div>
               ) : null}
               <div className="d-flex gap-2 align-items-start">
-                <select
-                  id="po-add-supplier"
-                  className="form-select form-select-sm flex-grow-1"
-                  value={form.supplier_id}
-                  onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value }))}
-                  disabled={supplierSelectDisabled}
-                >
-                  <option value="">No supplier</option>
-                  {supplierOptions.map((u) => {
-                    const value = getUserOptionValue(u);
-                    return (
-                      <option key={value} value={value}>
-                        {formatUserOptionLabel(u)}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="flex-grow-1 position-relative" ref={vendorPickerRef}>
+                  <div className="input-group input-group-sm">
+                    <span className="input-group-text bg-white border-end-0 text-muted">
+                      <SearchInputIcon />
+                    </span>
+                    <input
+                      id="po-add-supplier"
+                      type="search"
+                      className="form-control form-control-sm border-start-0"
+                      placeholder="Search name, phone, or email…"
+                      value={vendorFilter}
+                      onChange={(e) => {
+                        setVendorFilter(e.target.value);
+                        setVendorMenuOpen(true);
+                      }}
+                      onFocus={() => setVendorMenuOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setVendorMenuOpen(false);
+                      }}
+                      disabled={supplierSelectDisabled}
+                      autoComplete="off"
+                      aria-label="Search vendors"
+                      aria-expanded={vendorMenuOpen}
+                      aria-controls="po-vendor-picker-list"
+                    />
+                  </div>
+                  {vendorMenuOpen && usersStatus !== 'loading' && (
+                    <div
+                      id="po-vendor-picker-list"
+                      className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white"
+                      style={{ zIndex: 1050, maxHeight: 240, overflowY: 'auto' }}
+                      role="listbox"
+                    >
+                      <button
+                        type="button"
+                        className={`list-group-item list-group-item-action py-2 px-3 border-0 rounded-0 text-start small ${
+                          !form.supplier_id ? 'active' : ''
+                        }`}
+                        onClick={() => {
+                          setForm((p) => ({ ...p, supplier_id: '' }));
+                          setVendorFilter('');
+                          setVendorMenuOpen(false);
+                        }}
+                      >
+                        No supplier
+                      </button>
+                      {filteredVendors.rows.map((u) => {
+                        const value = getUserOptionValue(u);
+                        const selected = String(form.supplier_id) === String(value);
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            className={`list-group-item list-group-item-action py-2 px-3 border-0 border-top rounded-0 text-start small ${
+                              selected ? 'active' : ''
+                            }`}
+                            onClick={() => {
+                              setForm((p) => ({ ...p, supplier_id: value }));
+                              setVendorFilter('');
+                              setVendorMenuOpen(false);
+                            }}
+                          >
+                            {formatUserOptionLabel(u)}
+                          </button>
+                        );
+                      })}
+                      {filteredVendors.rows.length === 0 && (
+                        <div className="px-3 py-2 text-muted small">No matching vendors</div>
+                      )}
+                      {filteredVendors.capped && (
+                        <div className="px-3 py-2 text-muted small border-top bg-light">
+                          Showing first {filteredVendors.rows.length} — type to narrow results
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn btn-sm po-add-vendor-btn flex-shrink-0"
