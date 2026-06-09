@@ -55,6 +55,7 @@ import PaymentManagementPage from './routes/payments/index.jsx';
 import PaymentReceiptsList from './routes/payment_receipt/index.jsx';
 import PaymentReceiptEditPage from './routes/payment_receipt/edit.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
+import InventoryTestCaseRunner from './routes/InventoryTestCaseRunner.jsx';
 import CompanyCachePage from './routes/companyCache/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
@@ -156,6 +157,7 @@ const App = () => {
           <Route path="/sales-returns/add" element={<SalesReturnAdd />} />
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
+          <Route path="/test-case" element={<InventoryTestCaseRunner />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -254,6 +256,7 @@ const App = () => {
           <Route path="/sales-returns/add" element={<SalesReturnAdd />} />
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
+          <Route path="/test-case" element={<InventoryTestCaseRunner />} />
           <Route path="/company-cache" element={<CompanyCachePage />} />
           <Route
             path="/dashboard"

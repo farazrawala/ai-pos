@@ -293,14 +293,14 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
                   <i className="fas fa-arrow-circle-right"></i>
                   Save Order
                 </button>
-                {/* <button
+                <button
                   type="button"
                   className="btn pos-pay-btn-print rounded-3 d-flex align-items-center justify-content-center gap-2"
                   onClick={handlePayNowPrint}
                 >
                   <i className="fas fa-print"></i>
-                  Pay now + Print
-                </button> */}
+                  Save and Print
+                </button>
               </div>
             </div>
           </div>

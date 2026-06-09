@@ -1,294 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import WorkflowList from '../components/apiWorkflow/WorkflowList.jsx';
+import TestCaseWorkflowList from '../components/apiWorkflow/TestCaseWorkflowList.jsx';
 import ApiEditor from '../components/apiWorkflow/ApiEditor.jsx';
 import ResponseViewer from '../components/apiWorkflow/ResponseViewer.jsx';
-import InventoryCostLedger from '../components/apiWorkflow/InventoryCostLedger.jsx';
+import TestCaseQtyLedger from '../components/apiWorkflow/TestCaseQtyLedger.jsx';
+import { createInventoryTestCaseSteps } from '../utils/apiWorkflow/testCaseSteps.js';
 import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableReplace.js';
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 import { objectToFormData } from '../utils/apiWorkflow/formData.js';
-import { AUTH_TOKEN_SAVE_PATHS, resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
+import { resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
 
 const DEFAULT_BASE = '';
 
-/** Short unique local part per mount: `comp_<random>@gmail.com`. */
-function compRandEmail() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `comp_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}@gmail.com`;
-  }
-  return `comp_${Math.random().toString(36).slice(2, 11)}${Math.random().toString(36).slice(2, 7)}@gmail.com`;
-}
-
-const PRODUCT_ID_SAVE = [
-  'response.data.data._id',
-  'response.data.data.product._id',
-  'response.data.data.product_id',
-  'response.data.product._id',
-  'response.data._id',
-  'response.data.id',
-];
-
-const WAREHOUSE_ID_SAVE = [
-  'response.data.data._id',
-  'response.data.data.warehouse._id',
-  'response.data.warehouse._id',
-  'response.data._id',
-];
-
-const USER_ID_SAVE = [
-  'response.data.data.user._id',
-  'response.data.data.user.id',
-  'response.data.data._id',
-  'response.data.user._id',
-  'response.data._id',
-];
-
-/** @param {string} name @param {string} refNo @param {number} qty @param {number} price */
-function purchaseLedgerStep(name, refNo, qty, price) {
-  const total = qty * price;
-  return {
-    name,
-    method: 'POST',
-    url: '{{url}}api/purchase_order/purchase_order_create',
-    bodyType: 'form',
-    body: {
-      vendor_id: '{{vendor_id}}',
-      ref_no: refNo,
-      discount: '0',
-      shipment: '0',
-      payment_method_accounts_id: '{{payment_account_id}}',
-      account_id: '{{payment_account_id}}',
-      amount_paid: String(total),
-      remaining_amount: '0',
-      total_amount: String(total),
-      'product_id[0]': '{{product_1_id}}',
-      'qty[0]': String(qty),
-      'price[0]': String(price),
-      'warehouse_id[0]': '{{warehouse_1_id}}',
-      'shipping_per_unit[0]': '0',
-      'total_shipping[0]': '0',
-    },
-    ledger: { type: 'purchase', qty, unitCost: price },
-    save: {},
-  };
-}
-
-function createInitialSteps() {
-  const email = compRandEmail();
-  const vendorEmail = compRandEmail().replace('comp_', 'vendor_');
-  return [
-    {
-      name: 'Create master user + company',
-      method: 'POST',
-      url: '{{url}}api/user/user_company',
-      body: {
-        name: 'Master user',
-        email,
-        password: email,
-        company_name: 'company 1',
-        address: 'new york.',
-        company_email: 'company_name@gmail.com',
-        permissions: {
-          category: { view: true, add: true, edit: true, delete: true },
-          integration: { add: true, view: true, edit: true, delete: true },
-          order: { add: true, view: true, edit: true, delete: true },
-          process: { add: true, view: true, edit: false, delete: false },
-        },
-      },
-      saveLiterals: {
-        login_email: email,
-        login_password: email,
-      },
-      save: {
-        login_email: 'response.data.data.user.email',
-        auth_token: AUTH_TOKEN_SAVE_PATHS,
-        company_id: [
-          'response.data.data.company._id',
-          'response.data.data.company.id',
-          'response.data.data.user.company_id',
-          'response.data.data.user.company',
-          'response.data.company._id',
-          'response.data.company.id',
-          'response.data.user.company_id',
-        ],
-        workflow_user_id: [
-          'response.data.data.user._id',
-          'response.data.data.user.id',
-          'response.data.company._id',
-        ],
-      },
-    },
-    {
-      name: 'Login (credentials from signup)',
-      method: 'POST',
-      url: '{{url}}api/user/login',
-      body: {
-        email: '{{login_email}}',
-        password: '{{login_password}}',
-      },
-      save: {
-        auth_token: AUTH_TOKEN_SAVE_PATHS,
-        company_id: [
-          'response.data.data.user.company_id',
-          'response.data.data.user.company',
-          'response.data.data.company._id',
-          'response.data.data.company.id',
-          'response.data.user.company_id',
-          'response.data.company._id',
-        ],
-      },
-    },
-    {
-      name: 'Create warehouse — Ware House 1 3',
-      method: 'POST',
-      url: '{{url}}api/warehouse/create',
-      body: {
-        name: 'Ware House 1',
-      },
-      save: {
-        warehouse_1_id: WAREHOUSE_ID_SAVE,
-      },
-    },
-    {
-      name: 'Create warehouse — Ware House 2',
-      method: 'POST',
-      url: '{{url}}api/warehouse/create',
-      body: {
-        name: 'Ware House 2',
-      },
-      save: {},
-    },
-    {
-      name: 'Create category — category 1',
-      method: 'POST',
-      url: '{{url}}api/category/create',
-      body: {
-        name: 'category 1',
-        user_id: '{{workflow_user_id}}',
-        description: 'Lorem ipsum',
-      },
-      save: {},
-    },
-    {
-      name: 'Create category — category 2',
-      method: 'POST',
-      url: '{{url}}api/category/create',
-      body: {
-        name: 'category 2',
-        user_id: '{{workflow_user_id}}',
-        description: 'Lorem ipsum',
-      },
-      save: {},
-    },
-    {
-      name: 'Create category — category 3',
-      method: 'POST',
-      url: '{{url}}api/category/create',
-      body: {
-        name: 'category 3',
-        user_id: '{{workflow_user_id}}',
-        description: 'Lorem ipsum',
-      },
-      save: {},
-    },
-    {
-      name: 'Create product variation — product 1',
-      method: 'POST',
-      url: '{{url}}api/product/create-product-variation',
-      body: {
-        product_name: 'product 1',
-        product_price: 300,
-        alert_qty: 0,
-        product_description: 'Lorem ipsum',
-        wholesale_price: 250,
-        quantity: 35,
-        weight: 12,
-        length: 25,
-        width: 124,
-      },
-      save: {
-        product_1_id: PRODUCT_ID_SAVE,
-      },
-    },
-    {
-      name: 'Create product variation — product 2',
-      method: 'POST',
-      url: '{{url}}api/product/create-product-variation',
-      body: {
-        product_name: 'product 2',
-        product_price: 300,
-        alert_qty: 0,
-        product_description: 'Lorem ipsum',
-        wholesale_price: 250,
-        quantity: 35,
-        weight: 12,
-        length: 25,
-        width: 124,
-      },
-      save: {},
-    },
-    {
-      name: 'product 3',
-      method: 'POST',
-      url: '{{url}}api/product/create-product-variation',
-      body: {
-        product_name: 'product 3',
-        product_price: 300,
-        alert_qty: 0,
-        product_description: 'Lorem ipsum',
-        wholesale_price: 250,
-        quantity: 35,
-        weight: 12,
-        length: 25,
-        width: 124,
-      },
-      save: {},
-    },
-    {
-      name: 'Create vendor',
-      method: 'POST',
-      url: '{{url}}api/user/create',
-      body: {
-        name: 'Vendor 1',
-        email: vendorEmail,
-        password: '123456',
-        phone: '03001234567',
-        role: ['VENDOR'],
-      },
-      save: {
-        vendor_id: USER_ID_SAVE,
-      },
-    },
-    {
-      name: 'Get payment account',
-      method: 'GET',
-      url: '{{url}}api/account/get-all-active?limit=5&account_type=current_liability',
-      body: {},
-      save: {
-        payment_account_id: [
-          'response.data.data.0._id',
-          'response.data.data.0.id',
-          'response.data.0._id',
-          'response.data.0.id',
-        ],
-      },
-    },
-    // purchaseLedgerStep('Purchase 10 @ 200', 'PO-WAC-1', 10, 200),
-    // purchaseLedgerStep('Purchase 10 @ 220', 'PO-WAC-2', 10, 220),
-    // purchaseLedgerStep('Purchase 10 @ 250', 'PO-WAC-3', 10, 250),
-    // purchaseLedgerStep('Purchase 20 @ 300', 'PO-WAC-4', 20, 300),
-  ];
-}
-
 const emptyStatuses = (n) => Array.from({ length: n }, () => 'pending');
 
-/** One shared snapshot per component mount (avoids multiple `createInitialSteps()` calls with different emails). */
 function useInitialRunnerSnapshot() {
   const ref = useRef(null);
   if (ref.current === null) {
-    const steps = createInitialSteps();
+    const steps = createInventoryTestCaseSteps();
     ref.current = {
       steps,
       statuses: emptyStatuses(steps.length),
@@ -299,7 +30,6 @@ function useInitialRunnerSnapshot() {
   return ref.current;
 }
 
-/** `{{url}}` in step URLs: API root with trailing slash (from Base URL or current browser origin). */
 function buildInterpVars(varsSnapshot, baseUrlRaw) {
   const b = (baseUrlRaw ?? '').trim();
   const url =
@@ -311,9 +41,9 @@ function buildInterpVars(varsSnapshot, baseUrlRaw) {
   return { url, ...varsSnapshot };
 }
 
-const ApiWorkflowRunner = () => {
+const InventoryTestCaseRunner = () => {
   const initialSnapshot = useInitialRunnerSnapshot();
-  const [steps, setSteps] = useState(() => initialSnapshot.steps);
+  const [steps] = useState(() => initialSnapshot.steps);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
   const [variables, setVariables] = useState(() => {
     const token = resolveWorkflowAuthToken({});
@@ -324,7 +54,6 @@ const ApiWorkflowRunner = () => {
   const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
   const [stepResults, setStepResults] = useState(() => initialSnapshot.stepResults);
   const [loadingStep, setLoadingStep] = useState(null);
-  const [runningAll, setRunningAll] = useState(false);
 
   const variablesRef = useRef(variables);
   const commitVariables = useCallback((next) => {
@@ -341,20 +70,11 @@ const ApiWorkflowRunner = () => {
   useEffect(() => {
     if (!selectedStep) return;
     setBodyText(JSON.stringify(selectedStep.body ?? {}, null, 2));
-  }, [selectedIndex, steps]);
+  }, [selectedIndex, selectedStep]);
 
-  const syncBodyToStep = useCallback(
-    (text) => {
-      setBodyText(text);
-      try {
-        const parsed = text.trim() ? JSON.parse(text) : {};
-        setSteps((prev) => prev.map((s, i) => (i === selectedIndex ? { ...s, body: parsed } : s)));
-      } catch {
-        /* invalid JSON while typing */
-      }
-    },
-    [selectedIndex]
-  );
+  const syncBodyToStep = useCallback((text) => {
+    setBodyText(text);
+  }, []);
 
   const reset = useCallback(() => {
     const token = resolveWorkflowAuthToken({});
@@ -364,13 +84,9 @@ const ApiWorkflowRunner = () => {
     setStatuses(emptyStatuses(steps.length));
     setStepResults(Array.from({ length: steps.length }, () => null));
     setLoadingStep(null);
-    setRunningAll(false);
+    setSelectedIndex(0);
   }, [steps.length]);
 
-  /**
-   * Execute one step with an explicit variable snapshot (avoids stale closures in Run all).
-   * @returns {{ ok: boolean, nextVariables: Record<string, unknown> }}
-   */
   const executeAtIndex = useCallback(
     async (index, varsSnapshot, { applySaves = true } = {}) => {
       const step = steps[index];
@@ -385,6 +101,39 @@ const ApiWorkflowRunner = () => {
 
       const method = (step.method || 'GET').toUpperCase();
       const interpVars = buildInterpVars(varsSnapshot, baseUrl);
+      const authToken = resolveWorkflowAuthToken(interpVars);
+
+      if (step.requiresAuth && !authToken) {
+        const errPayload = {
+          ok: false,
+          status: null,
+          statusText: 'Missing auth token',
+          timeMs: 0,
+          data: {
+            success: false,
+            message:
+              'Authorization token is missing. Run "Setup: Login" successfully first (check Saved variables for auth_token), or sign in to the app so localStorage authToken is available.',
+          },
+          errorMessage: 'Missing auth_token — run Setup: Login first',
+          headers: null,
+        };
+        setStepResults((prev) => {
+          const next =
+            prev.length === steps.length
+              ? [...prev]
+              : Array.from({ length: steps.length }, () => null);
+          next[index] = errPayload;
+          return next;
+        });
+        setStatuses((prev) => {
+          const next = [...prev];
+          next[index] = 'failed';
+          return next;
+        });
+        setLoadingStep(null);
+        return { ok: false, nextVariables: varsSnapshot };
+      }
+
       const path = interpolateUrl(step.url, interpVars);
       const fullUrl = /^https?:\/\//i.test(path)
         ? path
@@ -427,7 +176,7 @@ const ApiWorkflowRunner = () => {
           url: fullUrl,
           validateStatus: () => true,
         };
-        if (method !== 'GET' && method !== 'HEAD') {
+        if (method !== 'GET' && method !== 'HEAD' && method !== 'DELETE') {
           if (step.bodyType === 'form') {
             cfg.data = objectToFormData(body);
           } else {
@@ -438,7 +187,7 @@ const ApiWorkflowRunner = () => {
           vars: interpVars,
           method,
           bodyType: step.bodyType,
-          hasJsonBody: method !== 'GET' && method !== 'HEAD' && step.bodyType !== 'form',
+          hasJsonBody: method !== 'GET' && method !== 'HEAD' && method !== 'DELETE' && step.bodyType !== 'form',
         });
 
         const res = await axios(cfg);
@@ -519,34 +268,24 @@ const ApiWorkflowRunner = () => {
     [baseUrl, commitVariables, steps]
   );
 
-  const runAll = useCallback(async () => {
-    setRunningAll(true);
-    setVariables({});
-    setStepResults(Array.from({ length: steps.length }, () => null));
-    setStatuses(emptyStatuses(steps.length));
-    let vars = {};
-    for (let i = 0; i < steps.length; i++) {
-      const { ok, nextVariables } = await executeAtIndex(i, vars, { applySaves: true });
-      vars = nextVariables;
-      if (!ok) break;
-    }
-    setRunningAll(false);
-  }, [executeAtIndex, steps.length]);
-
   const runSelected = useCallback(async () => {
-    const snap = variablesRef.current;
-    await executeAtIndex(selectedIndex, snap, { applySaves: true });
+    const { nextVariables } = await executeAtIndex(selectedIndex, variablesRef.current, {
+      applySaves: true,
+    });
+    variablesRef.current = nextVariables;
   }, [executeAtIndex, selectedIndex]);
 
   const runNext = useCallback(async () => {
     const next = selectedIndex + 1;
     if (next >= steps.length) return;
     setSelectedIndex(next);
-    const snap = variablesRef.current;
-    await executeAtIndex(next, snap, { applySaves: true });
+    const { nextVariables } = await executeAtIndex(next, variablesRef.current, {
+      applySaves: true,
+    });
+    variablesRef.current = nextVariables;
   }, [executeAtIndex, selectedIndex, steps.length]);
 
-  const busy = loadingStep !== null || runningAll;
+  const busy = loadingStep !== null;
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -568,36 +307,36 @@ const ApiWorkflowRunner = () => {
         <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              API workflow runner
+              Inventory test case runner
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Run sequential API steps with saved variables and{' '}
-              <code className="text-indigo-600">{'{{tokens}}'}</code> in URLs and JSON bodies.
+              Manual API checks from <code className="text-indigo-600">test_case.rb</code> — run{' '}
+              <strong>Setup: Create master user + company</strong>, then <strong>Setup: Login</strong>,
+              before warehouse and other authenticated steps. Expected qty is shown per step.
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Inventory scenarios:{' '}
-              <Link to="/test-case" className="text-indigo-600 hover:underline">
-                test case runner
-              </Link>{' '}
-              (<code>test_case.rb</code>)
+              Also see{' '}
+              <Link to="/api-workflow" className="text-indigo-600 hover:underline">
+                API workflow runner
+              </Link>
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={busy}
-              onClick={() => void runAll()}
+              disabled={busy || selectedIndex < 0}
+              onClick={() => void runSelected()}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Run all
+              Run this step
             </button>
             <button
               type="button"
-              disabled={busy || selectedIndex < 0}
-              onClick={() => void runSelected()}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={busy || selectedIndex >= steps.length - 1}
+              onClick={() => void runNext()}
+              className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800 shadow-sm hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Run this step
+              Run next step
             </button>
             <button
               type="button"
@@ -618,7 +357,7 @@ const ApiWorkflowRunner = () => {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               disabled={busy}
-              placeholder="Empty = {{url}} uses this origin (Vite proxies /api/). Or e.g. http://localhost:8000"
+              placeholder="Empty = current origin (Vite proxies /api/)"
               className="rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-slate-50"
             />
           </label>
@@ -626,14 +365,14 @@ const ApiWorkflowRunner = () => {
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono">
               Enter
             </kbd>{' '}
-            runs the next step (when focus is not in a field).
+            runs the next step when focus is not in a field.
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <div className="lg:col-span-3">
             <div className="h-[min(70vh,640px)]">
-              <WorkflowList
+              <TestCaseWorkflowList
                 steps={steps}
                 statuses={statuses}
                 selectedIndex={selectedIndex}
@@ -669,7 +408,7 @@ const ApiWorkflowRunner = () => {
                 {varsDisplay}
               </pre>
             </div>
-            <InventoryCostLedger steps={steps} statuses={statuses} />
+            <TestCaseQtyLedger steps={steps} statuses={statuses} />
           </div>
         </div>
       </div>
@@ -677,4 +416,4 @@ const ApiWorkflowRunner = () => {
   );
 };
 
-export default ApiWorkflowRunner;
+export default InventoryTestCaseRunner;

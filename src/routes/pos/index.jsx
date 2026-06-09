@@ -11,7 +11,8 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
-import { createPosOrderRequest } from '../../features/orders/ordersAPI.js';
+import { createPosOrderRequest, pickInvoiceRouteId } from '../../features/orders/ordersAPI.js';
+import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -19,6 +20,66 @@ import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+
+const shopName =
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
+    ? String(import.meta.env.VITE_SHOP_NAME)
+    : 'Store';
+
+function orderFromSaveResponse(result) {
+  if (!result || typeof result !== 'object') return null;
+  const data = result.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.order && typeof data.order === 'object') return data.order;
+    if (data._id || data.order_no || data.orderNo) return data;
+  }
+  if (result.order && typeof result.order === 'object') return result.order;
+  if (result._id || result.order_no || result.orderNo) return result;
+  return null;
+}
+
+function buildThermalReceiptFromCart({
+  cartLines,
+  customerName,
+  payment,
+  cartSubtotal,
+  shippingNum,
+  extraDiscountNum,
+  grandTotal,
+  invoiceNo,
+}) {
+  const lines = (cartLines || []).map((line) => {
+    const qty = Number(line.quantity) || 0;
+    const rate = Number(line.unitPrice) || 0;
+    return {
+      description: line.name || 'Product',
+      qtyLabel: String(qty),
+      rate,
+      amount: qty * rate,
+    };
+  });
+  const paid = Number(payment?.paid ?? 0);
+  const total = Number(grandTotal) || 0;
+  const balanceDue = Math.max(0, total - paid);
+  return {
+    shopName,
+    invoiceNo: invoiceNo || '—',
+    invoiceDate: moment().format('MMM D, YYYY h:mm A'),
+    paymentMethod: payment?.paymentMethod || '—',
+    paymentStatus: balanceDue <= 0 ? 'Paid' : 'Partial',
+    billTo: { name: customerName || 'Walk-in Client' },
+    lines,
+    summary: {
+      subTotal: Number(cartSubtotal) || 0,
+      tax: 0,
+      discount: Number(extraDiscountNum) || 0,
+      total,
+      paymentMade: paid,
+      balanceDue,
+    },
+    terms: shippingNum > 0 ? `Shipping: PKR ${Number(shippingNum).toFixed(2)}` : '',
+  };
+}
 
 const parsePosUnitPrice = (product) => {
   const v = product?.price ?? product?.product_price;
@@ -223,47 +284,65 @@ const Pos = () => {
     return Number.isFinite(v) ? Math.max(0, v) : 0;
   }, [cartSubtotal, shippingNum, extraDiscountNum]);
 
-  const handlePaymentComplete = useCallback(
+  const savePosOrder = useCallback(
     async (payment) => {
       if (!cartLines || cartLines.length === 0) {
         alert('Cart is empty. Add at least one product before payment.');
-        return;
+        return null;
       }
 
+      const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
+      const name = customer?.name || customer?.fullName || customer?.username || 'Walk-in Client';
+      const email = customer?.email || 'test@gmail.com';
+      const phone = customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
+      const address = '';
+
+      const lines = cartLines.map((line) => ({
+        productId: line.productId,
+        qty: line.quantity,
+        price: line.unitPrice,
+      }));
+
+      const result = await createPosOrderRequest({
+        name,
+        email,
+        phone,
+        address,
+        lines,
+        shipping: shippingNum || 0,
+        shipment: shippingNum || 0,
+        discount: extraDiscountNum || 0,
+        order_status: 'active',
+        amount_received: payment?.paid ?? 0,
+        change_given: payment?.change ?? 0,
+        posPayMethod: payment?.paymentMethodId || undefined,
+        payment_method_id: payment?.paymentMethodId || undefined,
+        customer_id: selectedCustomerId || undefined,
+      });
+
+      return {
+        result,
+        customerName: name,
+        cartSnapshot: cartLines.map((line) => ({ ...line })),
+      };
+    },
+    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum]
+  );
+
+  const clearCartAfterSale = useCallback(() => {
+    setCartLines([]);
+    setShipping('');
+    setExtraDiscount('');
+  }, []);
+
+  const handlePaymentComplete = useCallback(
+    async (payment) => {
       setOrderSaving(true);
       try {
-        const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
-        const name = customer?.name || customer?.fullName || customer?.username || 'Walk-in Client';
-        const email = customer?.email || 'test@gmail.com';
-        const phone = customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
-        const address = ''; // adjust if you have an address field
-
-        const lines = cartLines.map((line) => ({
-          productId: line.productId,
-          qty: line.quantity,
-          price: line.unitPrice,
-        }));
-
-        await createPosOrderRequest({
-          name,
-          email,
-          phone,
-          address,
-          lines,
-          shipping: shippingNum || 0,
-          shipment: shippingNum || 0,
-          discount: extraDiscountNum || 0,
-          order_status: 'active',
-          amount_received: payment?.paid ?? 0,
-          change_given: payment?.change ?? 0,
-          posPayMethod: payment?.paymentMethodId || undefined,
-          payment_method_id: payment?.paymentMethodId || undefined,
-          customer_id: selectedCustomerId || undefined,
-        });
+        const saved = await savePosOrder(payment);
+        if (!saved) return;
         showToast('successToast', 'Order saved successfully.');
-        setCartLines([]);
-        setShipping('');
-        setExtraDiscount('');
+        clearCartAfterSale();
       } catch (e) {
         console.error('[POS] Failed to save order', e);
         toast.error(
@@ -278,7 +357,59 @@ const Pos = () => {
         setOrderSaving(false);
       }
     },
-    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum, grandTotal]
+    [savePosOrder, clearCartAfterSale, cartLines]
+  );
+
+  const handlePaymentCompletePrint = useCallback(
+    async (payment) => {
+      setOrderSaving(true);
+      try {
+        const saved = await savePosOrder(payment);
+        if (!saved) return;
+
+        const order = orderFromSaveResponse(saved.result);
+        const invoiceNo = pickInvoiceRouteId(order) || moment().format('YYYYMMDDHHmmss');
+        const receipt = buildThermalReceiptFromCart({
+          cartLines: saved.cartSnapshot,
+          customerName: saved.customerName,
+          payment,
+          cartSubtotal,
+          shippingNum,
+          extraDiscountNum,
+          grandTotal,
+          invoiceNo,
+        });
+
+        const printed = openThermalReceiptPrint(receipt, { documentTitlePrefix: 'Receipt POS' });
+        if (!printed) {
+          toast.error('Allow pop-ups to print the thermal receipt.', { delay: 6000 });
+        }
+
+        showToast('successToast', 'Order saved and sent to printer.');
+        clearCartAfterSale();
+      } catch (e) {
+        console.error('[POS] Failed to save order for print', e);
+        toast.error(
+          formatPosOrderErrorMessage(e?.message, {
+            cartLines,
+            productId: e?.productId,
+            productName: e?.productName,
+          }),
+          { delay: 8000 }
+        );
+      } finally {
+        setOrderSaving(false);
+      }
+    },
+    [
+      savePosOrder,
+      clearCartAfterSale,
+      cartLines,
+      cartSubtotal,
+      shippingNum,
+      extraDiscountNum,
+      grandTotal,
+    ]
   );
 
   const openAddCustomerModal = () => {
@@ -811,6 +942,7 @@ const Pos = () => {
           onAddToCart={addToCart}
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
+          onPaymentCompletePrint={handlePaymentCompletePrint}
         />
       </div>
 

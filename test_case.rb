@@ -1,39 +1,36 @@
-| #  | Transaction              | Qty |     Value | Avg Cost |
-| -- | ------------------------ | --: | --------: | -------: |
-| 1  | Purchase 100 @ 100       | 100 | 10,000.00 | 100.0000 |
-| 2  | Purchase 50 @ 120        | 150 | 16,000.00 | 106.6667 |
-| 3  | Sale 40                  | 110 | 11,733.33 | 106.6667 |
-| 4  | Purchase 60 @ 150        | 170 | 20,733.33 | 121.9608 |
-| 5  | Purchase Return 20 @ 150 | 150 | 17,733.33 | 118.2222 |
-| 6  | Sale 30                  | 120 | 14,186.66 | 118.2222 |
-| 7  | Sales Return 10          | 130 | 15,368.88 | 118.2222 |
-| 8  | Purchase 100 @ 200       | 230 | 35,368.88 | 153.7777 |
-| 9  | Sale 50                  | 180 | 27,679.99 | 153.7777 |
-| 10 | Purchase 80 @ 180        | 260 | 42,079.99 | 161.8461 |
-| 11 | Sale 70                  | 190 | 30,750.76 | 161.8461 |
-| 12 | Purchase Return 10 @ 180 | 180 | 28,950.76 | 160.8376 |
-| 13 | Sales Return 5           | 185 | 29,754.94 | 160.8375 |
-| 14 | Purchase 40 @ 250        | 225 | 39,754.94 | 176.6886 |
-| 15 | Sale 25                  | 200 | 35,337.72 | 176.6886 |
-| 16 | Purchase 75 @ 300        | 275 | 57,837.72 | 210.3189 |
-| 17 | Sale 60                  | 215 | 45,218.59 | 210.3189 |
-| 18 | Purchase Return 15 @ 300 | 200 | 40,718.59 | 203.5929 |
-| 19 | Sales Return 20          | 220 | 44,924.97 | 204.2044 |
-| 20 | Purchase 30 @ 350        | 250 | 55,424.97 | 221.6999 |
-| 21 | Sale 40                  | 210 | 46,556.97 | 221.6999 |
-| 22 | Purchase 50 @ 400        | 260 | 66,556.97 | 255.9883 |
-| 23 | Sale 35                  | 225 | 57,597.38 | 255.9883 |
-| 24 | Purchase Return 5 @ 400  | 220 | 55,597.38 | 252.7154 |
-| 25 | Sales Return 10          | 230 | 58,157.26 | 252.8577 |
-
-
-# Delete
-#2   Purchase 50 @ 120
-#5   Purchase Return 20 @ 150
-#6   Sale 30
-#7   Sales Return 10
-#10  Purchase 80 @ 180
-#16  Purchase 75 @ 300
-#23  Sale 35
-#24  Purchase Return 5 @ 400
-#25  Sales Return 10
+# Manual API runner: http://localhost:5173/test-case
+#
+| #  | Transaction                  | Expected Qty |
+| -- | ---------------------------- | -----------: |
+| 1  | Purchase 100 @ 100           |          100 |
+| 2  | Purchase 50 @ 120            |          150 |
+| 3  | Sale 40                      |          110 |
+| 4  | Purchase 60 @ 150            |          170 |
+| 5  | Purchase Return 20 @ 150     |          150 |
+| 6  | Sale 30                      |          120 |
+| 7  | Sales Return 10 (from #6)    |          130 |
+| 8  | Purchase 100 @ 200           |          230 |
+| 9  | Sale 50                      |          180 |
+| 10 | Delete #5 Purchase Return    |          200 |
+| 11 | Purchase 80 @ 180            |          280 |
+| 12 | Sale 70                      |          210 |
+| 13 | Purchase Return 10 @ 180     |          200 |
+| 14 | Sales Return 5 (from #12)    |          205 |
+| 15 | Delete #7 Sales Return       |          195 |
+| 16 | Purchase 40 @ 250            |          235 |
+| 17 | Sale 25                      |          210 |
+| 18 | Purchase 75 @ 300            |          285 |
+| 19 | Sale 60                      |          225 |
+| 20 | Delete #2 Purchase 50 @ 120  |          175 |
+| 21 | Purchase Return 15 @ 300     |          160 |
+| 22 | Sales Return 20 (from #19)   |          180 |
+| 23 | Purchase 30 @ 350            |          210 |
+| 24 | Sale 40                      |          170 |
+| 25 | Purchase 50 @ 400            |          220 |
+| 26 | Delete #13 Purchase Return   |          230 |
+| 27 | Sale 35                      |          195 |
+| 28 | Purchase Return 5 @ 400      |          190 |
+| 29 | Sales Return 10 (from #27)   |          200 |
+| 30 | Delete #24 Sale 40           |          240 |
+| 31 | Delete #29 Sales Return      |          230 |
+| 32 | Delete #18 Purchase 75 @ 300 |          155 |
