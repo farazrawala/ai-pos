@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FaBarcode, FaCreditCard, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
 import {
   fetchProductsRequest,
   fetchProductActiveRequest,
 } from '../../features/products/productsAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import NavIcon from '../../components/NavIcon.jsx';
 import PosPaymentModal, { openPosPaymentModal } from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
@@ -89,24 +91,28 @@ const PosProducts = ({
         onPayNow={onPaymentComplete}
         onPayNowPrint={onPaymentCompletePrint}
       />
-      <div className="card shadow-sm border-0 h-100 d-flex flex-column">
-        <div className="card-body p-3 flex-grow-1 d-flex flex-column">
-          <div className="row g-2 mb-3">
+      <div className="card shadow-sm pos-panel-card h-100 d-flex flex-column">
+        <div className="pos-panel-header">
+          <h5>Products</h5>
+          <p>Search, filter, and add items to the order</p>
+        </div>
+        <div className="pos-panel-body flex-grow-1 d-flex flex-column">
+          <div className="row g-2 mb-3 pos-search-bar">
             <div className="col">
               <div className="input-group">
-                <span className="input-group-text bg-white">
-                  <i className="fas fa-barcode text-muted"></i>
+                <span className="input-group-text">
+                  <NavIcon icon={FaBarcode} size={14} className="text-muted" />
                 </span>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Enter Product name, code or scan barcode"
+                  placeholder="Enter product name, code, or scan barcode"
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
                 />
               </div>
             </div>
-            <div className="col-auto" style={{ minWidth: 140 }}>
+            <div className="col-auto" style={{ minWidth: 160 }}>
               <select
                 className="form-select"
                 value={categoryFilter}
@@ -115,7 +121,7 @@ const PosProducts = ({
                 title={categoriesError || undefined}
                 aria-label="Filter products by category"
               >
-                <option value="All">All</option>
+                <option value="All">All categories</option>
                 {categories.map((c) => {
                   const id = String(c._id ?? c.id ?? '');
                   if (!id) return null;
@@ -150,7 +156,7 @@ const PosProducts = ({
               <div className="text-center text-muted py-5">No products found</div>
             )}
             {productsStatus !== 'loading' && products.length > 0 && (
-              <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-6 g-2">
+              <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-5 g-3">
                 {products.map((p, index) => {
                   const id = getProductId(p) || `idx-${index}`;
                   const name = getProductName(p);
@@ -181,14 +187,12 @@ const PosProducts = ({
                               }}
                             />
                           ) : (
-                            <div className="pos-product-img w-100 d-flex align-items-center justify-content-center">
-                              <i className="fas fa-image text-muted opacity-50 fa-2x"></i>
+                            <div className="pos-product-img w-100 d-flex align-items-center justify-content-center text-muted opacity-50 small">
+                              No image
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-center pos-product-name flex-grow-1">
-                          {name}
-                        </div>
+                        <div className="text-center pos-product-name flex-grow-1">{name}</div>
                       </div>
                     </div>
                   );
@@ -197,23 +201,13 @@ const PosProducts = ({
             )}
           </div>
 
-          <div className="pos-footer-actions border-top pt-3 mt-2 d-flex flex-wrap justify-content-end gap-2">
-            <button type="button" className="btn btn-draft px-4 py-2">
-              <i className="fas fa-save me-2"></i>
-              Draft
-            </button>
-            <button
-              type="button"
-              className="btn btn-pay px-4 py-2"
-              onClick={() => openPosPaymentModal()}
-            >
-              <i className="fas fa-money-bill-wave me-2"></i>
+          <div className="pos-footer-actions">
+            
+            <button type="button" className="btn btn-pay" onClick={() => openPosPaymentModal()}>
+              <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
               Payment
             </button>
-            <button type="button" className="btn btn-card px-4 py-2">
-              <i className="far fa-credit-card me-2"></i>
-              Card
-            </button>
+            
           </div>
         </div>
       </div>
