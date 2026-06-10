@@ -633,6 +633,72 @@ export function parsePrinterSettings(raw) {
   return parseBarcodeSettings(raw);
 }
 
+/** Coerce API / form values into a boolean printer toggle. */
+export function coerceSettingBool(value) {
+  if (value === true || value === 1 || value === '1') return true;
+  if (value === false || value === 0 || value === '0') return false;
+  if (typeof value === 'string') {
+    const s = value.trim().toLowerCase();
+    if (s === 'true' || s === 'yes' || s === 'on') return true;
+    if (s === 'false' || s === 'no' || s === 'off' || s === '') return false;
+  }
+  return Boolean(value);
+}
+
+const PRINTER_SETTING_ALT_KEYS = {
+  show_qrcode: ['show_qr_code', 'showQRCode', 'showQrCode'],
+};
+
+function readPrinterSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw =
+    company.printer_settings ??
+    company.printerSettings ??
+    company.invoice_settings ??
+    company.invoiceSettings;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parsePrinterSettings(allFields);
+    if (parsed?.printer_settings != null) return parsed.printer_settings;
+    if (parsed?.printerSettings != null) return parsed.printerSettings;
+    if (parsed?.show_qrcode !== undefined || parsed?.show_logo !== undefined) return parsed;
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw =
+      allFields.printer_settings ??
+      allFields.printerSettings ??
+      allFields.invoice_settings ??
+      allFields.invoiceSettings;
+    if (raw != null) return raw;
+    if (allFields.show_qrcode !== undefined || allFields.show_logo !== undefined) {
+      return allFields;
+    }
+  }
+
+  return null;
+}
+
+/** Merge fetched company with session company, keeping printer settings when GET omits them. */
+export function mergeCompanyRecordForSettings(fetched, fallback) {
+  if (!fetched) return fallback ?? null;
+  if (!fallback) return fetched;
+  const printerRaw =
+    readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
+  return {
+    ...fallback,
+    ...fetched,
+    ...(printerRaw != null
+      ? { printer_settings: printerRaw, printerSettings: printerRaw }
+      : {}),
+  };
+}
+
 /** @deprecated use parsePrinterSettings */
 export function parseInvoicePrintSettings(raw) {
   return parsePrinterSettings(raw);
@@ -641,12 +707,7 @@ export function parseInvoicePrintSettings(raw) {
 export function extractPrinterSettingsFromCompanyBody(body) {
   const company = extractCompanyRecord(body);
   if (!company || typeof company !== 'object') return null;
-  const raw =
-    company.printer_settings ??
-    company.printerSettings ??
-    company.invoice_settings ??
-    company.invoiceSettings;
-  return parsePrinterSettings(raw);
+  return parsePrinterSettings(readPrinterSettingsRaw(company));
 }
 
 /** @deprecated use extractPrinterSettingsFromCompanyBody */
@@ -659,10 +720,14 @@ export function normalizeIncomingPrinterSettings(parsed) {
   const defaults = defaultPrinterSettings();
   const out = { ...defaults };
   PRINTER_SETTING_DEFS.forEach(({ key }) => {
-    const snake = key;
     const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-    if (parsed[snake] !== undefined) out[key] = Boolean(parsed[snake]);
-    else if (parsed[camel] !== undefined) out[key] = Boolean(parsed[camel]);
+    const candidates = [key, camel, ...(PRINTER_SETTING_ALT_KEYS[key] || [])];
+    for (const candidate of candidates) {
+      if (parsed[candidate] !== undefined) {
+        out[key] = coerceSettingBool(parsed[candidate]);
+        break;
+      }
+    }
   });
   return out;
 }

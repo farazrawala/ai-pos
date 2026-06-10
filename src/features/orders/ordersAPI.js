@@ -1,5 +1,9 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import { createOrderSaveError } from '../../utils/posOrderErrors.js';
+import {
+  fetchAccountByIdRequest,
+  fetchPublicAccountByIdRequest,
+} from '../accounts/accountsAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -556,6 +560,161 @@ export async function fetchOrderForInvoiceRequest(slug) {
       ? ` (top-level keys: ${Object.keys(result).join(', ')})`
       : '';
   throw new Error(`Invalid order response format${hint}`);
+}
+
+const PUBLIC_ORDER_BY_ORDER_NO_PATH = 'order/public-get-order-by-order-no';
+
+function extractCompanyFromPublicInvoiceJson(result, order) {
+  if (!result || typeof result !== 'object') {
+    return order?.company_id && typeof order.company_id === 'object' ? order.company_id : null;
+  }
+  const data = result.data && typeof result.data === 'object' ? result.data : result;
+  const direct =
+    (data.company && typeof data.company === 'object' ? data.company : null) ||
+    (result.company && typeof result.company === 'object' ? result.company : null);
+  if (direct) return direct;
+  const fromOrder =
+    (order?.company_id && typeof order.company_id === 'object' ? order.company_id : null) ||
+    (order?.companyId && typeof order.companyId === 'object' ? order.companyId : null);
+  return fromOrder;
+}
+
+function pickPaymentAccountIdFromOrder(order) {
+  if (!order || typeof order !== 'object') return '';
+  const payRef = order.payment_method_accounts_id;
+  if (payRef && typeof payRef === 'object') {
+    const nested = payRef._id ?? payRef.id;
+    if (nested != null && String(nested).trim() !== '') return String(nested).trim();
+  }
+  return String(
+    payRef ??
+      order.payment_method_id ??
+      order.posPayMethod ??
+      order.account_id ??
+      ''
+  ).trim();
+}
+
+function accountNameFromRecord(account) {
+  if (!account || typeof account !== 'object') return '';
+  return String(account.name ?? account.accountName ?? account.account_name ?? '').trim();
+}
+
+const COMPANY_DEFAULT_ACCOUNT_LABELS = {
+  default_cash_account: 'Cash',
+  default_account_receivable_account: 'Accounts Receivable',
+  default_account_payable_account: 'Accounts Payable',
+  default_withdraw_account: 'Withdraw',
+  default_sales_account: 'Sales',
+  default_purchase_account: 'Purchase',
+  default_expense_account: 'Expense',
+  default_adjustment_account: 'Adjustment',
+};
+
+function defaultAccountIdFromRef(ref) {
+  if (ref == null) return '';
+  if (typeof ref === 'object') {
+    const id = ref._id ?? ref.id;
+    return id != null ? String(id).trim() : '';
+  }
+  return String(ref).trim();
+}
+
+function paymentLabelFromCompanyDefaults(order, company) {
+  if (!order || !company || typeof company !== 'object') return '';
+  const accountId = pickPaymentAccountIdFromOrder(order);
+  if (!accountId || !/^[a-f0-9]{24}$/i.test(accountId)) return '';
+
+  for (const [field, label] of Object.entries(COMPANY_DEFAULT_ACCOUNT_LABELS)) {
+    if (defaultAccountIdFromRef(company[field]) === accountId) {
+      return label;
+    }
+  }
+  return '';
+}
+
+async function enrichPublicInvoiceOrder(order) {
+  if (!order || typeof order !== 'object') return order;
+
+  const company =
+    order.company_id && typeof order.company_id === 'object' ? order.company_id : null;
+
+  const payRef = order.payment_method_accounts_id;
+  if (payRef && typeof payRef === 'object' && accountNameFromRecord(payRef)) {
+    return order;
+  }
+
+  const fromCompany = paymentLabelFromCompanyDefaults(order, company);
+  if (fromCompany) {
+    return { ...order, payment_method_name: fromCompany };
+  }
+
+  const accountId = pickPaymentAccountIdFromOrder(order);
+  if (!accountId || !/^[a-f0-9]{24}$/i.test(accountId)) return order;
+
+  let account = await fetchPublicAccountByIdRequest(accountId);
+  if (!account) {
+    try {
+      account = await fetchAccountByIdRequest(accountId);
+    } catch {
+      account = null;
+    }
+  }
+
+  if (!account || typeof account !== 'object') return order;
+
+  const accountName = accountNameFromRecord(account);
+  return {
+    ...order,
+    payment_method_accounts_id: account,
+    ...(accountName ? { payment_method_name: accountName } : {}),
+  };
+}
+
+/**
+ * Load one order for the public invoice page (no auth).
+ * GET `order/public-get-order-by-order-no/:id`
+ */
+export async function fetchPublicInvoiceRequest(token) {
+  const id = decodeURIComponent(String(token || '').trim());
+  if (!id) {
+    throw new Error('Missing invoice reference');
+  }
+
+  const query = new URLSearchParams({
+    populate: 'company_id,created_by',
+  });
+  const url = `${BASE_URL}${PUBLIC_ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}?${query}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load invoice';
+    throw new Error(msg);
+  }
+
+  let order = extractOrderFromApiJson(result);
+  if (!order) {
+    throw new Error('Invalid invoice response format');
+  }
+
+  order = await enrichPublicInvoiceOrder(order);
+
+  return {
+    order,
+    company: extractCompanyFromPublicInvoiceJson(result, order),
+  };
 }
 
 /**

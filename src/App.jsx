@@ -22,6 +22,7 @@ import AttributeAdd from './routes/attribute/add.jsx';
 import AttributeEdit from './routes/attribute/edit.jsx';
 import Pos from './routes/pos/index.jsx';
 import PosInvoice from './routes/pos/invoice.jsx';
+import PublicInvoice from './routes/pos/PublicInvoice.jsx';
 import Logs from './routes/logs/index.jsx';
 import Users from './routes/users/index.jsx';
 import UsersAdd from './routes/users/add.jsx';
@@ -76,9 +77,11 @@ import { selectIsAuthenticated } from './features/user/userSlice.js';
 const App = () => {
   const location = useLocation();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const isPublicInvoiceRoute = location.pathname.startsWith('/invoice/view/');
   const hideHeader =
     location.pathname === '/signin' ||
     location.pathname === '/signup' ||
+    isPublicInvoiceRoute ||
     (!isAuthenticated && location.pathname === '/api-workflow');
 
   // Argon "mini" mode adds body.g-sidenav-hidden (≥1200px): sidebar shrinks to ~6rem and labels get width:0 / opacity:0.
@@ -115,6 +118,7 @@ const App = () => {
           <Route path="/pos" element={<Pos />} />
           <Route path="/pos/invoice" element={<PosInvoice />} />
           <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
+          <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
@@ -215,6 +219,7 @@ const App = () => {
           <Route path="/pos" element={<Pos />} />
           <Route path="/pos/invoice" element={<PosInvoice />} />
           <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
+          <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
