@@ -1,6 +1,17 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
+import {
+  extractPrinterSettingsFromCompanyBody,
+  fetchCompanyById,
+  getCompanyFromApiBody,
+  getCompanyIdFromUser,
+  mergeCompanyRecordForSettings,
+  mergePrinterSettings,
+  pickCompanyLogoUrl,
+} from '../../features/company/companyAPI.js';
+import { formatInvoiceDate } from '../../features/orders/invoiceViewMapper.js';
 import {
   fetchPurchaseOrderReturnById,
   updatePurchaseOrderReturn,
@@ -366,6 +377,7 @@ const PurchaseOrderReturnEdit = () => {
   const [amountPaidDirty, setAmountPaidDirty] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
   const [warehousesStatus, setWarehousesStatus] = useState('idle');
+  const [poCompany, setPoCompany] = useState(null);
   const isSubmitting = updateStatus === 'loading';
 
   useEffect(() => {
@@ -459,6 +471,30 @@ const PurchaseOrderReturnEdit = () => {
       dispatch(clearUpdateStatus());
     };
   }, [dispatch, id]);
+
+  useEffect(() => {
+    const companyId =
+      getCompanyIdFromUser(authUser) ||
+      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+    if (!companyId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const body = await fetchCompanyById(companyId);
+        const company = getCompanyFromApiBody(body);
+        if (!cancelled && company) {
+          setPoCompany(mergeCompanyRecordForSettings(company, authCompany));
+        }
+      } catch (err) {
+        console.warn('[Purchase order return edit] Could not load company branding', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser, authCompany]);
 
   useEffect(() => {
     if (currentPurchaseOrderReturn) {
@@ -618,6 +654,156 @@ const PurchaseOrderReturnEdit = () => {
     const p = roundMoney2(amountPaidNum);
     return Math.max(0, t - p);
   }, [summary.total, amountPaidNum]);
+
+  const activeCompany = useMemo(
+    () => mergeCompanyRecordForSettings(poCompany, authCompany),
+    [poCompany, authCompany]
+  );
+
+  const printerSettings = useMemo(() => {
+    const parsed = extractPrinterSettingsFromCompanyBody({ data: activeCompany });
+    return mergePrinterSettings(parsed);
+  }, [activeCompany]);
+
+  const companyBrand = useMemo(() => {
+    const name = activeCompany?.company_name || activeCompany?.name || shopName;
+    return {
+      name: String(name || shopName).trim() || shopName,
+      phone: String(activeCompany?.company_phone || activeCompany?.phone || '').trim(),
+      email: String(activeCompany?.company_email || activeCompany?.email || '').trim(),
+      address: String(activeCompany?.company_address || activeCompany?.address || '').trim(),
+      logoUrl: pickCompanyLogoUrl(activeCompany),
+    };
+  }, [activeCompany]);
+
+  const poPrintDate = useMemo(() => {
+    const raw =
+      currentPurchaseOrderReturn?.createdAt ??
+      currentPurchaseOrderReturn?.created_at ??
+      currentPurchaseOrderReturn?.updatedAt ??
+      currentPurchaseOrderReturn?.updated_at;
+    if (raw) return formatInvoiceDate(raw);
+    if (form.expected_delivery_date) {
+      const d = new Date(`${String(form.expected_delivery_date).slice(0, 10)}T12:00:00`);
+      if (!Number.isNaN(d.getTime())) return formatInvoiceDate(d.toISOString());
+    }
+    return formatInvoiceDate(new Date().toISOString());
+  }, [currentPurchaseOrderReturn, form.expected_delivery_date]);
+
+  const printLines = useMemo(
+    () =>
+      lines
+        .filter((row) => String(row?.productId ?? '').trim())
+        .map((row) => {
+          const { amount, finalRate } = computeLineDerived(row);
+          const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
+          const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+          const qtyLabel = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
+          return {
+            description: row.label || 'Product',
+            rate: finalRate,
+            qtyLabel,
+            amount,
+          };
+        }),
+    [lines]
+  );
+
+  const handleNormalPrint = useCallback(async () => {
+    let settings = printerSettings;
+    let brand = companyBrand;
+    const companyId =
+      getCompanyIdFromUser(authUser) ||
+      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+
+    if (companyId) {
+      try {
+        const body = await fetchCompanyById(companyId);
+        const company = getCompanyFromApiBody(body);
+        if (company && typeof company === 'object') {
+          const merged = mergeCompanyRecordForSettings(company, authCompany);
+          settings = mergePrinterSettings(
+            extractPrinterSettingsFromCompanyBody({ data: merged })
+          );
+          brand = {
+            name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
+            phone: String(merged?.company_phone || merged?.phone || '').trim(),
+            email: String(merged?.company_email || merged?.email || '').trim(),
+            address: String(merged?.company_address || merged?.address || '').trim(),
+            logoUrl: pickCompanyLogoUrl(merged),
+          };
+        }
+      } catch {
+        // print with last known settings
+      }
+    }
+
+    const supplierUser = supplierOptions.find(
+      (u) => String(getUserOptionValue(u)) === String(form.supplier_id).trim()
+    );
+    const payAccount = accountOptions.find(
+      (a) => accountOptionValue(a) === String(form.account_id).trim()
+    );
+
+    await openNormalInvoicePrint(
+      {
+        printerSettings: settings,
+        companyBrand: brand,
+        invoiceNo: form.purchase_order_no.trim() || '—',
+        invoiceDate: poPrintDate,
+        terms: form.notes.trim() || 'Purchase Order Return',
+        note: form.expected_delivery_date
+          ? `Expected delivery: ${formatDisplayDate(form.expected_delivery_date)}`
+          : '',
+        billTo: {
+          name: supplierLabel,
+          phone: String(
+            supplierUser?.mobile ?? supplierUser?.phone ?? supplierUser?.phoneNumber ?? ''
+          ).trim(),
+          email: String(supplierUser?.email ?? '').trim(),
+        },
+        lines: printLines,
+        summary: {
+          subTotal: summary.subTotal,
+          tax: 0,
+          discount: summary.discount,
+          shipping: summary.shipment,
+          total: summary.total,
+          paymentMade: amountPaidNum,
+          balanceDue: paymentRemaining,
+        },
+        grossAmount: summary.total,
+        paymentMethod: payAccount ? accountOptionLabel(payAccount) : '—',
+        amountReceived: form.amount_received,
+      },
+      {
+        documentTitlePrefix: 'Purchase Order Return',
+        invoiceNumberPrefix: 'POR#',
+        documentHeading: 'PURCHASE ORDER RETURN',
+        billToLabel: 'Supplier',
+        dateLabel: 'Order Date:',
+      }
+    );
+  }, [
+    printerSettings,
+    companyBrand,
+    authUser,
+    authCompany,
+    supplierOptions,
+    accountOptions,
+    form.purchase_order_no,
+    form.notes,
+    form.expected_delivery_date,
+    form.supplier_id,
+    form.account_id,
+    form.amount_received,
+    poPrintDate,
+    supplierLabel,
+    printLines,
+    summary,
+    amountPaidNum,
+    paymentRemaining,
+  ]);
 
   const hasSaveableLines = useMemo(
     () => lines.some((d) => String(d?.productId ?? '').trim()),
@@ -815,6 +1001,16 @@ const PurchaseOrderReturnEdit = () => {
         </button>
         <div className="d-flex gap-2 po-add-actions">
           <button
+            type="button"
+            className="btn btn-success"
+            onClick={handleNormalPrint}
+            disabled={!hasSaveableLines}
+            title={!hasSaveableLines ? 'Add at least one product line' : 'A4 print'}
+          >
+            <i className="fas fa-print me-1" aria-hidden="true" />
+            Normal Print
+          </button>
+          <button
             type="submit"
             form="po-edit-form"
             className="btn btn-primary"
@@ -852,17 +1048,28 @@ const PurchaseOrderReturnEdit = () => {
           <div className="row align-items-start mb-4 pb-3 border-bottom">
             <div className="col-md-6 mb-3 mb-md-0">
               <div className="d-flex align-items-center gap-3">
-                <div
-                  className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 72, height: 72 }}
-                >
-                  <span className="text-muted small text-center px-1">LOGO</span>
-                </div>
+                {companyBrand.logoUrl ? (
+                  <img
+                    src={companyBrand.logoUrl}
+                    alt={`${companyBrand.name} logo`}
+                    className="rounded border bg-white flex-shrink-0"
+                    style={{ width: 72, height: 72, objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div
+                    className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
+                    style={{ width: 72, height: 72 }}
+                  >
+                    <span className="fw-bold text-primary fs-4">
+                      {companyBrand.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
                 <div>
                   <div className="fw-bold text-uppercase text-secondary" style={{ fontSize: '0.75rem' }}>
-                    {shopName}
+                    {companyBrand.name}
                   </div>
-                  <div className="h5 mb-0 fw-semibold">{shopName}</div>
+                  <div className="h5 mb-0 fw-semibold">{companyBrand.name}</div>
                 </div>
               </div>
             </div>

@@ -5,12 +5,16 @@ import TestCaseWorkflowList from '../components/apiWorkflow/TestCaseWorkflowList
 import ApiEditor from '../components/apiWorkflow/ApiEditor.jsx';
 import ResponseViewer from '../components/apiWorkflow/ResponseViewer.jsx';
 import TestCaseQtyLedger from '../components/apiWorkflow/TestCaseQtyLedger.jsx';
-import { createInventoryTestCaseSteps } from '../utils/apiWorkflow/testCaseSteps.js';
+import { createInventoryTestCaseSteps, BULK_USER_TXN_COUNT } from '../utils/apiWorkflow/testCaseSteps.js';
 import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableReplace.js';
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 import { objectToFormData } from '../utils/apiWorkflow/formData.js';
 import { resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
-import { seedWorkflowVarsFromLoginCache } from '../utils/apiWorkflow/loginSavePaths.js';
+import { seedTestCaseWorkflowVars } from '../utils/apiWorkflow/loginSavePaths.js';
+import {
+  isWorkflowAuthSessionUrl,
+  persistWorkflowAppSession,
+} from '../utils/apiWorkflow/persistWorkflowAppSession.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
 
 const DEFAULT_BASE = '';
@@ -46,7 +50,7 @@ const InventoryTestCaseRunner = () => {
   const initialSnapshot = useInitialRunnerSnapshot();
   const [steps] = useState(() => initialSnapshot.steps);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
-  const [variables, setVariables] = useState(() => seedWorkflowVarsFromLoginCache({}));
+  const [variables, setVariables] = useState(() => seedTestCaseWorkflowVars({}));
   const [statuses, setStatuses] = useState(() => initialSnapshot.statuses);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
@@ -80,7 +84,7 @@ const InventoryTestCaseRunner = () => {
   }, []);
 
   const reset = useCallback(() => {
-    const initial = seedWorkflowVarsFromLoginCache({});
+    const initial = seedTestCaseWorkflowVars({});
     variablesRef.current = initial;
     setVariables(initial);
     setStatuses(emptyStatuses(steps.length));
@@ -221,11 +225,16 @@ const InventoryTestCaseRunner = () => {
             nextVariables = { ...nextVariables, ...step.saveLiterals };
           }
           if (step.save && typeof step.save === 'object') {
-            nextVariables = applySaveMap(res, step.save, nextVariables);
+            nextVariables = applySaveMap(res, step.save, nextVariables, {
+              skipIfCached: step.refreshSavedVars !== true,
+            });
           }
           const savedToken = resolveWorkflowAuthToken(nextVariables);
           if (savedToken && typeof window !== 'undefined') {
             localStorage.setItem('authToken', savedToken);
+          }
+          if (isWorkflowAuthSessionUrl(step.url)) {
+            persistWorkflowAppSession(res);
           }
           commitVariables(nextVariables);
         }
@@ -367,10 +376,13 @@ const InventoryTestCaseRunner = () => {
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               Manual API checks from <code className="text-indigo-600">test_case.rb</code> — check
               steps in the list and use <strong>Run selected steps</strong>, or run one at a time.
-              Each <strong>sale</strong>, <strong>purchase</strong>, <strong>sales return</strong>, and{' '}
-              <strong>purchase return</strong> adds GET + PATCH edit (qty −1). Run{' '}
-              <strong>Setup: Create master user + company</strong>
-              , then <strong>Setup: Login</strong>, before warehouse and other authenticated steps.
+              Each <strong>sale</strong> and <strong>purchase</strong> adds GET + PATCH edit (qty −1).{' '}
+              <strong>Purchase returns</strong> and <strong>sales returns</strong> are create + GET
+              only (no edit). After case #32,{' '}
+              <strong>{BULK_USER_TXN_COUNT} bulk sales</strong> use the same customer user (
+              <code className="text-indigo-600">bulk_user_id</code>). Run all setup steps in order
+              through <strong>Setup: Verify products (list)</strong> before inventory cases — POS
+              will be empty until the product setup steps succeed.
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Also see{' '}
