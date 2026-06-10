@@ -94,6 +94,73 @@ export async function trackApiCallsParallel(definitions) {
 }
 
 /**
+ * Run multiple API calls one after another and record per-request timing.
+ *
+ * @param {ApiSourceDefinition[]} definitions
+ * @param {{
+ *   onStepStart?: (ctx: { index: number; total: number; definition: ApiSourceDefinition; completed: number }) => void | Promise<void>;
+ *   onStepComplete?: (ctx: {
+ *     index: number;
+ *     total: number;
+ *     definition: ApiSourceDefinition;
+ *     result: ApiSourceResult;
+ *     completed: number;
+ *     sources: ApiSourceEntry[];
+ *   }) => void | Promise<void>;
+ *   stopOnFirstError?: boolean;
+ * }} [options]
+ * @returns {Promise<{ results: ApiSourceResult[]; sources: ApiSourceEntry[]; wallDurationMs: number }>}
+ */
+export async function trackApiCallsSequential(definitions, options = {}) {
+  const { onStepStart, onStepComplete, stopOnFirstError = false } = options;
+
+  if (!Array.isArray(definitions) || definitions.length === 0) {
+    return { results: [], sources: [], wallDurationMs: 0 };
+  }
+
+  const wallStart = performance.now();
+  const results = [];
+  const sources = [];
+  const total = definitions.length;
+
+  for (let index = 0; index < definitions.length; index += 1) {
+    const definition = definitions[index];
+    if (onStepStart) {
+      await onStepStart({ index, total, definition, completed: index });
+    }
+
+    const result = await trackApiCall(definition);
+    results.push(result);
+    sources.push({
+      key: result.key,
+      label: result.label,
+      url: result.url,
+      status: result.status,
+      durationMs: result.durationMs,
+      error: result.error,
+    });
+
+    if (onStepComplete) {
+      await onStepComplete({
+        index,
+        total,
+        definition,
+        result,
+        completed: index + 1,
+        sources: [...sources],
+      });
+    }
+
+    if (stopOnFirstError && result.status === 'error') {
+      break;
+    }
+  }
+
+  const wallDurationMs = Math.round(performance.now() - wallStart);
+  return { results, sources, wallDurationMs };
+}
+
+/**
  * @param {ApiSourceDefinition[]} definitions
  * @returns {ApiSourceEntry[]}
  */

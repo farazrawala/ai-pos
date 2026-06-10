@@ -54,6 +54,11 @@ const InventoryTestCaseRunner = () => {
   const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
   const [stepResults, setStepResults] = useState(() => initialSnapshot.stepResults);
   const [loadingStep, setLoadingStep] = useState(null);
+  const [runningAll, setRunningAll] = useState(false);
+  const [runningChecked, setRunningChecked] = useState(false);
+  const [checkedSteps, setCheckedSteps] = useState(() =>
+    Array.from({ length: initialSnapshot.steps.length }, () => false)
+  );
 
   const variablesRef = useRef(variables);
   const commitVariables = useCallback((next) => {
@@ -268,6 +273,59 @@ const InventoryTestCaseRunner = () => {
     [baseUrl, commitVariables, steps]
   );
 
+  const runAll = useCallback(async () => {
+    setRunningAll(true);
+    setVariables({});
+    variablesRef.current = {};
+    setStepResults(Array.from({ length: steps.length }, () => null));
+    setStatuses(emptyStatuses(steps.length));
+    setSelectedIndex(0);
+    let vars = {};
+    for (let i = 0; i < steps.length; i++) {
+      setSelectedIndex(i);
+      const { ok, nextVariables } = await executeAtIndex(i, vars, { applySaves: true });
+      vars = nextVariables;
+      variablesRef.current = nextVariables;
+      if (!ok) break;
+    }
+    setRunningAll(false);
+  }, [executeAtIndex, steps.length]);
+
+  const toggleCheckedStep = useCallback((index) => {
+    setCheckedSteps((prev) => {
+      const next = [...prev];
+      next[index] = !next[index];
+      return next;
+    });
+  }, []);
+
+  const selectAllChecks = useCallback(() => {
+    setCheckedSteps(Array.from({ length: steps.length }, () => true));
+  }, [steps.length]);
+
+  const clearAllChecks = useCallback(() => {
+    setCheckedSteps(Array.from({ length: steps.length }, () => false));
+  }, [steps.length]);
+
+  const runChecked = useCallback(async () => {
+    const indices = checkedSteps
+      .map((on, index) => (on ? index : -1))
+      .filter((index) => index >= 0)
+      .sort((a, b) => a - b);
+    if (indices.length === 0) return;
+
+    setRunningChecked(true);
+    let vars = variablesRef.current;
+    for (const index of indices) {
+      setSelectedIndex(index);
+      const { ok, nextVariables } = await executeAtIndex(index, vars, { applySaves: true });
+      vars = nextVariables;
+      variablesRef.current = nextVariables;
+      if (!ok) break;
+    }
+    setRunningChecked(false);
+  }, [checkedSteps, executeAtIndex]);
+
   const runSelected = useCallback(async () => {
     const { nextVariables } = await executeAtIndex(selectedIndex, variablesRef.current, {
       applySaves: true,
@@ -285,7 +343,7 @@ const InventoryTestCaseRunner = () => {
     variablesRef.current = nextVariables;
   }, [executeAtIndex, selectedIndex, steps.length]);
 
-  const busy = loadingStep !== null;
+  const busy = loadingStep !== null || runningAll || runningChecked;
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -310,9 +368,10 @@ const InventoryTestCaseRunner = () => {
               Inventory test case runner
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Manual API checks from <code className="text-indigo-600">test_case.rb</code> — run{' '}
-              <strong>Setup: Create master user + company</strong>, then <strong>Setup: Login</strong>,
-              before warehouse and other authenticated steps. Expected qty is shown per step.
+              Manual API checks from <code className="text-indigo-600">test_case.rb</code> — check
+              steps in the list and use <strong>Run selected steps</strong>, or run one at a time.
+              Run <strong>Setup: Create master user + company</strong>, then{' '}
+              <strong>Setup: Login</strong>, before warehouse and other authenticated steps.
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Also see{' '}
@@ -376,7 +435,13 @@ const InventoryTestCaseRunner = () => {
                 steps={steps}
                 statuses={statuses}
                 selectedIndex={selectedIndex}
+                checkedSteps={checkedSteps}
                 onSelect={setSelectedIndex}
+                onToggleCheck={toggleCheckedStep}
+                onSelectAllChecks={selectAllChecks}
+                onClearAllChecks={clearAllChecks}
+                onRunChecked={() => void runChecked()}
+                runningChecked={runningChecked}
                 disabled={busy}
               />
             </div>
@@ -393,6 +458,14 @@ const InventoryTestCaseRunner = () => {
             </div>
           </div>
           <div className="flex flex-col gap-4 lg:col-span-4">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void runAll()}
+              className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {runningAll ? 'Running all steps…' : 'Run all steps'}
+            </button>
             <div className="min-h-[200px]">
               <ResponseViewer
                 steps={steps}

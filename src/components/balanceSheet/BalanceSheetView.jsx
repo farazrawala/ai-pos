@@ -27,8 +27,7 @@ import { usePageApiSources } from '../../hooks/usePageApiSources.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import {
   buildPendingApiSources,
-  trackApiCall,
-  trackApiCallsParallel,
+  trackApiCallsSequential,
 } from '../../utils/pageApiSources.js';
 import '../common/devApiSources.css';
 import './balanceSheetGl.css';
@@ -347,6 +346,13 @@ export default function BalanceSheetView() {
   /** Subtotal for Inventory section; from API `grand_total_cost_of_goods`. */
   const [inventoryGrandTotal, setInventoryGrandTotal] = useState(0);
   const [inventoryStatus, setInventoryStatus] = useState({ loading: true, error: null });
+  const [loadProgress, setLoadProgress] = useState({
+    active: false,
+    percent: 0,
+    label: '',
+    completed: 0,
+    total: 0,
+  });
 
   const periodStart = useMemo(
     () => startOfCalendarMonth(fromYear, fromMonth),
@@ -417,36 +423,94 @@ export default function BalanceSheetView() {
       setFixedAssetsStatus({ loading: true, error: null });
       setInventoryStatus({ loading: true, error: null });
       setInventoryGrandTotal(0);
+      setLoadProgress({
+        active: true,
+        percent: 0,
+        label: 'Preparing balance sheet…',
+        completed: 0,
+        total: 0,
+      });
 
       const equityFetchParams = await buildBalanceSheetEquityFetchParams(authUser, authCompany);
       if (cancelled) return;
 
       const sheetApiDefinitions = createBalanceSheetApiDefinitions(equityFetchParams);
+      const allApiDefinitions = [REMOVE_COMPANY_CACHE_DEFINITION, ...sheetApiDefinitions];
+      const totalSteps = allApiDefinitions.length;
+
+      let pendingSources = buildPendingApiSources(allApiDefinitions);
+      setApiSources(pendingSources);
 
       const wallStart = performance.now();
-      setApiSources(
-        buildPendingApiSources([REMOVE_COMPANY_CACHE_DEFINITION, ...sheetApiDefinitions]).map(
-          (s) => ({ ...s, status: 'loading' })
-        )
-      );
 
-      const cacheResult = await trackApiCall(REMOVE_COMPANY_CACHE_DEFINITION);
-      if (cancelled) return;
-
-      const cacheSourceEntry = {
-        key: cacheResult.key,
-        label: cacheResult.label,
-        url: cacheResult.url,
-        status: cacheResult.status,
-        durationMs: cacheResult.durationMs,
-        error: cacheResult.error,
+      const markSourceStatus = (key, status) => {
+        pendingSources = pendingSources.map((s) => (s.key === key ? { ...s, status } : s));
+        setApiSources([...pendingSources]);
       };
 
-      if (cacheResult.status !== 'success') {
-        setApiSources([cacheSourceEntry]);
-        setWallDurationMs(Math.round(performance.now() - wallStart));
-        const cacheErr = cacheResult.error || 'Failed to clear company cache';
+      const applySourceResult = (result) => {
+        pendingSources = pendingSources.map((s) =>
+          s.key === result.key
+            ? {
+                key: result.key,
+                label: result.label,
+                url: result.url,
+                status: result.status,
+                durationMs: result.durationMs,
+                error: result.error,
+              }
+            : s
+        );
+        setApiSources([...pendingSources]);
+      };
+
+      setLoadProgress({
+        active: true,
+        percent: 0,
+        label: allApiDefinitions[0].label,
+        completed: 0,
+        total: totalSteps,
+      });
+
+      const { results: apiResults } = await trackApiCallsSequential(allApiDefinitions, {
+        stopOnFirstError: true,
+        onStepStart: ({ index, total, definition }) => {
+          if (cancelled) return;
+          markSourceStatus(definition.key ?? definition.label, 'loading');
+          setLoadProgress({
+            active: true,
+            percent: Math.round((index / total) * 100),
+            label: definition.label,
+            completed: index,
+            total,
+          });
+        },
+        onStepComplete: ({ index, total, result }) => {
+          if (cancelled) return;
+          applySourceResult(result);
+          setLoadProgress({
+            active: true,
+            percent: Math.round(((index + 1) / total) * 100),
+            label:
+              index + 1 < total
+                ? allApiDefinitions[index + 1].label
+                : 'Applying balance sheet data…',
+            completed: index + 1,
+            total,
+          });
+        },
+      });
+
+      if (cancelled) return;
+
+      setWallDurationMs(Math.round(performance.now() - wallStart));
+      setLoadProgress((prev) => ({ ...prev, active: false, percent: 100, label: 'Ready' }));
+
+      const cacheResult = apiResults[0];
+      if (!cacheResult || cacheResult.status !== 'success') {
+        const cacheErr = cacheResult?.error || 'Failed to clear company cache';
         const failed = { loading: false, error: cacheErr };
+        setLoadProgress((prev) => ({ ...prev, active: false }));
         setCurrentAssetsStatus(failed);
         setEquityStatus(failed);
         setCurrentLiabilitiesStatus(failed);
@@ -456,19 +520,7 @@ export default function BalanceSheetView() {
         return;
       }
 
-      setApiSources([
-        cacheSourceEntry,
-        ...buildPendingApiSources(sheetApiDefinitions).map((s) => ({
-          ...s,
-          status: 'loading',
-        })),
-      ]);
-
-      const { results, sources: sheetSources } = await trackApiCallsParallel(sheetApiDefinitions);
-      if (cancelled) return;
-
-      setApiSources([cacheSourceEntry, ...sheetSources]);
-      setWallDurationMs(Math.round(performance.now() - wallStart));
+      const results = apiResults.slice(1);
 
       const currentRes = apiResult(results, 'current_asset');
       if (currentRes?.status === 'success') {
@@ -642,6 +694,7 @@ export default function BalanceSheetView() {
     })();
     return () => {
       cancelled = true;
+      setLoadProgress((prev) => ({ ...prev, active: false }));
     };
   }, [authUser, authCompany, setApiSources, setWallDurationMs]);
 
@@ -759,6 +812,39 @@ export default function BalanceSheetView() {
           <div className="bs-bs-dark">
             <div className="bs-gl-frame">
               <div className="bs-gl">
+                {(currentAssetsStatus.loading ||
+                  equityStatus.loading ||
+                  currentLiabilitiesStatus.loading ||
+                  longTermLiabilitiesStatus.loading ||
+                  fixedAssetsStatus.loading ||
+                  inventoryStatus.loading) &&
+                  loadProgress.active && (
+                    <div className="bs-gl-load-progress-wrap">
+                      <div className="bs-gl-load-progress" role="status" aria-live="polite">
+                        <div className="bs-gl-load-progress-head">
+                          <span className="bs-gl-load-progress-label">{loadProgress.label}</span>
+                          <span className="bs-gl-load-progress-pct">{loadProgress.percent}%</span>
+                        </div>
+                        <div
+                          className="progress progress-sm"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={loadProgress.percent}
+                          aria-label="Balance sheet loading progress"
+                        >
+                          <div
+                            className="progress-bar"
+                            style={{ width: `${loadProgress.percent}%` }}
+                          />
+                        </div>
+                        {loadProgress.total > 0 ? (
+                          <div className="bs-gl-load-progress-meta">
+                            {loadProgress.completed} of {loadProgress.total} requests
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                 <div className="bs-bs-hero">
                   <h1>
                     Consolidated financial position{' '}
@@ -865,14 +951,6 @@ export default function BalanceSheetView() {
                     <span className="bs-gl-meta-label">Reporting range</span>
                     <span className="bs-gl-meta-value">{rangeDetail}</span>
                   </div>
-                  {(currentAssetsStatus.loading ||
-                    equityStatus.loading ||
-                    currentLiabilitiesStatus.loading ||
-                    longTermLiabilitiesStatus.loading ||
-                    fixedAssetsStatus.loading ||
-                    inventoryStatus.loading) && (
-                    <div className="text-muted small">Loading accounts…</div>
-                  )}
                   {currentAssetsStatus.error && (
                     <div className="text-danger small">{currentAssetsStatus.error}</div>
                   )}

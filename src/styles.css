@@ -63,6 +63,41 @@ body {
   background: linear-gradient(180deg, #eef2ff, #f8fafc);
 }
 
+/* Test case runner — visible step checkboxes (Bootstrap form-check + Argon theme) */
+.tc-step-check-wrap {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 0.2rem;
+}
+
+.tc-step-checkbox.form-check-input {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  min-width: 1.25rem !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 2px solid #64748b !important;
+  background-color: #fff !important;
+  background-size: 85% 85%;
+}
+
+.tc-step-checkbox.form-check-input:checked {
+  background-color: #0d9488 !important;
+  border-color: #0d9488 !important;
+}
+
+.tc-step-checkbox.form-check-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.tc-step-select-col {
+  display: inline-block;
+  width: 1.5rem;
+  text-align: center;
+}
+
 /* Argon list pages: keep Bootstrap grid in card-header (title left, search right) */
 .card .card-header.pb-0 {
   display: block;
