@@ -39,6 +39,9 @@ import { escapeHtml, formatThermalMoney } from '../ThermalReceiptPrint/thermalRe
  * @property {number} [fallbackPrintDelayMs=1800]
  * @property {string} [documentTitlePrefix='Invoice']
  * @property {string} [invoiceNumberPrefix='POS#']
+ * @property {string} [documentHeading='INVOICE']
+ * @property {string} [billToLabel='Bill To']
+ * @property {string} [dateLabel='Invoice Date:']
  */
 
 function fmtMoney(amount, options = {}) {
@@ -75,6 +78,9 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     locale = 'en-PK',
     documentTitlePrefix = 'Invoice',
     invoiceNumberPrefix = 'POS#',
+    documentHeading = 'INVOICE',
+    billToLabel = 'Bill To',
+    dateLabel = 'Invoice Date:',
   } = options;
 
   const fmtOpts = { currencyLabel, locale };
@@ -129,7 +135,7 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
   }
 
   const dateBlock = ps.show_invoice_date
-    ? `<div class="meta-row"><span class="muted">Invoice Date:</span> <strong>${escapeHtml(payload.invoiceDate || '')}</strong></div>`
+    ? `<div class="meta-row"><span class="muted">${escapeHtml(dateLabel)}</span> <strong>${escapeHtml(payload.invoiceDate || '')}</strong></div>`
     : '';
 
   const grossBlock =
@@ -412,14 +418,14 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
         <div>${companyLines.join('')}</div>
       </div>
       <div class="invoice-head">
-        <div class="invoice-title">INVOICE</div>
+        <div class="invoice-title">${escapeHtml(documentHeading)}</div>
         ${invoiceMeta}
       </div>
     </div>
 
     <div class="section">
       <div class="section-col">
-        <div class="section-label">Bill To</div>
+        <div class="section-label">${escapeHtml(billToLabel)}</div>
         ${billToLines.join('')}
       </div>
       <div class="section-col right-col">
