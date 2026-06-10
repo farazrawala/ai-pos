@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 const BASE_URL = `${API_BASE_URL}/`;
 const ACCOUNT_LIST_PATH = 'account/get-all-active';
 const ACCOUNT_GET_PATH = 'account/get';
+const PUBLIC_ACCOUNT_GET_PATH = 'account/public-get-by-id';
 const ACCOUNT_CREATE_PATH = 'account/custom-create';
 const ACCOUNT_UPDATE_PATH = 'account/custom-update';
 const ACCOUNT_DELETE_PATH = 'account/delete';
@@ -130,6 +131,24 @@ export async function fetchAccountByIdRequest(accountId) {
     throw new Error('Invalid account response format');
   }
   return account;
+}
+
+/** Load one account for public invoice (no auth). Returns null when unavailable. */
+export async function fetchPublicAccountByIdRequest(accountId) {
+  const id = String(accountId || '').trim();
+  if (!id) return null;
+
+  const response = await fetch(`${BASE_URL}${PUBLIC_ACCOUNT_GET_PATH}/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) return null;
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) return null;
+  return normalizeSingleAccountPayload(result);
 }
 
 export async function updateAccountRequest(accountId, accountData = {}) {

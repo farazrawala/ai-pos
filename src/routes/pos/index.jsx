@@ -64,6 +64,7 @@ function buildThermalReceiptFromCart({
       subTotal: Number(cartSubtotal) || 0,
       tax: 0,
       discount: Number(extraDiscountNum) || 0,
+      shipping: Number(shippingNum) || 0,
       total,
       paymentMade: paid,
       balanceDue,
@@ -371,7 +372,7 @@ const Pos = () => {
           invoiceNo,
         });
 
-        const printed = openThermalReceiptPrint(receipt, {
+        const printed = await openThermalReceiptPrint(receipt, {
           documentTitlePrefix: 'Receipt',
           invoiceNumberPrefix: 'Invoice no.',
         });

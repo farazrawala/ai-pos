@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
+import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
 import {
   fetchOrderForInvoiceRequest,
   getOrderLineItems,
   updatePosOrderRequest,
 } from '../../features/orders/ordersAPI.js';
+import {
+  mapOrderToInvoiceView,
+  resolvePaymentMethodLabel,
+  shopName,
+  formatInvoiceMoney,
+} from '../../features/orders/invoiceViewMapper.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   fetchUsersListRequest,
@@ -19,6 +25,7 @@ import {
   extractPrinterSettingsFromCompanyBody,
   fetchCompanyById,
   getCompanyFromApiBody,
+  mergeCompanyRecordForSettings,
   mergePrinterSettings,
   pickCompanyLogoUrl,
 } from '../../features/company/companyAPI.js';
@@ -92,20 +99,7 @@ const DEMO_INVOICE = {
   ],
 };
 
-const fmt = (n) =>
-  `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const shopName =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
-    ? String(import.meta.env.VITE_SHOP_NAME)
-    : 'Store';
-
-const formatInvoiceDate = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-};
+const fmt = formatInvoiceMoney;
 
 const lineProductIdFromOrderLine = (line) => {
   if (!line || typeof line !== 'object') return '';
@@ -159,138 +153,6 @@ const normalizeOrderStatus = (value) => {
   return ORDER_STATUS_OPTIONS.includes(s) ? s : DEFAULT_ORDER_STATUS;
 };
 
-const paymentMethodIdFromOrder = (order) => {
-  if (!order || typeof order !== 'object') return '';
-  const rawPayAccount = order.payment_method_accounts_id;
-  return String(
-    (rawPayAccount && typeof rawPayAccount === 'object'
-      ? (rawPayAccount._id ?? rawPayAccount.id)
-      : rawPayAccount) ??
-      order.posPayMethod ??
-      order.payment_method_id ??
-      order.account_id ??
-      ''
-  ).trim();
-};
-
-const accountLabelFromRef = (ref) => {
-  if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return '';
-  return String(ref.name ?? ref.accountName ?? ref.account_name ?? '').trim();
-};
-
-/** Human-readable payment method / receive-in account label (never a raw Mongo id). */
-const resolvePaymentMethodLabel = (order, accounts = [], selectedId = '') => {
-  if (order && typeof order === 'object') {
-    const fromPayAccount = accountLabelFromRef(order.payment_method_accounts_id);
-    if (fromPayAccount) return fromPayAccount;
-
-    const fromPaymentMethod = accountLabelFromRef(order.payment_method);
-    if (fromPaymentMethod) return fromPaymentMethod;
-
-    if (order.paymentMethodName) {
-      return String(order.paymentMethodName).trim();
-    }
-  }
-
-  const id = String(selectedId || paymentMethodIdFromOrder(order)).trim();
-  if (id && Array.isArray(accounts) && accounts.length > 0) {
-    const match = accounts.find((method) => String(method._id ?? method.id ?? '') === id);
-    const name = match?.name ?? match?.accountName ?? match?.account_name;
-    if (name != null && String(name).trim() !== '') {
-      return String(name).trim();
-    }
-  }
-
-  if (/^[a-f0-9]{24}$/i.test(id)) return '—';
-  return id || '—';
-};
-
-/** Map API order (`data` payload) into the invoice UI shape used by this page. */
-const mapOrderToInvoiceView = (order) => {
-  if (!order || typeof order !== 'object') {
-    return {
-      ...DEMO_INVOICE,
-      shopName,
-      lines: [],
-      creditRows: [],
-      termsBody: DEMO_INVOICE.termsBody || [],
-    };
-  }
-
-  const items = getOrderLineItems(order);
-  const lines = [];
-  let subTotal = 0;
-  let taxTotal = 0;
-
-  items.forEach((line) => {
-    if (!line || typeof line !== 'object') return;
-    const qtyNum = parseFloat(String(line.qty ?? '0').replace(/,/g, '')) || 0;
-    const rate = Number(line.price) || 0;
-    const product = line.product_id && typeof line.product_id === 'object' ? line.product_id : null;
-    const description = product?.product_name || product?.product_code || line.name || 'Item';
-    const unit = product?.unit ? String(product.unit) : '';
-    const qtyLabel = unit ? `${line.qty ?? qtyNum} ${unit}`.trim() : String(line.qty ?? qtyNum);
-    const taxPct = Number(product?.tax_rate) || 0;
-    const lineSub = qtyNum * rate;
-    const taxAmount = (lineSub * taxPct) / 100;
-    subTotal += lineSub;
-    taxTotal += taxAmount;
-    lines.push({
-      description,
-      rate,
-      qtyLabel,
-      tax: { amount: taxAmount, pct: taxPct },
-      discount: { amount: 0, pct: 0 },
-      amount: lineSub + taxAmount,
-    });
-  });
-
-  const totalBeforeAdjust = subTotal + taxTotal;
-  const discountRaw = order.discount ?? order.discount_amount ?? 0;
-  const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
-  const discount = Number.isFinite(discountNum) ? discountNum : 0;
-  const shipRaw = order.shipping ?? order.shipment ?? 0;
-  const shipNum = parseFloat(String(shipRaw).replace(/,/g, ''));
-  const shipping = Number.isFinite(shipNum) ? shipNum : 0;
-  const total = Math.max(0, totalBeforeAdjust - discount + shipping);
-  const orderId = order._id != null ? order._id : order.id;
-
-  const paymentMethodLabel = resolvePaymentMethodLabel(order);
-
-  return {
-    ...DEMO_INVOICE,
-    shopName,
-    invoiceNo: order.order_no || order.orderNo || (orderId != null ? String(orderId) : ''),
-    reference: orderId != null ? String(orderId) : '',
-    grossAmount: total,
-    billTo: {
-      name: order.name || '—',
-      phone: order.phone || '—',
-      email: order.email || '—',
-    },
-    invoiceDate: formatInvoiceDate(order.createdAt),
-    dueDate: formatInvoiceDate(order.updatedAt || order.createdAt),
-    terms: 'Payment On Receipt',
-    lines,
-    summary: {
-      subTotal,
-      tax: taxTotal,
-      discount,
-      shipping,
-      total,
-      paymentMade: 0,
-      balanceDue: total,
-    },
-    paymentStatus: order.status || '—',
-    paymentMethod: paymentMethodLabel,
-    note: order.address ? `Address: ${order.address}` : '',
-    authorizedPerson: { name: '—', title: 'Authorized signatory' },
-    creditRows: [],
-    publicUrl: typeof window !== 'undefined' ? window.location.href : '',
-    termsBody: DEMO_INVOICE.termsBody,
-  };
-};
-
 const PosInvoice = () => {
   const { invoiceId: invoiceIdParam } = useParams();
   const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
@@ -310,7 +172,11 @@ const PosInvoice = () => {
         const body = await fetchCompanyById(companyId);
         if (cancelled) return;
         const company = getCompanyFromApiBody(body);
-        setInvoiceCompany(company && typeof company === 'object' ? company : null);
+        setInvoiceCompany(
+          company && typeof company === 'object'
+            ? mergeCompanyRecordForSettings(company, authCompany)
+            : null
+        );
       } catch {
         if (!cancelled) setInvoiceCompany(null);
       }
@@ -319,9 +185,12 @@ const PosInvoice = () => {
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, authCompany]);
 
-  const activeCompany = invoiceCompany ?? authCompany;
+  const activeCompany = useMemo(
+    () => mergeCompanyRecordForSettings(invoiceCompany, authCompany),
+    [invoiceCompany, authCompany]
+  );
 
   const printerSettings = useMemo(() => {
     const parsed = extractPrinterSettingsFromCompanyBody({ data: activeCompany });
@@ -493,7 +362,7 @@ const PosInvoice = () => {
         const order = await fetchOrderForInvoiceRequest(requestedId);
         if (cancelled) return;
         setSourceOrder(order);
-        setView(mapOrderToInvoiceView(order));
+        setView(mapOrderToInvoiceView(order, { origin: window.location.origin }));
         setFetchStatus('succeeded');
       } catch (e) {
         if (cancelled) return;
@@ -532,30 +401,6 @@ const PosInvoice = () => {
     () => resolvePaymentMethodLabel(sourceOrder, paymentMethods, invoicePosPayMethod),
     [sourceOrder, paymentMethods, invoicePosPayMethod]
   );
-
-  const handleThermalPrint = useCallback(() => {
-    if (view) {
-      openThermalReceiptPrint(
-        { ...view, paymentMethod: paymentMethodDisplay },
-        { documentTitlePrefix: 'Receipt POS' }
-      );
-    }
-  }, [view, paymentMethodDisplay]);
-
-  const handleNormalPrint = useCallback(async () => {
-    if (companyId) {
-      try {
-        const body = await fetchCompanyById(companyId);
-        const company = getCompanyFromApiBody(body);
-        if (company && typeof company === 'object') {
-          flushSync(() => setInvoiceCompany(company));
-        }
-      } catch {
-        // print with last known settings
-      }
-    }
-    window.print();
-  }, [companyId]);
 
   const buildOrderUpdatePayload = useCallback((order, draftLines = [], orderStatus = null) => {
     if (!order || typeof order !== 'object') {
@@ -646,7 +491,7 @@ const PosInvoice = () => {
       await updatePosOrderRequest(String(oid), payload);
       const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
       setSourceOrder(refreshed);
-      setView(mapOrderToInvoiceView(refreshed));
+      setView(mapOrderToInvoiceView(refreshed, { origin: window.location.origin }));
       setInvoiceSaveMessage({ type: 'success', text: 'Invoice updated successfully.' });
     } catch (e) {
       console.error('[POS invoice] Failed to update invoice', e);
@@ -821,6 +666,158 @@ const PosInvoice = () => {
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
   const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
+
+  const printLines = useMemo(() => {
+    if (canUpdateInvoice && invoiceDraftLines.length > 0) {
+      return invoiceDraftLines
+        .filter((d) => String(d?.productId ?? '').trim())
+        .map((row) => {
+          const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
+          const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
+          const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+          const rate = Number.isFinite(rateNum) ? rateNum : 0;
+          const taxPct = Number(row.taxPct) || 0;
+          const lineSub = qty * rate;
+          const taxAmount = (lineSub * taxPct) / 100;
+          const amount = lineSub + taxAmount;
+          const qtyLabel = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
+          return { description: row.label, rate, qtyLabel, amount };
+        });
+    }
+    return (data.lines || []).map((line) => ({
+      description: line.description,
+      rate: line.rate,
+      qtyLabel: line.qtyLabel,
+      amount: line.amount,
+    }));
+  }, [canUpdateInvoice, invoiceDraftLines, data.lines]);
+
+  const buildBrandFromCompany = useCallback((company) => {
+    const name = company?.company_name || company?.name || shopName;
+    return {
+      name: String(name || shopName).trim() || shopName,
+      phone: String(company?.company_phone || company?.phone || '').trim(),
+      email: String(company?.company_email || company?.email || '').trim(),
+      address: String(company?.company_address || company?.address || '').trim(),
+      logoUrl: pickCompanyLogoUrl(company),
+    };
+  }, []);
+
+  const handleNormalPrint = useCallback(async () => {
+    let settings = printerSettings;
+    let brand = companyBrand;
+
+    if (companyId) {
+      try {
+        const body = await fetchCompanyById(companyId);
+        const company = getCompanyFromApiBody(body);
+        if (company && typeof company === 'object') {
+          const merged = mergeCompanyRecordForSettings(company, authCompany);
+          setInvoiceCompany(merged);
+          settings = mergePrinterSettings(
+            extractPrinterSettingsFromCompanyBody({ data: merged })
+          );
+          brand = buildBrandFromCompany(merged);
+        }
+      } catch {
+        // print with last known settings
+      }
+    }
+
+    await openNormalInvoicePrint(
+      {
+        printerSettings: settings,
+        companyBrand: brand,
+        invoiceNo: data.invoiceNo,
+        invoiceDate: data.invoiceDate,
+        terms: data.terms,
+        note: data.note,
+        termsBody: data.termsBody,
+        publicUrl: data.publicUrl,
+        billTo: billToDisplay,
+        lines: printLines,
+        summary: summaryDisplay,
+        grossAmount: grossDisplay,
+        paymentMethod: paymentMethodDisplay,
+        amountReceived: sourceOrder?.amount_received,
+        changeGiven: sourceOrder?.change_given,
+      },
+      { documentTitlePrefix: 'Invoice POS' }
+    );
+  }, [
+    companyId,
+    printerSettings,
+    companyBrand,
+    authCompany,
+    buildBrandFromCompany,
+    data,
+    billToDisplay,
+    printLines,
+    summaryDisplay,
+    grossDisplay,
+    paymentMethodDisplay,
+    sourceOrder,
+  ]);
+
+  const handleThermalPrint = useCallback(async () => {
+    if (!view) return;
+
+    let settings = printerSettings;
+    let brand = companyBrand;
+
+    if (companyId) {
+      try {
+        const body = await fetchCompanyById(companyId);
+        const company = getCompanyFromApiBody(body);
+        if (company && typeof company === 'object') {
+          const merged = mergeCompanyRecordForSettings(company, authCompany);
+          setInvoiceCompany(merged);
+          settings = mergePrinterSettings(
+            extractPrinterSettingsFromCompanyBody({ data: merged })
+          );
+          brand = buildBrandFromCompany(merged);
+        }
+      } catch {
+        // print with last known settings
+      }
+    }
+
+    await openThermalReceiptPrint(
+      {
+        shopName: brand.name,
+        invoiceNo: data.invoiceNo,
+        invoiceDate: data.invoiceDate,
+        paymentMethod: paymentMethodDisplay,
+        paymentStatus: view.paymentStatus,
+        billTo: billToDisplay,
+        lines: printLines,
+        summary: summaryDisplay,
+        grossAmount: grossDisplay,
+        terms: data.terms,
+        publicUrl: data.publicUrl,
+      },
+      {
+        documentTitlePrefix: 'Receipt POS',
+        printerSettings: settings,
+        companyBrand: brand,
+        sourceOrder,
+      }
+    );
+  }, [
+    view,
+    companyId,
+    printerSettings,
+    companyBrand,
+    authCompany,
+    buildBrandFromCompany,
+    data,
+    paymentMethodDisplay,
+    billToDisplay,
+    printLines,
+    summaryDisplay,
+    grossDisplay,
+    sourceOrder,
+  ]);
 
   if (fetchStatus === 'loading') {
     return (
@@ -1550,7 +1547,7 @@ const PosInvoice = () => {
         <div className="border-top pt-4">
           {printerSettings.show_qrcode ? (
             <div className="mb-4 d-flex flex-column align-items-center text-center">
-              <InvoiceQrCode value={data.publicUrl || data.invoiceNo} size={96} />
+              <InvoiceQrCode value={data.publicUrl} size={96} />
               <small className="text-muted mt-2">Scan invoice QR code</small>
             </div>
           ) : null}
