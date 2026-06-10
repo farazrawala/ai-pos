@@ -21,6 +21,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
+import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
 
@@ -499,170 +500,17 @@ const Pos = () => {
   };
 
   return (
-    <div className="pos-page container-fluid py-3 px-2">
-      <style>{`
-        .pos-page {
-          --pos-purple: #6f42c1;
-          --pos-purple-dark: #5a32a3;
-          --pos-teal: #11cdef;
-          --pos-teal-dark: #0ea5c6;
-          --pos-footer-h: 64px;
-          font-family: 'Open Sans', sans-serif;
-        }
-        .pos-topbar {
-          background: #fff;
-          border-radius: 0.5rem;
-          box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
-        }
-        .pos-cart-header {
-          background: linear-gradient(135deg, var(--pos-purple) 0%, var(--pos-purple-dark) 100%);
-          color: #fff;
-          font-weight: 600;
-          font-size: 0.8rem;
-          letter-spacing: 0.02em;
-        }
-        .pos-grand-total {
-          font-size: 1.35rem;
-          font-weight: 700;
-          color: #2152ff;
-        }
-        .pos-product-card {
-          border: 1px solid #e9ecef;
-          border-radius: 0.375rem;
-          background: #fff;
-          transition: box-shadow 0.15s ease;
-          cursor: pointer;
-          min-height: 118px;
-        }
-        .pos-product-card:hover {
-          box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.08);
-        }
-        .pos-product-img {
-          height: 64px;
-          object-fit: contain;
-          background: #f8f9fa;
-        }
-        .pos-product-grid {
-          max-height: calc(100vh - 280px);
-          overflow-y: auto;
-        }
-        .pos-footer-actions .btn-draft {
-          background: #fb8c00;
-          border-color: #fb8c00;
-          color: #fff;
-          font-weight: 600;
-        }
-        .pos-footer-actions .btn-pay {
-          background: #2dce89;
-          border-color: #2dce89;
-          color: #fff;
-          font-weight: 600;
-        }
-        .pos-footer-actions .btn-card {
-          background: #11cdef;
-          border-color: #11cdef;
-          color: #fff;
-          font-weight: 600;
-        }
-        .pos-icon-btn {
-          width: 2.25rem;
-          height: 2.25rem;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 0.375rem;
-          border: 1px solid #dee2e6;
-          background: #fff;
-          color: #67748e;
-        }
-        .pos-register-btn {
-          background: #5e72e4;
-          border-color: #5e72e4;
-          color: #fff;
-          font-weight: 600;
-        }
-        .pos-exit-btn {
-          background: #f5365c;
-          border-color: #f5365c;
-          color: #fff;
-        }
-        .pos-add-customer {
-          background: #11cdef;
-          border-color: #11cdef;
-          color: #fff;
-        }
-        .pos-product-name {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          line-height: 1.25;
-        }
-      `}</style>
-
-      {/* Top bar */}
-      <div className="pos-topbar d-flex align-items-center justify-content-between px-3 py-2 mb-3">
-        <div className="d-flex align-items-center gap-2">
-          <button type="button" className="pos-icon-btn" title="Fullscreen">
-            <i className="fas fa-expand"></i>
-          </button>
-          <span
-            className="d-inline-flex align-items-center justify-content-center rounded"
-            style={{ width: 36, height: 36, background: '#ffd600', color: '#5c4f00' }}
-            title="Gauge"
-          >
-            <i className="fas fa-tachometer-alt"></i>
-          </span>
-          <button type="button" className="btn btn-sm px-3 pos-register-btn">
-            Register
-          </button>
-          <button type="button" className="btn btn-sm px-3 pos-exit-btn">
-            <i className="fas fa-times me-1"></i>
-          </button>
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          <button type="button" className="pos-icon-btn" title="Keyboard">
-            <i className="fas fa-keyboard"></i>
-          </button>
-          <button type="button" className="pos-icon-btn position-relative" title="Notifications">
-            <i className="fas fa-bell"></i>
-            <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-              0
-            </span>
-          </button>
-          <button type="button" className="pos-icon-btn position-relative" title="Messages">
-            <i className="fas fa-envelope"></i>
-            <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-secondary">
-              0
-            </span>
-          </button>
-          <span className="text-sm text-muted me-2">
-            <i className="far fa-clock me-1"></i>Off
-          </span>
-          <div className="dropdown">
-            <button
-              className="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center"
-              type="button"
-              data-bs-toggle="dropdown"
-            >
-              <i className="fas fa-user-circle me-2 text-lg"></i>
-              Account
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end">
-              <li>
-                <span className="dropdown-item-text text-xs text-muted">POS user</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div className="row g-3">
+    <div className="pos-page container-fluid py-4 px-3 px-lg-4">
+      <div className="row g-4">
         {/* Left: checkout */}
         <div className="col-lg-5 col-xl-4">
-          <div className="card shadow-sm border-0 h-100">
-            <div className="card-body p-3">
-              <label className="form-label text-xs text-muted mb-1">Customer</label>
+          <div className="card shadow-sm pos-panel-card h-100">
+            <div className="pos-panel-header">
+              <h5>Current order</h5>
+              <p>Customer, cart lines, and totals</p>
+            </div>
+            <div className="pos-panel-body">
+              <div className="pos-section-label">Customer</div>
               <div className="d-flex gap-2 align-items-start mb-1">
                 <div className="flex-grow-1 position-relative" ref={customerPickerRef}>
                   <div className="input-group input-group-sm">
@@ -692,8 +540,7 @@ const Pos = () => {
                   {customerMenuOpen && usersStatus !== 'loading' && (
                     <div
                       id="pos-customer-picker-list"
-                      className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white"
-                      style={{ zIndex: 1050, maxHeight: 240, overflowY: 'auto' }}
+                      className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white pos-customer-menu"
                       role="listbox"
                     >
                       <button
@@ -741,7 +588,7 @@ const Pos = () => {
                   )}
                 </div>
                 <button
-                  className="btn pos-add-customer px-3"
+                  className="btn btn-sm pos-add-customer-btn px-3"
                   type="button"
                   title="Add new customer"
                   onClick={openAddCustomerModal}
@@ -764,153 +611,120 @@ const Pos = () => {
                   {usersError}. Check API route in <code className="text-xs">usersAPI.js</code>.
                 </p>
               )}
-              <p className="text-xs text-muted mb-3">
+              <div className="pos-customer-selected mb-3">
                 {(() => {
-                  if (!selectedCustomerId) return 'Default: Walk In';
+                  if (!selectedCustomerId) return <span>Default: <strong>Walk In</strong></span>;
                   const u = users.find((row) => getUserOptionValue(row) === selectedCustomerId);
-                  return u ? `Selected: ${formatUserOptionLabel(u)}` : 'Customer selected';
+                  return u ? (
+                    <span>
+                      Selected: <strong>{formatUserOptionLabel(u)}</strong>
+                    </span>
+                  ) : (
+                    <span>Customer selected</span>
+                  );
                 })()}
-              </p>
-
-              <div className="pos-cart-header rounded-top px-3 py-2 d-flex align-items-center text-xs fw-semibold">
-                <div className="flex-grow-1">Product</div>
-                <div style={{ width: 112 }} className="text-center flex-shrink-0">
-                  Qty
-                </div>
-                <div style={{ width: '22%' }} className="text-end">
-                  Price
-                </div>
-                <div style={{ width: '22%' }} className="text-end">
-                  Total
-                </div>
               </div>
-              <div
-                className="border border-top-0 rounded-bottom bg-white mb-3 pos-cart-body"
-                style={{ minHeight: 140, maxHeight: 280, overflowY: 'auto' }}
-              >
+
+              <div className="pos-section-label">Cart</div>
+              <div className="pos-cart-header">
+                <div>Product</div>
+                <div className="text-center">Qty</div>
+                <div className="text-end">Price</div>
+                <div className="text-end">Total</div>
+              </div>
+              <div className="pos-cart-body mb-3">
                 {cartLines.length === 0 ? (
                   <div className="text-center text-muted text-sm py-5">No products in cart</div>
                 ) : (
                   cartLines.map((line) => {
                     const lineTotal = line.quantity * line.unitPrice;
                     return (
-                      <div
-                        key={line.productId}
-                        className="d-flex align-items-center gap-1 px-2 py-2 border-bottom"
-                      >
-                        <div className="flex-grow-1 text-sm text-truncate" title={line.name}>
+                      <div key={line.productId} className="pos-cart-row">
+                        <div className="pos-cart-product-name" title={line.name}>
                           {line.name}
                         </div>
-                        <div
-                          className="d-flex align-items-center justify-content-center gap-0 flex-shrink-0"
-                          style={{ width: 112 }}
-                        >
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary px-2 py-0"
-                            aria-label="Decrease quantity"
-                            onClick={() => bumpCartQty(line.productId, -1)}
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            min={1}
-                            className="form-control form-control-sm text-center px-1"
-                            style={{ width: 44 }}
-                            value={line.quantity}
-                            onChange={(e) => setCartQty(line.productId, e.target.value)}
-                            aria-label={`Quantity for ${line.name}`}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary px-2 py-0"
-                            aria-label="Increase quantity"
-                            onClick={() => bumpCartQty(line.productId, 1)}
-                          >
-                            +
-                          </button>
+                        <div className="d-flex justify-content-center">
+                          <div className="pos-qty-group">
+                            <button
+                              type="button"
+                              className="pos-qty-btn"
+                              aria-label="Decrease quantity"
+                              onClick={() => bumpCartQty(line.productId, -1)}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              className="pos-qty-input"
+                              value={line.quantity}
+                              onChange={(e) => setCartQty(line.productId, e.target.value)}
+                              aria-label={`Quantity for ${line.name}`}
+                            />
+                            <button
+                              type="button"
+                              className="pos-qty-btn"
+                              aria-label="Increase quantity"
+                              onClick={() => bumpCartQty(line.productId, 1)}
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ width: '22%' }} className="flex-shrink-0">
+                        <div>
                           <input
                             type="number"
                             min={0}
                             step="0.01"
-                            className="form-control form-control-sm text-end"
+                            className="form-control form-control-sm pos-price-input"
                             value={line.unitPrice}
                             onChange={(e) => setCartUnitPrice(line.productId, e.target.value)}
                             aria-label={`Unit price for ${line.name}`}
                           />
                         </div>
-                        <div style={{ width: '22%' }} className="text-end text-sm flex-shrink-0">
-                          PKR {lineTotal.toFixed(2)}
-                        </div>
+                        <div className="pos-line-total">PKR {lineTotal.toFixed(2)}</div>
                       </div>
                     );
                   })
                 )}
               </div>
 
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <label className="text-xs text-nowrap mb-0" style={{ width: 110 }}>
-                  Shipping
-                </label>
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  value={shipping}
-                  onChange={(e) => setShipping(e.target.value)}
-                />
-                <span className="text-xs text-nowrap text-muted">( Tax PKR 0 )</span>
-              </div>
-              <div className="d-flex justify-content-between text-sm mb-1">
-                <span>Total Tax</span>
-                <span>PKR 0</span>
-              </div>
-              <div className="d-flex justify-content-between text-sm mb-2">
-                <span>Total Discount</span>
-                <span>PKR 0 (Products)</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-baseline mb-3">
-                <span className="font-weight-bold">Grand Total</span>
-                <span className="pos-grand-total">PKR {grandTotal.toFixed(2)}</span>
+              <div className="pos-section-label">Summary</div>
+              <div className="pos-order-summary">
+                <div className="pos-field-row mb-2">
+                  <label htmlFor="pos-shipping">Shipping</label>
+                  <input
+                    id="pos-shipping"
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={shipping}
+                    onChange={(e) => setShipping(e.target.value)}
+                  />
+                </div>
+                <div className="pos-field-row mb-0">
+                  <label htmlFor="pos-extra-discount">Extra discount</label>
+                  <input
+                    id="pos-extra-discount"
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={extraDiscount}
+                    onChange={(e) => setExtraDiscount(e.target.value)}
+                  />
+                </div>
+                <div className="pos-summary-row mt-3">
+                  <span>Total tax</span>
+                  <span className="pos-summary-value">PKR 0.00</span>
+                </div>
+                <div className="pos-summary-row">
+                  <span>Total discount</span>
+                  <span className="pos-summary-value">PKR 0.00</span>
+                </div>
+                <div className="pos-grand-total-row">
+                  <span className="label">Grand total</span>
+                  <span className="pos-grand-total">PKR {grandTotal.toFixed(2)}</span>
+                </div>
               </div>
 
-              <div className="d-flex align-items-center gap-2 mb-3">
-                <label className="text-xs text-nowrap mb-0" style={{ width: 110 }}>
-                  Extra Discount
-                </label>
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  value={extraDiscount}
-                  onChange={(e) => setExtraDiscount(e.target.value)}
-                />
-                <span className="text-xs text-nowrap text-muted">( PKR 0 )</span>
-              </div>
-
-              <div className="row g-2">
-                <div className="col-6">
-                  <button type="button" className="btn btn-outline-info btn-sm w-100 py-2">
-                    <i className="fas fa-trophy me-1"></i> Coupon
-                  </button>
-                </div>
-                <div className="col-6">
-                  <button type="button" className="btn btn-outline-secondary btn-sm w-100 py-2">
-                    <i className="fas fa-shopping-bag me-1"></i> POS Settings
-                  </button>
-                </div>
-                <div className="col-6">
-                  <button type="button" className="btn btn-outline-danger btn-sm w-100 py-2">
-                    <i className="fas fa-file-alt me-1"></i> Draft(s)
-                  </button>
-                </div>
-                <div className="col-6">
-                  <button type="button" className="btn btn-outline-info btn-sm w-100 py-2">
-                    <i className="fas fa-sliders-h me-1"></i> Invoice Properties
-                  </button>
-                </div>
-              </div>
               {orderSaving && (
                 <p className="text-xs text-muted mt-2 mb-0">
                   <span
@@ -1043,7 +857,7 @@ const Pos = () => {
                 </button>
                 <button
                   type="submit"
-                  className="btn pos-add-customer"
+                  className="btn pos-add-customer-btn"
                   disabled={createCustomerSubmitting}
                 >
                   {createCustomerSubmitting ? (
