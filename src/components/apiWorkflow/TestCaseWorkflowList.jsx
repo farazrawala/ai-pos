@@ -9,6 +9,7 @@ const methodStyles = {
   GET: 'text-sky-700 bg-sky-50',
   POST: 'text-violet-700 bg-violet-50',
   PUT: 'text-amber-700 bg-amber-50',
+  PATCH: 'text-teal-700 bg-teal-50',
   DELETE: 'text-rose-700 bg-rose-50',
 };
 

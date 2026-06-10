@@ -370,8 +370,10 @@ const InventoryTestCaseRunner = () => {
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               Manual API checks from <code className="text-indigo-600">test_case.rb</code> — check
               steps in the list and use <strong>Run selected steps</strong>, or run one at a time.
-              Run <strong>Setup: Create master user + company</strong>, then{' '}
-              <strong>Setup: Login</strong>, before warehouse and other authenticated steps.
+              Each <strong>sale</strong>, <strong>purchase</strong>, <strong>sales return</strong>, and{' '}
+              <strong>purchase return</strong> adds GET + PATCH edit (qty −1). Run{' '}
+              <strong>Setup: Create master user + company</strong>
+              , then <strong>Setup: Login</strong>, before warehouse and other authenticated steps.
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Also see{' '}

@@ -10,12 +10,13 @@ import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import '../common/devApiSources.css';
 import {
   FaArrowsRotate,
-  FaBuildingColumns,
   FaChevronDown,
+  FaFileInvoice,
   FaChevronRight,
+  FaChartLine,
   FaCoins,
   FaFileExport,
-  FaScaleBalanced,
+  FaMoneyBillTransfer,
   FaTriangleExclamation,
 } from 'react-icons/fa6';
 
@@ -32,6 +33,27 @@ function getProfitVsGlGap(summary) {
   return Number(summary?.profit_vs_gl_gap) || 0;
 }
 
+function findAccountBalance(accounts, nameIncludes) {
+  if (!Array.isArray(accounts)) return 0;
+  const match = accounts.find((acc) =>
+    String(acc?.name || '')
+      .toLowerCase()
+      .includes(nameIncludes)
+  );
+  return Number(match?.balance) || 0;
+}
+
+function getAccountsReceivableBalance(report) {
+  return findAccountBalance(report?.assets?.current_assets?.accounts, 'receivable');
+}
+
+function getAccountsPayableBalance(report) {
+  return findAccountBalance(
+    report?.liabilities_and_equity?.current_liabilities?.accounts,
+    'payable'
+  );
+}
+
 /** Totals after Profit vs GL gap is included in equity (should match total assets). */
 function getReconciledTotals(report) {
   const summary = report?.summary ?? {};
@@ -46,7 +68,25 @@ function getReconciledTotals(report) {
   const outOfBalance = totalAssets - totalLe;
   const balanced =
     Boolean(summary.gl_bridged_balanced) || Math.abs(outOfBalance) < 0.01;
-  return { gap, totalAssets, equitySubtotal, totalLe, outOfBalance, balanced };
+  const profitOrders = Number(equity.profit_from_orders?.amount) || 0;
+  const profitReturns = Number(equity.profit_from_sales_returns?.amount) || 0;
+  const netLineProfit = profitOrders + profitReturns;
+  const profitAligned = Boolean(summary.profit_reconciliation_aligned);
+
+  return {
+    gap,
+    totalAssets,
+    equitySubtotal,
+    totalLe,
+    outOfBalance,
+    balanced,
+    profitOrders,
+    profitReturns,
+    netLineProfit,
+    profitAligned,
+    accountsReceivable: getAccountsReceivableBalance(report),
+    accountsPayable: getAccountsPayableBalance(report),
+  };
 }
 
 function formatAsOf(iso) {
@@ -550,18 +590,18 @@ export default function AdvanceBalanceSheetView() {
         <>
           <div className="row">
             <SummaryStatCard
-              title="Total assets"
-              value={formatCompactMillions(summary.total_assets)}
-              subtitle={formatCurrencyAccounting(summary.total_assets)}
+              title="Accounts receivable"
+              value={formatCompactMillions(reconciled.accountsReceivable)}
+              subtitle={formatCurrencyAccounting(reconciled.accountsReceivable)}
               gradient="primary"
-              icon={FaBuildingColumns}
+              icon={FaFileInvoice}
             />
             <SummaryStatCard
-              title="Liabilities & equity"
-              value={formatCompactMillions(reconciled.totalLe)}
-              subtitle={formatCurrencyAccounting(reconciled.totalLe)}
+              title="Accounts payable"
+              value={formatCompactMillions(reconciled.accountsPayable)}
+              subtitle={formatCurrencyAccounting(reconciled.accountsPayable)}
               gradient="info"
-              icon={FaScaleBalanced}
+              icon={FaMoneyBillTransfer}
             />
             <SummaryStatCard
               title="Owner's equity"
@@ -571,15 +611,15 @@ export default function AdvanceBalanceSheetView() {
               icon={FaCoins}
             />
             <SummaryStatCard
-              title="Balance check"
-              value={reconciled.balanced ? 'Balanced' : formatCompactMillions(reconciled.outOfBalance)}
+              title="Net profit"
+              value={formatCompactMillions(reconciled.netLineProfit)}
               subtitle={
-                reconciled.balanced
-                  ? 'Assets = Liabilities & Equity'
-                  : `Difference ${formatCurrencyAccounting(reconciled.outOfBalance)}`
+                reconciled.profitAligned
+                  ? formatCurrencyAccounting(reconciled.netLineProfit)
+                  : `${formatCurrencyAccounting(reconciled.netLineProfit)} · GL gap ${formatCurrencyAccounting(reconciled.gap)}`
               }
-              gradient={reconciled.balanced ? 'success' : 'danger'}
-              icon={FaScaleBalanced}
+              gradient={reconciled.profitAligned ? 'success' : 'warning'}
+              icon={FaChartLine}
             />
           </div>
 

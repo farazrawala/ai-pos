@@ -1,5 +1,10 @@
 # Manual API runner: http://localhost:5173/test-case
 #
+# Each purchase, sale, purchase return, and sales return also runs two follow-up steps:
+#   a) GET invoice/return
+#   b) PATCH edit — qty reduced by 1 (e.g. 40 → 39)
+# Expected qty in the UI is recomputed after those edits.
+#
 | #  | Transaction                  | Expected Qty |
 | -- | ---------------------------- | -----------: |
 | 1  | Purchase 100 @ 100           |          100 |

@@ -1,6 +1,7 @@
 /** @typedef {import('./inventoryQty.js').QtyLedgerEntry} QtyLedgerEntry */
 
 import { AUTH_TOKEN_SAVE_PATHS } from './authToken.js';
+import { applyQtyDelta, qtyLedgerDelta } from './inventoryQty.js';
 
 const PRODUCT_PRICE = 300;
 
@@ -94,31 +95,14 @@ export const INVENTORY_TEST_CASES = [
   { n: 32, type: 'delete_purchase', label: 'Delete #18 Purchase 75 @ 300', ref: 18, refQty: 75, expected: 155 },
 ];
 
-/** @param {{ n: number; qty: number; price: number }} tc */
-function purchaseBody(tc) {
-  const total = tc.qty * tc.price;
-  return {
-    vendor_id: '{{vendor_id}}',
-    ref_no: `TC-PO-${tc.n}`,
-    discount: '0',
-    shipment: '0',
-    payment_method_accounts_id: '{{payment_account_id}}',
-    account_id: '{{payment_account_id}}',
-    amount_paid: String(total),
-    remaining_amount: '0',
-    total_amount: String(total),
-    'product_id[0]': '{{product_1_id}}',
-    'qty[0]': String(tc.qty),
-    'price[0]': String(tc.price),
-    'warehouse_id[0]': '{{warehouse_1_id}}',
-    'shipping_per_unit[0]': '0',
-    'total_shipping[0]': '0',
-  };
+function editedQty(tc) {
+  const q = Number(tc.qty) || 0;
+  return q > 1 ? q - 1 : q;
 }
 
-/** @param {{ qty: number }} tc */
-function saleBody(tc) {
-  const total = tc.qty * PRODUCT_PRICE;
+/** @param {{ qty: number }} tc @param {number} qty */
+function saleBody(tc, qty = tc.qty) {
+  const total = qty * PRODUCT_PRICE;
   return {
     name: 'Test Customer',
     email: '{{customer_email}}',
@@ -133,14 +117,37 @@ function saleBody(tc) {
     payment_method_id: '{{payment_account_id}}',
     posPayMethod: '{{payment_account_id}}',
     'product_id[0]': '{{product_1_id}}',
-    'qty[0]': String(tc.qty),
+    'qty[0]': String(qty),
     'price[0]': String(PRODUCT_PRICE),
   };
 }
 
-/** @param {{ n: number; qty: number; price: number }} tc */
-function purchaseReturnBody(tc) {
-  const total = tc.qty * tc.price;
+/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty */
+function purchaseBody(tc, qty = tc.qty) {
+  const total = qty * tc.price;
+  return {
+    vendor_id: '{{vendor_id}}',
+    ref_no: `TC-PO-${tc.n}`,
+    discount: '0',
+    shipment: '0',
+    payment_method_accounts_id: '{{payment_account_id}}',
+    account_id: '{{payment_account_id}}',
+    amount_paid: String(total),
+    remaining_amount: '0',
+    total_amount: String(total),
+    order_status: 'active',
+    'product_id[0]': '{{product_1_id}}',
+    'qty[0]': String(qty),
+    'price[0]': String(tc.price),
+    'warehouse_id[0]': '{{warehouse_1_id}}',
+    'shipping_per_unit[0]': '0',
+    'total_shipping[0]': '0',
+  };
+}
+
+/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty */
+function purchaseReturnBody(tc, qty = tc.qty) {
+  const total = qty * tc.price;
   return {
     vendor_id: '{{vendor_id}}',
     ref_no: `TC-PR-${tc.n}`,
@@ -152,7 +159,7 @@ function purchaseReturnBody(tc) {
     remaining_amount: '0',
     total_amount: String(total),
     'product_id[0]': '{{product_1_id}}',
-    'qty[0]': String(tc.qty),
+    'qty[0]': String(qty),
     'price[0]': String(tc.price),
     'warehouse_id[0]': '{{warehouse_1_id}}',
     'shipping_per_unit[0]': '0',
@@ -160,9 +167,9 @@ function purchaseReturnBody(tc) {
   };
 }
 
-/** @param {{ n: number; qty: number }} tc */
-function salesReturnBody(tc) {
-  const total = tc.qty * PRODUCT_PRICE;
+/** @param {{ n: number; qty: number }} tc @param {number} qty */
+function salesReturnBody(tc, qty = tc.qty) {
+  const total = qty * PRODUCT_PRICE;
   return {
     customer_id: '{{customer_id}}',
     ref_no: `TC-SR-${tc.n}`,
@@ -174,7 +181,7 @@ function salesReturnBody(tc) {
     remaining_amount: '0',
     total_amount: String(total),
     'product_id[0]': '{{product_1_id}}',
-    'qty[0]': String(tc.qty),
+    'qty[0]': String(qty),
     'price[0]': String(PRODUCT_PRICE),
     'warehouse_id[0]': '{{warehouse_1_id}}',
     'shipping_per_unit[0]': '0',
@@ -183,96 +190,246 @@ function salesReturnBody(tc) {
 }
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildTransactionStep(tc) {
+function buildPurchaseReturnSteps(tc) {
+  const nextQty = editedQty(tc);
+  const editDelta = Number(tc.qty) - nextQty;
+
+  return [
+    {
+      caseNo: tc.n,
+      name: `${tc.n}. ${tc.label}`,
+      requiresAuth: true,
+      method: 'POST',
+      url: '{{url}}api/purchase_return/purchase_return_create',
+      bodyType: 'form',
+      body: purchaseReturnBody(tc),
+      qtyLedger: { type: 'purchase_return', qty: tc.qty },
+      save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}a. Get purchase return #${tc.n}`,
+      requiresAuth: true,
+      method: 'GET',
+      url: `{{url}}api/purchase_return/get-purchase-return-by-return-no/{{txn_${tc.n}_id}}?populate=vendor_id`,
+      body: {},
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}b. Edit PR #${tc.n} qty ${tc.qty} → ${nextQty}`,
+      requiresAuth: true,
+      method: 'PATCH',
+      url: `{{url}}api/purchase_order_return/purchase_order_return_update/{{txn_${tc.n}_id}}`,
+      bodyType: 'form',
+      body: purchaseReturnBody(tc, nextQty),
+      qtyLedger: editDelta > 0 ? { type: 'edit_purchase_return', qty: editDelta } : undefined,
+      caseFinal: true,
+    },
+  ];
+}
+
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
+function buildSalesReturnSteps(tc) {
+  const nextQty = editedQty(tc);
+  const editDelta = Number(tc.qty) - nextQty;
+
+  return [
+    {
+      caseNo: tc.n,
+      name: `${tc.n}. ${tc.label}`,
+      requiresAuth: true,
+      method: 'POST',
+      url: '{{url}}api/sales_return/sales_return_create',
+      bodyType: 'form',
+      body: salesReturnBody(tc),
+      qtyLedger: { type: 'sales_return', qty: tc.qty },
+      save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}a. Get sales return #${tc.n}`,
+      requiresAuth: true,
+      method: 'GET',
+      url: `{{url}}api/sales_return/get-sales-return-by-return-no/{{txn_${tc.n}_id}}?populate=customer_id`,
+      body: {},
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}b. Edit SR #${tc.n} qty ${tc.qty} → ${nextQty}`,
+      requiresAuth: true,
+      method: 'PATCH',
+      url: `{{url}}api/sales_order_return/sales_order_return_update/{{txn_${tc.n}_id}}`,
+      bodyType: 'form',
+      body: salesReturnBody(tc, nextQty),
+      qtyLedger: editDelta > 0 ? { type: 'edit_sales_return', qty: editDelta } : undefined,
+      caseFinal: true,
+    },
+  ];
+}
+
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
+function buildPurchaseSteps(tc) {
+  const nextQty = editedQty(tc);
+  const editDelta = Number(tc.qty) - nextQty;
+
+  return [
+    {
+      caseNo: tc.n,
+      name: `${tc.n}. ${tc.label}`,
+      requiresAuth: true,
+      method: 'POST',
+      url: '{{url}}api/purchase_order/purchase_order_create',
+      bodyType: 'form',
+      body: purchaseBody(tc),
+      qtyLedger: { type: 'purchase', qty: tc.qty },
+      save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}a. Get purchase order #${tc.n}`,
+      requiresAuth: true,
+      method: 'GET',
+      url: `{{url}}api/purchase_order/get-purchase-order-by-purchase-item/{{txn_${tc.n}_id}}?populate=vendor_id`,
+      body: {},
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}b. Edit PO #${tc.n} qty ${tc.qty} → ${nextQty}`,
+      requiresAuth: true,
+      method: 'PATCH',
+      url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.n}_id}}`,
+      bodyType: 'form',
+      body: purchaseBody(tc, nextQty),
+      qtyLedger: editDelta > 0 ? { type: 'edit_purchase', qty: editDelta } : undefined,
+      caseFinal: true,
+    },
+  ];
+}
+
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
+function buildSaleSteps(tc) {
+  const nextQty = editedQty(tc);
+  const editDelta = Number(tc.qty) - nextQty;
+
+  return [
+    {
+      caseNo: tc.n,
+      name: `${tc.n}. ${tc.label}`,
+      requiresAuth: true,
+      method: 'POST',
+      url: '{{url}}api/order/order_save',
+      bodyType: 'form',
+      body: saleBody(tc),
+      qtyLedger: { type: 'sale', qty: tc.qty },
+      save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}a. Get sale invoice #${tc.n}`,
+      requiresAuth: true,
+      method: 'GET',
+      url: `{{url}}api/order/get-order-by-order-no/{{txn_${tc.n}_id}}`,
+      body: {},
+    },
+    {
+      caseNo: tc.n,
+      name: `${tc.n}b. Edit sale #${tc.n} qty ${tc.qty} → ${nextQty}`,
+      requiresAuth: true,
+      method: 'PATCH',
+      url: `{{url}}api/order/order_update/{{txn_${tc.n}_id}}`,
+      bodyType: 'form',
+      body: saleBody(tc, nextQty),
+      qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta } : undefined,
+      caseFinal: true,
+    },
+  ];
+}
+
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
+function buildStepsForCase(tc) {
   const base = {
     caseNo: tc.n,
     name: `${tc.n}. ${tc.label}`,
-    expectedQty: tc.expected,
     requiresAuth: true,
     save: {},
+    caseFinal: true,
   };
 
   switch (tc.type) {
     case 'purchase':
-      return {
-        ...base,
-        method: 'POST',
-        url: '{{url}}api/purchase_order/purchase_order_create',
-        bodyType: 'form',
-        body: purchaseBody(tc),
-        qtyLedger: { type: 'purchase', qty: tc.qty },
-        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
-      };
+      return buildPurchaseSteps(tc);
     case 'sale':
-      return {
-        ...base,
-        method: 'POST',
-        url: '{{url}}api/order/order_save',
-        bodyType: 'form',
-        body: saleBody(tc),
-        qtyLedger: { type: 'sale', qty: tc.qty },
-        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
-      };
+      return buildSaleSteps(tc);
     case 'purchase_return':
-      return {
-        ...base,
-        method: 'POST',
-        url: '{{url}}api/purchase_return/purchase_return_create',
-        bodyType: 'form',
-        body: purchaseReturnBody(tc),
-        qtyLedger: { type: 'purchase_return', qty: tc.qty },
-        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
-      };
+      return buildPurchaseReturnSteps(tc);
     case 'sales_return':
-      return {
-        ...base,
-        method: 'POST',
-        url: '{{url}}api/sales_return/sales_return_create',
-        bodyType: 'form',
-        body: salesReturnBody(tc),
-        qtyLedger: { type: 'sales_return', qty: tc.qty },
-        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
-      };
+      return buildSalesReturnSteps(tc);
     case 'delete_purchase':
-      return {
-        ...base,
-        method: 'DELETE',
-        url: `{{url}}api/purchase_order/purchase_order_delete/{{txn_${tc.ref}_id}}`,
-        body: {},
-        qtyLedger: { type: 'delete_purchase', qty: tc.refQty },
-      };
+      return [
+        {
+          ...base,
+          method: 'DELETE',
+          url: `{{url}}api/purchase_order/purchase_order_delete/{{txn_${tc.ref}_id}}`,
+          body: {},
+          qtyLedger: { type: 'delete_purchase', qty: tc.refQty },
+        },
+      ];
     case 'delete_sale':
-      return {
-        ...base,
-        method: 'DELETE',
-        url: `{{url}}api/order/order_delete/{{txn_${tc.ref}_id}}`,
-        body: {},
-        qtyLedger: { type: 'delete_sale', qty: tc.refQty },
-      };
+      return [
+        {
+          ...base,
+          method: 'DELETE',
+          url: `{{url}}api/order/order_delete/{{txn_${tc.ref}_id}}`,
+          body: {},
+          qtyLedger: { type: 'delete_sale', qty: tc.refQty },
+        },
+      ];
     case 'delete_purchase_return':
-      return {
-        ...base,
-        method: 'DELETE',
-        url: `{{url}}api/purchase_return/purchase_return_delete/{{txn_${tc.ref}_id}}`,
-        body: {},
-        qtyLedger: { type: 'delete_purchase_return', qty: tc.refQty },
-      };
+      return [
+        {
+          ...base,
+          method: 'DELETE',
+          url: `{{url}}api/purchase_return/purchase_return_delete/{{txn_${tc.ref}_id}}`,
+          body: {},
+          qtyLedger: { type: 'delete_purchase_return', qty: tc.refQty },
+        },
+      ];
     case 'delete_sales_return':
-      return {
-        ...base,
-        method: 'DELETE',
-        url: `{{url}}api/sales_return/sales_return_delete/{{txn_${tc.ref}_id}}`,
-        body: {},
-        qtyLedger: { type: 'delete_sales_return', qty: tc.refQty },
-      };
+      return [
+        {
+          ...base,
+          method: 'DELETE',
+          url: `{{url}}api/sales_return/sales_return_delete/{{txn_${tc.ref}_id}}`,
+          body: {},
+          qtyLedger: { type: 'delete_sales_return', qty: tc.refQty },
+        },
+      ];
     default:
-      return {
-        ...base,
-        method: 'GET',
-        url: '{{url}}api/health',
-        body: {},
-      };
+      return [
+        {
+          ...base,
+          method: 'GET',
+          url: '{{url}}api/health',
+          body: {},
+        },
+      ];
   }
+}
+
+/** @param {object[]} steps */
+function assignRunningExpected(steps) {
+  let runningQty = 0;
+  return steps.map((step) => {
+    const lg = step.qtyLedger;
+    if (lg) {
+      runningQty = applyQtyDelta(runningQty, qtyLedgerDelta(lg));
+    }
+    if (step.caseFinal) {
+      return { ...step, expectedQty: runningQty };
+    }
+    const { expectedQty: _drop, ...rest } = step;
+    return rest;
+  });
 }
 
 function createSetupSteps() {
@@ -425,7 +582,8 @@ function createSetupSteps() {
   ];
 }
 
-/** Full workflow: setup + 32 inventory transactions from test_case.rb */
+/** Full workflow: setup + inventory transactions from test_case.rb (+ get/edit for sales & purchases). */
 export function createInventoryTestCaseSteps() {
-  return [...createSetupSteps(), ...INVENTORY_TEST_CASES.map(buildTransactionStep)];
+  const txnSteps = INVENTORY_TEST_CASES.flatMap(buildStepsForCase);
+  return assignRunningExpected([...createSetupSteps(), ...txnSteps]);
 }

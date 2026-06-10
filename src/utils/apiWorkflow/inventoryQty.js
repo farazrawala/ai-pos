@@ -9,6 +9,74 @@ export function applyQtyDelta(state, delta) {
   return Number.isFinite(next) ? next : state;
 }
 
+/** @param {QtyLedgerEntry} lg */
+export function qtyLedgerDelta(lg) {
+  const q = Number(lg?.qty);
+  if (!Number.isFinite(q) || q <= 0) return 0;
+  switch (lg.type) {
+    case 'purchase':
+      return q;
+    case 'sale':
+      return -q;
+    case 'purchase_return':
+      return -q;
+    case 'sales_return':
+      return q;
+    case 'delete_purchase':
+      return -q;
+    case 'delete_sale':
+      return q;
+    case 'delete_purchase_return':
+      return q;
+    case 'delete_sales_return':
+      return -q;
+    case 'edit_sale':
+      return q;
+    case 'edit_purchase':
+      return -q;
+    case 'edit_sales_return':
+      return -q;
+    case 'edit_purchase_return':
+      return q;
+    default:
+      return 0;
+  }
+}
+
+/** @param {QtyLedgerEntry} lg */
+export function qtyLedgerDetail(lg) {
+  const q = Number(lg?.qty);
+  if (!Number.isFinite(q) || q <= 0) return '';
+  switch (lg.type) {
+    case 'purchase':
+      return `+${q}`;
+    case 'sale':
+      return `-${q}`;
+    case 'purchase_return':
+      return `PR -${q}`;
+    case 'sales_return':
+      return `SR +${q}`;
+    case 'delete_purchase':
+      return `undo PO -${q}`;
+    case 'delete_sale':
+      return `undo sale +${q}`;
+    case 'delete_purchase_return':
+      return `undo PR +${q}`;
+    case 'delete_sales_return':
+      return `undo SR -${q}`;
+    case 'edit_sale':
+      return `edit sale +${q}`;
+    case 'edit_purchase':
+      return `edit PO -${q}`;
+    case 'edit_sales_return':
+      return `edit SR -${q}`;
+    case 'edit_purchase_return':
+      return `edit PR +${q}`;
+    default:
+      return '';
+  }
+}
+
 /**
  * @param {{ name?: string; qtyLedger?: QtyLedgerEntry; expectedQty?: number }[]} steps
  */
@@ -21,48 +89,10 @@ export function buildQtyLedgerFromSteps(steps) {
     const lg = step?.qtyLedger;
     if (!lg || typeof lg !== 'object') return;
 
-    const q = Number(lg.qty);
-    if (!Number.isFinite(q) || q <= 0) return;
+    const delta = qtyLedgerDelta(lg);
+    if (delta === 0) return;
 
-    let delta = 0;
-    let detail = '';
-    switch (lg.type) {
-      case 'purchase':
-        delta = q;
-        detail = `+${q}`;
-        break;
-      case 'sale':
-        delta = -q;
-        detail = `-${q}`;
-        break;
-      case 'purchase_return':
-        delta = -q;
-        detail = `PR -${q}`;
-        break;
-      case 'sales_return':
-        delta = q;
-        detail = `SR +${q}`;
-        break;
-      case 'delete_purchase':
-        delta = -q;
-        detail = `undo PO -${q}`;
-        break;
-      case 'delete_sale':
-        delta = q;
-        detail = `undo sale +${q}`;
-        break;
-      case 'delete_purchase_return':
-        delta = q;
-        detail = `undo PR +${q}`;
-        break;
-      case 'delete_sales_return':
-        delta = -q;
-        detail = `undo SR -${q}`;
-        break;
-      default:
-        return;
-    }
-
+    const detail = qtyLedgerDetail(lg);
     qty = applyQtyDelta(qty, delta);
     rows.push({
       stepIndex: index,
