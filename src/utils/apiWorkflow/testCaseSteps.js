@@ -1,6 +1,7 @@
 /** @typedef {import('./inventoryQty.js').QtyLedgerEntry} QtyLedgerEntry */
 
 import { AUTH_TOKEN_SAVE_PATHS } from './authToken.js';
+import { LOGIN_SAVE_MAP } from './loginSavePaths.js';
 import { applyQtyDelta, qtyLedgerDelta } from './inventoryQty.js';
 
 const PRODUCT_PRICE = 300;
@@ -486,9 +487,7 @@ function createSetupSteps() {
         email: '{{login_email}}',
         password: '{{login_password}}',
       },
-      save: {
-        auth_token: AUTH_TOKEN_SAVE_PATHS,
-      },
+      save: LOGIN_SAVE_MAP,
     },
     {
       name: 'Setup: Create warehouse',

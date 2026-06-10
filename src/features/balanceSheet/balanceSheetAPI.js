@@ -6,10 +6,8 @@ import {
   normalizeAdjustmentsListRows,
 } from '../adjustments/adjustmentsAPI.js';
 import {
+  ensureCompanyFromCache,
   extractCompanyFromUser,
-  extractCompanyRecord,
-  fetchCompanyById,
-  getCompanyIdFromUser,
   getDefaultAccountId,
   pickAccountRefId,
 } from '../company/companyAPI.js';
@@ -252,25 +250,10 @@ export function resolveBalanceSheetEquityExcludeId(user, company) {
  * @returns {Promise<{ exclude_id?: string }>}
  */
 export async function buildBalanceSheetEquityFetchParams(user = null, company = null) {
-  let resolvedCompany = company || extractCompanyFromUser(user);
-  let excludeId = resolveBalanceSheetEquityExcludeId(user, resolvedCompany);
-
-  if (!excludeId) {
-    const companyId = getCompanyIdFromUser(user) || pickAccountRefId(resolvedCompany);
-    if (companyId) {
-      try {
-        const body = await fetchCompanyById(companyId);
-        resolvedCompany = extractCompanyRecord(body) || resolvedCompany;
-        excludeId = resolveBalanceSheetEquityExcludeId(user, resolvedCompany);
-      } catch (err) {
-        console.warn(
-          '[Balance sheet] Could not load company for default_adjustment_account exclude',
-          err
-        );
-      }
-    }
-  }
-
+  const resolvedCompany = await ensureCompanyFromCache(user, company, {
+    requiredKeys: [BALANCE_SHEET_EQUITY_EXCLUDE_KEY],
+  });
+  const excludeId = resolveBalanceSheetEquityExcludeId(user, resolvedCompany);
   return excludeId ? { exclude_id: excludeId } : {};
 }
 

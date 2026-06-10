@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import moment from 'moment';
-import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import LedgerUserProfileCard from '../../components/ledger/user-profile/LedgerUserProfileCard.jsx';
@@ -67,12 +66,70 @@ function exportTxnCsv(rows) {
 
 export default function UserLedgerDetailPage() {
   const { userId } = useParams();
-  const navigate = useNavigate();
-  const { canView } = usePermissions('ledger');
   useRequireModuleAccess('ledger');
 
   const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUserLoading(true);
+    setUser(null);
+    (async () => {
+      try {
+        const apiUser = await fetchUserByIdRequest(userId);
+        if (cancelled) return;
+        setUser(mapApiUserToLedgerRow(apiUser));
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setUserLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const [loading, setLoading] = useState(true);
+  const [rawTx, setRawTx] = useState([]);
+  const [draftFilters, setDraftFilters] = useState(initialDetailFilters);
+  const [appliedFilters, setAppliedFilters] = useState(initialDetailFilters);
+  const [page, setPage] = useState(1);
+  const [selectedTxn, setSelectedTxn] = useState(null);
+  const [timelineLimit, setTimelineLimit] = useState(TIMELINE_INITIAL);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await fetchMyLedgerTransactionsRequest({
+          referenceUserId: userId,
+          populate: 'account_id,ref_id,reference_user_id,created_by',
+          limit: LEDGER_TX_FETCH_LIMIT,
+        });
+        if (cancelled) return;
+        const mapped = (Array.isArray(r.data) ? r.data : []).map((row) =>
+          mapApiTransactionToLedgerTransaction(row)
+        );
+        mapped.sort((a, b) => new Date(a.date) - new Date(b.date));
+        setRawTx(mapped);
+      } catch (e) {
+        if (!cancelled) {
+          const msg = e?.message || 'Failed to load transactions';
+          toast.error(msg);
+          setRawTx([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const filteredRaw = useMemo(
     () => filterDetailTransactions(rawTx, appliedFilters),

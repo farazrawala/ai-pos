@@ -29,11 +29,26 @@ function normalizeSavedScalar(value) {
   return s === '' ? undefined : s;
 }
 
-export function applySaveMap(axiosResponse, saveMap, variables) {
+function isCachedVariable(value) {
+  if (value == null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (typeof value === 'number' || typeof value === 'boolean') return true;
+  return false;
+}
+
+/**
+ * @param {import('axios').AxiosResponse} axiosResponse
+ * @param {Record<string, string | string[]> | null | undefined} saveMap
+ * @param {Record<string, unknown>} variables
+ * @param {{ skipIfCached?: boolean }} [options] — when true, keep existing saved vars (default true)
+ */
+export function applySaveMap(axiosResponse, saveMap, variables, options = {}) {
   if (!saveMap || typeof saveMap !== 'object') return variables;
+  const skipIfCached = options.skipIfCached !== false;
   const next = { ...variables };
   const root = { response: axiosResponse };
   for (const [varName, pathExpr] of Object.entries(saveMap)) {
+    if (skipIfCached && isCachedVariable(next[varName])) continue;
     const paths = Array.isArray(pathExpr) ? pathExpr : [pathExpr];
     let chosen;
     for (const p of paths) {

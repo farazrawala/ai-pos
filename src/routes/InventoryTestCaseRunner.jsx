@@ -10,6 +10,7 @@ import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableRe
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 import { objectToFormData } from '../utils/apiWorkflow/formData.js';
 import { resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
+import { seedWorkflowVarsFromLoginCache } from '../utils/apiWorkflow/loginSavePaths.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
 
 const DEFAULT_BASE = '';
@@ -45,10 +46,7 @@ const InventoryTestCaseRunner = () => {
   const initialSnapshot = useInitialRunnerSnapshot();
   const [steps] = useState(() => initialSnapshot.steps);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
-  const [variables, setVariables] = useState(() => {
-    const token = resolveWorkflowAuthToken({});
-    return token ? { auth_token: token } : {};
-  });
+  const [variables, setVariables] = useState(() => seedWorkflowVarsFromLoginCache({}));
   const [statuses, setStatuses] = useState(() => initialSnapshot.statuses);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
@@ -82,8 +80,7 @@ const InventoryTestCaseRunner = () => {
   }, []);
 
   const reset = useCallback(() => {
-    const token = resolveWorkflowAuthToken({});
-    const initial = token ? { auth_token: token } : {};
+    const initial = seedWorkflowVarsFromLoginCache({});
     variablesRef.current = initial;
     setVariables(initial);
     setStatuses(emptyStatuses(steps.length));

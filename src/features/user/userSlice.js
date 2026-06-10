@@ -4,6 +4,8 @@ import {
   extractCompanyFromUser,
   getCompanyIdFromUser,
   getDefaultAccountId,
+  getWarehouseFromCompany,
+  getWarehouseIdFromCompany,
   pickAccountRefId,
 } from '../company/companyAPI.js';
 
@@ -39,12 +41,16 @@ const buildSessionFromUser = (userData) => {
   const company = extractCompanyFromUser(userData);
   const companyId = getCompanyIdFromUser(userData) || pickId(company);
   const defaultAccounts = extractCompanyDefaultAccounts(company);
+  const warehouse = getWarehouseFromCompany(company);
+  const warehouseId = getWarehouseIdFromCompany(company);
   return {
     user: userData,
     name: userData?.name || '',
     token: userData?.token || '',
     company,
     companyId,
+    warehouse,
+    warehouseId,
     defaultAccounts,
     permissions:
       userData?.permissions && typeof userData.permissions === 'object' ? userData.permissions : {},
@@ -89,6 +95,8 @@ const initialState = {
   user: storedUser,
   company: storedCompany,
   companyId: initialSession?.companyId || getCompanyIdFromUser(storedUser) || '',
+  warehouse: initialSession?.warehouse || getWarehouseFromCompany(storedCompany),
+  warehouseId: initialSession?.warehouseId || getWarehouseIdFromCompany(storedCompany) || '',
   defaultAccounts:
     initialSession?.defaultAccounts || extractCompanyDefaultAccounts(storedCompany) || {},
   permissions: initialSession?.permissions || storedUser?.permissions || {},
@@ -128,6 +136,8 @@ const userSlice = createSlice({
         state.token = '';
         state.company = null;
         state.companyId = '';
+        state.warehouse = null;
+        state.warehouseId = '';
         state.defaultAccounts = {};
         state.permissions = {};
         state.roles = [];
@@ -141,6 +151,8 @@ const userSlice = createSlice({
       state.token = session.token || state.token;
       state.company = session.company;
       state.companyId = session.companyId;
+      state.warehouse = session.warehouse;
+      state.warehouseId = session.warehouseId;
       state.defaultAccounts = session.defaultAccounts;
       state.permissions = session.permissions;
       state.roles = session.roles;
@@ -166,6 +178,8 @@ const userSlice = createSlice({
       state.token = session.token || state.token;
       state.company = session.company;
       state.companyId = session.companyId;
+      state.warehouse = session.warehouse;
+      state.warehouseId = session.warehouseId;
       state.defaultAccounts = session.defaultAccounts;
       state.permissions = session.permissions;
       state.roles = session.roles;
@@ -181,6 +195,8 @@ const userSlice = createSlice({
       const company = action.payload && typeof action.payload === 'object' ? action.payload : null;
       state.company = company;
       state.companyId = getCompanyIdFromUser({ company_id: company }) || pickId(company);
+      state.warehouse = getWarehouseFromCompany(company);
+      state.warehouseId = getWarehouseIdFromCompany(company);
       state.defaultAccounts = extractCompanyDefaultAccounts(company);
       if (state.user && company) {
         state.user = { ...state.user, company_id: company };
@@ -196,6 +212,8 @@ const userSlice = createSlice({
       state.user = null;
       state.company = null;
       state.companyId = '';
+      state.warehouse = null;
+      state.warehouseId = '';
       state.defaultAccounts = {};
       state.permissions = {};
       state.roles = [];
@@ -215,6 +233,11 @@ export const selectAuthUser = (state) => state.user?.user ?? null;
 export const selectCompany = (state) => state.user?.company ?? null;
 
 export const selectCompanyId = (state) => state.user?.companyId ?? '';
+
+/** Head-office warehouse from login `company_id.warehouse_id`. */
+export const selectWarehouse = (state) => state.user?.warehouse ?? null;
+
+export const selectWarehouseId = (state) => state.user?.warehouseId ?? '';
 
 /** Default accounts from login company populate (payable, receivable, cash, etc.). */
 export const selectDefaultAccounts = (state) => state.user?.defaultAccounts ?? {};

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
@@ -16,10 +17,12 @@ import {
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import {
   extractPrinterSettingsFromCompanyBody,
+  fetchCompanyById,
+  getCompanyFromApiBody,
   mergePrinterSettings,
   pickCompanyLogoUrl,
 } from '../../features/company/companyAPI.js';
-import { selectCompany } from '../../features/user/userSlice.js';
+import { selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
 import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
@@ -161,7 +164,7 @@ const paymentMethodIdFromOrder = (order) => {
   const rawPayAccount = order.payment_method_accounts_id;
   return String(
     (rawPayAccount && typeof rawPayAccount === 'object'
-      ? rawPayAccount._id ?? rawPayAccount.id
+      ? (rawPayAccount._id ?? rawPayAccount.id)
       : rawPayAccount) ??
       order.posPayMethod ??
       order.payment_method_id ??
@@ -292,23 +295,49 @@ const PosInvoice = () => {
   const { invoiceId: invoiceIdParam } = useParams();
   const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
   const authCompany = useSelector(selectCompany);
+  const companyId = useSelector(selectCompanyId);
+  const [invoiceCompany, setInvoiceCompany] = useState(null);
+
+  useEffect(() => {
+    if (!companyId) {
+      setInvoiceCompany(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const body = await fetchCompanyById(companyId);
+        if (cancelled) return;
+        const company = getCompanyFromApiBody(body);
+        setInvoiceCompany(company && typeof company === 'object' ? company : null);
+      } catch {
+        if (!cancelled) setInvoiceCompany(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  const activeCompany = invoiceCompany ?? authCompany;
 
   const printerSettings = useMemo(() => {
-    const parsed = extractPrinterSettingsFromCompanyBody({ data: authCompany });
+    const parsed = extractPrinterSettingsFromCompanyBody({ data: activeCompany });
     return mergePrinterSettings(parsed);
-  }, [authCompany]);
+  }, [activeCompany]);
 
   const companyBrand = useMemo(() => {
-    const name =
-      authCompany?.company_name || authCompany?.name || shopName;
+    const name = activeCompany?.company_name || activeCompany?.name || shopName;
     return {
       name: String(name || shopName).trim() || shopName,
-      phone: String(authCompany?.company_phone || authCompany?.phone || '').trim(),
-      email: String(authCompany?.company_email || authCompany?.email || '').trim(),
-      address: String(authCompany?.company_address || authCompany?.address || '').trim(),
-      logoUrl: pickCompanyLogoUrl(authCompany),
+      phone: String(activeCompany?.company_phone || activeCompany?.phone || '').trim(),
+      email: String(activeCompany?.company_email || activeCompany?.email || '').trim(),
+      address: String(activeCompany?.company_address || activeCompany?.address || '').trim(),
+      logoUrl: pickCompanyLogoUrl(activeCompany),
     };
-  }, [authCompany]);
+  }, [activeCompany]);
 
   const [view, setView] = useState(() => (invoiceId ? null : { ...DEMO_INVOICE, shopName }));
   const [fetchStatus, setFetchStatus] = useState(() => (invoiceId ? 'loading' : 'succeeded'));
@@ -374,7 +403,7 @@ const PosInvoice = () => {
     setInvoiceCustomerId(cid != null && String(cid).trim() !== '' ? String(cid).trim() : '');
     const rawPm = sourceOrder.payment_method_accounts_id;
     const pm =
-      (rawPm && typeof rawPm === 'object' ? rawPm._id ?? rawPm.id : rawPm) ??
+      (rawPm && typeof rawPm === 'object' ? (rawPm._id ?? rawPm.id) : rawPm) ??
       sourceOrder.posPayMethod ??
       sourceOrder.payment_method_id ??
       sourceOrder.account_id ??
@@ -513,9 +542,20 @@ const PosInvoice = () => {
     }
   }, [view, paymentMethodDisplay]);
 
-  const handlePdfPrint = useCallback(() => {
+  const handleNormalPrint = useCallback(async () => {
+    if (companyId) {
+      try {
+        const body = await fetchCompanyById(companyId);
+        const company = getCompanyFromApiBody(body);
+        if (company && typeof company === 'object') {
+          flushSync(() => setInvoiceCompany(company));
+        }
+      } catch {
+        // print with last known settings
+      }
+    }
     window.print();
-  }, []);
+  }, [companyId]);
 
   const buildOrderUpdatePayload = useCallback((order, draftLines = [], orderStatus = null) => {
     if (!order || typeof order !== 'object') {
@@ -818,6 +858,9 @@ const PosInvoice = () => {
         .pos-inv-actions {
           flex-wrap: wrap;
           gap: 0.5rem;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
         }
         .pos-inv-actions .btn {
           border-radius: 0.5rem;
@@ -947,28 +990,22 @@ const PosInvoice = () => {
 
       {/* Top action bar */}
       <div className="d-flex pos-inv-actions mb-4 pos-inv-no-print">
-        <div className="dropdown">
-          <button
-            className="btn pos-inv-btn-blue dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            POS Print
-          </button>
-          <ul className="dropdown-menu shadow-sm">
-            <li>
-              <button type="button" className="dropdown-item" onClick={handlePdfPrint}>
-                PDF Print
-              </button>
-            </li>
-            <li>
-              <button type="button" className="dropdown-item" onClick={handleThermalPrint}>
-                Thermal Print
-              </button>
-            </li>
-          </ul>
-        </div>
+        <button
+          type="button"
+          className="btn pos-inv-btn-blue"
+          onClick={handleThermalPrint}
+          title="80mm thermal receipt"
+        >
+          <i className="fas fa-receipt me-1"></i> Thermal Print
+        </button>
+        <button
+          type="button"
+          className="btn pos-inv-btn-green"
+          onClick={handleNormalPrint}
+          title="A4 / normal invoice print"
+        >
+          <i className="fas fa-print me-1"></i> Normal Print
+        </button>
         <button
           type="button"
           className="btn pos-inv-btn-orange"
@@ -997,7 +1034,7 @@ const PosInvoice = () => {
             </>
           )}
         </button>
-        <button type="button" className="btn pos-inv-btn-cyan">
+        {/* <button type="button" className="btn pos-inv-btn-cyan">
           <i className="fas fa-money-bill-wave me-1"></i> Make Payment
         </button>
         <div className="dropdown">
@@ -1033,25 +1070,8 @@ const PosInvoice = () => {
               </button>
             </li>
           </ul>
-        </div>
-        <div className="dropdown">
-          <button
-            className="btn pos-inv-btn-green dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <i className="fas fa-print me-1"></i> Print
-          </button>
-          <ul className="dropdown-menu shadow-sm">
-            <li>
-              <button type="button" className="dropdown-item">
-                A4
-              </button>
-            </li>
-          </ul>
-        </div>
-        <button type="button" className="btn pos-inv-btn-grey">
+        </div> */}
+        {/* <button type="button" className="btn pos-inv-btn-grey">
           <i className="fas fa-eye me-1"></i> Preview
         </button>
         <button type="button" className="btn pos-inv-btn-cyan">
@@ -1059,8 +1079,8 @@ const PosInvoice = () => {
         </button>
         <button type="button" className="btn pos-inv-btn-pink">
           <i className="fas fa-times me-1"></i> Cancel
-        </button>
-        <div className="dropdown">
+        </button> */}
+        {/* <div className="dropdown">
           <button
             className="btn pos-inv-btn-teal dropdown-toggle"
             type="button"
@@ -1076,7 +1096,7 @@ const PosInvoice = () => {
               </button>
             </li>
           </ul>
-        </div>
+        </div> */}
       </div>
 
       <div className="pos-inv-paper p-4 p-md-5 mb-4">
@@ -1164,9 +1184,7 @@ const PosInvoice = () => {
                       );
                     })}
                 </select>
-                {usersError ? (
-                  <div className="small text-danger mt-1">{usersError}</div>
-                ) : null}
+                {usersError ? <div className="small text-danger mt-1">{usersError}</div> : null}
               </div>
             ) : null}
             <div className="pos-inv-client-name mb-1">{billToDisplay.name}</div>

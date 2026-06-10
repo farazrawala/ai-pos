@@ -1,9 +1,7 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import {
+  ensureCompanyFromCache,
   extractCompanyFromUser,
-  extractCompanyRecord,
-  fetchCompanyById,
-  getCompanyIdFromUser,
   pickAccountRefId,
 } from '../company/companyAPI.js';
 
@@ -16,6 +14,7 @@ export const EXPENSE_LIST_POPULATE = 'account_id,user_id,payment_method_accounts
 export function resolveDefaultExpenseListFilterIds(user, company) {
   const sources = [
     company,
+    extractCompanyFromUser(user),
     user,
     user?.company && typeof user.company === 'object' ? user.company : null,
   ].filter(Boolean);
@@ -43,22 +42,11 @@ export function resolveDefaultExpenseListFilterIds(user, company) {
 
 /** Company default payable/receivable ids for expense edit filters. */
 export async function buildExpenseDefaultAccountFilterParams(user = null, companyFromStore = null) {
-  let company = companyFromStore || extractCompanyFromUser(user);
-  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
+  const company = await ensureCompanyFromCache(user, companyFromStore, {
+    requiredKeys: ['default_account_payable_account', 'default_account_receivable_account'],
+  });
 
-  let { includeId, excludeId } = resolveDefaultExpenseListFilterIds(user, company);
-  const needsFetch = companyId && !includeId && !excludeId;
-
-  if (needsFetch) {
-    try {
-      const body = await fetchCompanyById(companyId);
-      company = extractCompanyRecord(body) || company;
-    } catch (err) {
-      console.warn('[Expense module] Could not load company for default account filters', err);
-    }
-  }
-
-  ({ includeId, excludeId } = resolveDefaultExpenseListFilterIds(user, company));
+  const { includeId, excludeId } = resolveDefaultExpenseListFilterIds(user, company);
   const params = { account_type: EXPENSE_LIST_ACCOUNT_TYPE };
   if (includeId) params.include_id = includeId;
   if (excludeId) params.exclude_id = excludeId;

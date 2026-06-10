@@ -1,9 +1,6 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import {
-  extractCompanyFromUser,
-  extractCompanyRecord,
-  fetchCompanyById,
-  getCompanyIdFromUser,
+  ensureCompanyFromCache,
   pickAccountRefId,
 } from '../company/companyAPI.js';
 import { resolveDefaultExpenseListFilterIds } from '../expenses/expensesAPI.js';
@@ -62,25 +59,11 @@ export const AMOUNT_TRANSFER_ACCOUNT_TYPE = 'current_asset';
  * Query params for from/to account dropdowns: `exclude_id` = company `default_account_receivable_account`.
  */
 export async function buildAmountTransferAccountFilterParams(user = null, companyFromStore = null) {
-  let company = companyFromStore || extractCompanyFromUser(user);
-  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
+  const company = await ensureCompanyFromCache(user, companyFromStore, {
+    requiredKeys: ['default_account_receivable_account'],
+  });
 
-  let { excludeId } = resolveDefaultExpenseListFilterIds(user, company);
-  const needsFetch = companyId && !excludeId;
-
-  if (needsFetch) {
-    try {
-      const body = await fetchCompanyById(companyId);
-      company = extractCompanyRecord(body) || company;
-    } catch (err) {
-      console.warn(
-        '[Amount transfer module] Could not load company for default_account_receivable_account exclude filter',
-        err
-      );
-    }
-  }
-
-  ({ excludeId } = resolveDefaultExpenseListFilterIds(user, company));
+  const { excludeId } = resolveDefaultExpenseListFilterIds(user, company);
   const params = { account_type: AMOUNT_TRANSFER_ACCOUNT_TYPE };
   if (excludeId) params.exclude_id = excludeId;
   return params;
@@ -106,23 +89,11 @@ export function resolveDefaultWithdrawAccountId(user, company) {
  */
 export async function buildAmountTransferToAccountFilterParams(user = null, companyFromStore = null) {
   const base = await buildAmountTransferAccountFilterParams(user, companyFromStore);
-  let company = companyFromStore || extractCompanyFromUser(user);
-  const companyId = getCompanyIdFromUser(user) || pickAccountRefId(company);
+  const company = await ensureCompanyFromCache(user, companyFromStore, {
+    requiredKeys: ['default_withdraw_account'],
+  });
 
-  let includeId = resolveDefaultWithdrawAccountId(user, company);
-  if (companyId && !includeId) {
-    try {
-      const body = await fetchCompanyById(companyId);
-      company = extractCompanyRecord(body) || company;
-      includeId = resolveDefaultWithdrawAccountId(user, company);
-    } catch (err) {
-      console.warn(
-        '[Amount transfer module] Could not load company for default_withdraw_account include filter',
-        err
-      );
-    }
-  }
-
+  const includeId = resolveDefaultWithdrawAccountId(user, company);
   const params = { ...base };
   if (includeId) params.include_id = includeId;
   return params;

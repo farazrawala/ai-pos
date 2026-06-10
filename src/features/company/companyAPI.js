@@ -65,6 +65,81 @@ export function extractCompanyDefaultAccounts(company) {
   return out;
 }
 
+/** Warehouse ref → id string (populated doc or plain id). */
+export function pickWarehouseRefId(raw) {
+  return pickAccountRefId(raw);
+}
+
+export function getWarehouseFromCompany(company) {
+  const raw = company?.warehouse_id ?? company?.warehouseId ?? company?.warehouse;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return { ...raw };
+  }
+  return null;
+}
+
+export function getWarehouseIdFromCompany(company) {
+  return pickWarehouseRefId(company?.warehouse_id ?? company?.warehouseId ?? company?.warehouse);
+}
+
+/**
+ * Flat map of login company ids (warehouse + default accounts) from cached session.
+ * @returns {{ companyId: string; warehouseId: string; [key: string]: string }}
+ */
+export function resolveLoginSessionParams(user = null, company = null) {
+  const resolvedCompany = company || extractCompanyFromUser(user);
+  /** @type {Record<string, string>} */
+  const params = {
+    companyId: getCompanyIdFromUser(user) || pickCompanyIdString(resolvedCompany),
+    warehouseId: getWarehouseIdFromCompany(resolvedCompany),
+  };
+
+  const userId = user?._id ?? user?.id;
+  if (userId != null) params.userId = String(userId).trim();
+
+  for (const key of COMPANY_DEFAULT_ACCOUNT_KEYS) {
+    const accountId = pickAccountRefId(resolvedCompany?.[key]);
+    if (accountId) params[key] = accountId;
+  }
+
+  return params;
+}
+
+function companyHasRequiredKeys(company, requiredKeys = []) {
+  if (!requiredKeys.length) return true;
+  for (const key of requiredKeys) {
+    if (key === 'warehouse_id') {
+      if (!getWarehouseIdFromCompany(company)) return false;
+      continue;
+    }
+    if (!pickAccountRefId(company?.[key])) return false;
+  }
+  return true;
+}
+
+/**
+ * Use populated company from login cache; fetch GET company only when required keys are missing.
+ */
+export async function ensureCompanyFromCache(
+  user = null,
+  companyFromStore = null,
+  { requiredKeys = [] } = {}
+) {
+  let company = companyFromStore || extractCompanyFromUser(user);
+  const companyId = getCompanyIdFromUser(user) || pickCompanyIdString(company);
+
+  if (companyId && !companyHasRequiredKeys(company, requiredKeys)) {
+    try {
+      const body = await fetchCompanyById(companyId);
+      company = extractCompanyRecord(body) || company;
+    } catch (err) {
+      console.warn('[Company] Could not load company for missing login cache fields', err);
+    }
+  }
+
+  return company;
+}
+
 export function getDefaultAccountFromCompany(company, key) {
   if (!company || typeof company !== 'object') return null;
   return company[key] ?? null;

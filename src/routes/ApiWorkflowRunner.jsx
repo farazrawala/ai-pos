@@ -9,6 +9,7 @@ import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableRe
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 import { objectToFormData } from '../utils/apiWorkflow/formData.js';
 import { AUTH_TOKEN_SAVE_PATHS, resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
+import { LOGIN_SAVE_MAP } from '../utils/apiWorkflow/loginSavePaths.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
 
 const DEFAULT_BASE = '';
@@ -128,17 +129,7 @@ function createInitialSteps() {
         email: '{{login_email}}',
         password: '{{login_password}}',
       },
-      save: {
-        auth_token: AUTH_TOKEN_SAVE_PATHS,
-        company_id: [
-          'response.data.data.user.company_id',
-          'response.data.data.user.company',
-          'response.data.data.company._id',
-          'response.data.data.company.id',
-          'response.data.user.company_id',
-          'response.data.company._id',
-        ],
-      },
+      save: LOGIN_SAVE_MAP,
     },
     {
       name: 'Create warehouse — Ware House 1 3',
