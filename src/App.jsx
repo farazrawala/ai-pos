@@ -58,6 +58,7 @@ import PaymentReceiptEditPage from './routes/payment_receipt/edit.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
 import InventoryTestCaseRunner from './routes/InventoryTestCaseRunner.jsx';
 import CompanyCachePage from './routes/companyCache/index.jsx';
+import CompanyPage from './routes/company/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
@@ -260,6 +261,7 @@ const App = () => {
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route path="/test-case" element={<InventoryTestCaseRunner />} />
+          <Route path="/company" element={<CompanyPage />} />
           <Route path="/company-cache" element={<CompanyCachePage />} />
           <Route
             path="/dashboard"

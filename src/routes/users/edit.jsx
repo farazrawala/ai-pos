@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import moment from 'moment';
@@ -9,7 +9,11 @@ import {
   clearUpdateStatus,
 } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-import { digitsOnlyFromPhone } from '../../features/users/usersAPI.js';
+import {
+  digitsOnlyFromPhone,
+  isUserUploadFilePart,
+} from '../../features/users/usersAPI.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
 const normalizePermissions = (input) => {
@@ -27,6 +31,18 @@ const normalizePermissions = (input) => {
     });
   });
   return base;
+};
+
+const pickUserProfileImageUrl = (user) => {
+  if (!user || typeof user !== 'object') return '';
+  const raw =
+    user.profile_image ??
+    user.profileImage ??
+    user.avatar ??
+    user.image ??
+    user.photo ??
+    '';
+  return resolveCategoryMediaUrl(raw);
 };
 
 const EditUser = () => {
@@ -51,8 +67,20 @@ const EditUser = () => {
     permissions: normalizePermissions(null),
   });
   const [errors, setErrors] = useState({});
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [existingProfileImageUrl, setExistingProfileImageUrl] = useState('');
+  const profileImageInputRef = useRef(null);
 
   const roleOptions = useMemo(() => ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'], []);
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
+    };
+  }, [profileImagePreview]);
 
   useEffect(() => {
     if (canEdit === false) navigate('/users');
@@ -85,7 +113,46 @@ const EditUser = () => {
           : ['USER'],
       permissions: normalizePermissions(currentUser.permissions),
     });
+    setExistingProfileImageUrl(pickUserProfileImageUrl(currentUser));
+    setProfileImageFile(null);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
   }, [currentUser]);
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setProfileImageFile(null);
+      setProfileImagePreview((prev) => {
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, profile_image: 'Please choose an image file' }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, profile_image: '' }));
+    setProfileImageFile(file);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearProfileImage = () => {
+    setProfileImageFile(null);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setErrors((prev) => ({ ...prev, profile_image: '' }));
+    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
+  };
 
   const showToast = (toastId, body) => {
     const toastElement = document.getElementById(toastId);
@@ -161,6 +228,7 @@ const EditUser = () => {
             role: form.role,
             permissions: form.permissions,
             status: form.status,
+            profile_image: isUserUploadFilePart(profileImageFile) ? profileImageFile : undefined,
           },
         })
       ).unwrap();
@@ -303,6 +371,56 @@ const EditUser = () => {
                       <option value="inactive">inactive</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="user-profile-image">
+                    Profile photo
+                  </label>
+                  {existingProfileImageUrl && !profileImagePreview && (
+                    <div className="mb-2">
+                      <small className="text-muted d-block mb-1">Current photo:</small>
+                      <img
+                        src={existingProfileImageUrl}
+                        alt="Current profile"
+                        className="rounded-circle border d-block"
+                        style={{ width: '96px', height: '96px', objectFit: 'cover' }}
+                      />
+                    </div>
+                  )}
+                  <input
+                    ref={profileImageInputRef}
+                    id="user-profile-image"
+                    type="file"
+                    className={`form-control ${errors.profile_image ? 'is-invalid' : ''}`}
+                    accept="image/*"
+                    onChange={handleProfileImageChange}
+                    disabled={isSubmitting}
+                  />
+                  <small className="text-muted d-block">
+                    Optional. Uploaded as field <code className="text-xs">profile_image</code>.
+                  </small>
+                  {errors.profile_image && (
+                    <div className="invalid-feedback d-block">{errors.profile_image}</div>
+                  )}
+                  {profileImagePreview && (
+                    <div className="mt-3 d-flex align-items-start gap-2">
+                      <img
+                        src={profileImagePreview}
+                        alt="New profile preview"
+                        className="rounded-circle border"
+                        style={{ width: '96px', height: '96px', objectFit: 'cover' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={clearProfileImage}
+                        disabled={isSubmitting}
+                      >
+                        Remove new photo
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-3">

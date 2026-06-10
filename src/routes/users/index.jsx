@@ -12,6 +12,7 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
 
 const userOpeningBalance = (user) =>
@@ -22,6 +23,18 @@ const userPhoneDisplay = (user) => {
   const phone = user.phone ?? user.mobile ?? user.phoneNumber ?? '';
   const trimmed = String(phone).trim();
   return trimmed || '—';
+};
+
+const userProfileImageUrl = (user) => {
+  if (!user || typeof user !== 'object') return '';
+  const raw =
+    user.profile_image ??
+    user.profileImage ??
+    user.avatar ??
+    user.image ??
+    user.photo ??
+    '';
+  return resolveCategoryMediaUrl(raw);
 };
 
 const Users = () => {
@@ -197,6 +210,9 @@ const Users = () => {
                         <th className="text-center" style={{ width: '56px' }}>
                           #
                         </th>
+                        <th className="text-center" style={{ width: '72px' }}>
+                          profile_image
+                        </th>
                         {sortableTh('name', 'Name')}
                         {sortableTh('email', 'Email')}
                         <th>Phone</th>
@@ -214,7 +230,7 @@ const Users = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="text-center py-5 text-muted">
+                          <td colSpan={12} className="text-center py-5 text-muted">
                             No users found
                           </td>
                         </tr>
@@ -226,9 +242,32 @@ const Users = () => {
                           const statusVal = item.status || '—';
                           const isActive = String(statusVal).toLowerCase() === 'active';
                           const openingBalance = userOpeningBalance(item);
+                          const profileUrl = userProfileImageUrl(item);
                           return (
                             <tr key={key}>
                               <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td className="text-center">
+                                {profileUrl ? (
+                                  <img
+                                    src={profileUrl}
+                                    alt={item.name ? `${item.name} profile` : 'Profile'}
+                                    className="rounded-circle border"
+                                    style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      objectFit: 'cover',
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    className="d-inline-flex align-items-center justify-content-center rounded-circle border bg-light text-muted text-xs"
+                                    style={{ width: '40px', height: '40px' }}
+                                    title="No photo"
+                                  >
+                                    —
+                                  </span>
+                                )}
+                              </td>
                               <td>
                                 <span className="font-weight-bold text-dark text-sm">
                                   {item.name || '—'}

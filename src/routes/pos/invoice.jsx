@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import {
   fetchOrderForInvoiceRequest,
@@ -13,6 +14,13 @@ import {
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import {
+  extractPrinterSettingsFromCompanyBody,
+  mergePrinterSettings,
+  pickCompanyLogoUrl,
+} from '../../features/company/companyAPI.js';
+import { selectCompany } from '../../features/user/userSlice.js';
+import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 
@@ -283,6 +291,24 @@ const mapOrderToInvoiceView = (order) => {
 const PosInvoice = () => {
   const { invoiceId: invoiceIdParam } = useParams();
   const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
+  const authCompany = useSelector(selectCompany);
+
+  const printerSettings = useMemo(() => {
+    const parsed = extractPrinterSettingsFromCompanyBody({ data: authCompany });
+    return mergePrinterSettings(parsed);
+  }, [authCompany]);
+
+  const companyBrand = useMemo(() => {
+    const name =
+      authCompany?.company_name || authCompany?.name || shopName;
+    return {
+      name: String(name || shopName).trim() || shopName,
+      phone: String(authCompany?.company_phone || authCompany?.phone || '').trim(),
+      email: String(authCompany?.company_email || authCompany?.email || '').trim(),
+      address: String(authCompany?.company_address || authCompany?.address || '').trim(),
+      logoUrl: pickCompanyLogoUrl(authCompany),
+    };
+  }, [authCompany]);
 
   const [view, setView] = useState(() => (invoiceId ? null : { ...DEMO_INVOICE, shopName }));
   const [fetchStatus, setFetchStatus] = useState(() => (invoiceId ? 'loading' : 'succeeded'));
@@ -1058,31 +1084,55 @@ const PosInvoice = () => {
         <div className="row align-items-start mb-4 pb-3 border-bottom">
           <div className="col-md-6 mb-3 mb-md-0">
             <div className="d-flex align-items-center gap-3">
-              <div
-                className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
-                style={{ width: 72, height: 72 }}
-              >
-                <span className="text-muted small text-center px-1">LOGO</span>
-              </div>
+              {printerSettings.show_logo ? (
+                companyBrand.logoUrl ? (
+                  <img
+                    src={companyBrand.logoUrl}
+                    alt={`${companyBrand.name} logo`}
+                    className="rounded border bg-white flex-shrink-0"
+                    style={{ width: 72, height: 72, objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div
+                    className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
+                    style={{ width: 72, height: 72 }}
+                  >
+                    <span className="text-muted small text-center px-1">LOGO</span>
+                  </div>
+                )
+              ) : null}
               <div>
-                <div
-                  className="fw-bold text-uppercase text-secondary"
-                  style={{ fontSize: '0.75rem' }}
-                >
-                  {data.shopName}
-                </div>
-                <div className="h5 mb-0 fw-semibold">{data.shopName}</div>
+                {printerSettings.show_company_name ? (
+                  <>
+                    <div
+                      className="fw-bold text-uppercase text-secondary"
+                      style={{ fontSize: '0.75rem' }}
+                    >
+                      {companyBrand.name}
+                    </div>
+                    <div className="h5 mb-0 fw-semibold">{companyBrand.name}</div>
+                  </>
+                ) : null}
+                {printerSettings.show_phone && companyBrand.phone ? (
+                  <div className="small text-secondary mt-1">{companyBrand.phone}</div>
+                ) : null}
+                {printerSettings.show_email && companyBrand.email ? (
+                  <div className="small text-secondary">{companyBrand.email}</div>
+                ) : null}
+                {printerSettings.show_address && companyBrand.address ? (
+                  <div className="small text-secondary">{companyBrand.address}</div>
+                ) : null}
               </div>
             </div>
           </div>
           <div className="col-md-6 text-md-end">
             <div className="pos-inv-title mb-2">INVOICE</div>
-            <div className="mb-1">
-              <span className="text-muted">POS# </span>
-              <span className="fw-bold">{data.invoiceNo}</span>
-            </div>
-            <div className="small text-muted mb-2">Reference: {data.reference || '—'}</div>
-            <div className="pos-inv-gross">Gross Amount: {fmt(grossDisplay)}</div>
+            {printerSettings.show_invoice_no ? (
+              <div className="mb-1">
+                <span className="text-muted">POS# </span>
+                <span className="fw-bold">{data.invoiceNo}</span>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1120,24 +1170,34 @@ const PosInvoice = () => {
               </div>
             ) : null}
             <div className="pos-inv-client-name mb-1">{billToDisplay.name}</div>
-            <div className="small text-secondary">{billToDisplay.phone}</div>
-            <div className="small text-secondary">{billToDisplay.email}</div>
+            {printerSettings.show_customer_phone && billToDisplay.phone ? (
+              <div className="small text-secondary">{billToDisplay.phone}</div>
+            ) : null}
+            {printerSettings.show_customer_email && billToDisplay.email ? (
+              <div className="small text-secondary">{billToDisplay.email}</div>
+            ) : null}
           </div>
           <div className="col-md-6 text-md-end">
-            <div className="small mb-2">
-              <span className="text-muted me-2">Invoice Date:</span>
-              <span className="fw-semibold">{data.invoiceDate}</span>
-            </div>
-            <div className="small mb-2">
-              <span className="text-muted me-2">Due Date:</span>
-              <span className="fw-semibold">{data.dueDate}</span>
-            </div>
+            {printerSettings.show_invoice_date ? (
+              <div className="small mb-2">
+                <span className="text-muted me-2">Invoice Date:</span>
+                <span className="fw-semibold">{data.invoiceDate}</span>
+              </div>
+            ) : null}
             <div className="small">
               <span className="text-muted me-2">Terms:</span>
               <span className="fw-semibold">{data.terms}</span>
             </div>
           </div>
         </div>
+
+        {printerSettings.show_gross_amount ? (
+          <div className="row mb-3">
+            <div className="col-12 text-md-end">
+              <div className="pos-inv-gross">Gross Amount: {fmt(grossDisplay)}</div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Line items */}
         <div className="table-responsive mb-4">
@@ -1348,10 +1408,12 @@ const PosInvoice = () => {
                 ) : null}
               </div>
             ) : null}
-            <div className="small mb-3">
-              <span className="text-muted">Payment Method: </span>
-              <span className="pos-inv-underline fw-semibold">{paymentMethodDisplay}</span>
-            </div>
+            {printerSettings.show_payment_method ? (
+              <div className="small mb-3">
+                <span className="text-muted">Payment Method: </span>
+                <span className="pos-inv-underline fw-semibold">{paymentMethodDisplay}</span>
+              </div>
+            ) : null}
             <label className="form-label small text-muted mb-1">Note</label>
             <textarea
               className="form-control form-control-sm"
@@ -1372,60 +1434,88 @@ const PosInvoice = () => {
                 <span className="text-muted">Tax</span>
                 <span>{fmt(summaryDisplay.tax)}</span>
               </div>
-              <div className="pos-inv-summary-row align-items-center">
-                <span className="text-muted">Discount</span>
-                {canUpdateInvoice ? (
-                  <>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm text-end pos-inv-no-print"
-                      style={{ maxWidth: 140 }}
-                      inputMode="decimal"
-                      value={invoiceDiscountInput}
-                      onChange={(e) => setInvoiceDiscountInput(e.target.value)}
-                      aria-label="Discount amount"
-                    />
-                    <span className="d-none d-print-inline-block fw-semibold">
-                      {fmt(summaryDisplay.discount)}
-                    </span>
-                  </>
-                ) : (
-                  <span>{fmt(summaryDisplay.discount)}</span>
-                )}
-              </div>
-              <div className="pos-inv-summary-row align-items-center">
-                <span className="text-muted">Shipping</span>
-                {canUpdateInvoice ? (
-                  <>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm text-end pos-inv-no-print"
-                      style={{ maxWidth: 140 }}
-                      inputMode="decimal"
-                      value={invoiceShippingInput}
-                      onChange={(e) => setInvoiceShippingInput(e.target.value)}
-                      aria-label="Shipping amount"
-                    />
-                    <span className="d-none d-print-inline-block fw-semibold">
-                      {fmt(summaryDisplay.shipping)}
-                    </span>
-                  </>
-                ) : (
-                  <span>{fmt(summaryDisplay.shipping)}</span>
-                )}
-              </div>
+              {printerSettings.show_discount || canUpdateInvoice ? (
+                <div
+                  className={`pos-inv-summary-row align-items-center ${!printerSettings.show_discount ? 'pos-inv-no-print' : ''}`}
+                >
+                  <span className="text-muted">Discount</span>
+                  {canUpdateInvoice ? (
+                    <>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm text-end pos-inv-no-print"
+                        style={{ maxWidth: 140 }}
+                        inputMode="decimal"
+                        value={invoiceDiscountInput}
+                        onChange={(e) => setInvoiceDiscountInput(e.target.value)}
+                        aria-label="Discount amount"
+                      />
+                      <span className="d-none d-print-inline-block fw-semibold">
+                        {fmt(summaryDisplay.discount)}
+                      </span>
+                    </>
+                  ) : (
+                    <span>{fmt(summaryDisplay.discount)}</span>
+                  )}
+                </div>
+              ) : null}
+              {printerSettings.show_shipping || canUpdateInvoice ? (
+                <div
+                  className={`pos-inv-summary-row align-items-center ${!printerSettings.show_shipping ? 'pos-inv-no-print' : ''}`}
+                >
+                  <span className="text-muted">Shipping</span>
+                  {canUpdateInvoice ? (
+                    <>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm text-end pos-inv-no-print"
+                        style={{ maxWidth: 140 }}
+                        inputMode="decimal"
+                        value={invoiceShippingInput}
+                        onChange={(e) => setInvoiceShippingInput(e.target.value)}
+                        aria-label="Shipping amount"
+                      />
+                      <span className="d-none d-print-inline-block fw-semibold">
+                        {fmt(summaryDisplay.shipping)}
+                      </span>
+                    </>
+                  ) : (
+                    <span>{fmt(summaryDisplay.shipping)}</span>
+                  )}
+                </div>
+              ) : null}
               <div className="pos-inv-summary-row pos-inv-summary-total">
                 <span>Total</span>
                 <span>{fmt(summaryDisplay.total)}</span>
               </div>
-              <div className="pos-inv-summary-row pos-inv-payment-made">
-                <span>Payment Made</span>
-                <span>(-) {fmt(summaryDisplay.paymentMade)}</span>
-              </div>
-              <div className="pos-inv-summary-row fw-bold">
-                <span>Balance Due</span>
-                <span>{fmt(summaryDisplay.balanceDue)}</span>
-              </div>
+              {printerSettings.show_payment_made ? (
+                <div className="pos-inv-summary-row pos-inv-payment-made">
+                  <span>Payment Made</span>
+                  <span>(-) {fmt(summaryDisplay.paymentMade)}</span>
+                </div>
+              ) : null}
+              {printerSettings.show_balance_due ? (
+                <div className="pos-inv-summary-row fw-bold">
+                  <span>Balance Due</span>
+                  <span>{fmt(summaryDisplay.balanceDue)}</span>
+                </div>
+              ) : null}
+              {printerSettings.show_change_return && sourceOrder ? (
+                <>
+                  {sourceOrder.amount_received != null && sourceOrder.amount_received !== '' ? (
+                    <div className="pos-inv-summary-row">
+                      <span className="text-muted">Amount received</span>
+                      <span>{fmt(sourceOrder.amount_received)}</span>
+                    </div>
+                  ) : null}
+                  {sourceOrder.change_given != null && sourceOrder.change_given !== '' ? (
+                    <div className="pos-inv-summary-row">
+                      <span className="text-muted">Change return</span>
+                      <span>{fmt(sourceOrder.change_given)}</span>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </div>
             {/* <div className="mt-4 text-md-end">
               <div className="small text-muted mb-1">Authorized Person</div>
@@ -1440,6 +1530,12 @@ const PosInvoice = () => {
 
         {/* Footer */}
         <div className="border-top pt-4">
+          {printerSettings.show_qrcode ? (
+            <div className="mb-4 d-flex flex-column align-items-center text-center">
+              <InvoiceQrCode value={data.publicUrl || data.invoiceNo} size={96} />
+              <small className="text-muted mt-2">Scan invoice QR code</small>
+            </div>
+          ) : null}
           <div className="fw-semibold mb-2">Terms &amp; Condition</div>
           <ol className="small text-secondary ps-3 mb-4">
             {data.termsBody.map((t, i) => (

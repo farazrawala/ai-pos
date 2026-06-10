@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/apiConfig.js';
+import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
@@ -30,6 +30,61 @@ const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
 const TOTAL_CUSTOMERS_PATH = 'user/total-customers';
 const TOTAL_USERS_PATH = 'user/total-users';
+
+export const USER_PROFILE_IMAGE_FIELD = 'profile_image';
+
+/** True for values from `<input type="file">`. */
+export function isUserUploadFilePart(value) {
+  if (value == null || typeof value !== 'object') return false;
+  if (typeof File !== 'undefined' && value instanceof File) return true;
+  if (typeof Blob === 'undefined' || !(value instanceof Blob)) return false;
+  if (typeof value.name === 'string') return true;
+  return typeof value.lastModified === 'number';
+}
+
+function appendUserFieldsToFormData(formData, data = {}) {
+  const { profile_image: _file, permissions, role, ...rest } = data;
+
+  Object.entries(rest).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (value === null) {
+      formData.append(key, '');
+      return;
+    }
+    formData.append(key, typeof value === 'string' ? value : String(value));
+  });
+
+  if (Array.isArray(role)) {
+    role.forEach((r, index) => {
+      formData.append(`role[${index}]`, String(r));
+    });
+  }
+
+  if (permissions != null) {
+    formData.append('permissions', JSON.stringify(permissions));
+  }
+}
+
+function buildUserUpdateFields(payload = {}) {
+  const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
+  const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
+  const fields = {
+    name: payload.name != null ? String(payload.name) : undefined,
+    email: payload.email != null ? String(payload.email) : undefined,
+    status: payload.status != null ? String(payload.status) : undefined,
+    role: roleList.map((r) => String(r)),
+    permissions,
+    initial_balance:
+      payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
+  };
+  if (payload.password != null && String(payload.password).trim()) {
+    fields.password = String(payload.password);
+  }
+  if (payload.phone != null && String(payload.phone).trim() !== '') {
+    fields.phone = String(payload.phone).trim();
+  }
+  return fields;
+}
 
 /** Must match user add/edit forms (`PERMISSION_MODULE_KEYS` / `PERMISSION_ACTIONS`). */
 
@@ -256,6 +311,86 @@ export async function fetchUserByIdRequest(userId) {
   return user;
 }
 
+function buildProfileUpdateFields(payload = {}) {
+  const fields = {};
+  if (payload.name != null) fields.name = String(payload.name).trim();
+  if (payload.email != null) fields.email = String(payload.email).trim();
+  if (payload.phone != null && String(payload.phone).trim() !== '') {
+    fields.phone = String(payload.phone).trim();
+  }
+  if (payload.password != null && String(payload.password).trim()) {
+    fields.password = String(payload.password);
+  }
+  return fields;
+}
+
+function appendProfileFieldsToFormData(formData, data = {}) {
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (value === null) {
+      formData.append(key, '');
+      return;
+    }
+    formData.append(key, typeof value === 'string' ? value : String(value));
+  });
+}
+
+export function pickUserProfileImageUrl(user) {
+  if (!user || typeof user !== 'object') return '';
+  const raw =
+    user.profile_image ??
+    user.profileImage ??
+    user.avatar ??
+    user.image ??
+    user.photo ??
+    '';
+  return resolveCategoryMediaUrl(raw);
+}
+
+/** PATCH own profile — name, email, phone, password, profile_image only. */
+export async function updateProfileRequest(userId, payload = {}) {
+  const token = getAuthToken();
+  const { profile_image, ...rest } = payload;
+  const fields = buildProfileUpdateFields(rest);
+  const url = `${BASE_URL}${USER_UPDATE_PATH}/${userId}`;
+  const useMultipart = isUserUploadFilePart(profile_image);
+
+  const parseResponse = async (response) => {
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.message || `HTTP ${response.status}`);
+    }
+    const result = await response.json().catch(() => ({}));
+    if (result && result.success === false) {
+      throw new Error(result.message || result.error || 'Failed to update profile');
+    }
+    return normalizeSingleUserPayload(result) || result;
+  };
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendProfileFieldsToFormData(formData, fields);
+    const fileName = profile_image.name || 'upload';
+    formData.append(USER_PROFILE_IMAGE_FIELD, profile_image, fileName);
+
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(url, { method: 'PATCH', headers, body: formData });
+    return parseResponse(response);
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(fields),
+  });
+  return parseResponse(response);
+}
+
 export async function createUserRequest(payload = {}) {
   const token = getAuthToken();
   const headers = { 'Content-Type': 'application/json' };
@@ -297,33 +432,44 @@ export async function createUserRequest(payload = {}) {
 
 export async function updateUserRequest(userId, payload = {}) {
   const token = getAuthToken();
+  const { profile_image, ...rest } = payload;
+  const fields = buildUserUpdateFields(rest);
+  const url = `${BASE_URL}${USER_UPDATE_PATH}/${userId}`;
+  const useMultipart = isUserUploadFilePart(profile_image);
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendUserFieldsToFormData(formData, fields);
+    const fileName = profile_image.name || 'upload';
+    formData.append(USER_PROFILE_IMAGE_FIELD, profile_image, fileName);
+
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(url, { method: 'PATCH', headers, body: formData });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const message = errBody.message || `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+
+    const result = await response.json().catch(() => ({}));
+    if (result && result.success === false) {
+      throw new Error(result.message || result.error || 'Failed to update user');
+    }
+    return normalizeSingleUserPayload(result) || result;
+  }
+
   const headers = { 'Content-Type': 'application/json' };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
-  const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
-  const body = {
-    name: payload.name != null ? String(payload.name) : undefined,
-    email: payload.email != null ? String(payload.email) : undefined,
-    status: payload.status != null ? String(payload.status) : undefined,
-    role: roleList.map((r) => String(r)),
-    permissions,
-    initial_balance:
-      payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
-  };
-  if (payload.password != null && String(payload.password).trim()) {
-    body.password = String(payload.password);
-  }
-  if (payload.phone != null && String(payload.phone).trim() !== '') {
-    body.phone = String(payload.phone).trim();
-  }
 
-  const url = `${BASE_URL}${USER_UPDATE_PATH}/${userId}`;
   const response = await fetch(url, {
     method: 'PATCH',
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify(fields),
   });
 
   if (!response.ok) {

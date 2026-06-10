@@ -597,7 +597,8 @@ body {
   user-select: none;
 }
 
-.form-switch input {
+/* Hide native checkbox only for custom switch-slider (e.g. sign-in remember me). */
+.form-switch:not(.form-check) > input {
   display: none;
 }
 

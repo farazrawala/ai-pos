@@ -1,4 +1,5 @@
-import { API_BASE_URL } from '../../config/apiConfig.js';
+import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { isUserUploadFilePart } from '../users/usersAPI.js';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -361,16 +362,71 @@ export async function fetchCompanyById(companyId) {
       `Request failed (${status})`;
     throw new Error(msg);
   }
+  if (data && data.success === false) {
+    const msg =
+      (typeof data.message === 'string' && data.message) ||
+      (typeof data.error === 'string' && data.error) ||
+      'Failed to load company';
+    throw new Error(msg);
+  }
   return data;
+}
+
+/** Company document from GET/PATCH `{ success, data: { ... } }` or a raw company object. */
+export function getCompanyFromApiBody(body) {
+  return extractCompanyRecord(body);
 }
 
 /**
  * PATCH company update with FormData: `barcode_settings` = JSON.stringify(settings).
  */
 export async function patchCompanyBarcodeSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    barcode_settings: JSON.stringify(settingsObject),
+  });
+}
+
+export const COMPANY_LOGO_FIELD = 'company_logo';
+
+export function pickCompanyLogoUrl(company) {
+  if (!company || typeof company !== 'object') return '';
+  const raw =
+    company.company_logo ??
+    company.companyLogo ??
+    company.logo ??
+    company.logo_image ??
+    '';
+  return resolveCategoryMediaUrl(raw);
+}
+
+function normalizeSingleCompanyPayload(body) {
+  const record = extractCompanyRecord(body);
+  if (!record || typeof record !== 'object') return null;
+  if (record.company_name != null || record.name != null || record._id != null) {
+    return record;
+  }
+  return null;
+}
+
+function appendCompanyFieldsToFormData(formData, data = {}) {
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (value === null) {
+      formData.append(key, '');
+      return;
+    }
+    formData.append(key, typeof value === 'string' ? value : String(value));
+  });
+}
+
+async function patchCompanyFormFields(companyId, fields = {}, fileField = null) {
   const token = getAuthToken();
   const fd = new FormData();
-  fd.append('barcode_settings', JSON.stringify(settingsObject));
+  appendCompanyFieldsToFormData(fd, fields);
+  if (fileField?.file && isUserUploadFilePart(fileField.file)) {
+    const fileName = fileField.file.name || 'upload';
+    fd.append(fileField.name, fileField.file, fileName);
+  }
 
   const url = `${API_BASE_URL}/company/update/${encodeURIComponent(companyId)}`;
   const res = await fetch(url, {
@@ -388,5 +444,189 @@ export async function patchCompanyBarcodeSettings(companyId, settingsObject) {
       `Request failed (${status})`;
     throw new Error(msg);
   }
-  return data;
+  if (data && data.success === false) {
+    const msg =
+      (typeof data.message === 'string' && data.message) ||
+      (typeof data.error === 'string' && data.error) ||
+      'Failed to update company';
+    throw new Error(msg);
+  }
+  return normalizeSingleCompanyPayload(data) || data;
+}
+
+/** PATCH company profile fields (name, contact, address, logo). */
+export async function updateCompanyDetailsRequest(companyId, payload = {}) {
+  const { company_logo, ...rest } = payload;
+  const fields = {};
+  if (rest.company_name !== undefined) fields.company_name = String(rest.company_name).trim();
+  if (rest.company_phone !== undefined) fields.company_phone = String(rest.company_phone).trim();
+  if (rest.company_email !== undefined) fields.company_email = String(rest.company_email).trim();
+  if (rest.company_address !== undefined) fields.company_address = String(rest.company_address).trim();
+
+  const useMultipart = isUserUploadFilePart(company_logo);
+  if (useMultipart) {
+    return patchCompanyFormFields(companyId, fields, {
+      name: COMPANY_LOGO_FIELD,
+      file: company_logo,
+    });
+  }
+  return patchCompanyFormFields(companyId, fields);
+}
+
+/** Printer toggle metadata keyed by `show_*` field name. */
+const PRINTER_SETTING_META = {
+  show_logo: {
+    label: 'Show logo on invoice',
+    hint: 'Uses company_logo image from company details',
+    defaultValue: true,
+  },
+  show_company_name: { label: 'Show company name', defaultValue: true },
+  show_phone: { label: 'Show company phone number', defaultValue: true },
+  show_email: { label: 'Show company email', defaultValue: true },
+  show_address: { label: 'Show company address', defaultValue: true },
+  show_invoice_no: { label: 'Show invoice number', defaultValue: true },
+  show_qrcode: {
+    label: 'Show QR code',
+    hint: 'Encodes the invoice public URL',
+    defaultValue: false,
+  },
+  show_invoice_date: { label: 'Show invoice date', defaultValue: true },
+  show_change_return: { label: 'Show change / return', defaultValue: true },
+  show_payment_method: { label: 'Show payment method', defaultValue: true },
+  show_customer_phone: { label: 'Show customer phone', defaultValue: true },
+  show_customer_email: { label: 'Show customer email', defaultValue: true },
+  show_gross_amount: { label: 'Show gross amount', defaultValue: true },
+  show_discount: { label: 'Show discount', defaultValue: true },
+  show_shipping: { label: 'Show shipping', defaultValue: true },
+  show_payment_made: { label: 'Show payment made', defaultValue: true },
+  show_balance_due: { label: 'Show balance due', defaultValue: true },
+};
+
+/** Grouped by invoice layout (top → bottom). */
+export const PRINTER_SETTING_SECTIONS = [
+  {
+    title: 'Company header',
+    keys: ['show_logo', 'show_company_name', 'show_phone', 'show_email', 'show_address'],
+  },
+  {
+    title: 'Invoice header',
+    keys: ['show_invoice_no'],
+  },
+  {
+    title: 'Invoice details',
+    keys: [
+      'show_invoice_date',
+      'show_change_return',
+      'show_payment_method',
+      'show_customer_phone',
+      'show_customer_email',
+      'show_gross_amount',
+    ],
+  },
+  {
+    title: 'Summary',
+    keys: ['show_discount', 'show_shipping', 'show_payment_made', 'show_balance_due'],
+  },
+  {
+    title: 'Bottom section',
+    keys: ['show_qrcode'],
+  },
+];
+
+/** Flat list in invoice layout order (derived from sections). */
+export const PRINTER_SETTING_DEFS = PRINTER_SETTING_SECTIONS.flatMap(({ keys }) =>
+  keys.map((key) => ({ key, ...PRINTER_SETTING_META[key] }))
+);
+
+/** @deprecated use PRINTER_SETTING_DEFS */
+export const INVOICE_PRINT_SETTING_DEFS = PRINTER_SETTING_DEFS;
+
+export function defaultPrinterSettings() {
+  const out = {};
+  PRINTER_SETTING_DEFS.forEach(({ key, defaultValue }) => {
+    out[key] = defaultValue;
+  });
+  return out;
+}
+
+/** @deprecated use defaultPrinterSettings */
+export function defaultInvoicePrintSettings() {
+  return defaultPrinterSettings();
+}
+
+export function parsePrinterSettings(raw) {
+  return parseBarcodeSettings(raw);
+}
+
+/** @deprecated use parsePrinterSettings */
+export function parseInvoicePrintSettings(raw) {
+  return parsePrinterSettings(raw);
+}
+
+export function extractPrinterSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  const raw =
+    company.printer_settings ??
+    company.printerSettings ??
+    company.invoice_settings ??
+    company.invoiceSettings;
+  return parsePrinterSettings(raw);
+}
+
+/** @deprecated use extractPrinterSettingsFromCompanyBody */
+export function extractInvoicePrintSettingsFromCompanyBody(body) {
+  return extractPrinterSettingsFromCompanyBody(body);
+}
+
+export function normalizeIncomingPrinterSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultPrinterSettings();
+  const out = { ...defaults };
+  PRINTER_SETTING_DEFS.forEach(({ key }) => {
+    const snake = key;
+    const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    if (parsed[snake] !== undefined) out[key] = Boolean(parsed[snake]);
+    else if (parsed[camel] !== undefined) out[key] = Boolean(parsed[camel]);
+  });
+  return out;
+}
+
+/** @deprecated use normalizeIncomingPrinterSettings */
+export function normalizeIncomingInvoicePrintSettings(parsed) {
+  return normalizeIncomingPrinterSettings(parsed);
+}
+
+export function mergePrinterSettings(parsed) {
+  return normalizeIncomingPrinterSettings(parsed) || defaultPrinterSettings();
+}
+
+/** @deprecated use mergePrinterSettings */
+export function mergeInvoicePrintSettings(parsed) {
+  return mergePrinterSettings(parsed);
+}
+
+/** Full JSON object saved to company `printer_settings`. */
+export function buildPrinterSettingsPayload(values) {
+  const out = {};
+  PRINTER_SETTING_DEFS.forEach(({ key }) => {
+    out[key] = Boolean(values[key]);
+  });
+  return out;
+}
+
+/** @deprecated use buildPrinterSettingsPayload */
+export function buildInvoicePrintSettingsPayload(values) {
+  return buildPrinterSettingsPayload(values);
+}
+
+export async function patchCompanyPrinterSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    printer_settings: JSON.stringify(settingsObject),
+  });
+}
+
+/** @deprecated use patchCompanyPrinterSettings */
+export async function patchCompanyInvoicePrintSettings(companyId, settingsObject) {
+  return patchCompanyPrinterSettings(companyId, settingsObject);
 }
