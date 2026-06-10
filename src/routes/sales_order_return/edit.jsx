@@ -1010,25 +1010,6 @@ const SalesReturnEdit = () => {
             <i className="fas fa-print me-1" aria-hidden="true" />
             Normal Print
           </button>
-          <button
-            type="submit"
-            form="po-edit-form"
-            className="btn btn-primary"
-            disabled={submitDisabled}
-            title={submitButtonTitle}
-          >
-            {isSubmitting ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <i className="fas fa-save me-1" aria-hidden="true" />
-                Save changes
-              </>
-            )}
-          </button>
         </div>
       </div>
 
@@ -1523,19 +1504,6 @@ const SalesReturnEdit = () => {
               onClick={() => navigate('/sales-returns')}
             >
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={submitDisabled} title={submitButtonTitle}>
-              {isSubmitting ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-save me-1" aria-hidden="true" />
-                  Save changes
-                </>
-              )}
             </button>
           </div>
         </div>

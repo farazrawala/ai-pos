@@ -96,6 +96,30 @@ export const INVENTORY_TEST_CASES = [
   { n: 32, type: 'delete_purchase', label: 'Delete #18 Purchase 75 @ 300', ref: 18, refQty: 75, expected: 155 },
 ];
 
+/** Bulk block: same customer user, simple sales (no get/edit). Count in 25–30 range. */
+export const BULK_USER_TXN_COUNT = 28;
+
+/** @returns {typeof INVENTORY_TEST_CASES} */
+function buildBulkUserSaleCases() {
+  const lastExpected =
+    INVENTORY_TEST_CASES[INVENTORY_TEST_CASES.length - 1]?.expected ?? 0;
+  let running = lastExpected;
+  const startN = INVENTORY_TEST_CASES.length + 1;
+
+  return Array.from({ length: BULK_USER_TXN_COUNT }, (_, i) => {
+    const qty = 1;
+    running -= qty;
+    return {
+      n: startN + i,
+      type: 'sale',
+      label: `Bulk sale ${i + 1}/${BULK_USER_TXN_COUNT} (same customer)`,
+      qty,
+      expected: running,
+      skipEdit: true,
+    };
+  });
+}
+
 function editedQty(tc) {
   const q = Number(tc.qty) || 0;
   return q > 1 ? q - 1 : q;
@@ -192,9 +216,6 @@ function salesReturnBody(tc, qty = tc.qty) {
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
 function buildPurchaseReturnSteps(tc) {
-  const nextQty = editedQty(tc);
-  const editDelta = Number(tc.qty) - nextQty;
-
   return [
     {
       caseNo: tc.n,
@@ -214,16 +235,6 @@ function buildPurchaseReturnSteps(tc) {
       method: 'GET',
       url: `{{url}}api/purchase_return/get-purchase-return-by-return-no/{{txn_${tc.n}_id}}?populate=vendor_id`,
       body: {},
-    },
-    {
-      caseNo: tc.n,
-      name: `${tc.n}b. Edit PR #${tc.n} qty ${tc.qty} → ${nextQty}`,
-      requiresAuth: true,
-      method: 'PATCH',
-      url: `{{url}}api/purchase_order_return/purchase_order_return_update/{{txn_${tc.n}_id}}`,
-      bodyType: 'form',
-      body: purchaseReturnBody(tc, nextQty),
-      qtyLedger: editDelta > 0 ? { type: 'edit_purchase_return', qty: editDelta } : undefined,
       caseFinal: true,
     },
   ];
@@ -231,9 +242,6 @@ function buildPurchaseReturnSteps(tc) {
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
 function buildSalesReturnSteps(tc) {
-  const nextQty = editedQty(tc);
-  const editDelta = Number(tc.qty) - nextQty;
-
   return [
     {
       caseNo: tc.n,
@@ -253,16 +261,6 @@ function buildSalesReturnSteps(tc) {
       method: 'GET',
       url: `{{url}}api/sales_return/get-sales-return-by-return-no/{{txn_${tc.n}_id}}?populate=customer_id`,
       body: {},
-    },
-    {
-      caseNo: tc.n,
-      name: `${tc.n}b. Edit SR #${tc.n} qty ${tc.qty} → ${nextQty}`,
-      requiresAuth: true,
-      method: 'PATCH',
-      url: `{{url}}api/sales_order_return/sales_order_return_update/{{txn_${tc.n}_id}}`,
-      bodyType: 'form',
-      body: salesReturnBody(tc, nextQty),
-      qtyLedger: editDelta > 0 ? { type: 'edit_sales_return', qty: editDelta } : undefined,
       caseFinal: true,
     },
   ];
@@ -309,6 +307,23 @@ function buildPurchaseSteps(tc) {
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
 function buildSaleSteps(tc) {
+  if (tc.skipEdit) {
+    return [
+      {
+        caseNo: tc.n,
+        name: `${tc.n}. ${tc.label}`,
+        requiresAuth: true,
+        method: 'POST',
+        url: '{{url}}api/order/order_save',
+        bodyType: 'form',
+        body: saleBody(tc),
+        qtyLedger: { type: 'sale', qty: tc.qty },
+        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+        caseFinal: true,
+      },
+    ];
+  }
+
   const nextQty = editedQty(tc);
   const editDelta = Number(tc.qty) - nextQty;
 
@@ -442,6 +457,7 @@ function createSetupSteps() {
     {
       name: 'Setup: Create master user + company',
       method: 'POST',
+      refreshSavedVars: true,
       url: '{{url}}api/user/user_company',
       body: {
         name: 'Master user',
@@ -470,6 +486,8 @@ function createSetupSteps() {
         auth_token: AUTH_TOKEN_SAVE_PATHS,
         company_id: [
           'response.data.data.company._id',
+          'response.data.data.company.id',
+          'response.data.data.user.company_id._id',
           'response.data.data.user.company_id',
           'response.data.company._id',
         ],
@@ -477,11 +495,16 @@ function createSetupSteps() {
           'response.data.data.user._id',
           'response.data.data.user.id',
         ],
+        warehouse_1_id: [
+          'response.data.data.warehouse._id',
+          'response.data.data.warehouse.id',
+        ],
       },
     },
     {
       name: 'Setup: Login',
       method: 'POST',
+      refreshSavedVars: true,
       url: '{{url}}api/user/login',
       body: {
         email: '{{login_email}}',
@@ -516,6 +539,22 @@ function createSetupSteps() {
       save: { product_1_id: PRODUCT_ID_SAVE },
     },
     {
+      name: 'Setup: Verify products (list)',
+      method: 'GET',
+      requiresAuth: true,
+      url:
+        '{{url}}api/product/get-all-active-pos?search=Inventory test product&limit=5',
+      body: {},
+      refreshSavedVars: true,
+      save: {
+        product_1_id: [
+          'response.data.data.0._id',
+          'response.data.data.0.id',
+          'response.data.0._id',
+        ],
+      },
+    },
+    {
       name: 'Setup: Create vendor',
       method: 'POST',
       requiresAuth: true,
@@ -543,6 +582,7 @@ function createSetupSteps() {
       },
       save: {
         customer_id: USER_ID_SAVE,
+        bulk_user_id: USER_ID_SAVE,
         customer_email: [
           'response.data.data.user.email',
           'response.data.data.email',
@@ -581,8 +621,20 @@ function createSetupSteps() {
   ];
 }
 
-/** Full workflow: setup + inventory transactions from test_case.rb (+ get/edit for sales & purchases). */
+/** Full workflow: setup + inventory transactions from test_case.rb (+ bulk user sales). */
 export function createInventoryTestCaseSteps() {
-  const txnSteps = INVENTORY_TEST_CASES.flatMap(buildStepsForCase);
+  const bulkCases = buildBulkUserSaleCases();
+  const txnSteps = [
+    ...INVENTORY_TEST_CASES.flatMap(buildStepsForCase),
+    ...bulkCases.flatMap(buildStepsForCase),
+    {
+      name: `Verify: Ledger transactions for bulk user (${BULK_USER_TXN_COUNT}+ sales)`,
+      requiresAuth: true,
+      method: 'GET',
+      url:
+        '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
+      body: {},
+    },
+  ];
   return assignRunningExpected([...createSetupSteps(), ...txnSteps]);
 }

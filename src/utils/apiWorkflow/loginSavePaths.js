@@ -57,6 +57,18 @@ export function buildLoginSaveMap() {
 
 export const LOGIN_SAVE_MAP = buildLoginSaveMap();
 
+/**
+ * Seed variables for the inventory test-case runner.
+ * Only restores auth_token — not company/warehouse/product ids — so a fresh
+ * setup run is not polluted by a previous browser session.
+ */
+export function seedTestCaseWorkflowVars(vars = {}) {
+  const next = { ...vars };
+  const token = resolveWorkflowAuthToken(next);
+  if (token && !next.auth_token) next.auth_token = token;
+  return next;
+}
+
 /** Seed workflow variables from app login cache (localStorage) when not already set. */
 export function seedWorkflowVarsFromLoginCache(vars = {}) {
   const next = { ...vars };

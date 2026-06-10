@@ -1,9 +1,10 @@
 # Manual API runner: http://localhost:5173/test-case
 #
-# Each purchase, sale, purchase return, and sales return also runs two follow-up steps:
-#   a) GET invoice/return
+# Each purchase and sale also runs two follow-up steps:
+#   a) GET invoice/order
 #   b) PATCH edit — qty reduced by 1 (e.g. 40 → 39)
-# Expected qty in the UI is recomputed after those edits.
+# Purchase returns and sales returns: create + GET only (no edit).
+# Expected qty in the UI is recomputed from qty ledger deltas.
 #
 | #  | Transaction                  | Expected Qty |
 | -- | ---------------------------- | -----------: |
@@ -39,3 +40,8 @@
 | 30 | Delete #24 Sale 40           |          240 |
 | 31 | Delete #29 Sales Return      |          230 |
 | 32 | Delete #18 Purchase 75 @ 300 |          155 |
+|
+| Bulk (same customer user) — cases #33–#60, qty 1 each, no edit sub-steps |
+| 33 | Bulk sale 1/28 |          154 |
+| … | … | … |
+| 60 | Bulk sale 28/28 |          127 |
