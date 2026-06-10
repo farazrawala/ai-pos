@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSelector } from 'react-redux';
 import moment from 'moment';
 import {
   fetchUsersListRequest,
@@ -15,7 +16,17 @@ import {
   createPosOrderRequest,
   pickOrderInvoiceNoFromSaveResponse,
 } from '../../features/orders/ordersAPI.js';
+import {
+  extractPrinterSettingsFromCompanyBody,
+  fetchCompanyById,
+  getCompanyFromApiBody,
+  getCompanyIdFromUser,
+  mergeCompanyRecordForSettings,
+  mergePrinterSettings,
+  pickCompanyLogoUrl,
+} from '../../features/company/companyAPI.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
+import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -29,15 +40,42 @@ const shopName =
     ? String(import.meta.env.VITE_SHOP_NAME)
     : 'Store';
 
+function pickOrderFromSaveResult(result) {
+  if (!result || typeof result !== 'object') return null;
+  const data = result.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.order && typeof data.order === 'object') return data.order;
+    if (data._id != null || data.id != null) return data;
+  }
+  if (result.order && typeof result.order === 'object') return result.order;
+  if (result._id != null || result.id != null) return result;
+  return null;
+}
+
+function buildCompanyBrandFromRecord(company) {
+  const name = company?.company_name || company?.name || shopName;
+  return {
+    name: String(name || shopName).trim() || shopName,
+    phone: String(company?.company_phone || company?.phone || '').trim(),
+    email: String(company?.company_email || company?.email || '').trim(),
+    address: String(company?.company_address || company?.address || '').trim(),
+    logoUrl: pickCompanyLogoUrl(company),
+  };
+}
+
 function buildThermalReceiptFromCart({
   cartLines,
   customerName,
+  customerEmail,
+  customerPhone,
   payment,
   cartSubtotal,
   shippingNum,
   extraDiscountNum,
   grandTotal,
   invoiceNo,
+  publicUrl,
+  companyName,
 }) {
   const lines = (cartLines || []).map((line) => {
     const qty = Number(line.quantity) || 0;
@@ -53,13 +91,19 @@ function buildThermalReceiptFromCart({
   const total = Number(grandTotal) || 0;
   const balanceDue = Math.max(0, total - paid);
   return {
-    shopName,
+    shopName: companyName || shopName,
     invoiceNo: invoiceNo || '—',
-    invoiceDate: moment().format('MMM D, YYYY h:mm A'),
+    invoiceDate: moment().format('D MMM YYYY, h:mm a'),
     paymentMethod: payment?.paymentMethod || '—',
     paymentStatus: balanceDue <= 0 ? 'Paid' : 'Partial',
-    billTo: { name: customerName || 'Walk-in Client' },
+    billTo: {
+      name: customerName || 'Walk-in Client',
+      phone: customerPhone || '',
+      email: customerEmail || '',
+    },
     lines,
+    grossAmount: total,
+    publicUrl: publicUrl || '',
     summary: {
       subTotal: Number(cartSubtotal) || 0,
       tax: 0,
@@ -82,6 +126,19 @@ const parsePosUnitPrice = (product) => {
 
 const Pos = () => {
   useRequireModuleAccess('pos');
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
+
+  const printerSettings = useMemo(() => {
+    const parsed = extractPrinterSettingsFromCompanyBody({ data: authCompany });
+    return mergePrinterSettings(parsed);
+  }, [authCompany]);
+
+  const companyBrand = useMemo(
+    () => buildCompanyBrandFromRecord(authCompany),
+    [authCompany]
+  );
+
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
@@ -315,6 +372,8 @@ const Pos = () => {
       return {
         result,
         customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
         cartSnapshot: cartLines.map((line) => ({ ...line })),
       };
     },
