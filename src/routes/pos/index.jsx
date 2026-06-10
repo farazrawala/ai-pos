@@ -420,20 +420,54 @@ const Pos = () => {
 
         const invoiceNo =
           pickOrderInvoiceNoFromSaveResponse(saved.result) || moment().format('YYYYMMDDHHmmss');
+        const savedOrder = pickOrderFromSaveResult(saved.result);
+        const publicUrl = buildPublicInvoiceUrl(pickPublicInvoiceToken(savedOrder));
+
+        let settings = printerSettings;
+        let brand = companyBrand;
+        const companyId =
+          getCompanyIdFromUser(authUser) ||
+          String(authCompany?._id ?? authCompany?.id ?? '').trim();
+        if (companyId) {
+          try {
+            const body = await fetchCompanyById(companyId);
+            const company = getCompanyFromApiBody(body);
+            if (company && typeof company === 'object') {
+              const merged = mergeCompanyRecordForSettings(company, authCompany);
+              settings = mergePrinterSettings(
+                extractPrinterSettingsFromCompanyBody({ data: merged })
+              );
+              brand = buildCompanyBrandFromRecord(merged);
+            }
+          } catch {
+            // print with last known settings
+          }
+        }
+
         const receipt = buildThermalReceiptFromCart({
           cartLines: saved.cartSnapshot,
           customerName: saved.customerName,
+          customerEmail: saved.customerEmail,
+          customerPhone: saved.customerPhone,
           payment,
           cartSubtotal,
           shippingNum,
           extraDiscountNum,
           grandTotal,
           invoiceNo,
+          publicUrl,
+          companyName: brand.name,
         });
 
         const printed = await openThermalReceiptPrint(receipt, {
           documentTitlePrefix: 'Receipt',
-          invoiceNumberPrefix: 'Invoice no.',
+          invoiceNumberPrefix: 'POS#',
+          printerSettings: settings,
+          companyBrand: brand,
+          sourceOrder: {
+            amount_received: payment?.paid ?? 0,
+            change_given: payment?.change ?? 0,
+          },
         });
         if (!printed) {
           toast.error('Allow pop-ups to print the thermal receipt.', { delay: 6000 });
@@ -463,6 +497,10 @@ const Pos = () => {
       shippingNum,
       extraDiscountNum,
       grandTotal,
+      printerSettings,
+      companyBrand,
+      authUser,
+      authCompany,
     ]
   );
 
