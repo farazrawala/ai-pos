@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import moment from 'moment';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
@@ -7,6 +7,7 @@ import LedgerUserProfileCard from '../../components/ledger/user-profile/LedgerUs
 import LedgerDetailSummaryCards from '../../components/ledger/user-profile/LedgerDetailSummaryCards.jsx';
 import LedgerChartsSection from '../../components/ledger/charts/LedgerChartsSection.jsx';
 import LedgerDetailFilters from '../../components/ledger/filters/LedgerDetailFilters.jsx';
+import LedgerTransactionsTable from '../../components/ledger/tables/LedgerTransactionsTable.jsx';
 import LedgerTAccountView from '../../components/ledger/tables/LedgerTAccountView.jsx';
 import LedgerTransactionDrawer from '../../components/ledger/drawers/LedgerTransactionDrawer.jsx';
 import LedgerActivityTimeline from '../../components/ledger/timeline/LedgerActivityTimeline.jsx';
@@ -19,7 +20,7 @@ import { buildMonthlyDebitCreditSeries, buildLedgerTimelineEvents } from '../../
 import { filterDetailTransactions } from '../../components/ledger/ledgerDetailTransactionFilters.js';
 import '../../components/ledger/ledger-module.css';
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 const LEDGER_TX_FETCH_LIMIT = 500;
 const TIMELINE_INITIAL = 10;
 const TIMELINE_STEP = 10;
@@ -36,7 +37,19 @@ const initialDetailFilters = () => ({
 });
 
 function exportTxnCsv(rows) {
-  const headers = ['Date', 'Reference', 'Description', 'Category', 'Type', 'Debit', 'Credit', 'RunningBal', 'Payment', 'CreatedBy', 'Status'];
+  const headers = [
+    'Date',
+    'Reference',
+    'Description',
+    'Category',
+    'Type',
+    'Debit',
+    'Credit',
+    'RunningBal',
+    'Payment',
+    'CreatedBy',
+    'Status',
+  ];
   const lines = [headers.join(',')];
   rows.forEach((r) => {
     lines.push(
@@ -62,6 +75,26 @@ function exportTxnCsv(rows) {
   a.download = `ledger-export-${moment().format('YYYY-MM-DD-HHmm')}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function sortLedgerRows(rows, sortKey, sortDir) {
+  const dir = sortDir === 'desc' ? -1 : 1;
+  const sorted = [...rows];
+  sorted.sort((a, b) => {
+    let av = a[sortKey];
+    let bv = b[sortKey];
+    if (sortKey === 'date') {
+      av = new Date(av).getTime();
+      bv = new Date(bv).getTime();
+    } else if (typeof av === 'string') {
+      av = av.toLowerCase();
+      bv = String(bv ?? '').toLowerCase();
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+  return sorted;
 }
 
 export default function UserLedgerDetailPage() {
@@ -96,6 +129,11 @@ export default function UserLedgerDetailPage() {
   const [draftFilters, setDraftFilters] = useState(initialDetailFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialDetailFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sortKey, setSortKey] = useState('date');
+  const [sortDir, setSortDir] = useState('asc');
+  const [viewMode, setViewMode] = useState('table');
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [timelineLimit, setTimelineLimit] = useState(TIMELINE_INITIAL);
 
@@ -138,6 +176,7 @@ export default function UserLedgerDetailPage() {
 
   useEffect(() => {
     setTimelineLimit(TIMELINE_INITIAL);
+    setExpandedIds(new Set());
   }, [filteredRaw]);
 
   const monthlyDebitCredit = useMemo(
@@ -150,13 +189,15 @@ export default function UserLedgerDetailPage() {
     return computeRunningBalances(chrono, user ? user.openingBalance : 0);
   }, [filteredRaw, user]);
 
-  /** Chronological T-account (matches textbook ledger order). */
-  const displayRows = useMemo(() => [...sortedChrono], [sortedChrono]);
+  const displayRows = useMemo(
+    () => sortLedgerRows(sortedChrono, sortKey, sortDir),
+    [sortedChrono, sortKey, sortDir]
+  );
 
   useEffect(() => {
-    const tp = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
+    const tp = Math.max(1, Math.ceil(displayRows.length / pageSize));
     setPage((p) => Math.min(Math.max(1, p), tp));
-  }, [displayRows.length]);
+  }, [displayRows.length, pageSize]);
 
   const totals = useMemo(() => {
     let debit = 0;
@@ -195,18 +236,6 @@ export default function UserLedgerDetailPage() {
     setTimelineLimit((n) => n + TIMELINE_STEP);
   }, []);
 
-  const handleProfileAction = useCallback((action) => {
-    const map = {
-      add: 'Add entry',
-      receive: 'Receive payment',
-      send: 'Send payment',
-      print: 'Print ledger',
-      pdf: 'Export PDF',
-      share: 'Share ledger',
-    };
-    toast.info(`${map[action] || action} (demo)`, { delay: 3500 });
-  }, []);
-
   const handleFilterChange = useCallback((k, v) => {
     setDraftFilters((p) => ({ ...p, [k]: v }));
   }, []);
@@ -223,29 +252,66 @@ export default function UserLedgerDetailPage() {
     setPage(1);
   }, []);
 
-  const handleQuickRange = useCallback((label) => {
-    let from = '';
-    let to = '';
-    const startOf = (u) => moment().startOf(u);
-    const endOf = (u) => moment().endOf(u);
-    if (label === 'Today') {
-      from = startOf('day').format('YYYY-MM-DD');
-      to = endOf('day').format('YYYY-MM-DD');
-    } else if (label === 'This week') {
-      from = startOf('week').format('YYYY-MM-DD');
-      to = endOf('week').format('YYYY-MM-DD');
-    } else if (label === 'This month') {
-      from = startOf('month').format('YYYY-MM-DD');
-      to = endOf('month').format('YYYY-MM-DD');
-    } else if (label === 'This year') {
-      from = startOf('year').format('YYYY-MM-DD');
-      to = endOf('year').format('YYYY-MM-DD');
-    }
-    const next = { ...draftFilters, dateFrom: from, dateTo: to };
-    setDraftFilters(next);
-    setAppliedFilters(next);
+  const handleQuickRange = useCallback(
+    (label) => {
+      let from = '';
+      let to = '';
+      const startOf = (u) => moment().startOf(u);
+      const endOf = (u) => moment().endOf(u);
+      if (label === 'Today') {
+        from = startOf('day').format('YYYY-MM-DD');
+        to = endOf('day').format('YYYY-MM-DD');
+      } else if (label === 'This week') {
+        from = startOf('week').format('YYYY-MM-DD');
+        to = endOf('week').format('YYYY-MM-DD');
+      } else if (label === 'This month') {
+        from = startOf('month').format('YYYY-MM-DD');
+        to = endOf('month').format('YYYY-MM-DD');
+      } else if (label === 'This year') {
+        from = startOf('year').format('YYYY-MM-DD');
+        to = endOf('year').format('YYYY-MM-DD');
+      }
+      const next = { ...draftFilters, dateFrom: from, dateTo: to };
+      setDraftFilters(next);
+      setAppliedFilters(next);
+      setPage(1);
+    },
+    [draftFilters]
+  );
+
+  const handleSort = useCallback((key, dir) => {
+    setSortKey(key);
+    setSortDir(dir);
     setPage(1);
-  }, [draftFilters]);
+  }, []);
+
+  const handleToggleExpand = useCallback((id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleTxnAction = useCallback((action, row) => {
+    if (action === 'view') {
+      setSelectedTxn(row);
+      return;
+    }
+    const labels = {
+      edit: 'Edit',
+      delete: 'Delete',
+      print: 'Print voucher',
+      receipt: 'Download receipt',
+    };
+    toast.info(`${labels[action] || action} — ${row.referenceNo} (demo)`, { delay: 3000 });
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    exportTxnCsv(sortedChrono);
+    toast.success('CSV exported');
+  }, [sortedChrono]);
 
   const clearSelectedTxn = useCallback(() => setSelectedTxn(null), []);
 
@@ -264,75 +330,53 @@ export default function UserLedgerDetailPage() {
   }
 
   return (
-    <div
-      className="container-fluid py-4 px-0 ledger-module"
-      style={{ width: '100%', maxWidth: '100%' }}
-    >
-      <div className="px-3 px-lg-4">
-        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-          <Link to="/ledger" className="btn btn-sm btn-outline-secondary mb-0">
-            <i className="ni ni-bold-left me-1" />
-            User ledgers
-          </Link>
-          <span className="text-xs text-muted">/{user.fullName}</span>
-        </div>
+    <div className="container-fluid py-4 px-3 px-lg-4 ledger-module ledger-detail-page ledger-detail-sections">
+      <LedgerUserProfileCard
+        user={user}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
-        <LedgerUserProfileCard user={user} onAction={handleProfileAction} />
-
-        <LedgerDetailSummaryCards
-          openingBalance={user.openingBalance}
-          currentBalance={totals.currentBalance}
-          totalDebit={totals.debit}
-          totalCredit={totals.credit}
-          monthlyActivityNet={totals.monthlyActivityNet}
-          pendingAmount={totals.pendingAmount}
-        />
-      </div>
-
-      <section className="ledger-transactions-fullwidth w-200">
-        <LedgerDetailFilters
-          dateFrom={draftFilters.dateFrom}
-          dateTo={draftFilters.dateTo}
-          transactionType={draftFilters.transactionType}
-          reference={draftFilters.reference}
-          paymentMethod={draftFilters.paymentMethod}
-          category={draftFilters.category}
-          createdBy={draftFilters.createdBy}
-          searchNotes={draftFilters.searchNotes}
-          onChange={handleFilterChange}
-          onApply={handleApply}
-          onReset={handleReset}
-          onQuickRange={handleQuickRange}
-          onExportCsv={() => {
-            exportTxnCsv(displayRows);
-            toast.success(`Exported ${displayRows.length} rows`, { delay: 3000 });
-          }}
-        />
-
-        <LedgerTAccountView
-          accountTitle={String(user.fullName || 'Ledger').trim().toUpperCase()}
+      {viewMode === 'table' ? (
+        <LedgerTransactionsTable
           rows={displayRows}
           loading={loading}
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+          expandedIds={expandedIds}
+          onToggleExpand={handleToggleExpand}
+          onRowOpenDrawer={setSelectedTxn}
+          onAction={handleTxnAction}
+        />
+      ) : (
+        <LedgerTAccountView
+          accountTitle={String(user.fullName || 'Ledger').trim()}
+          rows={sortedChrono}
+          loading={loading}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
           totalDebit={totals.debit}
           totalCredit={totals.credit}
           endingBalance={totals.currentBalance}
           onRowClick={setSelectedTxn}
         />
-      </section>
+      )}
 
-      <div className="px-3 px-lg-4">
-        <LedgerChartsSection monthlyDebitCredit={monthlyDebitCredit} />
+      <LedgerChartsSection monthlyDebitCredit={monthlyDebitCredit} />
 
-        <LedgerActivityTimeline
-          events={timelineEvents}
-          hasMore={timelineHasMore}
-          onAddMore={handleTimelineAddMore}
-          totalMatching={filteredRaw.length}
-        />
-      </div>
+      <LedgerActivityTimeline
+        events={timelineEvents}
+        hasMore={timelineHasMore}
+        onAddMore={handleTimelineAddMore}
+        totalMatching={filteredRaw.length}
+      />
 
       {selectedTxn ? (
         <LedgerTransactionDrawer

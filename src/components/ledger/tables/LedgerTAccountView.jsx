@@ -1,3 +1,4 @@
+import TablePagination from '../../TablePagination.jsx';
 import { fmtMoney } from '../ledgerUtils.js';
 
 function SkeletonClassic() {
@@ -35,6 +36,7 @@ export default function LedgerTAccountView({
   page,
   pageSize,
   onPageChange,
+  onPageSizeChange,
   totalDebit,
   totalCredit,
   endingBalance,
@@ -68,11 +70,24 @@ export default function LedgerTAccountView({
   while (debitPadded.length < bodyRows) debitPadded.push(null);
   while (creditPadded.length < bodyRows) creditPadded.push(null);
 
-  const from = rows.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
-  const to = Math.min(pageSafe * pageSize, rows.length);
+  const pagination = {
+    page: pageSafe,
+    limit: pageSize,
+    total: rows.length,
+    totalPages,
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) onPageChange(newPage);
+  };
+
+  const handleLimitChange = (limit) => {
+    if (onPageSizeChange) onPageSizeChange(limit);
+    onPageChange(1);
+  };
 
   return (
-    <div className="card border-0 shadow-sm rounded-3 ledger-transactions-card ledger-t-classic w-100 overflow-hidden">
+    <div className="card shadow-sm ledger-transactions-card ledger-t-classic ledger-t-classic--detail w-100 overflow-hidden">
       <div className="ledger-t-classic-accent" aria-hidden />
       <div className="ledger-t-classic-card-inner">
         <header className="ledger-t-classic-header">
@@ -82,19 +97,14 @@ export default function LedgerTAccountView({
             </div>
             <div className="ledger-t-classic-heading-text">
               <span className="ledger-t-classic-kicker text-uppercase">Ledger transactions</span>
-              <h6 className="ledger-t-classic-title mb-0">{accountTitle}</h6>
+              <h5 className="ledger-t-classic-title mb-0">{accountTitle}</h5>
               <p className="ledger-t-classic-meta mb-0">
                 {loading ? (
                   <span className="text-muted">Loading activity…</span>
                 ) : (
-                  <>
-                    <span className="ledger-t-classic-stat-pill">
-                      {rows.length} line{rows.length !== 1 ? 's' : ''}
-                    </span>
-                    {rows.length > 0 ? (
-                      <span className="ms-2 text-muted">Rows {from}–{to}</span>
-                    ) : null}
-                  </>
+                  <span className="ledger-t-classic-stat-pill">
+                    {rows.length} line{rows.length !== 1 ? 's' : ''}
+                  </span>
                 )}
               </p>
             </div>
@@ -197,35 +207,17 @@ export default function LedgerTAccountView({
           </>
         )}
 
-        {!loading && rows.length > 0 ? (
-          <div className="ledger-t-classic-pager d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span className="text-xs text-muted">
-              Page <span className="text-dark font-weight-600">{pageSafe}</span> of{' '}
-              <span className="text-dark font-weight-600">{totalPages}</span>
-            </span>
-            <div className="d-flex gap-2">
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary mb-0"
-                disabled={pageSafe <= 1}
-                onClick={() => onPageChange(pageSafe - 1)}
-              >
-                <i className="ni ni-bold-left me-1" />
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-primary mb-0"
-                disabled={pageSafe >= totalPages}
-                onClick={() => onPageChange(pageSafe + 1)}
-              >
-                Next
-                <i className="ni ni-bold-right ms-1" />
-              </button>
-            </div>
-          </div>
-        ) : null}
       </div>
+
+      {!loading && rows.length > 0 ? (
+        <TablePagination
+          className="list-table-toolbar--footer ledger-t-classic-pager"
+          selectId="ledger-t-account-page-size"
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
+        />
+      ) : null}
     </div>
   );
 }

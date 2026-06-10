@@ -93,6 +93,264 @@
   border-radius: 0.25rem;
 }
 
+/* Ledger listing — users table */
+.ledger-module .ledger-users-card {
+  border: 0;
+  overflow: hidden;
+}
+
+.ledger-module .ledger-users-table.list-data-table {
+  border-color: #e9ecef;
+  box-shadow: none;
+}
+
+.ledger-module .ledger-users-table .table-ledger {
+  min-width: 1180px;
+}
+
+.ledger-module .ledger-users-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8f9fa;
+  box-shadow: inset 0 -1px 0 #e9ecef;
+}
+
+.ledger-module .ledger-users-table tbody td {
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-module .ledger-users-table tbody tr.ledger-data-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.ledger-module .ledger-users-table tbody tr.ledger-data-row:nth-child(even) td {
+  background-color: #fbfcfe;
+}
+
+.ledger-module .ledger-users-table tbody tr.ledger-data-row:hover td {
+  background-color: rgba(94, 114, 228, 0.07);
+}
+
+.ledger-module .ledger-user-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(52, 71, 103, 0.12);
+}
+
+.ledger-module .ledger-user-name {
+  max-width: 200px;
+  color: #344767;
+}
+
+.ledger-module .ledger-user-contact {
+  max-width: 180px;
+  color: #525f7f;
+}
+
+.ledger-module .ledger-money {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.ledger-module .ledger-date {
+  color: #67748e;
+}
+
+.ledger-module .ledger-status-badge {
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  padding: 0.35rem 0.55rem;
+}
+
+.ledger-module .ledger-activity-dot {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.ledger-module .ledger-users-actions-col {
+  width: 88px;
+}
+
+.ledger-module .ledger-row-action-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border-color: #dee2e6;
+  color: #67748e;
+  background: #fff;
+}
+
+.ledger-module .ledger-row-action-btn:hover,
+.ledger-module .ledger-row-action-btn:focus {
+  border-color: #5e72e4;
+  color: #5e72e4;
+  background: #f8f9fe;
+}
+
+.ledger-module .ledger-users-empty {
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
+  color: #8392ab;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ledger-module .ledger-users-table thead th {
+    background: #1e293b;
+    color: #cbd5e1;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .ledger-module .ledger-users-table tbody tr.ledger-data-row:nth-child(even) td {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+
+  .ledger-module .ledger-users-table tbody tr.ledger-data-row:hover td {
+    background-color: rgba(94, 114, 228, 0.14);
+  }
+
+  .ledger-module .ledger-user-name {
+    color: #e2e8f0;
+  }
+
+  .ledger-module .ledger-user-contact {
+    color: #cbd5e1;
+  }
+
+  .ledger-module .ledger-row-action-btn {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+  }
+}
+
+/* Ledger detail page */
+.ledger-module.ledger-detail-page {
+  max-width: 100%;
+}
+
+.ledger-module.ledger-detail-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.ledger-module.ledger-detail-sections .ledger-profile-card,
+.ledger-module.ledger-detail-sections .ledger-detail-transactions-card,
+.ledger-module.ledger-detail-sections .ledger-t-classic--detail,
+.ledger-module.ledger-detail-sections .ledger-detail-charts,
+.ledger-module.ledger-detail-sections .ledger-activity-timeline {
+  margin-bottom: 0 !important;
+}
+
+.ledger-module .ledger-detail-charts .card {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-activity-timeline {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-profile-card {
+  border: 1px solid #e9ecef;
+  position: relative;
+}
+
+.ledger-module .ledger-profile-accent {
+  height: 4px;
+  background: linear-gradient(90deg, #5e72e4 0%, #825ee4 45%, #11cdef 100%);
+}
+
+.ledger-module .ledger-profile-avatar {
+  width: 4rem;
+  height: 4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(94, 114, 228, 0.25);
+}
+
+.ledger-module .ledger-detail-stat-card {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-detail-toolbar {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-profile-view-toggle {
+  padding-top: 0.15rem;
+}
+
+@media (min-width: 992px) {
+  .ledger-module .ledger-profile-view-toggle {
+    padding-left: 1rem;
+    border-left: 1px solid #e9ecef;
+  }
+}
+
+.ledger-module .ledger-detail-transactions-card {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-detail-transactions-table.list-data-table {
+  border-color: #e9ecef;
+}
+
+.ledger-module .ledger-detail-transactions-table .table-ledger {
+  min-width: 1280px;
+}
+
+.ledger-module .ledger-detail-transactions-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8f9fa;
+  box-shadow: inset 0 -1px 0 #e9ecef;
+}
+
+.ledger-module .ledger-detail-transactions-table tbody tr.ledger-data-row:nth-child(even) td {
+  background-color: #fbfcfe;
+}
+
+.ledger-module .ledger-detail-transactions-table tbody tr.ledger-data-row:hover td {
+  background-color: rgba(94, 114, 228, 0.07);
+}
+
+.ledger-module .ledger-txn-desc {
+  max-width: 220px;
+}
+
+.ledger-module .ledger-expand-panel {
+  background: linear-gradient(180deg, #f8f9fe 0%, #fff 100%);
+  border-top: 1px solid #e9ecef;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.ledger-module .ledger-t-classic--detail {
+  border: 1px solid #e9ecef;
+}
+
+.ledger-module .ledger-t-classic--detail .ledger-t-classic-body {
+  min-width: 100%;
+}
+
+.ledger-module .ledger-t-classic--detail .ledger-t-classic-pager {
+  margin: 0;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #e9ecef;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: #fff;
+}
+
 /* T-account card — Argon / dashboard aligned */
 .ledger-module .ledger-t-classic {
   --t-ink: #344767;
@@ -123,6 +381,12 @@
   max-width: 960px;
   margin: 0 auto;
   padding: 0 0.75rem 0.5rem;
+}
+
+.ledger-module .ledger-t-classic--detail .ledger-t-classic-card-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0 1.25rem 0.75rem;
 }
 
 @media (min-width: 992px) {
@@ -392,7 +656,7 @@
 }
 
 .ledger-module .ledger-t-classic-pager {
-  padding: 0.85rem 0.25rem 1rem;
+  padding: 0.75rem 1.25rem;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   background: #fff;
 }

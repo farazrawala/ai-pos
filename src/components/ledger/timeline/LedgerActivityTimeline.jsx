@@ -22,7 +22,7 @@ function TimelineItem({ event }) {
 
 export default function LedgerActivityTimeline({ events, hasMore = false, onAddMore, totalMatching }) {
   return (
-    <div className="card border-0 shadow-sm mb-4">
+    <div className="card shadow-sm ledger-activity-timeline">
       <div className="card-header pb-0 bg-transparent">
         <h6 className="mb-0">Recent activity timeline</h6>
         <p className="text-xs text-muted mb-0">

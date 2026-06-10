@@ -1,24 +1,17 @@
 import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
 
-function Card({ title, value, valueClassName, trend, sub, icon, gradient, shadow }) {
+function Card({ title, value, valueClassName, sub, icon, gradient, shadow }) {
   return (
     <div className="col">
-      <div className="card border-0 shadow-sm mb-4 ledger-summary-card h-100">
+      <div className="card shadow-sm mb-4 ledger-summary-card ledger-detail-stat-card h-100">
         <div className="card-body p-3">
-          <div className="d-flex justify-content-between align-items-start">
-            <div className="flex-grow-1">
+          <div className="d-flex justify-content-between align-items-start gap-2">
+            <div className="flex-grow-1 min-w-0">
               <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">{title}</p>
-              <h4 className={`font-weight-bolder mb-1 ${valueClassName || 'text-dark'}`}>{value}</h4>
-              {trend ? (
-                <p className="text-xxs mb-0">
-                  <span className={trend.positive ? 'text-success' : 'text-danger'}>
-                    {trend.positive ? '↑' : '↓'} {trend.text}
-                  </span>
-                </p>
-              ) : null}
-              {sub ? <p className="text-xxs text-muted mb-0 mt-1">{sub}</p> : null}
+              <h4 className={`font-weight-bolder mb-0 ${valueClassName || 'text-dark'}`}>{value}</h4>
+              {sub ? <p className="text-xxs text-muted mb-0 mt-2">{sub}</p> : null}
             </div>
-            <div className={`icon icon-shape ${gradient} ${shadow} text-center border-radius-md shadow`}>
+            <div className={`icon icon-shape ${gradient} ${shadow} text-center border-radius-md shadow flex-shrink-0`}>
               <i className={`${icon} text-lg text-white opacity-10`} aria-hidden="true" />
             </div>
           </div>
@@ -42,7 +35,6 @@ export default function LedgerDetailSummaryCards({
         title="Opening balance"
         value={fmtMoney(openingBalance)}
         valueClassName={balanceTextClass(openingBalance)}
-        trend={{ positive: true, text: 'vs prior period (demo)' }}
         icon="ni ni-money-coins"
         gradient="bg-gradient-secondary"
         shadow="shadow-secondary"
@@ -51,7 +43,7 @@ export default function LedgerDetailSummaryCards({
         title="Current balance"
         value={fmtMoney(currentBalance)}
         valueClassName={balanceTextClass(currentBalance)}
-        trend={{ positive: currentBalance >= 0, text: `${currentBalance >= 0 ? 'Surplus' : 'Deficit'} trend` }}
+        sub={currentBalance >= 0 ? 'Receivable position' : 'Payable position'}
         icon="ni ni-chart-bar-32"
         gradient="bg-gradient-primary"
         shadow="shadow-primary"
@@ -74,8 +66,7 @@ export default function LedgerDetailSummaryCards({
         title="Monthly activity (net)"
         value={fmtMoney(monthlyActivityNet)}
         valueClassName={balanceTextClass(monthlyActivityNet)}
-        sub="This month — demo aggregate"
-        trend={{ positive: monthlyActivityNet >= 0, text: 'MoM estimate' }}
+        sub="This calendar month"
         icon="ni ni-chart-pie-35"
         gradient="bg-gradient-info"
         shadow="shadow-info"
