@@ -17,10 +17,13 @@ export default function LedgerDetailFilters({
   onExportCsv,
 }) {
   return (
-    <div className="card border-0 shadow-sm mb-4 ledger-detail-toolbar">
-      <div className="card-header pb-2 pt-3 bg-transparent border-bottom-0">
+    <div className="card shadow-sm mb-4 ledger-detail-toolbar">
+      <div className="card-header pb-2 pt-3 bg-transparent">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-          <h6 className="mb-0 text-sm font-weight-bold text-uppercase text-muted">Ledger filters</h6>
+          <div>
+            <h6 className="mb-1">Filters</h6>
+            <p className="text-xs text-muted mb-0">Narrow transactions by date, type, and reference</p>
+          </div>
           <div className="d-flex flex-wrap gap-1">
             {['Today', 'This week', 'This month', 'This year'].map((label) => (
               <button

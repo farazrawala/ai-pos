@@ -1,7 +1,11 @@
 import moment from 'moment';
+import { FaEllipsisVertical } from 'react-icons/fa6';
+import NavIcon from '../../NavIcon.jsx';
+import ListSortableTh from '../../list/ListSortableTh.jsx';
+import TablePagination from '../../TablePagination.jsx';
 import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
 
-function SkeletonRows({ cols = 11 }) {
+function SkeletonRows({ cols = 10 }) {
   return (
     <tbody className="placeholder-glow">
       {Array.from({ length: 8 }).map((_, i) => (
@@ -26,8 +30,7 @@ function ActivityDot({ mode }) {
   const titles = { online: 'Online', offline: 'Offline', recent: 'Recent activity' };
   return (
     <span
-      className={`rounded-circle d-inline-block ${colors[mode] || 'bg-secondary'}`}
-      style={{ width: 10, height: 10 }}
+      className={`ledger-activity-dot rounded-circle d-inline-block ${colors[mode] || 'bg-secondary'}`}
       title={titles[mode] || ''}
     />
   );
@@ -39,6 +42,7 @@ export default function LedgerUsersTable({
   page,
   pageSize,
   onPageChange,
+  onPageSizeChange,
   sortKey,
   sortDir,
   onSort,
@@ -48,221 +52,239 @@ export default function LedgerUsersTable({
   totalRowCount,
 }) {
   const serverPaged = typeof totalRowCount === 'number' && totalRowCount >= 0;
-  const totalPages = serverPaged
-    ? Math.max(1, Math.ceil(totalRowCount / pageSize))
-    : Math.max(1, Math.ceil(rows.length / pageSize));
+  const total = serverPaged ? totalRowCount : rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const slice = serverPaged ? rows : rows.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
-  const toggleSort = (key) => {
-    if (sortKey === key) onSort(key, sortDir === 'asc' ? 'desc' : 'asc');
-    else onSort(key, 'asc');
+  const sort = { sortBy: sortKey, sortOrder: sortDir };
+
+  const handleSort = (column, forceDesc = false) => {
+    if (forceDesc) {
+      onSort(column, 'desc');
+      return;
+    }
+    if (sortKey === column) onSort(column, sortDir === 'asc' ? 'desc' : 'asc');
+    else onSort(column, 'asc');
   };
 
-  const icon = (key) =>
-    sortKey !== key ? (
-      <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.65rem' }} />
-    ) : sortDir === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.65rem' }} />
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.65rem' }} />
-    );
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) onPageChange(newPage);
+  };
+
+  const handleLimitChange = (limit) => {
+    if (onPageSizeChange) onPageSizeChange(limit);
+    onPageChange(1);
+  };
+
+  const pagination = {
+    page: pageSafe,
+    limit: pageSize,
+    total,
+    totalPages,
+  };
+
+  const accountLabel = `${total} account${total !== 1 ? 's' : ''}`;
 
   return (
-    <div className="card border-0 shadow-sm">
-      <div className="card-header pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h6 className="mb-0">Ledger users</h6>
-        <span className="text-xs text-muted">
-          {serverPaged ? totalRowCount : rows.length} account{(serverPaged ? totalRowCount : rows.length) !== 1 ? 's' : ''}
-        </span>
+    <div className="card shadow-sm ledger-users-card">
+      <div className="card-header pb-3">
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 w-100">
+          <div>
+            <h5 className="mb-1">Ledger users</h5>
+            <p className="text-sm text-muted mb-0">Accounts with balances and recent activity</p>
+          </div>
+          <span className="badge bg-light text-dark border text-sm fw-semibold px-3 py-2">
+            {accountLabel}
+          </span>
+        </div>
       </div>
-      <div className="card-body px-0 pt-2 pb-3">
-        <div className="table-responsive">
-          <table className="table table-flush table-hover table-sm align-middle mb-0 table-ledger">
-            <thead className="thead-light">
-              <tr>
-                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('fullName')}>
-                  User {icon('fullName')}
-                </th>
-                <th>Contact</th>
-                <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('openingBalance')}>
-                  Opening {icon('openingBalance')}
-                </th>
-                <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('currentBalance')}>
-                  Current {icon('currentBalance')}
-                </th>
-                <th className="text-end">Debit</th>
-                <th className="text-end">Credit</th>
-                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('lastTransactionAt')}>
-                  Last tx {icon('lastTransactionAt')}
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('status')}>
-                  Status {icon('status')}
-                </th>
-                <th className="text-center">Activity</th>
-                <th className="text-end">Actions</th>
-              </tr>
-            </thead>
-            {loading ? (
-              <SkeletonRows />
-            ) : slice.length === 0 ? (
-              <tbody>
+
+      <div className="card-body pt-0 px-0 pb-0">
+        <div className="list-data-table ledger-users-table mx-3 mb-3">
+          <div className="list-data-table-scroll">
+            <table className="table align-items-center mb-0 table-ledger">
+              <thead>
                 <tr>
-                  <td colSpan={10} className="text-center py-5 text-muted">
-                    <i className="ni ni-folder-17 text-lg opacity-3 d-block mb-2" style={{ fontSize: '2.5rem' }} />
-                    <p className="font-weight-bold mb-1">No ledger users match</p>
-                    <p className="text-sm mb-0">Adjust filters or search.</p>
-                  </td>
+                  <ListSortableTh column="fullName" label="User" sort={sort} onSort={handleSort} />
+                  <th>Contact</th>
+                  <ListSortableTh
+                    column="openingBalance"
+                    label="Opening"
+                    sort={sort}
+                    onSort={handleSort}
+                    className="text-end"
+                  />
+                  <ListSortableTh
+                    column="currentBalance"
+                    label="Current"
+                    sort={sort}
+                    onSort={handleSort}
+                    className="text-end"
+                  />
+                  <th className="text-end">Debit</th>
+                  <th className="text-end">Credit</th>
+                  <ListSortableTh
+                    column="lastTransactionAt"
+                    label="Last tx"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <ListSortableTh column="status" label="Status" sort={sort} onSort={handleSort} />
+                  <th className="text-center">Activity</th>
+                  <th className="text-end ledger-users-actions-col">Actions</th>
                 </tr>
-              </tbody>
-            ) : (
-              <tbody>
-                {slice.map((u) => (
-                  <tr
-                    key={u.id}
-                    className="ledger-data-row"
-                    role="link"
-                    tabIndex={0}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => onRowNavigate(u.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onRowNavigate(u.id);
-                      }
-                    }}
-                  >
-                    <td>
-                      <div className="d-flex align-items-center gap-2">
-                        <div className="avatar avatar-sm rounded-circle bg-gradient-dark text-white d-flex align-items-center justify-content-center">
-                          {u.fullName
-                            .split(' ')
-                            .map((s) => s[0])
-                            .join('')
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-weight-bold text-sm d-block text-truncate" style={{ maxWidth: 180 }}>
-                            {u.fullName}
-                          </span>
-                          <span className="text-xxs text-muted">{u.role}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-sm">
-                      <div className="text-truncate" style={{ maxWidth: 160 }} title={u.email || ''}>
-                        {u.email || '—'}
-                      </div>
-                      <div className="text-xxs text-muted">{u.phone || '—'}</div>
-                    </td>
-                    <td className={`text-end text-sm ${balanceTextClass(u.openingBalance)}`}>
-                      {fmtMoney(u.openingBalance)}
-                    </td>
-                    <td className={`text-end text-sm font-weight-bold ${balanceTextClass(u.currentBalance)}`}>
-                      {fmtMoney(u.currentBalance)}
-                    </td>
-                    <td className="text-end text-sm text-danger">{fmtMoney(u.totalDebit)}</td>
-                    <td className="text-end text-sm text-success">{fmtMoney(u.totalCredit)}</td>
-                    <td className="text-sm text-nowrap">
-                      {u.lastTransactionAt ? moment(u.lastTransactionAt).format('DD MMM YYYY HH:mm') : '—'}
-                    </td>
-                    <td>
-                      <span
-                        className={`badge text-xxs ${
-                          u.status === 'active'
-                            ? 'bg-gradient-success'
-                            : u.status === 'inactive'
-                              ? 'bg-gradient-secondary'
-                              : 'bg-gradient-warning'
-                        }`}
-                      >
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <ActivityDot mode={u.activityIndicator} />
-                    </td>
-                    <td className="text-end" onClick={(e) => e.stopPropagation()}>
-                      <div className="dropdown">
-                        <button
-                          className="btn btn-link text-secondary p-0 mb-0"
-                          type="button"
-                          data-bs-toggle="dropdown"
-                          aria-expanded="false"
-                        >
-                          <i className="fas fa-ellipsis-v" />
-                        </button>
-                        <ul className="dropdown-menu dropdown-menu-end text-sm">
-                          <li>
-                            <button type="button" className="dropdown-item" onClick={() => onAction('view', u)}>
-                              View ledger
-                            </button>
-                          </li>
-                          <li>
-                            <button type="button" className="dropdown-item" onClick={() => onAction('tx', u)}>
-                              Add transaction
-                            </button>
-                          </li>
-                          <li>
-                            <button type="button" className="dropdown-item" onClick={() => onAction('remind', u)}>
-                              Send reminder
-                            </button>
-                          </li>
-                          <li>
-                            <button type="button" className="dropdown-item" onClick={() => onAction('pdf', u)}>
-                              Export PDF
-                            </button>
-                          </li>
-                          <li>
-                            <hr className="dropdown-divider" />
-                          </li>
-                          <li>
-                            <button type="button" className="dropdown-item" onClick={() => onAction('edit', u)}>
-                              Edit user
-                            </button>
-                          </li>
-                          <li>
-                            <button type="button" className="dropdown-item text-danger" onClick={() => onAction('delete', u)}>
-                              Delete
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
+              </thead>
+              {loading ? (
+                <SkeletonRows />
+              ) : slice.length === 0 ? (
+                <tbody>
+                  <tr>
+                    <td colSpan={10} className="ledger-users-empty text-center py-5">
+                      <p className="font-weight-bold text-dark mb-1">No ledger users match</p>
+                      <p className="text-sm text-muted mb-0">Adjust filters or search.</p>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            )}
-          </table>
-        </div>
-
-        {!loading && rows.length > 0 ? (
-          <div className="d-flex justify-content-between align-items-center px-3 pt-3 flex-wrap gap-2">
-            <span className="text-xs text-muted">
-              Page {pageSafe} / {totalPages}
-            </span>
-            <nav>
-              <ul className="pagination pagination-sm mb-0">
-                <li className={`page-item ${pageSafe <= 1 ? 'disabled' : ''}`}>
-                  <button type="button" className="page-link" disabled={pageSafe <= 1} onClick={() => onPageChange(pageSafe - 1)}>
-                    Prev
-                  </button>
-                </li>
-                <li className={`page-item ${pageSafe >= totalPages ? 'disabled' : ''}`}>
-                  <button
-                    type="button"
-                    className="page-link"
-                    disabled={pageSafe >= totalPages}
-                    onClick={() => onPageChange(pageSafe + 1)}
-                  >
-                    Next
-                  </button>
-                </li>
-              </ul>
-            </nav>
+                </tbody>
+              ) : (
+                <tbody>
+                  {slice.map((u) => (
+                    <tr
+                      key={u.id}
+                      className="ledger-data-row"
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => onRowNavigate(u.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onRowNavigate(u.id);
+                        }
+                      }}
+                    >
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          <div className="ledger-user-avatar avatar avatar-sm rounded-circle bg-gradient-dark text-white d-flex align-items-center justify-content-center">
+                            {u.fullName
+                              .split(' ')
+                              .map((s) => s[0])
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-weight-bold text-sm d-block text-truncate ledger-user-name">
+                              {u.fullName}
+                            </span>
+                            <span className="text-xxs text-muted">{u.role}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-sm">
+                        <div className="text-truncate ledger-user-contact" title={u.email || ''}>
+                          {u.email || '—'}
+                        </div>
+                        <div className="text-xxs text-muted">{u.phone || '—'}</div>
+                      </td>
+                      <td className={`text-end ledger-money ${balanceTextClass(u.openingBalance)}`}>
+                        {fmtMoney(u.openingBalance)}
+                      </td>
+                      <td
+                        className={`text-end ledger-money font-weight-bold ${balanceTextClass(u.currentBalance)}`}
+                      >
+                        {fmtMoney(u.currentBalance)}
+                      </td>
+                      <td className="text-end ledger-money text-danger">{fmtMoney(u.totalDebit)}</td>
+                      <td className="text-end ledger-money text-success">{fmtMoney(u.totalCredit)}</td>
+                      <td className="text-sm text-nowrap ledger-date">
+                        {u.lastTransactionAt
+                          ? moment(u.lastTransactionAt).format('DD MMM YYYY HH:mm')
+                          : '—'}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge text-xxs ledger-status-badge ${
+                            u.status === 'active'
+                              ? 'bg-gradient-success'
+                              : u.status === 'inactive'
+                                ? 'bg-gradient-secondary'
+                                : 'bg-gradient-warning'
+                          }`}
+                        >
+                          {u.status}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <ActivityDot mode={u.activityIndicator} />
+                      </td>
+                      <td className="text-end" onClick={(e) => e.stopPropagation()}>
+                        <div className="dropdown">
+                          <button
+                            className="btn btn-sm btn-outline-secondary ledger-row-action-btn mb-0"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label={`Actions for ${u.fullName}`}
+                          >
+                            <NavIcon icon={FaEllipsisVertical} size={14} />
+                          </button>
+                          <ul className="dropdown-menu dropdown-menu-end text-sm shadow-sm">
+                            <li>
+                              <button type="button" className="dropdown-item" onClick={() => onAction('view', u)}>
+                                View ledger
+                              </button>
+                            </li>
+                            <li>
+                              <button type="button" className="dropdown-item" onClick={() => onAction('tx', u)}>
+                                Add transaction
+                              </button>
+                            </li>
+                            <li>
+                              <button type="button" className="dropdown-item" onClick={() => onAction('remind', u)}>
+                                Send reminder
+                              </button>
+                            </li>
+                            <li>
+                              <button type="button" className="dropdown-item" onClick={() => onAction('pdf', u)}>
+                                Export PDF
+                              </button>
+                            </li>
+                            <li>
+                              <hr className="dropdown-divider" />
+                            </li>
+                            <li>
+                              <button type="button" className="dropdown-item" onClick={() => onAction('edit', u)}>
+                                Edit user
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                type="button"
+                                className="dropdown-item text-danger"
+                                onClick={() => onAction('delete', u)}
+                              >
+                                Delete
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </table>
           </div>
-        ) : null}
+
+          <TablePagination
+            className="list-table-toolbar--footer"
+            selectId="ledger-users-page-size"
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            hidden={loading || total === 0}
+          />
+        </div>
       </div>
     </div>
   );

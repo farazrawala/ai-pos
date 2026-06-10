@@ -193,8 +193,8 @@ export default function LedgerChartsSection({ monthlyDebitCredit = null }) {
   }, [monthlyDebitCredit]);
 
   return (
-    <div className="row mb-2">
-      <div className="col-lg-6 mb-4">
+    <div className="row ledger-detail-charts g-4">
+      <div className="col-lg-6">
         <div className="card border-0 shadow-sm h-100">
           <div className="card-header pb-0 bg-transparent">
             <h6 className="mb-0">Monthly debit vs credit</h6>
@@ -209,7 +209,7 @@ export default function LedgerChartsSection({ monthlyDebitCredit = null }) {
           </div>
         </div>
       </div>
-      <div className="col-lg-6 mb-4">
+      <div className="col-lg-6">
         <div className="card border-0 shadow-sm h-100">
           <div className="card-header pb-0 bg-transparent">
             <h6 className="mb-0">Running balance trend</h6>
@@ -222,7 +222,7 @@ export default function LedgerChartsSection({ monthlyDebitCredit = null }) {
           </div>
         </div>
       </div>
-      <div className="col-lg-6 mb-4">
+      <div className="col-lg-6">
         <div className="card border-0 shadow-sm h-100">
           <div className="card-header pb-0 bg-transparent">
             <h6 className="mb-0">Category breakdown</h6>
@@ -235,7 +235,7 @@ export default function LedgerChartsSection({ monthlyDebitCredit = null }) {
           </div>
         </div>
       </div>
-      <div className="col-lg-6 mb-4">
+      <div className="col-lg-6">
         <div className="card border-0 shadow-sm h-100">
           <div className="card-header pb-0 bg-transparent">
             <h6 className="mb-0">Weekly activity</h6>

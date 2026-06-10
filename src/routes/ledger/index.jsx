@@ -9,7 +9,10 @@ import LedgerUsersFilters from '../../components/ledger/filters/LedgerUsersFilte
 import LedgerUsersTable from '../../components/ledger/tables/LedgerUsersTable.jsx';
 import { getLedgerListingAggregates } from '../../components/ledger/mock/ledgerUsers.mock.js';
 import { filterLedgerUsers } from '../../components/ledger/ledgerListingFilters.js';
-import { mapApiUserToLedgerRow, LEDGER_LIST_SORT_API } from '../../components/ledger/ledgerUserMapper.js';
+import {
+  mapApiUserToLedgerRow,
+  LEDGER_LIST_SORT_API,
+} from '../../components/ledger/ledgerUserMapper.js';
 import '../../components/ledger/ledger-module.css';
 
 const initialFilters = () => ({
@@ -47,6 +50,7 @@ export default function LedgerListingPage() {
   const [sortKey, setSortKey] = useState('fullName');
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
 
   /** Sample for summary cards (capped); `totalUsers` comes from API total when available. */
   const [aggregateSample, setAggregateSample] = useState([]);
@@ -77,13 +81,16 @@ export default function LedgerListingPage() {
     (async () => {
       setLoading(true);
       try {
-        const search = [appliedFilters.search, appliedFilters.contactSearch].filter(Boolean).join(' ').trim();
+        const search = [appliedFilters.search, appliedFilters.contactSearch]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
         const sortBy = LEDGER_LIST_SORT_API[sortKey] || 'name';
 
         if (!needsClientSideLedgerFilters(appliedFilters)) {
           const r = await fetchUsersRequest({
             page,
-            limit: LIST_PAGE_SIZE,
+            limit: pageSize,
             search: search || undefined,
             sortBy,
             sortOrder: sortDir,
@@ -121,8 +128,8 @@ export default function LedgerListingPage() {
           sortDir,
         });
         setTotalRowCount(mapped.length);
-        const start = (page - 1) * LIST_PAGE_SIZE;
-        setUsers(mapped.slice(start, start + LIST_PAGE_SIZE));
+        const start = (page - 1) * pageSize;
+        setUsers(mapped.slice(start, start + pageSize));
       } catch (e) {
         if (!cancelled) {
           const msg = e?.message || 'Failed to load ledger users';
@@ -137,12 +144,12 @@ export default function LedgerListingPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, appliedFilters, sortKey, sortDir]);
+  }, [page, pageSize, appliedFilters, sortKey, sortDir]);
 
   useEffect(() => {
-    const tp = Math.max(1, Math.ceil(totalRowCount / LIST_PAGE_SIZE) || 1);
+    const tp = Math.max(1, Math.ceil(totalRowCount / pageSize) || 1);
     setPage((p) => Math.min(Math.max(1, p), tp));
-  }, [totalRowCount]);
+  }, [totalRowCount, pageSize]);
 
   const aggregates = useMemo(() => {
     const base = getLedgerListingAggregates(aggregateSample, 0);
@@ -170,21 +177,24 @@ export default function LedgerListingPage() {
     setPage(1);
   }, []);
 
-  const handleQuickFilter = useCallback((label) => {
-    let next = { ...draftFilters };
-    if (label === 'Active') next = { ...next, status: 'active', balanceType: 'all' };
-    else if (label === 'Receivable') next = { ...next, balanceType: 'positive', status: 'all' };
-    else if (label === 'Payable') next = { ...next, balanceType: 'negative', status: 'all' };
-    else if (label === 'Recent activity') {
-      next = { ...next };
-      setSortKey('lastTransactionAt');
-      setSortDir('desc');
-    }
-    setDraftFilters(next);
-    setAppliedFilters(next);
-    setPage(1);
-    toast.info(`Quick filter: ${label}`, { delay: 2500 });
-  }, [draftFilters]);
+  const handleQuickFilter = useCallback(
+    (label) => {
+      let next = { ...draftFilters };
+      if (label === 'Active') next = { ...next, status: 'active', balanceType: 'all' };
+      else if (label === 'Receivable') next = { ...next, balanceType: 'positive', status: 'all' };
+      else if (label === 'Payable') next = { ...next, balanceType: 'negative', status: 'all' };
+      else if (label === 'Recent activity') {
+        next = { ...next };
+        setSortKey('lastTransactionAt');
+        setSortDir('desc');
+      }
+      setDraftFilters(next);
+      setAppliedFilters(next);
+      setPage(1);
+      toast.info(`Quick filter: ${label}`, { delay: 2500 });
+    },
+    [draftFilters]
+  );
 
   const handleSort = useCallback((key, dir) => {
     setSortKey(key);
@@ -226,67 +236,15 @@ export default function LedgerListingPage() {
 
   return (
     <div className="container-fluid py-4 ledger-module">
-      <div className="row mb-3">
-        <div className="col-lg-8">
-          <h4 className="mb-1 font-weight-bolder">User Ledgers</h4>
-          <p className="text-sm text-muted mb-0">
-            Ledger accounts from active users — balances follow opening balance until ledger postings exist.
-          </p>
-        </div>
-        <div className="col-lg-4 text-lg-end mt-3 mt-lg-0">
-          <button type="button" className="btn btn-sm btn-primary mb-1 mb-sm-0 me-1" onClick={() => headerActions('add')}>
-            <i className="ni ni-fat-add me-1" />
-            Add ledger
-          </button>
-          <button type="button" className="btn btn-sm btn-outline-dark mb-1 mb-sm-0 me-1" onClick={() => headerActions('export')}>
-            Export
-          </button>
-          <button type="button" className="btn btn-sm btn-outline-secondary mb-1 mb-sm-0 me-1" onClick={() => headerActions('import')}>
-            Import
-          </button>
-          <button type="button" className="btn btn-sm btn-outline-primary mb-1 mb-sm-0" onClick={() => headerActions('filter')}>
-            <i className="ni ni-zoom-split-in me-1" />
-            Filter
-          </button>
-        </div>
-      </div>
-
-      <LedgerListingSummaryCards
-        totalUsers={aggregates.totalUsers}
-        totalReceivables={aggregates.totalReceivables}
-        totalPayables={aggregates.totalPayables}
-        todayTransactions={aggregates.todayTransactions}
-        activeLedgers={aggregates.activeLedgers}
-        overdueBalances={aggregates.overdueBalances}
-      />
-
-      <LedgerUsersFilters
-        search={draftFilters.search}
-        contactSearch={draftFilters.contactSearch}
-        status={draftFilters.status}
-        balanceType={draftFilters.balanceType}
-        dateFrom={draftFilters.dateFrom}
-        dateTo={draftFilters.dateTo}
-        sortBy={sortKey}
-        onChange={(key, value) => {
-          if (key === 'sortBy') {
-            setSortKey(value);
-            return;
-          }
-          handleFilterChange(key, value);
-        }}
-        onApply={handleApply}
-        onReset={handleReset}
-        onQuickFilter={handleQuickFilter}
-      />
-
+      
       <LedgerUsersTable
         rows={users}
         loading={loading}
         page={page}
-        pageSize={LIST_PAGE_SIZE}
+        pageSize={pageSize}
         totalRowCount={totalRowCount}
         onPageChange={setPage}
+        onPageSizeChange={setPageSize}
         sortKey={sortKey}
         sortDir={sortDir}
         onSort={handleSort}
