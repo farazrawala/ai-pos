@@ -50,6 +50,7 @@ import WarehouseInventoryListing from './routes/warehouse_inventory/index.jsx';
 import LedgerListingPage from './routes/ledger/index.jsx';
 import UserLedgerDetailPage from './routes/ledger/UserLedgerDetailPage.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
+import AdvanceBalanceSheetPage from './routes/advanceBalanceSheet/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 import PaymentManagementPage from './routes/payments/index.jsx';
 import PaymentReceiptsList from './routes/payment_receipt/index.jsx';
@@ -125,6 +126,7 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
@@ -224,6 +226,7 @@ const App = () => {
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />

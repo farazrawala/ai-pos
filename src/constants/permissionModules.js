@@ -21,6 +21,7 @@ export const PERMISSION_MODULE_KEYS = [
 
   'accounts',
   'balance-sheet',
+  'advance-balance-sheet',
   'income-statement',
   'ledger',
   'payments',
@@ -54,6 +55,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/branch': 'branch',
   '/accounts': 'accounts',
   '/balance-sheet': 'balance-sheet',
+  '/advance-balance-sheet': 'advance-balance-sheet',
   '/income-statement': 'income-statement',
   '/ledger': 'ledger',
   '/payments': 'payments',

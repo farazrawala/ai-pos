@@ -17,6 +17,7 @@ import salesReturnsReducer from '../features/salesReturns/salesReturnsSlice.js';
 import transactionsReducer from '../features/transactions/transactionsSlice.js';
 import stockMovementReducer from '../features/stockMovement/stockMovementSlice.js';
 import incomeStatementReducer from '../features/incomeStatement/incomeStatementSlice.js';
+import advanceBalanceSheetReducer from '../features/advanceBalanceSheet/advanceBalanceSheetSlice.js';
 import paymentReceiptsReducer from '../features/paymentReceipts/paymentReceiptsSlice.js';
 import expensesReducer from '../features/expenses/expensesSlice.js';
 import assetsReducer from '../features/assets/assetsSlice.js';
@@ -45,6 +46,7 @@ const store = configureStore({
     transactions: transactionsReducer,
     stockMovement: stockMovementReducer,
     incomeStatement: incomeStatementReducer,
+    advanceBalanceSheet: advanceBalanceSheetReducer,
     paymentReceipts: paymentReceiptsReducer,
     expenses: expensesReducer,
     assets: assetsReducer,
