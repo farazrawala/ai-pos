@@ -1,0 +1,233 @@
+/* Barcode print — professional split layout */
+
+.barcode-print-page {
+  --bp-border: #e9ecef;
+  --bp-muted: #67748e;
+  --bp-ink: #344767;
+  max-width: 100%;
+}
+
+.barcode-print-page .barcode-print-main-card {
+  border: 1px solid var(--bp-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.barcode-print-page .barcode-print-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.barcode-print-page .barcode-print-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.barcode-print-page .barcode-print-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bp-muted);
+  margin-bottom: 1rem;
+}
+
+.barcode-print-page .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--bp-ink);
+  margin-bottom: 0.35rem;
+}
+
+.barcode-print-page .form-control,
+.barcode-print-page .form-select {
+  border-color: var(--bp-border);
+  font-size: 0.875rem;
+}
+
+.barcode-print-page .form-control:focus,
+.barcode-print-page .form-select:focus {
+  border-color: rgba(94, 114, 228, 0.45);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.barcode-print-page .barcode-print-field-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--bp-muted);
+  margin-top: 0.25rem;
+}
+
+.barcode-print-page .barcode-print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  padding-top: 0.5rem;
+}
+
+.barcode-print-page .barcode-print-actions .btn {
+  font-weight: 600;
+  border-radius: 0.5rem;
+}
+
+/* Live preview panel (right column) */
+.barcode-print-page .barcode-print-preview-panel {
+  position: sticky;
+  top: 5.5rem;
+  border: 1px solid var(--bp-border);
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
+  overflow: hidden;
+  height: calc(100vh - 7rem);
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.barcode-print-page .barcode-print-preview-header {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--bp-border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.barcode-print-page .barcode-print-preview-header h6 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--bp-ink);
+  margin-bottom: 0.35rem;
+}
+
+.barcode-print-page .barcode-print-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.barcode-print-page .barcode-print-preview-chip {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #5e72e4;
+  background: rgba(94, 114, 228, 0.08);
+  border: 1px solid rgba(94, 114, 228, 0.18);
+  border-radius: 100px;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.barcode-print-page .barcode-print-preview-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  background: #f1f3f5;
+}
+
+.barcode-print-page .barcode-print-preview-scale-wrap {
+  transform-origin: top left;
+  display: inline-block;
+  min-width: min-content;
+}
+
+.barcode-print-page .barcode-print-preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 280px;
+  padding: 2rem 1.5rem;
+  color: var(--bp-muted);
+}
+
+.barcode-print-page .barcode-print-preview-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(94, 114, 228, 0.1);
+  color: #5e72e4;
+  font-size: 1.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.barcode-print-page .bp-sheet {
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08);
+}
+
+.barcode-print-page .barcode-print-label {
+  background: #fff;
+}
+
+@media (max-width: 991.98px) {
+  .barcode-print-page .barcode-print-preview-panel {
+    position: static;
+    height: auto;
+    min-height: 360px;
+    margin-top: 0.5rem;
+  }
+
+  .barcode-print-page .barcode-print-preview-viewport {
+    max-height: 480px;
+  }
+}
+
+.barcode-print-page .barcode-print-print-area {
+  display: none;
+}
+
+@media print {
+  aside#sidenav-main,
+  nav#navbarBlur,
+  footer.footer,
+  .min-height-300.bg-dark.position-absolute,
+  .barcode-print-toolbar,
+  .barcode-print-hint-card,
+  .barcode-print-preview-panel,
+  .barcode-print-settings-col {
+    display: none !important;
+  }
+
+  .barcode-print-page .barcode-print-print-area {
+    display: block !important;
+  }
+
+  .barcode-print-page .card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .barcode-print-label {
+    border: 1px solid #ccc !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  main.main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .bp-sheet {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .bp-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+@page {
+  margin: 10mm;
+  size: auto;
+}
