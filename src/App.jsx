@@ -11,7 +11,7 @@ import Dashboard from './routes/Dashboard.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
-import Category from './routes/Category/index.jsx';
+import Category from './routes/category/index.jsx';
 import CategoryAdd from './routes/category/add.jsx';
 import CategoryEdit from './routes/category/edit.jsx';
 import Product from './routes/product/index.jsx';
