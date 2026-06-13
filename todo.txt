@@ -129,4 +129,5 @@ insert qty in inventory_movements in
 update qty in warehouse_inventory.  
 
 
+
 https://testv3.websitedemolynk.com/pos
