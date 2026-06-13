@@ -11,6 +11,12 @@ export default defineConfig(({ mode }) => {
   const normalizedBase =
     basePath === '/' ? '/' : `/${String(basePath).replace(/^\/+|\/+$/g, '')}/`;
 
+  if (mode === 'live') {
+    console.log('[build:live] Using .env.live');
+    console.log('[build:live] VITE_API_BASE_URL =', env.VITE_API_BASE_URL || '(not set)');
+    console.log('[build:live] VITE_BASE_PATH =', normalizedBase);
+  }
+
   return {
     base: normalizedBase,
     define: {
