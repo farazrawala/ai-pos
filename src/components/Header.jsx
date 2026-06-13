@@ -1,5 +1,6 @@
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { withBase } from '../config/appBase.js';
 import {
   FaBars,
   FaBell,
@@ -17,10 +18,11 @@ import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js'
 const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { name, user } = useSelector((state) => state.user);
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  const pathSegment = window.location.pathname.split('/')[1] || '';
+  const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
   const firstSegment = pathSegment
     ? pathSegment.charAt(0).toUpperCase() + pathSegment.slice(1)
     : 'Dashboard';
@@ -117,10 +119,10 @@ const Header = () => {
               </li>
             ) : (
               <li className="nav-item d-flex align-items-center">
-                <a href="/signin" className="nav-link text-white font-weight-bold px-0">
+                <Link to="/signin" className="nav-link text-white font-weight-bold px-0">
                   <NavIcon icon={FaUser} className="text-white me-sm-1" size={16} />
                   <span className="d-sm-inline d-none">Sign In</span>
-                </a>
+                </Link>
               </li>
             )}
             <li className="nav-item d-xl-none ps-3 d-flex align-items-center">
@@ -160,7 +162,7 @@ const Header = () => {
                     <div className="d-flex py-1">
                       <div className="my-auto">
                         <img
-                          src="/assets/img/team-2.jpg"
+                          src={withBase('/assets/img/team-2.jpg')}
                           className="avatar avatar-sm me-3"
                           alt="user"
                         />

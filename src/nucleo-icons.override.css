@@ -4,8 +4,8 @@
  */
 @font-face {
   font-family: 'NucleoIcons';
-  src: url('/assets/fonts/nucleo-icons.woff2') format('woff2'),
-    url('/assets/fonts/nucleo-icons.woff') format('woff');
+  src: url('../public/assets/fonts/nucleo-icons.woff2') format('woff2'),
+    url('../public/assets/fonts/nucleo-icons.woff') format('woff');
   font-weight: normal;
   font-style: normal;
   font-display: block;

@@ -23,5 +23,6 @@ npm-debug.log*
 pnpm-debug.log*
 coverage
 *.local
+.github/deploy-secrets.local.env
 
 

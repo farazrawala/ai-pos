@@ -1,0 +1,52 @@
+# Deploy live build to FTP (https://testv3.websitedemolynk.com/pos/)
+#
+# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   FTP_SERVER      → 192.249.118.80
+#   FTP_USERNAME    → pos@testv3.websitedemolynk.com
+#   FTP_PASSWORD    → (your FTP password — never commit this)
+# Optional:
+#   FTP_SERVER_DIR  → remote folder (default / — FTP user root is usually /pos docroot)
+
+name: Deploy live (FTP)
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-live-ftp
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build for live
+        run: npm run build:live
+
+      - name: Deploy dist to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**

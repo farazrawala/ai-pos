@@ -7,8 +7,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const projectDevLogFile = env.VITE_PROJECT_DEV_LOG_FILE || 'logs.txt';
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8000';
+  const basePath = env.VITE_BASE_PATH || '/';
+  const normalizedBase =
+    basePath === '/' ? '/' : `/${String(basePath).replace(/^\/+|\/+$/g, '')}/`;
 
   return {
+    base: normalizedBase,
     define: {
       __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || mode),
     },

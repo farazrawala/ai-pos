@@ -13,6 +13,7 @@ import {
   clearDeleteStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { withBase } from '../../config/appBase.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -562,7 +563,7 @@ const Product = () => {
                                       borderRadius: '4px',
                                     }}
                                     onError={(e) => {
-                                      e.target.src = '/assets/img/default.jpg';
+                                      e.target.src = withBase('/assets/img/default.jpg');
                                     }}
                                   />
                                 ) : (

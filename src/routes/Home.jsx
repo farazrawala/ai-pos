@@ -11,6 +11,7 @@ import {
   FaTrophy,
 } from 'react-icons/fa6';
 import NavIcon from '../components/NavIcon.jsx';
+import { withBase } from '../config/appBase.js';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
@@ -268,7 +269,7 @@ const Home = () => {
                   <div
                     className="carousel-item h-100 active"
                     style={{
-                      backgroundImage: "url('/assets/img/img-2.jpg')",
+                      backgroundImage: `url('${withBase('/assets/img/img-2.jpg')}')`,
                       backgroundSize: 'cover',
                     }}
                   >
@@ -286,7 +287,7 @@ const Home = () => {
                   <div
                     className="carousel-item h-100"
                     style={{
-                      backgroundImage: "url('/assets/img/img-1.jpg')",
+                      backgroundImage: `url('${withBase('/assets/img/img-1.jpg')}')`,
                       backgroundSize: 'cover',
                     }}
                   >
@@ -304,7 +305,7 @@ const Home = () => {
                   <div
                     className="carousel-item h-100"
                     style={{
-                      backgroundImage: "url('/assets/img/img-3.jpg')",
+                      backgroundImage: `url('${withBase('/assets/img/img-3.jpg')}')`,
                       backgroundSize: 'cover',
                     }}
                   >

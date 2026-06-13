@@ -6,6 +6,7 @@ import {
 } from '../../features/products/productsAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import NavIcon from '../../components/NavIcon.jsx';
+import { withBase } from '../../config/appBase.js';
 import PosPaymentModal, { openPosPaymentModal } from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
@@ -183,7 +184,7 @@ const PosProducts = ({
                               className="pos-product-img w-100 d-block"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
-                                e.currentTarget.src = '/assets/img/default.jpg';
+                                e.currentTarget.src = withBase('/assets/img/default.jpg');
                               }}
                             />
                           ) : (

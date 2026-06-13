@@ -36,6 +36,7 @@ import {
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
 import { DEBUG } from '../config/env.js';
+import { withBase } from '../config/appBase.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
@@ -115,7 +116,7 @@ const Sidebar = () => {
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
           <img
-            src="/assets/img/logo-ct-dark.png"
+            src={withBase('/assets/img/logo-ct-dark.png')}
             width={26}
             height={26}
             className="navbar-brand-img h-100"
