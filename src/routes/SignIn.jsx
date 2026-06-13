@@ -100,7 +100,7 @@ const SignIn = () => {
       <div className="signin-content">
         <div className="signin-card">
           <header className="signin-card-header">
-            <h2>POS Sign in</h2>
+            <h2>POS Sign in 11</h2>
             <p className="muted">Sign in with your email credentials</p>
           </header>
 
