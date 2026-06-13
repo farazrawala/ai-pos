@@ -8,11 +8,13 @@ import {
 } from '../../features/accounts/accountsAPI.js';
 import {
   buildBalanceSheetAdjustmentsUrl,
+  buildBalanceSheetDefaultDiscountSumsUrl,
   buildBalanceSheetEquityFetchParams,
   buildBalanceSheetInventoryCogUrl,
   buildBalanceSheetProfitUrl,
   buildBalanceSheetSalesReturnProfitUrl,
   fetchBalanceSheetAdjustmentsRequest,
+  fetchBalanceSheetDefaultDiscountSumsRequest,
   fetchBalanceSheetInventoryCogRequest,
   fetchBalanceSheetProfitRequest,
   fetchBalanceSheetSalesReturnProfitRequest,
@@ -282,6 +284,12 @@ function createBalanceSheetApiDefinitions(equityFetchParams = {}) {
       fetch: () => fetchBalanceSheetAdjustmentsRequest(),
     },
     {
+      key: 'default_discount_sums',
+      label: "Owner's equity (discounts)",
+      url: buildBalanceSheetDefaultDiscountSumsUrl(),
+      fetch: () => fetchBalanceSheetDefaultDiscountSumsRequest(),
+    },
+    {
       key: 'current_liability',
       label: 'Current liabilities',
       url: buildFetchAccountsByTypeUrl('current_liability'),
@@ -543,6 +551,7 @@ export default function BalanceSheetView() {
       const profitRes = apiResult(results, 'profit');
       const salesReturnProfitRes = apiResult(results, 'sales_return_profit');
       const adjustmentsRes = apiResult(results, 'adjustments');
+      const defaultDiscountSumsRes = apiResult(results, 'default_discount_sums');
       const equityAccounts =
         equityRes?.status === 'success' && Array.isArray(equityRes.value) ? equityRes.value : [];
       const operatingExpenseAccounts =
@@ -592,21 +601,34 @@ export default function BalanceSheetView() {
           adjustmentsRes?.status === 'success' && Array.isArray(adjustmentsRes.value?.lines)
             ? adjustmentsRes.value.lines
             : [];
+        const discountLines =
+          defaultDiscountSumsRes?.status === 'success' &&
+          Array.isArray(defaultDiscountSumsRes.value?.lines)
+            ? defaultDiscountSumsRes.value.lines
+            : [];
+        const discountIds = new Set(discountLines.map((line) => String(line.id)));
+        const withoutDuplicateDiscounts = (lines) =>
+          lines.filter((line) => !discountIds.has(String(line.id)));
         setEquityLines([
-          ...equityAccountLines,
+          ...withoutDuplicateDiscounts(equityAccountLines),
           ...profitLines,
           ...salesReturnProfitLines,
           ...adjustmentLines,
-          ...expenseDeductionLines,
-          ...otherExpenseDeductionLines,
+          ...discountLines,
+          ...withoutDuplicateDiscounts(expenseDeductionLines),
+          ...withoutDuplicateDiscounts(otherExpenseDeductionLines),
         ]);
         const profitErr = profitRes?.status === 'error' ? profitRes.error : null;
         const salesReturnProfitErr =
           salesReturnProfitRes?.status === 'error' ? salesReturnProfitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
+        const discountErr =
+          defaultDiscountSumsRes?.status === 'error' ? defaultDiscountSumsRes.error : null;
         setEquityStatus({
           loading: false,
-          error: [profitErr, salesReturnProfitErr, adjustmentErr].filter(Boolean).join(' · ') || null,
+          error:
+            [profitErr, salesReturnProfitErr, adjustmentErr, discountErr].filter(Boolean).join(' · ') ||
+            null,
         });
       } else {
         setEquityLines([]);
@@ -619,6 +641,8 @@ export default function BalanceSheetView() {
         const salesReturnProfitErr =
           salesReturnProfitRes?.status === 'error' ? salesReturnProfitRes.error : null;
         const adjustmentErr = adjustmentsRes?.status === 'error' ? adjustmentsRes.error : null;
+        const discountErr =
+          defaultDiscountSumsRes?.status === 'error' ? defaultDiscountSumsRes.error : null;
         setEquityStatus({
           loading: false,
           error:
@@ -629,6 +653,7 @@ export default function BalanceSheetView() {
               profitErr,
               salesReturnProfitErr,
               adjustmentErr,
+              discountErr,
             ]
               .filter(Boolean)
               .join(' · ') || 'Failed to load equity',

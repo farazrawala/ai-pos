@@ -216,7 +216,7 @@ const Product = () => {
       await dispatch(
         updateProduct({
           productId,
-          productData: { isActive: newStatus },
+          productData: { status: newStatus ? 'active' : 'inactive' },
           images: [],
         })
       ).unwrap();
@@ -502,11 +502,11 @@ const Product = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('isActive')}
-                          onDoubleClick={() => handleSort('isActive', true)}
+                          onClick={() => handleSort('status')}
+                          onDoubleClick={() => handleSort('status', true)}
                         >
                           Status
-                          {renderSortIcon('isActive')}
+                          {renderSortIcon('status')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -684,15 +684,15 @@ const Product = () => {
                                       role="switch"
                                       id={`toggle-${item._id || item.id || item.product_id || index}`}
                                       checked={
-                                        item.isActive ||
                                         item.status === 'active' ||
+                                        item.isActive ||
                                         item.status === 1
                                       }
                                       onChange={() =>
                                         handleToggleStatus(
                                           item._id || item.id || item.product_id,
-                                          item.isActive ||
-                                            item.status === 'active' ||
+                                          item.status === 'active' ||
+                                            item.isActive ||
                                             item.status === 1
                                         )
                                       }
@@ -722,10 +722,16 @@ const Product = () => {
                                     </span>
                                   ) : (
                                     <span
-                                      className={`badge ${item.isActive || item.status === 'active' || item.status === 1 ? 'bg-success' : 'bg-secondary'}`}
+                                      className={`badge ${
+                                        item.status === 'active' ||
+                                        item.isActive ||
+                                        item.status === 1
+                                          ? 'bg-success'
+                                          : 'bg-secondary'
+                                      }`}
                                     >
-                                      {item.isActive ||
-                                      item.status === 'active' ||
+                                      {item.status === 'active' ||
+                                      item.isActive ||
                                       item.status === 1
                                         ? 'Active'
                                         : 'Inactive'}

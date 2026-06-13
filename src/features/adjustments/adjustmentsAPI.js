@@ -49,7 +49,7 @@ const getAuthToken = () => {
 
 export const ADJUSTMENT_TYPE_OPTIONS = [
   { value: 'add', label: 'Add' },
-  { value: 'subtract', label: 'Remove' },
+  { value: 'remove', label: 'Remove' },
 ];
 
 /** Default `populate` for adjustment list (`GET adjustment/get-all-active`). */
@@ -91,7 +91,7 @@ export const getAdjustmentProductName = (row) => {
 export function formatAdjustmentType(value) {
   const s = String(value ?? '').trim().toLowerCase();
   if (!s) return '—';
-  if (s === 'subtract') return 'Remove';
+  if (s === 'remove' || s === 'subtract') return 'Remove';
   if (s === 'add') return 'Add';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

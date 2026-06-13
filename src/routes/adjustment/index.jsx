@@ -213,7 +213,7 @@ const AdjustmentIndex = () => {
                           const typeBadge =
                             item.type === 'add'
                               ? 'bg-success'
-                              : item.type === 'remove'
+                              : item.type === 'remove' || item.type === 'subtract'
                                 ? 'bg-warning text-dark'
                                 : 'bg-secondary';
                           return (

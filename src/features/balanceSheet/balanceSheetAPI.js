@@ -117,6 +117,7 @@ export async function fetchBalanceSheetInventoryCogRequest() {
 
 const PROFIT_BY_ORDER_ITEM_PATH = 'order/profit-by-order-item';
 const PROFIT_BY_SALES_RETURN_ITEM_PATH = 'sales_return/profit-by-sales-return-item';
+const DEFAULT_DISCOUNT_SUMS_PATH = 'account/default-discount-sums';
 
 /** GET URL for order profit on the balance sheet (Owner's equity). */
 export function buildBalanceSheetProfitUrl() {
@@ -126,6 +127,90 @@ export function buildBalanceSheetProfitUrl() {
 /** GET URL for sales return profit on the balance sheet (Owner's equity). */
 export function buildBalanceSheetSalesReturnProfitUrl() {
   return `${BASE_URL}${PROFIT_BY_SALES_RETURN_ITEM_PATH}`;
+}
+
+/** GET URL for default sales / purchase discount sums on the balance sheet. */
+export function buildBalanceSheetDefaultDiscountSumsUrl() {
+  return `${BASE_URL}${DEFAULT_DISCOUNT_SUMS_PATH}`;
+}
+
+/**
+ * Map `sales_discount` or `purchase_discount` from GET account/default-discount-sums.
+ * Prefers API `amount`; falls back to transaction sums.
+ * @param {{ negate?: boolean }} [options] — when true, amount is shown negative (sales discount).
+ */
+export function mapDefaultDiscountSumToLine(entry, fallbackId, fallbackLabel, options = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+  const sum = entry.transactions_sum ?? entry.transactionsSum;
+  const raw =
+    entry.amount ??
+    sum?.credit_minus_debit ??
+    sum?.creditMinusDebit ??
+    sum?.net_debit_minus_credit ??
+    sum?.netDebitMinusCredit;
+  let amount = Number(raw);
+  if (!Number.isFinite(amount)) amount = 0;
+  if (options.negate && amount !== 0) {
+    amount = amount > 0 ? -amount : amount;
+  }
+  const id = entry.account_id ?? entry.accountId ?? fallbackId;
+  const label = entry.account_name ?? entry.accountName ?? fallbackLabel;
+  return {
+    id: String(id),
+    label: String(label),
+    amount,
+  };
+}
+
+/**
+ * Default sales / purchase discount accounts for balance sheet Owner's equity.
+ * Expects `{ success, data: { sales_discount, purchase_discount, total_discount_amount } }`.
+ *
+ * @returns {Promise<{ lines: Array<{ id: string; label: string; amount: number }>; total: number }>}
+ */
+export async function fetchBalanceSheetDefaultDiscountSumsRequest() {
+  const url = buildBalanceSheetDefaultDiscountSumsUrl();
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Default discount sums request was not successful';
+    throw new Error(msg);
+  }
+
+  const data =
+    result.data != null && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data
+      : result;
+
+  const lines = [];
+  const sales = mapDefaultDiscountSumToLine(
+    data.sales_discount ?? data.salesDiscount,
+    'sales-discount',
+    'Sales Discount',
+    { negate: true }
+  );
+  const purchase = mapDefaultDiscountSumToLine(
+    data.purchase_discount ?? data.purchaseDiscount,
+    'purchase-discount',
+    'Purchase Discount'
+  );
+  if (sales) lines.push(sales);
+  if (purchase) lines.push(purchase);
+
+  const totalFromApi = Number(data.total_discount_amount ?? data.totalDiscountAmount);
+  const total = Number.isFinite(totalFromApi)
+    ? totalFromApi
+    : lines.reduce((sum, line) => sum + line.amount, 0);
+
+  return { lines, total };
 }
 
 /**
@@ -278,7 +363,7 @@ function productUnitCostForAdjustment(product) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Signed equity impact: add = +qty×cost, subtract = −qty×cost. */
+/** Signed equity impact: add = +qty×cost, remove = −qty×cost. */
 export function adjustmentEquityAmount(row) {
   if (!row || typeof row !== 'object') return 0;
   const qty = Number(row.quantity);
@@ -288,7 +373,8 @@ export function adjustmentEquityAmount(row) {
       ? row.product_id
       : null;
   const unitCost = productUnitCostForAdjustment(product);
-  const sign = String(row.type || '').toLowerCase() === 'subtract' ? -1 : 1;
+  const type = String(row.type || '').toLowerCase();
+  const sign = type === 'remove' || type === 'subtract' ? -1 : 1;
   return sign * unitCost * qty;
 }
 
