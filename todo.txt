@@ -126,4 +126,7 @@ purchase_order
 fetch trans no  from  purchase_order_item 
 softdelete Transaction_no 
 insert qty in inventory_movements in
-update qty in warehouse_inventory. 
+update qty in warehouse_inventory.  
+
+
+https://testv3.websitedemolynk.com/pos
