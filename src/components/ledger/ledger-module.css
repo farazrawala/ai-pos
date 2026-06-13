@@ -306,7 +306,56 @@
 }
 
 .ledger-module .ledger-detail-transactions-table .table-ledger {
-  min-width: 1280px;
+  min-width: 1360px;
+}
+
+.ledger-module .ledger-link-ref {
+  max-width: 140px;
+  color: #344767;
+  font-weight: 600;
+}
+
+.ledger-module .ledger-t-classic--detail .ledger-t-classic-body {
+  min-width: 100%;
+}
+
+.ledger-module .ledger-t-classic-row--rich {
+  align-items: flex-start;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.ledger-module .ledger-t-classic-line-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.ledger-module .ledger-t-classic-line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.ledger-module .ledger-t-classic-meta-sep {
+  color: #c1c9d2;
+  font-weight: 600;
+  user-select: none;
+}
+
+.ledger-module .ledger-t-classic-meta-value {
+  color: #67748e;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ledger-module .ledger-t-classic-row--rich .ledger-t-classic-desc {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #525f7f;
+  word-break: break-word;
 }
 
 .ledger-module .ledger-detail-transactions-table thead th {
@@ -337,10 +386,6 @@
 
 .ledger-module .ledger-t-classic--detail {
   border: 1px solid #e9ecef;
-}
-
-.ledger-module .ledger-t-classic--detail .ledger-t-classic-body {
-  min-width: 100%;
 }
 
 .ledger-module .ledger-t-classic--detail .ledger-t-classic-pager {

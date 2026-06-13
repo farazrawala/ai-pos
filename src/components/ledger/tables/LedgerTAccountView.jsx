@@ -1,5 +1,35 @@
+import moment from 'moment';
 import TablePagination from '../../TablePagination.jsx';
 import { fmtMoney } from '../ledgerUtils.js';
+
+function formatOrderNo(row) {
+  if (row?.linkedRefs?.length) return row.linkedRefs.join(', ');
+  return '';
+}
+
+function formatLineDate(row) {
+  if (!row?.date) return '';
+  const m = moment(row.date);
+  return m.isValid() ? m.format('DD MMM YYYY') : '';
+}
+
+function TAccountLineContent({ row }) {
+  const orderNo = formatOrderNo(row);
+  const dateStr = formatLineDate(row);
+
+  return (
+    <div className="ledger-t-classic-line-main">
+      {(orderNo || dateStr) && (
+        <div className="ledger-t-classic-line-meta">
+          {orderNo ? <span className="ledger-t-classic-meta-value">{orderNo}</span> : null}
+          {orderNo && dateStr ? <span className="ledger-t-classic-meta-sep" aria-hidden>·</span> : null}
+          {dateStr ? <span className="ledger-t-classic-meta-value">{dateStr}</span> : null}
+        </div>
+      )}
+      <span className="ledger-t-classic-desc">{row.description || '—'}</span>
+    </div>
+  );
+}
 
 function SkeletonClassic() {
   return (
@@ -137,10 +167,10 @@ export default function LedgerTAccountView({
                     <button
                       key={line.key}
                       type="button"
-                      className="ledger-t-classic-row ledger-t-classic-row--click"
+                      className="ledger-t-classic-row ledger-t-classic-row--click ledger-t-classic-row--rich"
                       onClick={() => onRowClick?.(line.row)}
                     >
-                      <span className="ledger-t-classic-desc">{line.label}</span>
+                      <TAccountLineContent row={line.row} />
                       <span className="ledger-t-classic-amt ledger-t-classic-amt--dr">{fmtMoney(line.amount)}</span>
                     </button>
                   ) : (
@@ -160,10 +190,10 @@ export default function LedgerTAccountView({
                     <button
                       key={line.key}
                       type="button"
-                      className="ledger-t-classic-row ledger-t-classic-row--click"
+                      className="ledger-t-classic-row ledger-t-classic-row--click ledger-t-classic-row--rich"
                       onClick={() => onRowClick?.(line.row)}
                     >
-                      <span className="ledger-t-classic-desc">{line.label}</span>
+                      <TAccountLineContent row={line.row} />
                       <span className="ledger-t-classic-amt ledger-t-classic-amt--cr">{fmtMoney(line.amount)}</span>
                     </button>
                   ) : (

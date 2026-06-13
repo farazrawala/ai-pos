@@ -1,3 +1,9 @@
+/** Linked document / order reference for display. */
+export function formatLedgerLinkRef(row) {
+  if (row?.linkedRefs?.length) return row.linkedRefs.join(', ');
+  return '—';
+}
+
 /** @param {number} n */
 export const fmtMoney = (n) => {
   const x = Number(n);

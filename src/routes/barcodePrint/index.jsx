@@ -11,6 +11,8 @@ import {
   buildBarcodeSettingsPayload,
 } from '../../features/company/companyAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import './barcode-print-module.css';
 
 const B_TYPES = [
   { value: '1', format: 'EAN13', label: 'EAN-13' },
@@ -266,8 +268,6 @@ const BarcodePrint = () => {
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
   const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [bType, setBType] = useState('1');
   const [labelCount, setLabelCount] = useState(1);
@@ -292,8 +292,6 @@ const BarcodePrint = () => {
   const [settingsSaveMessage, setSettingsSaveMessage] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
 
-  const searchTimer = useRef(null);
-
   const companyId = useMemo(() => {
     const merged =
       user && typeof user === 'object'
@@ -304,21 +302,11 @@ const BarcodePrint = () => {
     return getCompanyIdFromUser(merged);
   }, [user, userSlice?.company_id]);
 
-  useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => setDebouncedSearch(search.trim()), 400);
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, [search]);
-
   const loadProducts = useCallback(async () => {
     setListLoading(true);
     setListError(null);
     try {
-      const params = { page: 1, limit: 500 };
-      if (debouncedSearch) params.search = debouncedSearch;
-      const res = await fetchProductsRequest(params);
+      const res = await fetchProductsRequest({ page: 1, limit: 2000 });
       const rows = Array.isArray(res.data) ? res.data : [];
       rows.sort((a, b) =>
         String(productName(a)).localeCompare(String(productName(b)), undefined, {
@@ -332,7 +320,7 @@ const BarcodePrint = () => {
     } finally {
       setListLoading(false);
     }
-  }, [debouncedSearch]);
+  }, []);
 
   useEffect(() => {
     loadProducts();
@@ -400,6 +388,21 @@ const BarcodePrint = () => {
     [products, selectedId]
   );
 
+  const productOptions = useMemo(
+    () =>
+      products.map((p) => {
+        const id = String(productId(p));
+        const sku = String(p.sku || p.product_code || p.barcode || '').trim();
+        const parts = [sku, p.barcode ? `Barcode: ${p.barcode}` : ''].filter(Boolean);
+        return {
+          value: id,
+          label: productName(p),
+          subLabel: parts.length ? parts.join(' · ') : undefined,
+        };
+      }),
+    [products]
+  );
+
   const format = useMemo(() => {
     const row = B_TYPES.find((t) => t.value === bType);
     return row?.format || 'CODE128';
@@ -441,6 +444,52 @@ const BarcodePrint = () => {
   const shIn = Math.max(0.5, Math.min(36, Number(sheetHeightIn) || 2));
   const lw = Math.max(20, Math.min(250, Number(labelWidthMm) || 80));
   const lh = Math.max(15, Math.min(250, Number(labelHeightMm) || 50));
+
+  const previewScale = useMemo(() => {
+    const sheetPxW = swIn * 96;
+    const maxW = 400;
+    return sheetPxW > maxW ? maxW / sheetPxW : 1;
+  }, [swIn]);
+
+  const formatLabel = useMemo(
+    () => B_TYPES.find((t) => t.value === bType)?.label || 'CODE-128',
+    [bType]
+  );
+
+  const renderLabelSheets = (chunks) =>
+    chunks.map((slotIndices, sheetIdx) => (
+      <div
+        key={sheetIdx}
+        className="bp-sheet mb-3"
+        style={{
+          width: `${swIn}in`,
+          minHeight: `${shIn}in`,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, ${lw}mm)`,
+          gridTemplateRows: `repeat(${rows}, ${lh}mm)`,
+          gap: 0,
+          alignContent: 'start',
+          justifyContent: 'start',
+          border: '1px dashed #adb5bd',
+          background: '#fff',
+        }}
+      >
+        {slotIndices.map((labelIdx) => (
+          <BarcodeLabelCell
+            key={`${sheetIdx}-${labelIdx}-${selectedId}-${format}-${encodeValue}`}
+            index={labelIdx}
+            encodeValue={encodeValue}
+            format={format}
+            barCodeWidthField={barCodeWidthField}
+            barCodeHeightField={barCodeHeightField}
+            fontSize={fontSize}
+            lines={labelLines}
+            labelWidthMm={lw}
+            labelHeightMm={lh}
+          />
+        ))}
+      </div>
+    ));
 
   const handleSaveSettings = async () => {
     setSettingsSaveError('');
@@ -536,61 +585,25 @@ const BarcodePrint = () => {
   };
 
   const yesNoSelect = (value, onChange) => (
-    <select className="form-control" value={value ? 'yes' : 'no'} onChange={(e) => onChange(e.target.value === 'yes')}>
+    <select className="form-select" value={value ? 'yes' : 'no'} onChange={(e) => onChange(e.target.value === 'yes')}>
       <option value="yes">Yes</option>
       <option value="no">No</option>
     </select>
   );
 
   return (
-    <div className="container-fluid py-4 px-0 barcode-print-page">
-      <style>{`
-        @media print {
-          aside#sidenav-main,
-          nav#navbarBlur,
-          footer.footer,
-          .min-height-300.bg-dark.position-absolute,
-          .barcode-print-toolbar,
-          .barcode-print-hint-card {
-            display: none !important;
-          }
-          .barcode-print-page .card {
-            box-shadow: none !important;
-            border: none !important;
-          }
-          .barcode-print-label {
-            border: 1px solid #ccc !important;
-          }
-          body {
-            background: #fff !important;
-          }
-          main.main-content {
-            margin-left: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          .bp-sheet {
-            page-break-after: always;
-            break-after: page;
-          }
-          .bp-sheet:last-child {
-            page-break-after: auto;
-            break-after: auto;
-          }
-        }
-        @page { margin: 10mm; size: auto; }
-      `}</style>
-
-      <div className="row mt-4">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card">
-            <div className="card-header pb-0 barcode-print-toolbar">
-              <h5 className="mb-0">Print barcodes</h5>
+    <div className="container-fluid py-4 px-3 px-lg-4 barcode-print-page">
+      <div className="row">
+        <div className="col-12">
+          <div className="card shadow-sm barcode-print-main-card">
+            <div className="card-header pb-3 barcode-print-toolbar">
+              <h5 className="mb-1">Print barcodes</h5>
               <p className="text-sm text-muted mb-0">
-                Configure print settings, preview the sheet layout, then print from this page or open a print-only
-                Settings can be saved to your company and restored on next visit.
+                Configure labels on the left; the preview updates live on the right. Save settings to your company or
+                print when ready.
               </p>
             </div>
+
             <div className="card-body barcode-print-toolbar">
               {settingsLoadError ? (
                 <div className="alert alert-warning py-2 mb-3" role="status">
@@ -608,303 +621,332 @@ const BarcodePrint = () => {
                 </div>
               ) : null}
               {listError ? (
-                <div className="alert alert-warning" role="alert">
+                <div className="alert alert-warning py-2 mb-3" role="alert">
                   {listError}
                 </div>
               ) : null}
 
-              <h6 className="text-sm text-uppercase text-muted font-weight-bold mb-3">Product</h6>
-              <div className="row g-3 mb-4">
-                <div className="col-md-6">
-                  <label className="form-label">Search products</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Filter list…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    disabled={listLoading}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label">Product</label>
-                  <select
-                    className="form-control"
-                    value={selectedId}
-                    onChange={(e) => setSelectedId(e.target.value)}
-                    disabled={listLoading}
-                  >
-                    <option value="">— Select product —</option>
-                    {products.map((p) => {
-                      const id = productId(p);
-                      const sku = p.sku || p.product_code || '';
-                      return (
-                        <option key={id} value={id}>
-                          {productName(p)}
-                          {sku ? ` (${sku})` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {listLoading ? (
-                    <p className="text-xs text-muted mt-1 mb-0">Loading products…</p>
+              <div className="row g-4 align-items-start">
+                <div className="col-lg-7 barcode-print-settings-col">
+                  <section className="barcode-print-section">
+                    <h6 className="barcode-print-section-title">Product</h6>
+                    <div className="row g-3">
+                      <div className="col-md-8">
+                        <label className="form-label">Product</label>
+                        <SearchableSelect
+                          options={productOptions}
+                          value={selectedId}
+                          placeholder="Search and select product…"
+                          disabled={listLoading}
+                          onChange={setSelectedId}
+                        />
+                        {listLoading ? (
+                          <span className="barcode-print-field-hint">Loading products…</span>
+                        ) : null}
+                      </div>
+                      <div className="col-md-4">
+                        <label className="form-label">Barcode type</label>
+                        <select
+                          className="form-select"
+                          name="b_type"
+                          value={bType}
+                          onChange={(e) => setBType(e.target.value)}
+                        >
+                          {B_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-md-4">
+                        <label className="form-label">Total labels</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={1}
+                          max={200}
+                          value={labelCount}
+                          onChange={(e) => setLabelCount(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">Rows × columns below</span>
+                      </div>
+                      <div className="col-md-8">
+                        <label className="form-label">Custom encode text (optional)</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Overrides barcode / SKU / product code when filled"
+                          value={overrideText}
+                          onChange={(e) => setOverrideText(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="barcode-print-section">
+                    <h6 className="barcode-print-section-title">Sheet &amp; label size</h6>
+                    <div className="row g-3">
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Sheet width</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={1}
+                          max={24}
+                          step={0.01}
+                          value={sheetWidthIn}
+                          onChange={(e) => setSheetWidthIn(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">inches</span>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Sheet height</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={0.5}
+                          max={36}
+                          step={0.01}
+                          value={sheetHeightIn}
+                          onChange={(e) => setSheetHeightIn(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">inches</span>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Label width</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={20}
+                          max={250}
+                          value={labelWidthMm}
+                          onChange={(e) => setLabelWidthMm(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">mm</span>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Label height</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={15}
+                          max={250}
+                          value={labelHeightMm}
+                          onChange={(e) => setLabelHeightMm(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">mm</span>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Rows</label>
+                        <select
+                          className="form-select"
+                          value={totalRows}
+                          onChange={(e) => setTotalRows(Number(e.target.value))}
+                        >
+                          {ROW_COL_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Columns</label>
+                        <select
+                          className="form-select"
+                          value={totalCols}
+                          onChange={(e) => setTotalCols(Number(e.target.value))}
+                        >
+                          {ROW_COL_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="barcode-print-section">
+                    <h6 className="barcode-print-section-title">Barcode appearance</h6>
+                    <div className="row g-3">
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Bar width</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={10}
+                          max={120}
+                          value={barCodeWidthField}
+                          onChange={(e) => setBarCodeWidthField(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Bar height</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={20}
+                          max={120}
+                          value={barCodeHeightField}
+                          onChange={(e) => setBarCodeHeightField(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Font size</label>
+                        <select
+                          className="form-select"
+                          value={fontSize}
+                          onChange={(e) => setFontSize(Number(e.target.value))}
+                        >
+                          {FONT_SIZE_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n} pt
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Max chars / line</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={8}
+                          max={120}
+                          value={maxChars}
+                          onChange={(e) => setMaxChars(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Product name</label>
+                        {yesNoSelect(showProductName, setShowProductName)}
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Price</label>
+                        {yesNoSelect(showPrice, setShowPrice)}
+                      </div>
+                    </div>
+                  </section>
+
+                  {encodeHint && selectedProduct ? (
+                    <div className="alert alert-info py-2 mb-3 barcode-print-hint-card" role="status">
+                      {encodeHint}
+                    </div>
                   ) : null}
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label">Barcode type</label>
-                  <select className="form-control" name="b_type" value={bType} onChange={(e) => setBType(e.target.value)}>
-                    {B_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label">Total labels</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={1}
-                    max={200}
-                    value={labelCount}
-                    onChange={(e) => setLabelCount(e.target.value)}
-                  />
-                  <span className="text-xs text-muted">Placed on sheets using rows × columns below.</span>
-                </div>
-                <div className="col-md-8">
-                  <label className="form-label">Custom encode text (optional)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Overrides barcode / SKU / product code when filled"
-                    value={overrideText}
-                    onChange={(e) => setOverrideText(e.target.value)}
-                  />
-                </div>
-              </div>
 
-              <h6 className="text-sm text-uppercase text-muted font-weight-bold mb-3">Print settings</h6>
-              <div className="row g-3 mb-2">
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Sheet width</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={1}
-                    max={24}
-                    step={0.01}
-                    value={sheetWidthIn}
-                    onChange={(e) => setSheetWidthIn(e.target.value)}
-                  />
-                  <span className="text-xs text-muted">in inches</span>
+                  <div className="barcode-print-actions">
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handlePrint}
+                      disabled={!selectedProduct || !encodeValue}
+                    >
+                      <i className="fas fa-print me-2" aria-hidden="true"></i>
+                      Print
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-success"
+                      onClick={handlePrintPage}
+                      disabled={!selectedProduct || !encodeValue}
+                      title="Opens a print dialog using only the label sheets (no sidebar)"
+                    >
+                      <i className="fas fa-file-alt me-2" aria-hidden="true"></i>
+                      Print page
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleSaveSettings}
+                      disabled={!companyId || settingsSaving}
+                    >
+                      {settingsSaving ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          Saving…
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-save me-2" aria-hidden="true"></i>
+                          Save settings
+                        </>
+                      )}
+                    </button>
+                    {!companyId ? (
+                      <span className="text-xs text-muted">
+                        Save requires a company on your profile.
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Sheet height</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={0.5}
-                    max={36}
-                    step={0.01}
-                    value={sheetHeightIn}
-                    onChange={(e) => setSheetHeightIn(e.target.value)}
-                  />
-                  <span className="text-xs text-muted">in inches</span>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Label width</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={20}
-                    max={250}
-                    value={labelWidthMm}
-                    onChange={(e) => setLabelWidthMm(e.target.value)}
-                  />
-                  <span className="text-xs text-muted">in MM</span>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Label height</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={15}
-                    max={250}
-                    value={labelHeightMm}
-                    onChange={(e) => setLabelHeightMm(e.target.value)}
-                  />
-                  <span className="text-xs text-muted">in MM</span>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Total rows</label>
-                  <select className="form-control" value={totalRows} onChange={(e) => setTotalRows(Number(e.target.value))}>
-                    {ROW_COL_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Total cols</label>
-                  <select className="form-control" value={totalCols} onChange={(e) => setTotalCols(Number(e.target.value))}>
-                    {ROW_COL_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">BarCode width</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={10}
-                    max={120}
-                    value={barCodeWidthField}
-                    onChange={(e) => setBarCodeWidthField(e.target.value)}
-                  />
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">BarCode height</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={20}
-                    max={120}
-                    value={barCodeHeightField}
-                    onChange={(e) => setBarCodeHeightField(e.target.value)}
-                  />
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Font size</label>
-                  <select className="form-control" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))}>
-                    {FONT_SIZE_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n} pt
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <label className="form-label">Max characters (each line)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    min={8}
-                    max={120}
-                    value={maxChars}
-                    onChange={(e) => setMaxChars(e.target.value)}
-                  />
-                </div>
-              </div>
 
-              <div className="row g-3 mb-3">
-                <div className="col-6 col-md-4 col-lg-2">
-                  <label className="form-label">Product name</label>
-                  {yesNoSelect(showProductName, setShowProductName)}
+                <div className="col-lg-5">
+                  <aside className="barcode-print-preview-panel" aria-label="Live barcode preview">
+                    <div className="barcode-print-preview-header">
+                      <h6 className="mb-0">Live preview</h6>
+                      <p className="text-xs text-muted mb-0">
+                        Updates when you change product, size, or layout settings
+                      </p>
+                      {selectedProduct ? (
+                        <div className="barcode-print-preview-meta">
+                          <span className="barcode-print-preview-chip">{productName(selectedProduct)}</span>
+                          <span className="barcode-print-preview-chip">{formatLabel}</span>
+                          <span className="barcode-print-preview-chip">
+                            {lw}×{lh} mm
+                          </span>
+                          <span className="barcode-print-preview-chip">
+                            {swIn}×{shIn} in sheet
+                          </span>
+                          <span className="barcode-print-preview-chip">
+                            {rows}×{cols} grid
+                          </span>
+                          <span className="barcode-print-preview-chip">
+                            {totalLabels} label{totalLabels !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="barcode-print-preview-viewport">
+                      {!selectedProduct ? (
+                        <div className="barcode-print-preview-empty">
+                          <div className="barcode-print-preview-empty-icon">
+                            <i className="fas fa-barcode" aria-hidden="true" />
+                          </div>
+                          <p className="text-sm font-weight-bold text-dark mb-1">No product selected</p>
+                          <p className="text-xs mb-0">Choose a product to preview barcode labels here.</p>
+                        </div>
+                      ) : !encodeValue ? (
+                        <div className="barcode-print-preview-empty">
+                          <p className="text-sm font-weight-bold text-dark mb-1">Cannot encode barcode</p>
+                          <p className="text-xs mb-0">{encodeHint || 'Check product codes or use custom encode text.'}</p>
+                        </div>
+                      ) : (
+                        <div
+                          className="barcode-print-preview-scale-wrap"
+                          style={{
+                            transform: `scale(${previewScale})`,
+                            width: `${swIn}in`,
+                          }}
+                        >
+                          {renderLabelSheets(sheetChunks.slice(0, 3))}
+                          {sheetChunks.length > 3 ? (
+                            <p className="text-xs text-muted mt-2 mb-0">
+                              + {sheetChunks.length - 3} more sheet{sheetChunks.length - 3 !== 1 ? 's' : ''} in print
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </aside>
                 </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <label className="form-label">Price</label>
-                  {yesNoSelect(showPrice, setShowPrice)}
-                </div>
-              </div>
-
-              {encodeHint && selectedProduct ? (
-                <div className="alert alert-info mb-3 barcode-print-hint-card" role="status">
-                  {encodeHint}
-                </div>
-              ) : null}
-
-              <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
-                <button
-                  type="button"
-                  className="btn btn-success"
-                  onClick={handlePrint}
-                  disabled={!selectedProduct || !encodeValue}
-                >
-                  <i className="fas fa-print me-2" aria-hidden="true"></i>
-                  Print
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline-success"
-                  onClick={handlePrintPage}
-                  disabled={!selectedProduct || !encodeValue}
-                  title="Opens a print dialog using only the label sheets (no sidebar)"
-                >
-                  <i className="fas fa-file-alt me-2" aria-hidden="true"></i>
-                  Print page
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSaveSettings}
-                  disabled={!companyId || settingsSaving}
-                >
-                  {settingsSaving ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Saving…
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save me-2" aria-hidden="true"></i>
-                      Save settings
-                    </>
-                  )}
-                </button>
-                {!companyId ? (
-                  <span className="text-xs text-muted">
-                    Save requires a company on your profile (e.g. <code>company_id</code> or <code>company._id</code>).
-                  </span>
-                ) : null}
               </div>
             </div>
 
-            <div className="card-body pt-0 border-top">
-              <h6 className="text-sm text-muted mb-3">Preview (same layout as Print page)</h6>
-              {!selectedProduct ? (
-                <p className="text-sm text-muted mb-0">Select a product to preview labels.</p>
-              ) : (
-                <div id="barcode-print-sheets-root">
-                  {sheetChunks.map((slotIndices, sheetIdx) => (
-                    <div
-                      key={sheetIdx}
-                      className="bp-sheet mb-3"
-                      style={{
-                        width: `${swIn}in`,
-                        minHeight: `${shIn}in`,
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${cols}, ${lw}mm)`,
-                        gridTemplateRows: `repeat(${rows}, ${lh}mm)`,
-                        gap: 0,
-                        alignContent: 'start',
-                        justifyContent: 'start',
-                        border: '1px dashed #adb5bd',
-                        background: '#fafafa',
-                      }}
-                    >
-                      {slotIndices.map((labelIdx) => (
-                        <BarcodeLabelCell
-                          key={`${sheetIdx}-${labelIdx}-${selectedId}-${format}-${encodeValue}`}
-                          index={labelIdx}
-                          encodeValue={encodeValue}
-                          format={format}
-                          barCodeWidthField={barCodeWidthField}
-                          barCodeHeightField={barCodeHeightField}
-                          fontSize={fontSize}
-                          lines={labelLines}
-                          labelWidthMm={lw}
-                          labelHeightMm={lh}
-                        />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="barcode-print-print-area d-none">
+              <div id="barcode-print-sheets-root">
+                {selectedProduct && encodeValue ? renderLabelSheets(sheetChunks) : null}
+              </div>
             </div>
           </div>
         </div>

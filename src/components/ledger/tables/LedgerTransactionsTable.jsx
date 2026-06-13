@@ -4,9 +4,9 @@ import { FaChevronDown, FaChevronRight, FaEllipsisVertical } from 'react-icons/f
 import NavIcon from '../../NavIcon.jsx';
 import ListSortableTh from '../../list/ListSortableTh.jsx';
 import TablePagination from '../../TablePagination.jsx';
-import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
+import { fmtMoney, balanceTextClass, formatLedgerLinkRef } from '../ledgerUtils.js';
 
-function Skeleton({ cols = 13 }) {
+function Skeleton({ cols = 14 }) {
   return (
     <tbody className="placeholder-glow">
       {Array.from({ length: 6 }).map((_, i) => (
@@ -92,6 +92,7 @@ export default function LedgerTransactionsTable({
               <thead>
                 <tr>
                   <th className="text-center" style={{ width: 40 }} />
+                  <th>Order no</th>
                   <ListSortableTh column="date" label="Date" sort={sort} onSort={handleSort} />
                   <ListSortableTh column="referenceNo" label="Reference" sort={sort} onSort={handleSort} />
                   <th>Description</th>
@@ -111,7 +112,7 @@ export default function LedgerTransactionsTable({
               ) : slice.length === 0 ? (
                 <tbody>
                   <tr>
-                    <td colSpan={13} className="ledger-users-empty text-center py-5">
+                    <td colSpan={14} className="ledger-users-empty text-center py-5">
                       <p className="font-weight-bold text-dark mb-1">No transactions</p>
                       <p className="text-sm text-muted mb-0">Change filters or add an entry.</p>
                     </td>
@@ -146,6 +147,11 @@ export default function LedgerTransactionsTable({
                               size={12}
                             />
                           </button>
+                        </td>
+                        <td className="text-sm ledger-link-ref">
+                          <span className="d-inline-block text-truncate w-100" title={formatLedgerLinkRef(row)}>
+                            {formatLedgerLinkRef(row) === '—' ? '' : formatLedgerLinkRef(row)}
+                          </span>
                         </td>
                         <td className="text-sm text-nowrap ledger-date">
                           {moment(row.date).format('DD MMM YYYY HH:mm')}
@@ -235,7 +241,7 @@ export default function LedgerTransactionsTable({
                       </tr>
                       {expandedIds.has(row.id) ? (
                         <tr className="ledger-expand-row">
-                          <td colSpan={13} className="ledger-expand-panel py-3 px-4">
+                          <td colSpan={14} className="ledger-expand-panel py-3 px-4">
                             <div className="row text-sm g-3">
                               <div className="col-md-6">
                                 <p className="text-xs text-uppercase font-weight-bold text-muted mb-1">Notes</p>
