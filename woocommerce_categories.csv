@@ -1,0 +1,101 @@
+﻿name,slug,description,parent
+Clothing,clothing,Limited-time deals on popular clothing items.,
+Electronics,electronics,New arrivals in electronics — updated weekly for our WooCommerce store.,
+Home & Garden,home-garden,Limited-time deals on popular home & garden items.,
+Sports & Outdoors,sports-outdoors,Limited-time deals on popular sports & outdoors items.,
+Beauty & Personal Care,beauty-personal-care,New arrivals in beauty & personal care — updated weekly for our WooCommerce store.,
+Toys & Games,toys-games,Limited-time deals on popular toys & games items.,
+Books & Media,books-media,Limited-time deals on popular books & media items.,
+Automotive,automotive,"Affordable automotive designed for comfort, style, and durability.",
+Pet Supplies,pet-supplies,Limited-time deals on popular pet supplies items.,
+Office Supplies,office-supplies,Browse office supplies from trusted brands in our catalog.,
+Health & Wellness,health-wellness,Best-selling health & wellness for online shoppers — quality you can trust.,
+Jewelry & Watches,jewelry-watches,Limited-time deals on popular jewelry & watches items.,
+Baby & Kids,baby-kids,Explore top-rated baby & kids at competitive prices.,
+Food & Beverages,food-beverages,"Affordable food & beverages designed for comfort, style, and durability.",
+Furniture,furniture,Browse furniture from trusted brands in our catalog.,
+Tools & Hardware,tools-hardware,"Affordable tools & hardware designed for comfort, style, and durability.",
+Arts & Crafts,arts-crafts,Best-selling arts & crafts for online shoppers — quality you can trust.,
+Musical Instruments,musical-instruments,Limited-time deals on popular musical instruments items.,
+Travel & Luggage,travel-luggage,"Affordable travel & luggage designed for comfort, style, and durability.",
+Shoes & Footwear,shoes-footwear,Explore top-rated shoes & footwear at competitive prices.,
+Men's T-Shirts,men-s-t-shirts,"Affordable men's t-shirts designed for comfort, style, and durability.",Clothing
+Women's Dresses,women-s-dresses,Best-selling women's dresses for online shoppers — quality you can trust.,Clothing
+Kids Hoodies,kids-hoodies,"Affordable kids hoodies designed for comfort, style, and durability.",Clothing
+Activewear,activewear,Explore top-rated activewear at competitive prices.,Clothing
+Smartphones,smartphones,Discover premium smartphones with fast shipping and easy returns.,Electronics
+Laptops,laptops,"Affordable laptops designed for comfort, style, and durability.",Electronics
+Tablets,tablets,New arrivals in tablets — updated weekly for our WooCommerce store.,Electronics
+Headphones,headphones,Discover premium headphones with fast shipping and easy returns.,Electronics
+Kitchen Appliances,kitchen-appliances,Browse kitchen appliances from trusted brands in our catalog.,Home & Garden
+Bedding,bedding,Discover premium bedding with fast shipping and easy returns.,Home & Garden
+Bathroom Accessories,bathroom-accessories,Shop our curated selection of bathroom accessories for everyday use and special occasions.,Home & Garden
+Lighting,lighting,Explore top-rated lighting at competitive prices.,Home & Garden
+Camping Gear,camping-gear,Browse camping gear from trusted brands in our catalog.,Sports & Outdoors
+Cycling,cycling,Best-selling cycling for online shoppers — quality you can trust.,Sports & Outdoors
+Fitness Equipment,fitness-equipment,Best-selling fitness equipment for online shoppers — quality you can trust.,Sports & Outdoors
+Team Sports,team-sports,Shop our curated selection of team sports for everyday use and special occasions.,Sports & Outdoors
+Skincare,skincare,Explore top-rated skincare at competitive prices.,Beauty & Personal Care
+Makeup,makeup,Limited-time deals on popular makeup items.,Beauty & Personal Care
+Hair Care,hair-care,Best-selling hair care for online shoppers — quality you can trust.,Beauty & Personal Care
+Fragrances,fragrances,Limited-time deals on popular fragrances items.,Beauty & Personal Care
+Action Figures,action-figures,Best-selling action figures for online shoppers — quality you can trust.,Toys & Games
+Board Games,board-games,New arrivals in board games — updated weekly for our WooCommerce store.,Toys & Games
+Educational Toys,educational-toys,Browse educational toys from trusted brands in our catalog.,Toys & Games
+Puzzles,puzzles,Limited-time deals on popular puzzles items.,Toys & Games
+Fiction,fiction,Discover premium fiction with fast shipping and easy returns.,Books & Media
+Non-Fiction,non-fiction,Discover premium non-fiction with fast shipping and easy returns.,Books & Media
+Children's Books,children-s-books,Best-selling children's books for online shoppers — quality you can trust.,Books & Media
+Comics & Manga,comics-manga,Best-selling comics & manga for online shoppers — quality you can trust.,Books & Media
+Car Care,car-care,"Affordable car care designed for comfort, style, and durability.",Automotive
+Interior Accessories,interior-accessories,Browse interior accessories from trusted brands in our catalog.,Automotive
+Exterior Accessories,exterior-accessories,Discover premium exterior accessories with fast shipping and easy returns.,Automotive
+Motorcycle Gear,motorcycle-gear,New arrivals in motorcycle gear — updated weekly for our WooCommerce store.,Automotive
+Dog Food,dog-food,Limited-time deals on popular dog food items.,Pet Supplies
+Cat Food,cat-food,Discover premium cat food with fast shipping and easy returns.,Pet Supplies
+Pet Toys,pet-toys,New arrivals in pet toys — updated weekly for our WooCommerce store.,Pet Supplies
+Aquarium Supplies,aquarium-supplies,Explore top-rated aquarium supplies at competitive prices.,Pet Supplies
+Pens & Pencils,pens-pencils,Explore top-rated pens & pencils at competitive prices.,Office Supplies
+Notebooks,notebooks,Explore top-rated notebooks at competitive prices.,Office Supplies
+Printers & Ink,printers-ink,Browse printers & ink from trusted brands in our catalog.,Office Supplies
+Desk Organizers,desk-organizers,"Affordable desk organizers designed for comfort, style, and durability.",Office Supplies
+Vitamins & Supplements,vitamins-supplements,Browse vitamins & supplements from trusted brands in our catalog.,Health & Wellness
+First Aid,first-aid,Shop our curated selection of first aid for everyday use and special occasions.,Health & Wellness
+Medical Devices,medical-devices,Shop our curated selection of medical devices for everyday use and special occasions.,Health & Wellness
+Massage & Relaxation,massage-relaxation,Discover premium massage & relaxation with fast shipping and easy returns.,Health & Wellness
+Necklaces,necklaces,Shop our curated selection of necklaces for everyday use and special occasions.,Jewelry & Watches
+Earrings,earrings,New arrivals in earrings — updated weekly for our WooCommerce store.,Jewelry & Watches
+Bracelets,bracelets,Best-selling bracelets for online shoppers — quality you can trust.,Jewelry & Watches
+Rings,rings,"Affordable rings designed for comfort, style, and durability.",Jewelry & Watches
+Diapers & Wipes,diapers-wipes,Best-selling diapers & wipes for online shoppers — quality you can trust.,Baby & Kids
+Baby Clothing,baby-clothing,Shop our curated selection of baby clothing for everyday use and special occasions.,Baby & Kids
+Strollers,strollers,Limited-time deals on popular strollers items.,Baby & Kids
+Car Seats,car-seats,New arrivals in car seats — updated weekly for our WooCommerce store.,Baby & Kids
+Snacks,snacks,Explore top-rated snacks at competitive prices.,Food & Beverages
+Coffee & Tea,coffee-tea,"Affordable coffee & tea designed for comfort, style, and durability.",Food & Beverages
+Pantry Staples,pantry-staples,Shop our curated selection of pantry staples for everyday use and special occasions.,Food & Beverages
+Organic Foods,organic-foods,"Affordable organic foods designed for comfort, style, and durability.",Food & Beverages
+Living Room,living-room,Discover premium living room with fast shipping and easy returns.,Furniture
+Bedroom,bedroom,Browse bedroom from trusted brands in our catalog.,Furniture
+Dining Room,dining-room,New arrivals in dining room — updated weekly for our WooCommerce store.,Furniture
+Office Furniture,office-furniture,Explore top-rated office furniture at competitive prices.,Furniture
+Power Tools,power-tools,"Affordable power tools designed for comfort, style, and durability.",Tools & Hardware
+Hand Tools,hand-tools,"Affordable hand tools designed for comfort, style, and durability.",Tools & Hardware
+Plumbing,plumbing,Browse plumbing from trusted brands in our catalog.,Tools & Hardware
+Electrical,electrical,Explore top-rated electrical at competitive prices.,Tools & Hardware
+Painting Supplies,painting-supplies,"Affordable painting supplies designed for comfort, style, and durability.",Arts & Crafts
+Sewing & Knitting,sewing-knitting,"Affordable sewing & knitting designed for comfort, style, and durability.",Arts & Crafts
+Scrapbooking,scrapbooking,Shop our curated selection of scrapbooking for everyday use and special occasions.,Arts & Crafts
+Beading & Jewelry Making,beading-jewelry-making,Best-selling beading & jewelry making for online shoppers — quality you can trust.,Arts & Crafts
+Guitars,guitars,"Affordable guitars designed for comfort, style, and durability.",Musical Instruments
+Keyboards & Pianos,keyboards-pianos,Shop our curated selection of keyboards & pianos for everyday use and special occasions.,Musical Instruments
+Drums & Percussion,drums-percussion,Discover premium drums & percussion with fast shipping and easy returns.,Musical Instruments
+Wind Instruments,wind-instruments,Explore top-rated wind instruments at competitive prices.,Musical Instruments
+Carry-On Bags,carry-on-bags,Best-selling carry-on bags for online shoppers — quality you can trust.,Travel & Luggage
+Checked Luggage,checked-luggage,New arrivals in checked luggage — updated weekly for our WooCommerce store.,Travel & Luggage
+Backpacks,backpacks,"Affordable backpacks designed for comfort, style, and durability.",Travel & Luggage
+Travel Accessories,travel-accessories,Browse travel accessories from trusted brands in our catalog.,Travel & Luggage
+Men's Sneakers,men-s-sneakers,Shop our curated selection of men's sneakers for everyday use and special occasions.,Shoes & Footwear
+Women's Heels,women-s-heels,Explore top-rated women's heels at competitive prices.,Shoes & Footwear
+Running Shoes,running-shoes,Shop our curated selection of running shoes for everyday use and special occasions.,Shoes & Footwear
+Boots,boots,"Affordable boots designed for comfort, style, and durability.",Shoes & Footwear
