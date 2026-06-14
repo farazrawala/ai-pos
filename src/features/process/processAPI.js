@@ -135,3 +135,39 @@ export const createSyncCategoryProcessRequest = async (integrationId) =>
     action: 'sync_category',
     priority: 1000,
   });
+
+export const executeProcessRequest = async (processId) => {
+  const id = String(processId || '').trim();
+  if (!id) throw new Error('Process id is required');
+
+  const url = `${BASE_URL}process/execute-process/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+  } catch (err) {
+    logProcessModuleError('executeProcessRequest network error', { url, processId: id, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('executeProcessRequest failed', {
+      status: response.status,
+      processId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};

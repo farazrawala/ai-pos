@@ -8,7 +8,7 @@ import {
   setLimit,
   setSort,
 } from '../../features/process/processSlice.js';
-import { usePermissions } from '../../hooks/usePermissions.js';
+import { executeProcessRequest } from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -57,16 +57,42 @@ const ProcessIndex = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+  const [executingProcessId, setExecutingProcessId] = useState(null);
+  const [executeError, setExecuteError] = useState(null);
 
-  useEffect(() => {
+  const buildFetchParams = () => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    dispatch(fetchProcesses(params));
+    return params;
+  };
+
+  const refreshProcesses = () => {
+    dispatch(fetchProcesses(buildFetchParams()));
+  };
+  useEffect(() => {
+    refreshProcesses();
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  const handleExecuteProcess = async (processId) => {
+    if (!processId) return;
+
+    setExecutingProcessId(processId);
+    setExecuteError(null);
+
+    try {
+      await executeProcessRequest(processId);
+      refreshProcesses();
+    } catch (err) {
+      setExecuteError(err?.message || 'Failed to execute process');
+      console.error('[Process module] Failed to execute process', { processId, error: err });
+    } finally {
+      setExecutingProcessId(null);
+    }
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -157,6 +183,11 @@ const ProcessIndex = () => {
                 </div>
               </div>
             </div>
+            {executeError ? (
+              <div className="px-4 pt-3">
+                <div className="alert alert-danger py-2 mb-0">{executeError}</div>
+              </div>
+            ) : null}
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 loading={loading}
@@ -211,12 +242,13 @@ const ProcessIndex = () => {
                         Created At
                         {renderSortIcon('createdAt')}
                       </th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="12" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan="13" className="text-center text-sm font-weight-normal p-4">
                           No processes found
                         </td>
                       </tr>
@@ -261,6 +293,27 @@ const ProcessIndex = () => {
                               {item.createdAt
                                 ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
                                 : '-'}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary mb-0"
+                                onClick={() => handleExecuteProcess(id)}
+                                disabled={!id || executingProcessId === id}
+                              >
+                                {executingProcessId === id ? (
+                                  <>
+                                    <span
+                                      className="spinner-border spinner-border-sm me-1"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
+                                    Executing…
+                                  </>
+                                ) : (
+                                  'Execute'
+                                )}
+                              </button>
                             </td>
                           </tr>
                         );
