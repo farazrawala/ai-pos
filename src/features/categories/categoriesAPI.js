@@ -85,6 +85,7 @@ export const fetchCategoriesRequest = async (params = {}) => {
   if (params.search) queryParams.append('search', params.search);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  if (params.populate) queryParams.append('populate', params.populate);
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}category/get-all-active${queryString ? `?${queryString}` : ''}`;

@@ -30,6 +30,23 @@ const shortId = (value) => {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
 };
 
+const formatProgress = (progress) => {
+  if (!progress) return '-';
+  return String(progress)
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const progressBadgeClass = (progress) => {
+  const value = String(progress || '').toLowerCase();
+  if (value === 'completed' || value === 'done' || value === 'success') return 'bg-success';
+  if (value === 'failed' || value === 'error') return 'bg-danger';
+  if (value === 'in_progress' || value === 'running' || value === 'processing') return 'bg-primary';
+  if (value === 'not_started' || value === 'pending') return 'bg-warning text-dark';
+  return 'bg-secondary';
+};
+
 const ProcessIndex = () => {
   const dispatch = useDispatch();
   const { list: data, status, error, pagination, search: searchTerm, sort } = useSelector(
@@ -168,6 +185,15 @@ const ProcessIndex = () => {
                       <th>Priority</th>
                       <th>Count</th>
                       <th>Page</th>
+                      <th>Hits</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('progress')}
+                        onDoubleClick={() => handleSort('progress', true)}
+                      >
+                        Progress
+                        {renderSortIcon('progress')}
+                      </th>
                       <th>Remarks</th>
                       <th
                         style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -190,7 +216,7 @@ const ProcessIndex = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan="12" className="text-center text-sm font-weight-normal p-4">
                           No processes found
                         </td>
                       </tr>
@@ -213,6 +239,12 @@ const ProcessIndex = () => {
                             <td>{item.priority ?? '-'}</td>
                             <td>{item.count ?? '-'}</td>
                             <td>{item.page ?? '-'}</td>
+                            <td>{item.hits ?? 0}</td>
+                            <td>
+                              <span className={`badge ${progressBadgeClass(item.progress)}`}>
+                                {formatProgress(item.progress)}
+                              </span>
+                            </td>
                             <td>{item.remarks || '-'}</td>
                             <td>
                               <span

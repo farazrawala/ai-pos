@@ -27,6 +27,29 @@ const categoryImageSrc = (cat) => {
   return resolveCategoryMediaUrl(raw);
 };
 
+const parentCategoryName = (item) => {
+  const parent = item?.parent_id;
+  if (!parent) return '-';
+  if (typeof parent === 'object') {
+    return parent.name || parent.category_name || '-';
+  }
+  return String(parent);
+};
+
+const buildCategoryListParams = (pagination, searchTerm, sort) => {
+  const params = {
+    page: pagination.page,
+    limit: pagination.limit,
+    populate: 'parent_id',
+  };
+  if (searchTerm) params.search = searchTerm;
+  if (sort.sortBy) {
+    params.sortBy = sort.sortBy;
+    params.sortOrder = sort.sortOrder;
+  }
+  return params;
+};
+
 const Category = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -58,21 +81,7 @@ const Category = () => {
   // }, [canCreate]);
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-
-    if (searchTerm) {
-      params.search = searchTerm;
-    }
-
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-
-    dispatch(fetchCategories(params));
+    dispatch(fetchCategories(buildCategoryListParams(pagination, searchTerm, sort)));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
 
   // Handle search input with debounce
@@ -156,19 +165,7 @@ const Category = () => {
         })
       ).unwrap();
 
-      // Refresh the list to get updated data
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-      };
-      if (searchTerm) {
-        params.search = searchTerm;
-      }
-      if (sort.sortBy) {
-        params.sortBy = sort.sortBy;
-        params.sortOrder = sort.sortOrder;
-      }
-      dispatch(fetchCategories(params));
+      dispatch(fetchCategories(buildCategoryListParams(pagination, searchTerm, sort)));
     } catch (error) {
       console.error('[Category module] Failed to toggle category status', { categoryId, error });
       // Show error toast
@@ -214,18 +211,7 @@ const Category = () => {
         await dispatch(deleteCategory(categoryId)).unwrap();
         // Optionally refresh the list to get updated data from server
         // Or the reducer already removes it from the list
-        const params = {
-          page: pagination.page,
-          limit: pagination.limit,
-        };
-        if (searchTerm) {
-          params.search = searchTerm;
-        }
-        if (sort.sortBy) {
-          params.sortBy = sort.sortBy;
-          params.sortOrder = sort.sortOrder;
-        }
-        dispatch(fetchCategories(params));
+        dispatch(fetchCategories(buildCategoryListParams(pagination, searchTerm, sort)));
       } catch (error) {
         // Error is handled by Redux state
         console.error('Delete error:', error);
@@ -356,16 +342,7 @@ const Category = () => {
   };
 
   const refreshCategoryList = () => {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    if (searchTerm) params.search = searchTerm;
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-    dispatch(fetchCategories(params));
+    dispatch(fetchCategories(buildCategoryListParams(pagination, searchTerm, sort)));
   };
 
   const handleFetchCategoriesSaved = () => {
@@ -447,6 +424,7 @@ const Category = () => {
                           Name
                           {renderSortIcon('name')}
                         </th>
+                        <th>Parent Category</th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('slug')}
@@ -485,7 +463,7 @@ const Category = () => {
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="text-center text-sm font-weight-normal p-4">
+                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
                             No categories found
                           </td>
                         </tr>
@@ -517,6 +495,9 @@ const Category = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.name || item.category_name || '-'}
+                              </td>
+                              <td className="text-sm font-weight-normal">
+                                {parentCategoryName(item)}
                               </td>
                               <td className="text-sm font-weight-normal">{item.slug || '-'}</td>
                               <td className="text-sm font-weight-normal">
