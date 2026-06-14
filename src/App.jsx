@@ -75,6 +75,7 @@ import AmountTransferEdit from './routes/amount_transfer/edit.jsx';
 import Integration from './routes/integration/index.jsx';
 import IntegrationAdd from './routes/integration/add.jsx';
 import IntegrationEdit from './routes/integration/edit.jsx';
+import ProcessIndex from './routes/process/index.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
 
 const App = () => {
@@ -114,6 +115,7 @@ const App = () => {
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
+          <Route path="/processes" element={<ProcessIndex />} />
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />
@@ -218,6 +220,7 @@ const App = () => {
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
+          <Route path="/processes" element={<ProcessIndex />} />
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />

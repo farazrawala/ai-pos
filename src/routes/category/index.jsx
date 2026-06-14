@@ -18,6 +18,7 @@ import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import FetchCategoriesModal from '../../components/category/FetchCategoriesModal.jsx';
 import { DEBUG } from '../../config/env.js';
 
 const categoryImageSrc = (cat) => {
@@ -43,6 +44,7 @@ const Category = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const [togglingCategoryId, setTogglingCategoryId] = useState(null);
+  const [fetchCategoriesModalOpen, setFetchCategoriesModalOpen] = useState(false);
 
   // Get category permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('categories');
@@ -325,6 +327,52 @@ const Category = () => {
   // Calculate pagination info
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+
+  const showToast = (elementId, bodyText) => {
+    const toastElement = document.getElementById(elementId);
+    if (!toastElement) return;
+
+    const timeElement = toastElement.querySelector('.toast-time');
+    if (timeElement) {
+      timeElement.textContent = moment().format('h:mm A');
+    }
+
+    if (bodyText) {
+      const toastBody = toastElement.querySelector('.toast-body');
+      if (toastBody) toastBody.textContent = bodyText;
+    }
+
+    if (window.bootstrap && window.bootstrap.Toast) {
+      const toast = new window.bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
+      toast.show();
+    } else {
+      toastElement.classList.remove('hide');
+      toastElement.classList.add('show');
+      setTimeout(() => {
+        toastElement.classList.remove('show');
+        toastElement.classList.add('hide');
+      }, 5000);
+    }
+  };
+
+  const refreshCategoryList = () => {
+    const params = {
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    dispatch(fetchCategories(params));
+  };
+
+  const handleFetchCategoriesSaved = () => {
+    showToast('successToast', 'Category sync process queued successfully!');
+    refreshCategoryList();
+  };
+
   // Reusable Pagination Component
 
   return (
@@ -357,7 +405,17 @@ const Category = () => {
                       />
                     </div>
                     {canCreate && (
-                      <AddNewButton to="/categories/add" label="Add New Category" size="md" />
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setFetchCategoriesModalOpen(true)}
+                        >
+                          <i className="fas fa-cloud-download-alt me-1" />
+                          Fetch Categories
+                        </button>
+                        <AddNewButton to="/categories/add" label="Add New Category" size="md" />
+                      </>
                     )}
                   </div>
                 </div>
@@ -572,6 +630,12 @@ const Category = () => {
           </div>
         </div>
       </div>
+
+      <FetchCategoriesModal
+        open={fetchCategoriesModalOpen}
+        onClose={() => setFetchCategoriesModalOpen(false)}
+        onSaved={handleFetchCategoriesSaved}
+      />
 
       {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">
