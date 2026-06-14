@@ -36,6 +36,13 @@ const parentCategoryName = (item) => {
   return String(parent);
 };
 
+const isCategoryActive = (item) => {
+  const status = String(item?.status || '').toLowerCase();
+  if (status === 'active') return true;
+  if (status === 'inactive') return false;
+  return Boolean(item?.isActive);
+};
+
 const buildCategoryListParams = (pagination, searchTerm, sort) => {
   const params = {
     page: pagination.page,
@@ -153,15 +160,15 @@ const Category = () => {
   };
 
   // Handle toggle status
-  const handleToggleStatus = async (categoryId, currentStatus) => {
-    const newStatus = !currentStatus;
+  const handleToggleStatus = async (categoryId, isCurrentlyActive) => {
+    const newStatus = isCurrentlyActive ? 'inactive' : 'active';
     setTogglingCategoryId(categoryId);
 
     try {
       await dispatch(
         updateCategory({
           categoryId,
-          categoryData: { isActive: newStatus },
+          categoryData: { status: newStatus },
         })
       ).unwrap();
 
@@ -435,11 +442,11 @@ const Category = () => {
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('isActive')}
-                          onDoubleClick={() => handleSort('isActive', true)}
+                          onClick={() => handleSort('status')}
+                          onDoubleClick={() => handleSort('status', true)}
                         >
                           Status
-                          {renderSortIcon('isActive')}
+                          {renderSortIcon('status')}
                         </th>
                         <th
                           style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -508,17 +515,11 @@ const Category = () => {
                                       type="checkbox"
                                       role="switch"
                                       id={`toggle-${item._id || item.id || item.category_id || index}`}
-                                      checked={
-                                        item.isActive ||
-                                        item.status === 'active' ||
-                                        item.status === 1
-                                      }
+                                      checked={isCategoryActive(item)}
                                       onChange={() =>
                                         handleToggleStatus(
                                           item._id || item.id || item.category_id,
-                                          item.isActive ||
-                                            item.status === 'active' ||
-                                            item.status === 1
+                                          isCategoryActive(item)
                                         )
                                       }
                                       disabled={
@@ -548,13 +549,9 @@ const Category = () => {
                                     </span>
                                   ) : (
                                     <span
-                                      className={`badge ${item.isActive || item.status === 'active' || item.status === 1 ? 'bg-success' : 'bg-secondary'}`}
+                                      className={`badge ${isCategoryActive(item) ? 'bg-success' : 'bg-secondary'}`}
                                     >
-                                      {item.isActive ||
-                                      item.status === 'active' ||
-                                      item.status === 1
-                                        ? 'Active 2....'
-                                        : 'Inactive 2'}
+                                      {isCategoryActive(item) ? 'Active' : 'Inactive'}
                                     </span>
                                   )}
                                 </div>

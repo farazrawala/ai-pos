@@ -88,7 +88,7 @@ export const fetchCategoriesRequest = async (params = {}) => {
   if (params.populate) queryParams.append('populate', params.populate);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}category/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}category/get-all${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {
