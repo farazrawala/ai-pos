@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaArrowsRotate } from 'react-icons/fa6';
 import {
   fetchCategories,
   deleteCategory,
@@ -19,7 +20,13 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import FetchCategoriesModal from '../../components/category/FetchCategoriesModal.jsx';
+import SyncCategoriesModal from '../../components/category/SyncCategoriesModal.jsx';
+import ViewCategorySyncModal from '../../components/category/ViewCategorySyncModal.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
+import { FaCloudArrowUp } from 'react-icons/fa6';
 import { DEBUG } from '../../config/env.js';
+
+const categoryIdFromRecord = (item) => item?._id || item?.id || item?.category_id || '';
 
 const categoryImageSrc = (cat) => {
   if (!cat) return '';
@@ -75,6 +82,8 @@ const Category = () => {
   const searchTimeoutRef = useRef(null);
   const [togglingCategoryId, setTogglingCategoryId] = useState(null);
   const [fetchCategoriesModalOpen, setFetchCategoriesModalOpen] = useState(false);
+  const [syncCategoriesModalOpen, setSyncCategoriesModalOpen] = useState(false);
+  const [viewSyncCategory, setViewSyncCategory] = useState(null);
 
   // Get category permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('categories');
@@ -353,7 +362,12 @@ const Category = () => {
   };
 
   const handleFetchCategoriesSaved = () => {
-    showToast('successToast', 'Category sync process queued successfully!');
+    showToast('successToast', 'Category fetch process queued successfully!');
+    refreshCategoryList();
+  };
+
+  const handleSyncCategoriesSaved = () => {
+    showToast('successToast', 'Category sync processes queued successfully!');
     refreshCategoryList();
   };
 
@@ -397,6 +411,14 @@ const Category = () => {
                         >
                           <i className="fas fa-cloud-download-alt me-1" />
                           Fetch Categories
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setSyncCategoriesModalOpen(true)}
+                        >
+                          <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
+                          Sync Categories
                         </button>
                         <AddNewButton to="/categories/add" label="Add New Category" size="md" />
                       </>
@@ -565,7 +587,21 @@ const Category = () => {
                                 {moment(item.updatedAt).fromNow()}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <div className="d-flex gap-1">
+                                <div className="d-flex flex-wrap gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-info mb-0 px-2 py-1"
+                                    title="View Sync"
+                                    aria-label="View Sync"
+                                    onClick={() =>
+                                      setViewSyncCategory({
+                                        id: categoryIdFromRecord(item),
+                                        name: item.name || item.category_name || 'Category',
+                                      })
+                                    }
+                                  >
+                                    <NavIcon icon={FaArrowsRotate} size={14} />
+                                  </button>
                                   {canEdit && (
                                     <button
                                       className="btn btn-sm btn-primary"
@@ -593,7 +629,7 @@ const Category = () => {
                                     </button>
                                   )}
                                   {!canEdit && !canDelete && (
-                                    <span className="text-muted text-sm">No actions available</span>
+                                    <span className="text-muted text-sm">No edit/delete access</span>
                                   )}
                                 </div>
                               </td>
@@ -613,6 +649,19 @@ const Category = () => {
         open={fetchCategoriesModalOpen}
         onClose={() => setFetchCategoriesModalOpen(false)}
         onSaved={handleFetchCategoriesSaved}
+      />
+
+      <SyncCategoriesModal
+        open={syncCategoriesModalOpen}
+        onClose={() => setSyncCategoriesModalOpen(false)}
+        onSaved={handleSyncCategoriesSaved}
+      />
+
+      <ViewCategorySyncModal
+        open={Boolean(viewSyncCategory?.id)}
+        categoryId={viewSyncCategory?.id || ''}
+        categoryName={viewSyncCategory?.name || ''}
+        onClose={() => setViewSyncCategory(null)}
       />
 
       {/* Toast Notifications */}

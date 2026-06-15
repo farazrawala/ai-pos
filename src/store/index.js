@@ -3,6 +3,7 @@ import userReducer from '../features/user/userSlice.js';
 import postsReducer from '../features/posts/postsSlice.js';
 import loaderReducer from '../features/loader/loaderSlice.js';
 import categoriesReducer from '../features/categories/categoriesSlice.js';
+import brandsReducer from '../features/brands/brandsSlice.js';
 import productsReducer from '../features/products/productsSlice.js';
 import attributesReducer from '../features/attributes/attributesSlice.js';
 import logsReducer from '../features/logs/logsSlice.js';
@@ -34,6 +35,7 @@ const store = configureStore({
     posts: postsReducer,
     loader: loaderReducer,
     categories: categoriesReducer,
+    brands: brandsReducer,
     products: productsReducer,
     attributes: attributesReducer,
     logs: logsReducer,

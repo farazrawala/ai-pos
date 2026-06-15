@@ -14,6 +14,9 @@ import Footer from './components/Footer.jsx';
 import Category from './routes/category/index.jsx';
 import CategoryAdd from './routes/category/add.jsx';
 import CategoryEdit from './routes/category/edit.jsx';
+import Brand from './routes/brand/index.jsx';
+import BrandAdd from './routes/brand/add.jsx';
+import BrandEdit from './routes/brand/edit.jsx';
 import Product from './routes/product/index.jsx';
 import ProductAdd from './routes/product/add.jsx';
 import ProductEdit from './routes/product/edit.jsx';
@@ -112,6 +115,9 @@ const App = () => {
           <Route path="/categories" element={<Category />} />
           <Route path="/categories/add" element={<CategoryAdd />} />
           <Route path="/categories/edit/:id" element={<CategoryEdit />} />
+          <Route path="/brands" element={<Brand />} />
+          <Route path="/brands/add" element={<BrandAdd />} />
+          <Route path="/brands/edit/:id" element={<BrandEdit />} />
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
@@ -217,6 +223,9 @@ const App = () => {
           <Route path="/categories" element={<Category />} />
           <Route path="/categories/add" element={<CategoryAdd />} />
           <Route path="/categories/edit/:id" element={<CategoryEdit />} />
+          <Route path="/brands" element={<Brand />} />
+          <Route path="/brands/add" element={<BrandAdd />} />
+          <Route path="/brands/edit/:id" element={<BrandEdit />} />
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />

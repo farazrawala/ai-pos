@@ -136,6 +136,64 @@ export const createSyncCategoryProcessRequest = async (integrationId) =>
     priority: 1000,
   });
 
+export const bulkCreateProcessRequest = async (processData = {}) => {
+  const url = `${BASE_URL}process/bulk-create`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(processData),
+    });
+  } catch (err) {
+    logProcessModuleError('bulkCreateProcessRequest network error', { url, processData, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('bulkCreateProcessRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+export const createBulkSyncCategoryProcessRequest = async (integrationId, categoryIds = []) =>
+  bulkCreateProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_category',
+    status: 'active',
+    priority: 100,
+    category_ids: categoryIds,
+  });
+
+export const createSyncBrandProcessRequest = async (integrationId) =>
+  createProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_brand',
+    priority: 1000,
+  });
+
+export const createBulkSyncBrandProcessRequest = async (integrationId, brandIds = []) =>
+  bulkCreateProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_brand',
+    status: 'active',
+    priority: 100,
+    brand_ids: brandIds,
+  });
+
 export const executeProcessRequest = async (processId) => {
   const id = String(processId || '').trim();
   if (!id) throw new Error('Process id is required');
