@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaCloudArrowUp } from 'react-icons/fa6';
 import {
   fetchOrders,
   deleteOrder,
@@ -20,6 +21,9 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
+import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { toast } from '../../utils/toast.js';
 
@@ -55,11 +59,13 @@ const Orders = () => {
     sort,
     deleteStatus,
   } = useSelector((state) => state.orders);
-  const { canEdit, canDelete } = usePermissions('orders');
+  const { canCreate, canEdit, canDelete } = usePermissions('orders');
   useRequireModuleAccess('orders');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [editLoadingId, setEditLoadingId] = useState('');
+  const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
+  const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -178,6 +184,26 @@ const Orders = () => {
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
+  const refreshOrderList = () => {
+    const params = { page: pagination.page, limit: pagination.limit };
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    dispatch(fetchOrders(params));
+  };
+
+  const handleFetchOrdersSaved = () => {
+    toast.success('Order fetch process queued successfully!');
+    refreshOrderList();
+  };
+
+  const handleSyncOrdersSaved = () => {
+    toast.success('Order sync processes queued successfully!');
+    refreshOrderList();
+  };
+
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
@@ -209,6 +235,26 @@ const Orders = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    {canCreate && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setFetchOrdersModalOpen(true)}
+                        >
+                          <i className="fas fa-cloud-download-alt me-1" />
+                          Fetch Orders
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setSyncOrdersModalOpen(true)}
+                        >
+                          <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
+                          Sync Orders
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -420,6 +466,18 @@ const Orders = () => {
           </div>
         </div>
       </div>
+
+      <FetchOrdersModal
+        open={fetchOrdersModalOpen}
+        onClose={() => setFetchOrdersModalOpen(false)}
+        onSaved={handleFetchOrdersSaved}
+      />
+
+      <SyncOrdersModal
+        open={syncOrdersModalOpen}
+        onClose={() => setSyncOrdersModalOpen(false)}
+        onSaved={handleSyncOrdersSaved}
+      />
     </div>
   );
 };

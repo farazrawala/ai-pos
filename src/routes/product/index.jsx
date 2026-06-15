@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaArrowsRotate, FaCloudArrowUp } from 'react-icons/fa6';
 import {
   fetchProducts,
   deleteProduct,
@@ -19,6 +20,10 @@ import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
+import FetchProductsModal from '../../components/product/FetchProductsModal.jsx';
+import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
+import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 
@@ -104,6 +109,8 @@ const getProductStockDisplay = (item) => {
   return { total: getProductStock(item), lines: [] };
 };
 
+const productIdFromRecord = (item) => item?._id || item?.id || item?.product_id || '';
+
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -122,6 +129,9 @@ const Product = () => {
   const searchTimeoutRef = useRef(null);
   const [togglingProductId, setTogglingProductId] = useState(null);
   const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
+  const [fetchProductsModalOpen, setFetchProductsModalOpen] = useState(false);
+  const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
+  const [viewSyncProduct, setViewSyncProduct] = useState(null);
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -372,6 +382,56 @@ const Product = () => {
 
   const firstSegment = window.location.pathname.split('/')[1];
 
+  const showToast = (elementId, bodyText) => {
+    const toastElement = document.getElementById(elementId);
+    if (!toastElement) return;
+
+    const timeElement = toastElement.querySelector('.toast-time');
+    if (timeElement) {
+      timeElement.textContent = moment().format('h:mm A');
+    }
+
+    if (bodyText) {
+      const toastBody = toastElement.querySelector('.toast-body');
+      if (toastBody) toastBody.textContent = bodyText;
+    }
+
+    if (window.bootstrap && window.bootstrap.Toast) {
+      const toast = new window.bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
+      toast.show();
+    } else {
+      toastElement.classList.remove('hide');
+      toastElement.classList.add('show');
+      setTimeout(() => {
+        toastElement.classList.remove('show');
+        toastElement.classList.add('hide');
+      }, 5000);
+    }
+  };
+
+  const refreshProductList = () => {
+    const params = {
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    dispatch(fetchProducts(params));
+  };
+
+  const handleFetchProductsSaved = () => {
+    showToast('successToast', 'Product fetch process queued successfully!');
+    refreshProductList();
+  };
+
+  const handleSyncProductsSaved = () => {
+    showToast('successToast', 'Product sync processes queued successfully!');
+    refreshProductList();
+  };
+
   // Calculate pagination info
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
@@ -408,7 +468,25 @@ const Product = () => {
                       />
                     </div>
                     {canCreate && (
-                      <AddNewButton to="/products/add" label="Add New Product" />
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setFetchProductsModalOpen(true)}
+                        >
+                          <i className="fas fa-cloud-download-alt me-1" />
+                          Fetch Products
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          onClick={() => setSyncProductsModalOpen(true)}
+                        >
+                          <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
+                          Sync Products
+                        </button>
+                        <AddNewButton to="/products/add" label="Add New Product" />
+                      </>
                     )}
                   </div>
                 </div>
@@ -751,7 +829,21 @@ const Product = () => {
                                   : '-'}
                               </td>
                               <td className="text-sm font-weight-normal">
-                                <div className="d-flex gap-1">
+                                <div className="d-flex flex-wrap gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-info mb-0 px-2 py-1"
+                                    title="View Sync"
+                                    aria-label="View Sync"
+                                    onClick={() =>
+                                      setViewSyncProduct({
+                                        id: productIdFromRecord(item),
+                                        name: item.name || item.product_name || 'Product',
+                                      })
+                                    }
+                                  >
+                                    <NavIcon icon={FaArrowsRotate} size={14} />
+                                  </button>
                                   {canEdit && (
                                     <button
                                       className="btn btn-sm btn-primary"
@@ -800,6 +892,25 @@ const Product = () => {
         onClose={() => setWarehouseStockTarget(null)}
         productId={warehouseStockTarget?.productId}
         productName={warehouseStockTarget?.productName}
+      />
+
+      <FetchProductsModal
+        open={fetchProductsModalOpen}
+        onClose={() => setFetchProductsModalOpen(false)}
+        onSaved={handleFetchProductsSaved}
+      />
+
+      <SyncProductsModal
+        open={syncProductsModalOpen}
+        onClose={() => setSyncProductsModalOpen(false)}
+        onSaved={handleSyncProductsSaved}
+      />
+
+      <ViewProductSyncModal
+        open={Boolean(viewSyncProduct?.id)}
+        productId={viewSyncProduct?.id || ''}
+        productName={viewSyncProduct?.name || ''}
+        onClose={() => setViewSyncProduct(null)}
       />
 
       {/* Toast Notifications */}

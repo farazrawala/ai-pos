@@ -194,6 +194,38 @@ export const createBulkSyncBrandProcessRequest = async (integrationId, brandIds 
     brand_ids: brandIds,
   });
 
+export const createSyncProductProcessRequest = async (integrationId) =>
+  createProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_product',
+    priority: 1000,
+  });
+
+export const createBulkSyncProductProcessRequest = async (integrationId, productIds = []) =>
+  bulkCreateProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_product',
+    status: 'active',
+    priority: 100,
+    product_ids: productIds,
+  });
+
+export const createSyncOrderProcessRequest = async (integrationId) =>
+  createProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_order',
+    priority: 1000,
+  });
+
+export const createBulkSyncOrderProcessRequest = async (integrationId, orderIds = []) =>
+  bulkCreateProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_order',
+    status: 'active',
+    priority: 100,
+    order_ids: orderIds,
+  });
+
 export const executeProcessRequest = async (processId) => {
   const id = String(processId || '').trim();
   if (!id) throw new Error('Process id is required');
