@@ -26,4 +26,5 @@ coverage
 .github/deploy-secrets.local.env
 
 
+testing_sites_credentials.txt
 testing_sites.txt
