@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import moment from 'moment';
+import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
+import { createBulkSyncCategoryProcessRequest } from '../../features/process/processAPI.js';
 import {
   fetchSyncCategoriesRequest,
   updateSyncCategoryRequest,
 } from '../../features/syncCategory/syncCategoryAPI.js';
+
+const integrationIdFromRecord = (item) =>
+  item?._id || item?.id || item?.integration_id || '';
+
+const integrationOptionLabel = (item) => {
+  const name = item?.name || 'Integration';
+  const storeType = item?.store_type || item?.storeType || '';
+  return storeType ? `${name} (${storeType})` : name;
+};
 
 const decodeHtml = (value) => {
   if (!value) return '';
@@ -38,6 +49,14 @@ export default function ViewCategorySyncModal({ open, categoryId, categoryName, 
   const [error, setError] = useState(null);
   const [togglingSyncId, setTogglingSyncId] = useState(null);
   const [toggleError, setToggleError] = useState(null);
+
+  const [integrations, setIntegrations] = useState([]);
+  const [integrationsStatus, setIntegrationsStatus] = useState('idle');
+  const [integrationsError, setIntegrationsError] = useState(null);
+  const [selectedIntegrationId, setSelectedIntegrationId] = useState('');
+  const [syncStatus, setSyncStatus] = useState('idle');
+  const [syncError, setSyncError] = useState(null);
+  const [syncSuccess, setSyncSuccess] = useState(null);
 
   const loadSyncRecords = useCallback(() => {
     if (!categoryId) return undefined;
@@ -74,6 +93,70 @@ export default function ViewCategorySyncModal({ open, categoryId, categoryName, 
     setList([]);
     return loadSyncRecords();
   }, [open, categoryId, loadSyncRecords]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    let cancelled = false;
+    setIntegrationsStatus('loading');
+    setIntegrationsError(null);
+    setSyncStatus('idle');
+    setSyncError(null);
+    setSyncSuccess(null);
+    setSelectedIntegrationId('');
+
+    fetchIntegrationsRequest()
+      .then((result) => {
+        if (cancelled) return;
+        const integrationList = Array.isArray(result?.data) ? result.data : [];
+        setIntegrations(integrationList);
+        setIntegrationsStatus('succeeded');
+        if (integrationList.length === 1) {
+          setSelectedIntegrationId(integrationIdFromRecord(integrationList[0]));
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setIntegrations([]);
+          setIntegrationsStatus('failed');
+          setIntegrationsError(err?.message || 'Failed to load integrations');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleSyncCategory = async () => {
+    if (!categoryId) {
+      setSyncError('Category id is missing.');
+      return;
+    }
+    if (!selectedIntegrationId) {
+      setSyncError('Please select an integration.');
+      return;
+    }
+
+    setSyncStatus('loading');
+    setSyncError(null);
+    setSyncSuccess(null);
+
+    try {
+      await createBulkSyncCategoryProcessRequest(selectedIntegrationId, [categoryId]);
+      setSyncStatus('succeeded');
+      setSyncSuccess('Category sync process queued successfully.');
+      loadSyncRecords();
+    } catch (err) {
+      setSyncStatus('failed');
+      setSyncError(err?.message || 'Failed to queue category sync process');
+      console.error('[Sync category module] Failed to queue single category sync', {
+        categoryId,
+        integrationId: selectedIntegrationId,
+        error: err,
+      });
+    }
+  };
 
   const handleToggleStatus = async (syncId, isCurrentlyActive) => {
     if (!syncId) return;
@@ -120,6 +203,93 @@ export default function ViewCategorySyncModal({ open, categoryId, categoryName, 
               <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
             </div>
             <div className="modal-body">
+              <div className="card border mb-4">
+                <div className="card-body py-3">
+                  <h6 className="mb-2">Sync this category</h6>
+                  <p className="text-sm text-muted mb-3">
+                    Push only this category to the selected store integration.
+                  </p>
+
+                  {integrationsStatus === 'loading' && (
+                    <div className="text-muted text-sm">
+                      <span className="spinner-border spinner-border-sm me-2" role="status" />
+                      Loading integrations…
+                    </div>
+                  )}
+
+                  {integrationsStatus === 'failed' && (
+                    <div className="alert alert-danger py-2 mb-0">{integrationsError}</div>
+                  )}
+
+                  {integrationsStatus === 'succeeded' && integrations.length === 0 && (
+                    <div className="alert alert-warning py-2 mb-0">
+                      No active integrations found. Add one under Integrations first.
+                    </div>
+                  )}
+
+                  {integrationsStatus === 'succeeded' && integrations.length > 0 && (
+                    <div className="row g-2 align-items-end">
+                      <div className="col-md-8">
+                        <label htmlFor="viewCategorySyncIntegration" className="form-label mb-1">
+                          Integration <span className="text-danger">*</span>
+                        </label>
+                        <select
+                          id="viewCategorySyncIntegration"
+                          className="form-select"
+                          value={selectedIntegrationId}
+                          onChange={(e) => {
+                            setSelectedIntegrationId(e.target.value);
+                            if (syncError) setSyncError(null);
+                            if (syncSuccess) setSyncSuccess(null);
+                          }}
+                          disabled={syncStatus === 'loading'}
+                        >
+                          <option value="">Select integration…</option>
+                          {integrations.map((item) => {
+                            const id = integrationIdFromRecord(item);
+                            return (
+                              <option key={id} value={id}>
+                                {integrationOptionLabel(item)}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div className="col-md-4">
+                        <button
+                          type="button"
+                          className="btn btn-primary w-100 mb-0"
+                          onClick={handleSyncCategory}
+                          disabled={
+                            syncStatus === 'loading' ||
+                            !selectedIntegrationId ||
+                            !categoryId
+                          }
+                        >
+                          {syncStatus === 'loading' ? (
+                            <>
+                              <span
+                                className="spinner-border spinner-border-sm me-2"
+                                role="status"
+                                aria-hidden="true"
+                              />
+                              Syncing…
+                            </>
+                          ) : (
+                            'Sync'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {syncError && <div className="alert alert-danger py-2 mt-3 mb-0">{syncError}</div>}
+                  {syncSuccess && (
+                    <div className="alert alert-success py-2 mt-3 mb-0">{syncSuccess}</div>
+                  )}
+                </div>
+              </div>
+
               {toggleError ? (
                 <div className="alert alert-danger py-2 mb-3">{toggleError}</div>
               ) : null}
