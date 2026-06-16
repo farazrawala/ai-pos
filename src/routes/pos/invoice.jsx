@@ -33,6 +33,9 @@ import { selectCompany, selectCompanyId } from '../../features/user/userSlice.js
 import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
+import './pos-invoice-module.css';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -821,632 +824,450 @@ const PosInvoice = () => {
 
   if (fetchStatus === 'loading') {
     return (
-      <div className="container-fluid py-5 px-3 text-center">
-        <div className="spinner-border text-primary" role="status" aria-label="Loading" />
-        <p className="mt-3 text-muted mb-3">Loading invoice…</p>
-        <Link to="/pos" className="btn btn-sm btn-outline-secondary">
-          <i className="fas fa-arrow-left me-1"></i> Back to POS
-        </Link>
+      <div className="pos-invoice-page container-fluid py-4">
+        <div className="card shadow-sm pos-invoice-card mx-auto" style={{ maxWidth: 1200 }}>
+          <div className="card-body py-5 text-center text-muted">
+            <div className="spinner-border text-primary mb-3" role="status" aria-label="Loading" />
+            Loading invoice…
+          </div>
+        </div>
       </div>
     );
   }
 
   if (fetchStatus === 'failed') {
     return (
-      <div className="container-fluid py-4 px-3">
-        <Link to="/pos" className="btn btn-sm btn-outline-secondary mb-3">
-          <i className="fas fa-arrow-left me-1"></i> Back to POS
-        </Link>
-        <div className="alert alert-danger mb-0" role="alert">
-          {fetchError || 'Could not load this invoice.'}
+      <div className="pos-invoice-page container-fluid py-4">
+        <div className="card shadow-sm pos-invoice-card mx-auto" style={{ maxWidth: 1200 }}>
+          <div className="card-body">
+            <Link to="/pos" className="pos-inv-back d-inline-flex mb-3">
+              <i className="fas fa-arrow-left" aria-hidden="true" />
+              Back to POS
+            </Link>
+            <div className="alert alert-danger mb-0" role="alert">
+              {fetchError || 'Could not load this invoice.'}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  const statusLabel = invoiceOrderStatus
+    ? invoiceOrderStatus.charAt(0).toUpperCase() + invoiceOrderStatus.slice(1)
+    : '—';
+
   return (
-    <div className="pos-invoice-page container-fluid py-3 px-2 px-lg-4">
-      <style>{`
-        .pos-invoice-page {
-          font-family: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
-          max-width: 1100px;
-          margin: 0 auto;
-        }
-        .pos-inv-actions {
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          justify-content: center;
-          align-items: center;
-          width: 100%;
-        }
-        .pos-inv-actions .btn {
-          border-radius: 0.5rem;
-          font-weight: 600;
-          font-size: 0.8rem;
-          padding: 0.45rem 0.85rem;
-        }
-        .pos-inv-btn-blue { background: #5e72e4; border-color: #5e72e4; color: #fff; }
-        .pos-inv-btn-blue:hover { background: #4c63d2; border-color: #4c63d2; color: #fff; }
-        .pos-inv-btn-orange { background: #fb6340; border-color: #fb6340; color: #fff; }
-        .pos-inv-btn-orange:hover { background: #ea4c2a; border-color: #ea4c2a; color: #fff; }
-        .pos-inv-btn-cyan { background: #11cdef; border-color: #11cdef; color: #fff; }
-        .pos-inv-btn-cyan:hover { background: #0eb8d6; border-color: #0eb8d6; color: #fff; }
-        .pos-inv-btn-navy { background: #344767; border-color: #344767; color: #fff; }
-        .pos-inv-btn-navy:hover { background: #2a3a54; border-color: #2a3a54; color: #fff; }
-        .pos-inv-btn-sms { background: #4299e1; border-color: #4299e1; color: #fff; }
-        .pos-inv-btn-sms:hover { background: #3182ce; border-color: #3182ce; color: #fff; }
-        .pos-inv-btn-green { background: #2dce89; border-color: #2dce89; color: #fff; }
-        .pos-inv-btn-green:hover { background: #26b87a; border-color: #26b87a; color: #fff; }
-        .pos-inv-btn-grey { background: #8898aa; border-color: #8898aa; color: #fff; }
-        .pos-inv-btn-grey:hover { background: #768696; border-color: #768696; color: #fff; }
-        .pos-inv-btn-pink { background: #f5365c; border-color: #f5365c; color: #fff; }
-        .pos-inv-btn-pink:hover { background: #e01e4a; border-color: #e01e4a; color: #fff; }
-        .pos-inv-btn-teal { background: #17a2b8; border-color: #17a2b8; color: #fff; }
-        .pos-inv-btn-teal:hover { background: #138496; border-color: #138496; color: #fff; }
-        .pos-inv-paper {
-          background: #fff;
-          border: 1px solid #e9ecef;
-          border-radius: 0.5rem;
-          box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,.06);
-        }
-        .pos-inv-title {
-          font-size: 2rem;
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          color: #212529;
-        }
-        .pos-inv-gross {
-          font-size: 1.1rem;
-          font-weight: 700;
-        }
-        .pos-inv-client-name {
-          color: #11cdef;
-          font-weight: 700;
-        }
-        .pos-inv-underline {
-          text-decoration: underline;
-          text-underline-offset: 2px;
-        }
-        .pos-inv-table th {
-          background: #f8f9fa;
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-          color: #495057;
-          border-color: #dee2e6 !important;
-        }
-        .pos-inv-table td {
-          border-color: #dee2e6 !important;
-          vertical-align: middle;
-          font-size: 0.875rem;
-        }
-        .pos-inv-summary-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.25rem 0;
-          font-size: 0.9rem;
-        }
-        .pos-inv-summary-total {
-          font-weight: 700;
-          border-top: 1px solid #dee2e6;
-          margin-top: 0.35rem;
-          padding-top: 0.5rem;
-        }
-        .pos-inv-payment-made {
-          color: #dc3545;
-          font-weight: 600;
-        }
-        .pos-inv-sig-box {
-          width: 140px;
-          height: 56px;
-          border: 2px dashed #ced4da;
-          border-radius: 0.25rem;
-          background: #fafafa;
-        }
-        .pos-inv-file-btn {
-          background: #11cdef;
-          border: none;
-          color: #fff;
-          font-weight: 600;
-          padding: 0.65rem 1.25rem;
-          border-radius: 0.375rem;
-        }
-        .pos-inv-file-btn:hover {
-          background: #0eb8d6;
-          color: #fff;
-        }
-        @media print {
-          .pos-inv-no-print {
-            display: none !important;
-          }
-          .pos-invoice-page {
-            max-width: 100%;
-          }
-          .pos-inv-paper {
-            box-shadow: none;
-            border: none;
-          }
-        }
-      `}</style>
-
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pos-inv-no-print">
-        <Link to="/pos" className="btn btn-sm btn-outline-secondary">
-          <i className="fas fa-arrow-left me-1"></i> Back to POS
-        </Link>
-      </div>
-
-      {invoiceSaveMessage.type && invoiceSaveMessage.text ? (
-        <div
-          className={`alert alert-${invoiceSaveMessage.type === 'success' ? 'success' : 'danger'} py-2 px-3 mb-3 pos-inv-no-print`}
-          role="alert"
-        >
-          {invoiceSaveMessage.text}
-        </div>
-      ) : null}
-
-      {/* Top action bar */}
-      <div className="d-flex pos-inv-actions mb-4 pos-inv-no-print">
-        <button
-          type="button"
-          className="btn pos-inv-btn-blue"
-          onClick={handleThermalPrint}
-          title="80mm thermal receipt"
-        >
-          <i className="fas fa-receipt me-1"></i> Thermal Print
-        </button>
-        <button
-          type="button"
-          className="btn pos-inv-btn-green"
-          onClick={handleNormalPrint}
-          title="A4 / normal invoice print"
-        >
-          <i className="fas fa-print me-1"></i> Normal Print
-        </button>
-        <button
-          type="button"
-          className="btn pos-inv-btn-orange"
-          disabled={!canUpdateInvoice || invoiceSaving || !invoiceHasSaveableLines}
-          onClick={handleUpdateInvoice}
-          title={
-            !canUpdateInvoice
-              ? 'Load an order from the URL first'
-              : !invoiceHasSaveableLines
-                ? 'Add at least one product line'
-                : 'PATCH invoice to server'
-          }
-        >
-          {invoiceSaving ? (
-            <>
-              <span
-                className="spinner-border spinner-border-sm me-1"
-                role="status"
-                aria-hidden="true"
-              />
-              Updating…
-            </>
-          ) : (
-            <>
-              <i className="fas fa-save me-1"></i> Update invoice
-            </>
-          )}
-        </button>
-        {/* <button type="button" className="btn pos-inv-btn-cyan">
-          <i className="fas fa-money-bill-wave me-1"></i> Make Payment
-        </button>
-        <div className="dropdown">
-          <button
-            className="btn pos-inv-btn-navy dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <i className="fas fa-envelope me-1"></i> Email
-          </button>
-          <ul className="dropdown-menu shadow-sm">
-            <li>
-              <button type="button" className="dropdown-item">
-                Send to customer
-              </button>
-            </li>
-          </ul>
-        </div>
-        <div className="dropdown">
-          <button
-            className="btn pos-inv-btn-sms dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <i className="fas fa-mobile-alt me-1"></i> SMS
-          </button>
-          <ul className="dropdown-menu shadow-sm">
-            <li>
-              <button type="button" className="dropdown-item">
-                Send SMS
-              </button>
-            </li>
-          </ul>
-        </div> */}
-        {/* <button type="button" className="btn pos-inv-btn-grey">
-          <i className="fas fa-eye me-1"></i> Preview
-        </button>
-        <button type="button" className="btn pos-inv-btn-cyan">
-          <i className="fas fa-sync-alt me-1"></i> Change Status
-        </button>
-        <button type="button" className="btn pos-inv-btn-pink">
-          <i className="fas fa-times me-1"></i> Cancel
-        </button> */}
-        {/* <div className="dropdown">
-          <button
-            className="btn pos-inv-btn-teal dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <i className="fas fa-plus me-1"></i> Extra
-          </button>
-          <ul className="dropdown-menu shadow-sm">
-            <li>
-              <button type="button" className="dropdown-item">
-                Add note
-              </button>
-            </li>
-          </ul>
-        </div> */}
-      </div>
-
-      <div className="pos-inv-paper p-4 p-md-5 mb-4">
-        {/* Header */}
-        <div className="row align-items-start mb-4 pb-3 border-bottom">
-          <div className="col-md-6 mb-3 mb-md-0">
-            <div className="d-flex align-items-center gap-3">
-              {printerSettings.show_logo ? (
-                companyBrand.logoUrl ? (
-                  <img
-                    src={companyBrand.logoUrl}
-                    alt={`${companyBrand.name} logo`}
-                    className="rounded border bg-white flex-shrink-0"
-                    style={{ width: 72, height: 72, objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div
-                    className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
-                    style={{ width: 72, height: 72 }}
-                  >
-                    <span className="text-muted small text-center px-1">LOGO</span>
+    <div className="pos-invoice-page container-fluid py-4 px-0">
+      <div className="row mt-4">
+        <div className="col-12" style={{ padding: '20px' }}>
+          <div className="card shadow-sm pos-invoice-card">
+            <div className="card-header pb-3 pos-inv-no-print">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-6">
+                  <Link to="/pos" className="pos-inv-back">
+                    <i className="fas fa-arrow-left" aria-hidden="true" />
+                    Back to POS
+                  </Link>
+                  <h5 className="pos-inv-header-title mb-0">Invoice</h5>
+                  <div className="pos-inv-meta mt-2">
+                    {printerSettings.show_invoice_no ? (
+                      <span className="pos-inv-ref-badge">POS# {data.invoiceNo}</span>
+                    ) : null}
+                    {canUpdateInvoice ? (
+                      <span className={`badge text-xxs ${poStatusBadgeClass(invoiceOrderStatus)}`}>
+                        {statusLabel}
+                      </span>
+                    ) : null}
+                    {printerSettings.show_gross_amount ? (
+                      <span className="pos-inv-total-pill">Total {fmt(grossDisplay)}</span>
+                    ) : null}
                   </div>
-                )
-              ) : null}
-              <div>
-                {printerSettings.show_company_name ? (
-                  <>
-                    <div
-                      className="fw-bold text-uppercase text-secondary"
-                      style={{ fontSize: '0.75rem' }}
+                </div>
+                <div className="col-lg-6">
+                  <div className="pos-inv-header-actions mt-2 mt-lg-0">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={handleThermalPrint}
+                      title="80mm thermal receipt"
                     >
-                      {companyBrand.name}
-                    </div>
-                    <div className="h5 mb-0 fw-semibold">{companyBrand.name}</div>
-                  </>
-                ) : null}
-                {printerSettings.show_phone && companyBrand.phone ? (
-                  <div className="small text-secondary mt-1">{companyBrand.phone}</div>
-                ) : null}
-                {printerSettings.show_email && companyBrand.email ? (
-                  <div className="small text-secondary">{companyBrand.email}</div>
-                ) : null}
-                {printerSettings.show_address && companyBrand.address ? (
-                  <div className="small text-secondary">{companyBrand.address}</div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-          <div className="col-md-6 text-md-end">
-            <div className="pos-inv-title mb-2">INVOICE</div>
-            {printerSettings.show_invoice_no ? (
-              <div className="mb-1">
-                <span className="text-muted">POS# </span>
-                <span className="fw-bold">{data.invoiceNo}</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Bill to + dates */}
-        <div className="row mb-4">
-          <div className="col-md-6 mb-3 mb-md-0">
-            <div className="text-uppercase text-muted small fw-bold mb-2">Bill To</div>
-            {canUpdateInvoice ? (
-              <div className="pos-inv-no-print mb-3">
-                <label className="form-label small text-muted mb-1" htmlFor="posInvCustomer">
-                  Customer
-                </label>
-                <select
-                  id="posInvCustomer"
-                  className="form-select form-select-sm"
-                  value={invoiceCustomerId}
-                  onChange={(e) => setInvoiceCustomerId(e.target.value)}
-                  disabled={usersStatus === 'loading'}
-                >
-                  <option value="">Walk In (no customer)</option>
-                  {users
-                    .filter((u) => getUserOptionValue(u))
-                    .map((u) => {
-                      const v = getUserOptionValue(u);
-                      return (
-                        <option key={v} value={v}>
-                          {formatUserOptionLabel(u)}
-                        </option>
-                      );
-                    })}
-                </select>
-                {usersError ? <div className="small text-danger mt-1">{usersError}</div> : null}
-              </div>
-            ) : null}
-            <div className="pos-inv-client-name mb-1">{billToDisplay.name}</div>
-            {printerSettings.show_customer_phone && billToDisplay.phone ? (
-              <div className="small text-secondary">{billToDisplay.phone}</div>
-            ) : null}
-            {printerSettings.show_customer_email && billToDisplay.email ? (
-              <div className="small text-secondary">{billToDisplay.email}</div>
-            ) : null}
-          </div>
-          <div className="col-md-6 text-md-end">
-            {printerSettings.show_invoice_date ? (
-              <div className="small mb-2">
-                <span className="text-muted me-2">Invoice Date:</span>
-                <span className="fw-semibold">{data.invoiceDate}</span>
-              </div>
-            ) : null}
-            <div className="small">
-              <span className="text-muted me-2">Terms:</span>
-              <span className="fw-semibold">{data.terms}</span>
-            </div>
-          </div>
-        </div>
-
-        {printerSettings.show_gross_amount ? (
-          <div className="row mb-3">
-            <div className="col-12 text-md-end">
-              <div className="pos-inv-gross">Gross Amount: {fmt(grossDisplay)}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Line items */}
-        <div className="table-responsive mb-4">
-          {canUpdateInvoice && (
-            <>
-              <p className="small text-muted mb-2 pos-inv-no-print">
-                Edit <strong>Qty</strong> and <strong>Rate</strong>, add or remove lines, then use{' '}
-                <strong>Update invoice</strong> to save.
-              </p>
-              <div className="mb-3 pos-inv-no-print">
-                <label className="form-label small text-muted mb-1" htmlFor="pos-inv-order-status">
-                  Order status
-                </label>
-                <select
-                  id="pos-inv-order-status"
-                  className="form-select form-select-sm"
-                  style={{ maxWidth: '280px' }}
-                  value={invoiceOrderStatus}
-                  onChange={(e) => setInvoiceOrderStatus(e.target.value)}
-                >
-                  {ORDER_STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mb-3 position-relative pos-inv-no-print">
-                <label className="form-label small text-muted mb-1" htmlFor="pos-inv-add-product">
-                  Add product
-                </label>
-                <input
-                  id="pos-inv-add-product"
-                  type="search"
-                  className="form-control form-control-sm"
-                  placeholder="Search name, SKU, or barcode (min. 2 characters)…"
-                  value={addProductQuery}
-                  onChange={(e) => setAddProductQuery(e.target.value)}
-                  autoComplete="off"
-                />
-                {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
-                {addProductError ? (
-                  <div className="text-danger small mt-1" role="alert">
-                    {addProductError}
+                      <i className="fas fa-receipt me-1" aria-hidden="true" />
+                      Thermal
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={handleNormalPrint}
+                      title="A4 / normal invoice print"
+                    >
+                      <i className="fas fa-print me-1" aria-hidden="true" />
+                      Print
+                    </button>
                   </div>
-                ) : null}
-                {addProductResults.length > 0 ? (
-                  <ul
-                    className="list-group position-absolute w-100 shadow-sm mt-1"
-                    style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
-                  >
-                    {addProductResults.map((p) => {
-                      const pk = String(p._id ?? p.id ?? '');
-                      return (
-                        <li key={pk} className="list-group-item p-0">
-                          <button
-                            type="button"
-                            className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
-                            onClick={() => appendDraftProduct(p)}
-                          >
-                            <span className="fw-semibold">{productPickerLabel(p)}</span>
-                            <span className="text-muted ms-2">
-                              {fmt(productPickerUnitPrice(p))}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
+                </div>
               </div>
-            </>
-          )}
-          <table className="table table-bordered pos-inv-table mb-0">
-            <thead>
-              <tr>
-                <th style={{ width: '48px' }}>#</th>
-                <th>Description</th>
-                <th className="text-end" style={{ width: '120px' }}>
-                  Rate
-                </th>
-                <th className="text-end" style={{ width: '120px' }}>
-                  Qty
-                </th>
-                <th className="text-end" style={{ width: '120px' }}>
-                  Amount
-                </th>
+            </div>
+
+            <div className="card-body pt-3">
+              {invoiceSaveMessage.type && invoiceSaveMessage.text ? (
+                <div
+                  className={`alert alert-${invoiceSaveMessage.type === 'success' ? 'success' : 'danger'} py-2 px-3 mb-3 pos-inv-no-print`}
+                  role="alert"
+                >
+                  {invoiceSaveMessage.text}
+                </div>
+              ) : null}
+
+              <div className="pos-inv-doc-strip">
+                <div className="pos-inv-company">
+                  {printerSettings.show_logo ? (
+                    companyBrand.logoUrl ? (
+                      <img
+                        src={companyBrand.logoUrl}
+                        alt={`${companyBrand.name} logo`}
+                        className="pos-inv-company-logo"
+                      />
+                    ) : (
+                      <div className="pos-inv-company-logo-fallback">
+                        {companyBrand.name.charAt(0).toUpperCase()}
+                      </div>
+                    )
+                  ) : null}
+                  <div className="min-w-0">
+                    {printerSettings.show_company_name ? (
+                      <div className="pos-inv-company-name">{companyBrand.name}</div>
+                    ) : null}
+                    <div className="pos-inv-company-meta">
+                      {[
+                        printerSettings.show_email && companyBrand.email ? companyBrand.email : null,
+                        printerSettings.show_phone && companyBrand.phone ? companyBrand.phone : null,
+                        printerSettings.show_address && companyBrand.address ? companyBrand.address : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || 'Point of sale invoice'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-md-end">
+                  <div className="pos-inv-doc-label">Invoice</div>
+                  {printerSettings.show_invoice_no ? (
+                    <div className="fw-bold text-dark mb-1">POS# {data.invoiceNo}</div>
+                  ) : null}
+                  {printerSettings.show_gross_amount ? (
+                    <>
+                      <div className="pos-inv-doc-label mt-2">Amount</div>
+                      <div className="pos-inv-doc-total">{fmt(grossDisplay)}</div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="pos-inv-section">
+                <div className="row g-3">
+                  <div className="col-lg-6">
+                    <div className="pos-inv-section-title">Bill to</div>
+                    {canUpdateInvoice ? (
+                      <>
+                        <label className="form-label" htmlFor="posInvCustomer">
+                          Customer
+                        </label>
+                        <select
+                          id="posInvCustomer"
+                          className="form-select form-select-sm pos-inv-no-print mb-2"
+                          value={invoiceCustomerId}
+                          onChange={(e) => setInvoiceCustomerId(e.target.value)}
+                          disabled={usersStatus === 'loading'}
+                        >
+                          <option value="">Walk in (no customer)</option>
+                          {users
+                            .filter((u) => getUserOptionValue(u))
+                            .map((u) => {
+                              const v = getUserOptionValue(u);
+                              return (
+                                <option key={v} value={v}>
+                                  {formatUserOptionLabel(u)}
+                                </option>
+                              );
+                            })}
+                        </select>
+                        {usersError ? (
+                          <div className="small text-danger mb-2 pos-inv-no-print">{usersError}</div>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <div className="pos-inv-billto-name">{billToDisplay.name}</div>
+                    {printerSettings.show_customer_phone && billToDisplay.phone ? (
+                      <div className="pos-inv-billto-meta">{billToDisplay.phone}</div>
+                    ) : null}
+                    {printerSettings.show_customer_email && billToDisplay.email ? (
+                      <div className="pos-inv-billto-meta">{billToDisplay.email}</div>
+                    ) : null}
+                  </div>
+                  <div className="col-lg-6 text-lg-end">
+                    <div className="pos-inv-section-title">Invoice details</div>
+                    {printerSettings.show_invoice_date ? (
+                      <div className="small mb-2">
+                        <span className="text-muted me-2">Date:</span>
+                        <span className="fw-semibold">{data.invoiceDate}</span>
+                      </div>
+                    ) : null}
+                    <div className="small">
+                      <span className="text-muted me-2">Terms:</span>
+                      <span className="fw-semibold">{data.terms}</span>
+                    </div>
+                    {printerSettings.show_payment_method ? (
+                      <div className="small mt-2">
+                        <span className="text-muted me-2">Payment:</span>
+                        <span className="fw-semibold">{paymentMethodDisplay}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pos-inv-section">
+                <div className="pos-inv-section-title">Line items</div>
                 {canUpdateInvoice ? (
-                  <th className="text-center pos-inv-no-print" style={{ width: '72px' }}>
-                    {' '}
-                  </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {canUpdateInvoice ? (
-                invoiceDraftLines.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center text-muted py-4">
-                      No line items. Use <strong>Add product</strong> above to add rows.
-                    </td>
-                  </tr>
-                ) : (
-                  invoiceDraftLines.map((row, i) => {
-                    const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
-                    const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
-                    const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
-                    const rate = Number.isFinite(rateNum) ? rateNum : 0;
-                    const taxPct = Number(row.taxPct) || 0;
-                    const lineSub = qty * rate;
-                    const taxAmount = (lineSub * taxPct) / 100;
-                    const amount = lineSub + taxAmount;
-                    return (
-                      <tr key={row.key}>
-                        <td className="text-center">{i + 1}</td>
-                        <td>
-                          <div>{row.label}</div>
-                          {!String(row.productId || '').trim() ? (
-                            <div className="small text-warning">
-                              Missing product id — remove or fix.
+                  <>
+                    <p className="pos-inv-section-hint pos-inv-no-print">
+                      Edit quantity and rate, add or remove lines, then save with Update invoice.
+                    </p>
+                    <div className="row g-2 mb-3 pos-inv-no-print">
+                      <div className="col-md-4">
+                        <label className="form-label" htmlFor="pos-inv-order-status">
+                          Order status
+                        </label>
+                        <select
+                          id="pos-inv-order-status"
+                          className="form-select form-select-sm"
+                          value={invoiceOrderStatus}
+                          onChange={(e) => setInvoiceOrderStatus(e.target.value)}
+                        >
+                          {ORDER_STATUS_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {s.charAt(0).toUpperCase() + s.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-md-8">
+                        <label className="form-label" htmlFor="pos-inv-add-product">
+                          Add product
+                        </label>
+                        <div className="pos-inv-product-search position-relative">
+                          <div className="input-group input-group-sm">
+                            <span className="input-group-text">
+                              <SearchInputIcon />
+                            </span>
+                            <input
+                              id="pos-inv-add-product"
+                              type="search"
+                              className="form-control"
+                              placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                              value={addProductQuery}
+                              onChange={(e) => setAddProductQuery(e.target.value)}
+                              autoComplete="off"
+                            />
+                          </div>
+                          {addProductLoading ? (
+                            <div className="small text-muted mt-1">Searching…</div>
+                          ) : null}
+                          {addProductError ? (
+                            <div className="text-danger small mt-1" role="alert">
+                              {addProductError}
                             </div>
                           ) : null}
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Rate for line ${i + 1}`}
-                            value={row.rate}
-                            onChange={(e) => handleDraftLineEdit(row.key, 'rate', e.target.value)}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Quantity for line ${i + 1}`}
-                            value={row.qty}
-                            onChange={(e) => handleDraftLineEdit(row.key, 'qty', e.target.value)}
-                          />
-                        </td>
-                        <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
-                        <td className="text-center align-middle pos-inv-no-print">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger py-0 px-2"
-                            aria-label={`Remove line ${i + 1}`}
-                            onClick={() => removeDraftLine(row.key)}
-                          >
-                            <i className="fas fa-trash-alt" aria-hidden="true" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )
-              ) : (
-                data.lines.map((line, i) => (
-                  <tr key={i}>
-                    <td className="text-center">{i + 1}</td>
-                    <td>{line.description}</td>
-                    <td className="text-end">{fmt(line.rate)}</td>
-                    <td className="text-end">{line.qtyLabel}</td>
-                    <td className="text-end fw-semibold">{fmt(line.amount)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Payment + summary */}
-        <div className="row mb-4">
-          <div className="col-md-6 mb-4 mb-md-0">
-            {/* <div className="small mb-2">
-              <span className="text-muted">Payment Status: </span>
-              <span className="pos-inv-underline fw-semibold">{data.paymentStatus}</span>
-            </div> */}
-            {canUpdateInvoice ? (
-              <div className="mb-3 pos-inv-no-print">
-                <label className="form-label small text-muted mb-1" htmlFor="posInvReceiveAccount">
-                  Receive in account
-                </label>
-                <select
-                  id="posInvReceiveAccount"
-                  className="form-select form-select-sm"
-                  value={invoicePosPayMethod}
-                  onChange={(e) => setInvoicePosPayMethod(e.target.value)}
-                  disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
-                >
-                  <option value="">— Select account —</option>
-                  {paymentMethods.map((method) => {
-                    const methodId = String(method._id ?? method.id ?? '');
-                    if (!methodId) return null;
-                    return (
-                      <option key={methodId} value={methodId}>
-                        {method.name || 'Unnamed account'}
-                      </option>
-                    );
-                  })}
-                </select>
-                {paymentMethodsError ? (
-                  <div className="small text-danger mt-1">{paymentMethodsError}</div>
+                          {addProductResults.length > 0 ? (
+                            <ul
+                              className="list-group position-absolute w-100 shadow-sm mt-1"
+                              style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                            >
+                              {addProductResults.map((p) => {
+                                const pk = String(p._id ?? p.id ?? '');
+                                return (
+                                  <li key={pk} className="list-group-item p-0">
+                                    <button
+                                      type="button"
+                                      className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
+                                      onClick={() => appendDraftProduct(p)}
+                                    >
+                                      <span className="fw-semibold">{productPickerLabel(p)}</span>
+                                      <span className="text-muted ms-2">
+                                        {fmt(productPickerUnitPrice(p))}
+                                      </span>
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 ) : null}
+
+                <div className="pos-inv-table-wrap">
+                  <div className="pos-inv-table-scroll">
+                    <table className="table pos-inv-table mb-0">
+                      <thead>
+                        <tr>
+                          <th className="text-center pos-inv-col-sno">#</th>
+                          <th className="pos-inv-col-desc">Description</th>
+                          <th className="text-end pos-inv-col-num">Rate</th>
+                          <th className="text-end pos-inv-col-num">Qty</th>
+                          <th className="text-end pos-inv-col-num">Amount</th>
+                          {canUpdateInvoice ? (
+                            <th className="text-center pos-inv-col-action pos-inv-no-print" aria-label="Remove row" />
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {canUpdateInvoice ? (
+                          invoiceDraftLines.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="text-center text-muted py-4">
+                                No line items. Search above to add products.
+                              </td>
+                            </tr>
+                          ) : (
+                            invoiceDraftLines.map((row, i) => {
+                              const qtyNum = parseFloat(String(row.qty ?? '0').replace(/,/g, ''));
+                              const rateNum = parseFloat(String(row.rate ?? '0').replace(/,/g, ''));
+                              const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+                              const rate = Number.isFinite(rateNum) ? rateNum : 0;
+                              const taxPct = Number(row.taxPct) || 0;
+                              const lineSub = qty * rate;
+                              const taxAmount = (lineSub * taxPct) / 100;
+                              const amount = lineSub + taxAmount;
+                              return (
+                                <tr key={row.key}>
+                                  <td className="text-center text-muted">{i + 1}</td>
+                                  <td>
+                                    <div className="pos-inv-line-desc" title={row.label}>
+                                      {row.label}
+                                    </div>
+                                    {!String(row.productId || '').trim() ? (
+                                      <div className="small text-warning">Missing product</div>
+                                    ) : null}
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Rate for line ${i + 1}`}
+                                      value={row.rate}
+                                      onChange={(e) =>
+                                        handleDraftLineEdit(row.key, 'rate', e.target.value)
+                                      }
+                                    />
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Quantity for line ${i + 1}`}
+                                      value={row.qty}
+                                      onChange={(e) =>
+                                        handleDraftLineEdit(row.key, 'qty', e.target.value)
+                                      }
+                                    />
+                                  </td>
+                                  <td className="text-end fw-semibold text-nowrap">{fmt(amount)}</td>
+                                  <td className="text-center pos-inv-no-print">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      aria-label={`Remove line ${i + 1}`}
+                                      onClick={() => removeDraftLine(row.key)}
+                                    >
+                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )
+                        ) : (
+                          data.lines.map((line, i) => (
+                            <tr key={i}>
+                              <td className="text-center text-muted">{i + 1}</td>
+                              <td>
+                                <div className="pos-inv-line-desc" title={line.description}>
+                                  {line.description}
+                                </div>
+                              </td>
+                              <td className="text-end">{fmt(line.rate)}</td>
+                              <td className="text-end">{line.qtyLabel}</td>
+                              <td className="text-end fw-semibold">{fmt(line.amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            ) : null}
-            {printerSettings.show_payment_method ? (
-              <div className="small mb-3">
-                <span className="text-muted">Payment Method: </span>
-                <span className="pos-inv-underline fw-semibold">{paymentMethodDisplay}</span>
-              </div>
-            ) : null}
-            <label className="form-label small text-muted mb-1">Note</label>
-            <textarea
-              className="form-control form-control-sm"
-              rows={4}
-              placeholder="Add a note…"
-              defaultValue={data.note}
-              readOnly
-            />
-          </div>
-          <div className="col-md-6">
-            <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
-            <div className="border rounded p-3 bg-light">
+
+              <div className="pos-inv-section">
+                <div className="row g-4">
+                  <div className="col-lg-6">
+                    <div className="pos-inv-section-title">Payment &amp; notes</div>
+                    {canUpdateInvoice ? (
+                      <div className="mb-3 pos-inv-no-print">
+                        <label className="form-label" htmlFor="posInvReceiveAccount">
+                          Receive in account
+                        </label>
+                        <select
+                          id="posInvReceiveAccount"
+                          className="form-select form-select-sm"
+                          value={invoicePosPayMethod}
+                          onChange={(e) => setInvoicePosPayMethod(e.target.value)}
+                          disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
+                        >
+                          <option value="">Select account</option>
+                          {paymentMethods.map((method) => {
+                            const methodId = String(method._id ?? method.id ?? '');
+                            if (!methodId) return null;
+                            return (
+                              <option key={methodId} value={methodId}>
+                                {method.name || 'Unnamed account'}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {paymentMethodsError ? (
+                          <div className="small text-danger mt-1">{paymentMethodsError}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <label className="form-label" htmlFor="pos-inv-note">
+                      Note
+                    </label>
+                    <textarea
+                      id="pos-inv-note"
+                      className="form-control form-control-sm"
+                      rows={5}
+                      placeholder="Add a note…"
+                      defaultValue={data.note}
+                      readOnly
+                    />
+                  </div>
+                  <div className="col-lg-6">
+                    <div className="pos-inv-summary-panel">
+                      <div className="pos-inv-section-title mb-3">Summary</div>
+                      <div className="pos-inv-summary-box">
               <div className="pos-inv-summary-row">
-                <span className="text-muted">Sub Total</span>
-                <span className="fw-semibold">{fmt(summaryDisplay.subTotal)}</span>
+                <span>Sub total</span>
+                <span>{fmt(summaryDisplay.subTotal)}</span>
               </div>
               <div className="pos-inv-summary-row">
-                <span className="text-muted">Tax</span>
+                <span>Tax</span>
                 <span>{fmt(summaryDisplay.tax)}</span>
               </div>
               {printerSettings.show_discount || canUpdateInvoice ? (
@@ -1532,88 +1353,70 @@ const PosInvoice = () => {
                 </>
               ) : null}
             </div>
-            {/* <div className="mt-4 text-md-end">
-              <div className="small text-muted mb-1">Authorized Person</div>
-              <div className="d-inline-flex flex-column align-items-md-end align-items-start">
-                <div className="pos-inv-sig-box mb-2 align-self-md-end" aria-hidden="true" />
-                <div className="fw-semibold">{data.authorizedPerson.name}</div>
-                <div className="small text-muted">{data.authorizedPerson.title}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div> */}
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="border-top pt-4">
+              <div className="pos-inv-section pos-inv-footer-meta">
           {printerSettings.show_qrcode ? (
             <div className="mb-4 d-flex flex-column align-items-center text-center">
               <InvoiceQrCode value={data.publicUrl} size={96} />
               <small className="text-muted mt-2">Scan invoice QR code</small>
             </div>
           ) : null}
-          <div className="fw-semibold mb-2">Terms &amp; Condition</div>
-          <ol className="small text-secondary ps-3 mb-4">
+                <div className="pos-inv-section-title">Terms &amp; conditions</div>
+                <ol className="pos-inv-terms-list">
             {data.termsBody.map((t, i) => (
               <li key={i} className="mb-1">
                 {t}
               </li>
             ))}
-          </ol>
-          <div className="mb-2 small text-muted">Public Access URL</div>
-          <input
-            type="text"
-            className="form-control form-control-sm mb-4 font-monospace"
-            readOnly
-            value={data.publicUrl}
-          />
-          <div className="fw-semibold mb-2">Files</div>
-          {/* <p className="small text-muted mb-2">
-            Allowed: PDF, JPG, PNG, DOC, DOCX (max 10MB each — adjust as needed)
-          </p>
-          <label
-            htmlFor="pos-inv-files"
-            className="pos-inv-file-btn d-inline-block mb-0"
-            style={{ cursor: 'pointer' }}
-          >
-            <i className="fas fa-folder-open me-2"></i>
-            Select files…
-          </label> */}
-          <input
-            id="pos-inv-files"
-            type="file"
-            className="d-none"
-            multiple
-            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          />
-        </div>
+                </ol>
+                {data.publicUrl ? (
+                  <>
+                    <div className="pos-inv-section-title mt-3">Public access</div>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm pos-inv-public-url"
+                      readOnly
+                      value={data.publicUrl}
+                    />
+                  </>
+                ) : null}
+              </div>
 
-        <div className="border-top pt-4 mt-3 pos-inv-no-print d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3">
-          <p className="small text-muted mb-0">
-            Push the latest customer details to the server for this order.
-          </p>
-          <button
-            type="button"
-            className="btn pos-inv-btn-orange align-self-stretch align-self-md-center"
-            style={{ minWidth: '200px' }}
-            disabled={!canUpdateInvoice || invoiceSaving || !invoiceHasSaveableLines}
-            onClick={handleUpdateInvoice}
-          >
-            {invoiceSaving ? (
-              <>
-                <span
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                  aria-hidden="true"
-                />
-                Updating…
-              </>
-            ) : (
-              <>
-                <i className="fas fa-cloud-upload-alt me-2"></i>
-                Update invoice
-              </>
-            )}
-          </button>
+              {canUpdateInvoice ? (
+                <div className="pos-inv-footer pos-inv-no-print">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={invoiceSaving || !invoiceHasSaveableLines}
+                    onClick={handleUpdateInvoice}
+                    title={
+                      !invoiceHasSaveableLines ? 'Add at least one product line' : 'Save invoice changes'
+                    }
+                  >
+                    {invoiceSaving ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-1"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                        Updating…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save me-1" aria-hidden="true" />
+                        Update invoice
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </div>

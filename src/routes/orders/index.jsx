@@ -20,6 +20,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
@@ -47,6 +48,24 @@ const getOrderItemsTotalDisplay = (row) => {
   return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const orderDisplayStatus = (row) => {
+  const orderStatus = getOrderStatusDisplay(row);
+  if (orderStatus) return orderStatus;
+  const s = row?.status;
+  if (s == null || String(s).trim() === '') return '—';
+  return String(s).trim();
+};
+
+const statusBadgeClass = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'active' || s === 'completed' || s === 'posted' || s === 'delivered') {
+    return 'bg-gradient-success';
+  }
+  if (s === 'pending' || s === 'draft' || s === 'placed') return 'bg-gradient-warning';
+  if (s === 'cancelled' || s === 'void' || s === 'refunded') return 'bg-gradient-danger';
+  return 'bg-gradient-secondary';
+};
+
 const Orders = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -67,7 +86,6 @@ const Orders = () => {
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -86,7 +104,6 @@ const Orders = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
 
@@ -112,32 +129,17 @@ const Orders = () => {
     [dispatch]
   );
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
     }
-    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    sortClickTimeoutRef.current = setTimeout(() => {
-      dispatch(setSort({ sortBy }));
-      sortClickTimeoutRef.current = null;
-    }, 200);
+    dispatch(setSort({ sortBy: column }));
   };
 
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
-  };
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
 
   const handleOpenInvoice = async (row) => {
     const rowKey = String(row._id || row.id || row.order_no || row.orderNo || '');
@@ -181,9 +183,6 @@ const Orders = () => {
     dispatch(clearDeleteStatus());
   };
 
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
-
   const refreshOrderList = () => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
@@ -209,58 +208,56 @@ const Orders = () => {
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center">
-                <div className="col-md-6">
-                  <h5 className="mb-0">Orders</h5>
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-4 col-md-5">
+                  <h5 className="mb-1">Orders</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0">
-                      List uses <code>order/get-order-by-order-item</code>. Invoice edit:{' '}
-                      <code>order/get-order-by-order-no/:order_id</code>. Delete:{' '}
-                      <code>order/order_delete/:order_id</code>.
-                    </p>
+                    <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                <div className="col-lg-8 col-md-7">
+                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search orders..."
+                        placeholder="Search orders…"
                         value={localSearch}
                         onChange={handleSearchChange}
+                        aria-label="Search orders"
                       />
                     </div>
-                    {canCreate && (
+                    {canCreate ? (
                       <>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setFetchOrdersModalOpen(true)}
                         >
-                          <i className="fas fa-cloud-download-alt me-1" />
-                          Fetch Orders
+                          <i className="fas fa-cloud-download-alt me-1" aria-hidden="true" />
+                          Fetch orders
                         </button>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setSyncOrdersModalOpen(true)}
                         >
                           <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
-                          Sync Orders
+                          Sync orders
                         </button>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--orders"
                 loading={loading}
                 loadingLabel="Loading orders…"
                 error={error}
@@ -273,186 +270,94 @@ const Orders = () => {
                 <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('order_no')}
-                          onDoubleClick={() => handleSort('order_no', true)}
-                        >
-                          Order No
-                          {renderSortIcon('order_no')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('email')}
-                          onDoubleClick={() => handleSort('email', true)}
-                        >
-                          Email
-                          {renderSortIcon('email')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('phone')}
-                          onDoubleClick={() => handleSort('phone', true)}
-                        >
-                          Phone
-                          {renderSortIcon('phone')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('no_of_items')}
-                          onDoubleClick={() => handleSort('no_of_items', true)}
-                        >
-                          No. of items
-                          {renderSortIcon('no_of_items')}
-                        </th>
-                        <th
-                          className="text-end"
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('order_items_total')}
-                          onDoubleClick={() => handleSort('order_items_total', true)}
-                        >
-                          Total
-                          {renderSortIcon('order_items_total')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('order_status')}
-                          onDoubleClick={() => handleSort('order_status', true)}
-                        >
-                          Order status
-                          {renderSortIcon('order_status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
-                        </th>
-                        <th>Action</th>
+                        <th className="text-center list-col-sno">#</th>
+                        {sortableTh('order_no', 'Order no')}
+                        {sortableTh('name', 'Customer', 'list-col-truncate')}
+                        {sortableTh('email', 'Email', 'list-col-truncate')}
+                        {sortableTh('phone', 'Phone', 'list-col-truncate-sm')}
+                        {sortableTh('no_of_items', 'Items', 'text-center')}
+                        {sortableTh('order_items_total', 'Total', 'text-end list-col-amount')}
+                        {sortableTh('order_status', 'Status')}
+                        {sortableTh('createdAt', 'Created', 'list-col-date')}
+                        <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="12" className="text-center text-sm font-weight-normal p-4">
-                            No orders found
+                          <td colSpan={10} className="text-center py-5 text-muted">
+                            No orders found. Try adjusting your search.
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                           const key = item._id || item.id || index;
-                          const orderNo = item.order_no || item.orderNo || '-';
-                          const statusValue = item.status || '-';
-                          const isActive = String(statusValue).toLowerCase() === 'active';
-                          const orderStatusRaw = getOrderStatusDisplay(item);
-                          const orderStatusLabel = orderStatusRaw || '—';
-                          const orderStatusActive =
-                            String(orderStatusRaw).toLowerCase() === 'active';
+                          const orderNo = item.order_no || item.orderNo || '—';
+                          const statusVal = orderDisplayStatus(item);
                           const rowKey = String(item._id || item.id || index);
                           const isRowLoading = editLoadingId === rowKey;
+                          const created = item.createdAt ?? item.created_at;
+                          const updated = item.updatedAt ?? item.updated_at;
+                          const customerName = item.name || '—';
+                          const email = item.email || '—';
+                          const phone = item.phone || '—';
+                          const total = getOrderItemsTotalDisplay(item);
                           return (
                             <tr key={key}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{orderNo}</td>
-                              <td className="text-sm font-weight-normal">{item.name || '-'}</td>
-                              <td className="text-sm font-weight-normal">{item.email || '-'}</td>
-                              <td className="text-sm font-weight-normal">{item.phone || '-'}</td>
-                              <td className="text-sm font-weight-normal">
-                                {getNoOfItemsDisplay(item)}
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td className="text-sm font-weight-bold text-dark">{orderNo}</td>
+                              <td className="text-sm list-cell-truncate" title={customerName !== '—' ? customerName : undefined}>
+                                {customerName}
                               </td>
-                              <td className="text-sm font-weight-normal text-end">
-                                {getOrderItemsTotalDisplay(item)}
+                              <td className="text-sm list-cell-truncate" title={email !== '—' ? email : undefined}>
+                                {email}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {orderStatusRaw ? (
-                                  <span
-                                    className={`badge ${
-                                      orderStatusActive ? 'bg-success' : 'bg-secondary'
-                                    }`}
-                                  >
-                                    {orderStatusLabel}
-                                  </span>
-                                ) : (
-                                  orderStatusLabel
-                                )}
+                              <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
+                              <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
+                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                                {total !== '—' ? `PKR ${total}` : total}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${isActive ? 'bg-success' : 'bg-secondary'}`}
-                                >
-                                  {statusValue}
+                              <td className="text-sm">
+                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                  {String(statusVal)}
                                 </span>
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
-                              </td>
                               <td
-                                className="text-sm font-weight-normal text-muted"
+                                className="text-sm text-nowrap list-col-date"
                                 title={
-                                  item.updatedAt || item.updated_at
-                                    ? moment(item.updatedAt || item.updated_at).format(
-                                        'MM-DD-YYYY h:mm a'
-                                      )
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
                                     : undefined
                                 }
                               >
-                                {item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).fromNow()
-                                  : '-'}
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-wrap gap-1">
+                              <td className="text-end">
+                                <div className="list-table-actions">
                                   {canEdit ? (
                                     <button
-                                      className="btn btn-outline-info btn-sm mb-0"
                                       type="button"
-                                      disabled={editLoadingId === rowKey}
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      disabled={isRowLoading}
                                       onClick={() => handleOpenInvoice(item)}
                                     >
-                                      {isRowLoading ? 'Opening…' : 'Edit'}
+                                      {isRowLoading ? 'Opening…' : 'View'}
                                     </button>
                                   ) : null}
                                   {canDelete ? (
                                     <button
-                                      className="btn btn-sm btn-danger mb-0"
                                       type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
                                       onClick={() => handleDelete(item)}
                                       disabled={deleteStatus === 'loading'}
                                     >
                                       Delete
                                     </button>
                                   ) : null}
-                                  {!canEdit && !canDelete ? '—' : null}
+                                  {!canEdit && !canDelete ? (
+                                    <span className="text-muted">—</span>
+                                  ) : null}
                                 </div>
                               </td>
                             </tr>

@@ -475,6 +475,10 @@ body {
   min-width: 1180px;
 }
 
+.list-data-table.list-data-table--orders .table {
+  min-width: 1040px;
+}
+
 .list-data-table .font-monospace {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8125rem;

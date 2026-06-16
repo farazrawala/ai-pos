@@ -1,0 +1,392 @@
+/* POS invoice view / edit — professional document layout */
+
+.pos-invoice-page {
+  --inv-border: #e9ecef;
+  --inv-muted: #67748e;
+  --inv-ink: #344767;
+  --inv-surface: #f8f9fa;
+  width: 100%;
+  max-width: 100%;
+}
+
+.pos-invoice-page .pos-invoice-card {
+  border: 1px solid var(--inv-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pos-invoice-page .pos-inv-back {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--inv-muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.pos-invoice-page .pos-inv-back:hover {
+  color: #5e72e4;
+}
+
+.pos-invoice-page .pos-inv-header-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+  margin-bottom: 0.35rem;
+}
+
+.pos-invoice-page .pos-inv-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pos-invoice-page .pos-inv-ref-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5e72e4;
+  background: rgba(94, 114, 228, 0.1);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.pos-invoice-page .pos-inv-total-pill {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--inv-ink);
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-border);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.65rem;
+}
+
+.pos-invoice-page .pos-inv-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pos-invoice-page .pos-inv-header-actions .btn {
+  font-weight: 600;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.pos-invoice-page .pos-inv-doc-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fc 0%, #fff 100%);
+  border: 1px solid var(--inv-border);
+  border-radius: 0.625rem;
+}
+
+.pos-invoice-page .pos-inv-company {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.pos-invoice-page .pos-inv-company-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  border: 1px solid var(--inv-border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.pos-invoice-page .pos-inv-company-logo-fallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.5rem;
+  border: 1px solid var(--inv-border);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #5e72e4;
+}
+
+.pos-invoice-page .pos-inv-company-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+  margin-bottom: 0.1rem;
+}
+
+.pos-invoice-page .pos-inv-company-meta {
+  font-size: 0.75rem;
+  color: var(--inv-muted);
+  line-height: 1.45;
+}
+
+.pos-invoice-page .pos-inv-doc-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--inv-muted);
+  margin-bottom: 0.25rem;
+}
+
+.pos-invoice-page .pos-inv-doc-total {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+}
+
+.pos-invoice-page .pos-inv-section {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.pos-invoice-page .pos-inv-section:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.pos-invoice-page .pos-inv-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--inv-muted);
+  margin-bottom: 1rem;
+}
+
+.pos-invoice-page .pos-inv-section-hint {
+  font-size: 0.75rem;
+  color: var(--inv-muted);
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pos-invoice-page .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--inv-ink);
+  margin-bottom: 0.35rem;
+}
+
+.pos-invoice-page .form-control,
+.pos-invoice-page .form-select {
+  border-color: var(--inv-border);
+  font-size: 0.875rem;
+}
+
+.pos-invoice-page .pos-inv-billto-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+}
+
+.pos-invoice-page .pos-inv-billto-meta {
+  font-size: 0.8125rem;
+  color: var(--inv-muted);
+  line-height: 1.45;
+}
+
+.pos-invoice-page .pos-inv-product-search .input-group-text {
+  background: #fff;
+  border-color: var(--inv-border);
+  color: var(--inv-muted);
+}
+
+.pos-invoice-page .pos-inv-table-wrap {
+  border: 1px solid var(--inv-border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+}
+
+.pos-invoice-page .pos-inv-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pos-invoice-page .pos-inv-table {
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 0;
+  font-size: 0.8125rem;
+}
+
+.pos-invoice-page .pos-inv-table thead th {
+  background: var(--inv-surface);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--inv-muted);
+  border-bottom: 1px solid var(--inv-border);
+  padding: 0.65rem 0.5rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.pos-invoice-page .pos-inv-table tbody td {
+  border-bottom: 1px solid #f1f3f5;
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+.pos-invoice-page .pos-inv-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pos-invoice-page .pos-inv-table tbody tr:hover td {
+  background: #fafbfc;
+}
+
+.pos-invoice-page .pos-inv-table .form-control {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  min-height: 2rem;
+}
+
+.pos-invoice-page .pos-inv-col-sno {
+  width: 2.5rem;
+}
+
+.pos-invoice-page .pos-inv-col-desc {
+  min-width: 8rem;
+}
+
+.pos-invoice-page .pos-inv-col-num {
+  width: 6rem;
+}
+
+.pos-invoice-page .pos-inv-col-action {
+  width: 2.75rem;
+}
+
+.pos-invoice-page .pos-inv-line-desc {
+  font-weight: 600;
+  color: var(--inv-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pos-invoice-page .pos-inv-summary-panel {
+  border: 1px solid var(--inv-border);
+  border-radius: 0.625rem;
+  padding: 1rem 1.15rem;
+  background: #fff;
+}
+
+.pos-invoice-page .pos-inv-summary-box {
+  background: var(--inv-surface);
+  border: 1px solid var(--inv-border);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.pos-invoice-page .pos-inv-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+  font-size: 0.875rem;
+  color: var(--inv-muted);
+}
+
+.pos-invoice-page .pos-inv-summary-row span:last-child {
+  font-weight: 600;
+  color: var(--inv-ink);
+  text-align: right;
+}
+
+.pos-invoice-page .pos-inv-summary-total {
+  margin-top: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--inv-border);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+}
+
+.pos-invoice-page .pos-inv-summary-total span:last-child {
+  font-size: 1rem;
+  color: #5e72e4;
+}
+
+.pos-invoice-page .pos-inv-payment-made span:last-child {
+  color: #f5365c;
+}
+
+.pos-invoice-page .pos-inv-footer-meta {
+  font-size: 0.8125rem;
+}
+
+.pos-invoice-page .pos-inv-terms-list {
+  color: var(--inv-muted);
+  padding-left: 1.15rem;
+  margin-bottom: 0;
+}
+
+.pos-invoice-page .pos-inv-public-url {
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.pos-invoice-page .pos-inv-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f1f3f5;
+}
+
+.pos-invoice-page .pos-inv-footer .btn {
+  font-weight: 600;
+  border-radius: 0.5rem;
+  min-width: 7rem;
+}
+
+@media print {
+  .pos-inv-no-print {
+    display: none !important;
+  }
+
+  .pos-invoice-page {
+    max-width: 100%;
+  }
+
+  .pos-invoice-page .pos-invoice-card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .pos-invoice-page .card-body {
+    padding: 0 !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .pos-invoice-page .pos-inv-doc-strip {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
