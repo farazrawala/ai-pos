@@ -58,42 +58,114 @@ function compRandEmail() {
  *   price?: number;
  *   ref?: number;
  *   refQty?: number;
+ *   skipEdit?: boolean;
+ *   deleteAfterCreate?: boolean;
  *   expected: number;
  * }>}
  */
 export const INVENTORY_TEST_CASES = [
   { n: 1, type: 'purchase', label: 'Purchase 100 @ 100', qty: 100, price: 100, expected: 100 },
   { n: 2, type: 'purchase', label: 'Purchase 50 @ 120', qty: 50, price: 120, expected: 150 },
-  { n: 3, type: 'sale', label: 'Sale 40', qty: 40, expected: 110 },
+  { n: 3, type: 'sale', label: 'Sale 40', qty: 40, expected: 110, deleteAfterCreate: true },
   { n: 4, type: 'purchase', label: 'Purchase 60 @ 150', qty: 60, price: 150, expected: 170 },
-  { n: 5, type: 'purchase_return', label: 'Purchase Return 20 @ 150', qty: 20, price: 150, expected: 150 },
+  {
+    n: 5,
+    type: 'purchase_return',
+    label: 'Purchase Return 20 @ 150',
+    qty: 20,
+    price: 150,
+    expected: 150,
+  },
   { n: 6, type: 'sale', label: 'Sale 30', qty: 30, expected: 120 },
   { n: 7, type: 'sales_return', label: 'Sales Return 10 (from #6)', qty: 10, expected: 130 },
   { n: 8, type: 'purchase', label: 'Purchase 100 @ 200', qty: 100, price: 200, expected: 230 },
   { n: 9, type: 'sale', label: 'Sale 50', qty: 50, expected: 180 },
-  { n: 10, type: 'delete_purchase_return', label: 'Delete #5 Purchase Return', ref: 5, refQty: 20, expected: 200 },
+  {
+    n: 10,
+    type: 'delete_purchase_return',
+    label: 'Delete #5 Purchase Return',
+    ref: 5,
+    refQty: 20,
+    expected: 200,
+  },
   { n: 11, type: 'purchase', label: 'Purchase 80 @ 180', qty: 80, price: 180, expected: 280 },
   { n: 12, type: 'sale', label: 'Sale 70', qty: 70, expected: 210 },
-  { n: 13, type: 'purchase_return', label: 'Purchase Return 10 @ 180', qty: 10, price: 180, expected: 200 },
+  {
+    n: 13,
+    type: 'purchase_return',
+    label: 'Purchase Return 10 @ 180',
+    qty: 10,
+    price: 180,
+    expected: 200,
+  },
   { n: 14, type: 'sales_return', label: 'Sales Return 5 (from #12)', qty: 5, expected: 205 },
-  { n: 15, type: 'delete_sales_return', label: 'Delete #7 Sales Return', ref: 7, refQty: 10, expected: 195 },
+  {
+    n: 15,
+    type: 'delete_sales_return',
+    label: 'Delete #7 Sales Return',
+    ref: 7,
+    refQty: 10,
+    expected: 195,
+  },
   { n: 16, type: 'purchase', label: 'Purchase 40 @ 250', qty: 40, price: 250, expected: 235 },
   { n: 17, type: 'sale', label: 'Sale 25', qty: 25, expected: 210 },
   { n: 18, type: 'purchase', label: 'Purchase 75 @ 300', qty: 75, price: 300, expected: 285 },
   { n: 19, type: 'sale', label: 'Sale 60', qty: 60, expected: 225 },
-  { n: 20, type: 'delete_purchase', label: 'Delete #2 Purchase 50 @ 120', ref: 2, refQty: 50, expected: 175 },
-  { n: 21, type: 'purchase_return', label: 'Purchase Return 15 @ 300', qty: 15, price: 300, expected: 160 },
+  {
+    n: 20,
+    type: 'delete_purchase',
+    label: 'Delete #2 Purchase 50 @ 120',
+    ref: 2,
+    refQty: 50,
+    expected: 175,
+  },
+  {
+    n: 21,
+    type: 'purchase_return',
+    label: 'Purchase Return 15 @ 300',
+    qty: 15,
+    price: 300,
+    expected: 160,
+  },
   { n: 22, type: 'sales_return', label: 'Sales Return 20 (from #19)', qty: 20, expected: 180 },
   { n: 23, type: 'purchase', label: 'Purchase 30 @ 350', qty: 30, price: 350, expected: 210 },
   { n: 24, type: 'sale', label: 'Sale 40', qty: 40, expected: 170 },
   { n: 25, type: 'purchase', label: 'Purchase 50 @ 400', qty: 50, price: 400, expected: 220 },
-  { n: 26, type: 'delete_purchase_return', label: 'Delete #13 Purchase Return', ref: 13, refQty: 10, expected: 230 },
+  {
+    n: 26,
+    type: 'delete_purchase_return',
+    label: 'Delete #13 Purchase Return',
+    ref: 13,
+    refQty: 10,
+    expected: 230,
+  },
   { n: 27, type: 'sale', label: 'Sale 35', qty: 35, expected: 195 },
-  { n: 28, type: 'purchase_return', label: 'Purchase Return 5 @ 400', qty: 5, price: 400, expected: 190 },
+  {
+    n: 28,
+    type: 'purchase_return',
+    label: 'Purchase Return 5 @ 400',
+    qty: 5,
+    price: 400,
+    expected: 190,
+  },
   { n: 29, type: 'sales_return', label: 'Sales Return 10 (from #27)', qty: 10, expected: 200 },
   { n: 30, type: 'delete_sale', label: 'Delete #24 Sale 40', ref: 24, refQty: 40, expected: 240 },
-  { n: 31, type: 'delete_sales_return', label: 'Delete #29 Sales Return', ref: 29, refQty: 10, expected: 230 },
-  { n: 32, type: 'delete_purchase', label: 'Delete #18 Purchase 75 @ 300', ref: 18, refQty: 75, expected: 155 },
+  {
+    n: 31,
+    type: 'delete_sales_return',
+    label: 'Delete #29 Sales Return',
+    ref: 29,
+    refQty: 10,
+    expected: 230,
+  },
+  {
+    n: 32,
+    type: 'delete_purchase',
+    label: 'Delete #18 Purchase 75 @ 300',
+    ref: 18,
+    refQty: 75,
+    expected: 155,
+  },
 ];
 
 /** Bulk block: same customer user, simple sales (no get/edit). Count in 25–30 range. */
@@ -101,8 +173,7 @@ export const BULK_USER_TXN_COUNT = 28;
 
 /** @returns {typeof INVENTORY_TEST_CASES} */
 function buildBulkUserSaleCases() {
-  const lastExpected =
-    INVENTORY_TEST_CASES[INVENTORY_TEST_CASES.length - 1]?.expected ?? 0;
+  const lastExpected = INVENTORY_TEST_CASES[INVENTORY_TEST_CASES.length - 1]?.expected ?? 0;
   let running = lastExpected;
   const startN = INVENTORY_TEST_CASES.length + 1;
 
@@ -307,6 +378,34 @@ function buildPurchaseSteps(tc) {
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
 function buildSaleSteps(tc) {
+  // For specific cases we want to create then immediately delete the invoice.
+  // This keeps the test short while still verifying ledger behavior.
+  if (tc.deleteAfterCreate) {
+    return [
+      {
+        caseNo: tc.n,
+        name: `${tc.n}. ${tc.label}`,
+        requiresAuth: true,
+        method: 'POST',
+        url: '{{url}}api/order/order_save',
+        bodyType: 'form',
+        body: saleBody(tc),
+        qtyLedger: { type: 'sale', qty: tc.qty },
+        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+      },
+      {
+        caseNo: tc.n,
+        name: `${tc.n}c. Delete sale #${tc.n}`,
+        requiresAuth: true,
+        method: 'DELETE',
+        url: `{{url}}api/order/order_delete/{{txn_${tc.n}_id}}`,
+        body: {},
+        qtyLedger: { type: 'delete_sale', qty: tc.qty },
+        caseFinal: true,
+      },
+    ];
+  }
+
   if (tc.skipEdit) {
     return [
       {
@@ -491,14 +590,8 @@ function createSetupSteps() {
           'response.data.data.user.company_id',
           'response.data.company._id',
         ],
-        workflow_user_id: [
-          'response.data.data.user._id',
-          'response.data.data.user.id',
-        ],
-        warehouse_1_id: [
-          'response.data.data.warehouse._id',
-          'response.data.data.warehouse.id',
-        ],
+        workflow_user_id: ['response.data.data.user._id', 'response.data.data.user.id'],
+        warehouse_1_id: ['response.data.data.warehouse._id', 'response.data.data.warehouse.id'],
       },
     },
     {
@@ -542,8 +635,7 @@ function createSetupSteps() {
       name: 'Setup: Verify products (list)',
       method: 'GET',
       requiresAuth: true,
-      url:
-        '{{url}}api/product/get-all-active-pos?search=Inventory test product&limit=5',
+      url: '{{url}}api/product/get-all-active-pos?search=Inventory test product&limit=5',
       body: {},
       refreshSavedVars: true,
       save: {
@@ -631,8 +723,7 @@ export function createInventoryTestCaseSteps() {
       name: `Verify: Ledger transactions for bulk user (${BULK_USER_TXN_COUNT}+ sales)`,
       requiresAuth: true,
       method: 'GET',
-      url:
-        '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
+      url: '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
       body: {},
     },
   ];

@@ -1,5 +1,6 @@
 function StepResponseBlock({ stepIndex, name, payload }) {
-  const { ok, status, statusText, timeMs, data, errorMessage, headers } = payload;
+  const { ok, status, statusText, timeMs, data, errorMessage, headers, balanceSheetCheck } =
+    payload;
 
   return (
     <div className="border-b border-slate-100 last:border-b-0">
@@ -34,6 +35,21 @@ function StepResponseBlock({ stepIndex, name, payload }) {
             }
           })()}
         </pre>
+        {balanceSheetCheck?.triggered ? (
+          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/80 p-3">
+            <p className="text-xs font-semibold text-violet-900">Balance sheet check</p>
+            <p className="mt-1 text-[11px] text-violet-800">
+              {balanceSheetCheck.ok ? 'OK' : 'Failed'} — HTTP {balanceSheetCheck.status ?? '—'}{' '}
+              {balanceSheetCheck.statusText ? `· ${balanceSheetCheck.statusText}` : ''}
+            </p>
+            {balanceSheetCheck.errorMessage ? (
+              <p className="mt-1 text-[11px] text-rose-600">{balanceSheetCheck.errorMessage}</p>
+            ) : null}
+            <pre className="mt-2 max-h-[180px] overflow-auto rounded border border-violet-100 bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-emerald-100">
+              {JSON.stringify(balanceSheetCheck.summary ?? null, null, 2)}
+            </pre>
+          </div>
+        ) : null}
         {headers && Object.keys(headers).length > 0 && (
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-medium text-slate-500">Headers</summary>

@@ -11,8 +11,11 @@ import { objectToFormData } from '../utils/apiWorkflow/formData.js';
 import { AUTH_TOKEN_SAVE_PATHS, resolveWorkflowAuthToken } from '../utils/apiWorkflow/authToken.js';
 import { LOGIN_SAVE_MAP } from '../utils/apiWorkflow/loginSavePaths.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
+import {
+  buildWorkflowInterpVars,
+  getWorkflowBaseUrl,
+} from '../utils/apiWorkflow/workflowBaseUrl.js';
 
-const DEFAULT_BASE = '';
 
 /** Short unique local part per mount: `comp_<random>@gmail.com`. */
 function compRandEmail() {
@@ -290,22 +293,10 @@ function useInitialRunnerSnapshot() {
   return ref.current;
 }
 
-/** `{{url}}` in step URLs: API root with trailing slash (from Base URL or current browser origin). */
-function buildInterpVars(varsSnapshot, baseUrlRaw) {
-  const b = (baseUrlRaw ?? '').trim();
-  const url =
-    b === ''
-      ? typeof window !== 'undefined'
-        ? `${window.location.origin}/`
-        : 'http://localhost/'
-      : b.replace(/\/?$/, '/');
-  return { url, ...varsSnapshot };
-}
-
 const ApiWorkflowRunner = () => {
   const initialSnapshot = useInitialRunnerSnapshot();
   const [steps, setSteps] = useState(() => initialSnapshot.steps);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
+  const [baseUrl, setBaseUrl] = useState(() => getWorkflowBaseUrl());
   const [variables, setVariables] = useState(() => {
     const token = resolveWorkflowAuthToken({});
     return token ? { auth_token: token } : {};
@@ -375,7 +366,7 @@ const ApiWorkflowRunner = () => {
       });
 
       const method = (step.method || 'GET').toUpperCase();
-      const interpVars = buildInterpVars(varsSnapshot, baseUrl);
+      const interpVars = buildWorkflowInterpVars(varsSnapshot, baseUrl);
       const path = interpolateUrl(step.url, interpVars);
       const fullUrl = /^https?:\/\//i.test(path)
         ? path
@@ -609,7 +600,7 @@ const ApiWorkflowRunner = () => {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               disabled={busy}
-              placeholder="Empty = {{url}} uses this origin (Vite proxies /api/). Or e.g. http://localhost:8000"
+              placeholder="From VITE_API_BASE_URL on live; origin + /api on dev"
               className="rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-slate-50"
             />
           </label>

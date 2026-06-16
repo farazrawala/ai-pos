@@ -16,8 +16,14 @@ import {
   persistWorkflowAppSession,
 } from '../utils/apiWorkflow/persistWorkflowAppSession.js';
 import { buildWorkflowRequestHeaders } from '../utils/apiWorkflow/requestHeaders.js';
-
-const DEFAULT_BASE = '';
+import {
+  extractBalanceSheetSummary,
+  isTransactionRelatedStep,
+} from '../utils/apiWorkflow/balanceSheetCheck.js';
+import {
+  buildWorkflowInterpVars,
+  getWorkflowBaseUrl,
+} from '../utils/apiWorkflow/workflowBaseUrl.js';
 
 const emptyStatuses = (n) => Array.from({ length: n }, () => 'pending');
 
@@ -35,21 +41,10 @@ function useInitialRunnerSnapshot() {
   return ref.current;
 }
 
-function buildInterpVars(varsSnapshot, baseUrlRaw) {
-  const b = (baseUrlRaw ?? '').trim();
-  const url =
-    b === ''
-      ? typeof window !== 'undefined'
-        ? `${window.location.origin}/`
-        : 'http://localhost/'
-      : b.replace(/\/?$/, '/');
-  return { url, ...varsSnapshot };
-}
-
 const InventoryTestCaseRunner = () => {
   const initialSnapshot = useInitialRunnerSnapshot();
   const [steps] = useState(() => initialSnapshot.steps);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE);
+  const [baseUrl, setBaseUrl] = useState(() => getWorkflowBaseUrl());
   const [variables, setVariables] = useState(() => seedTestCaseWorkflowVars({}));
   const [statuses, setStatuses] = useState(() => initialSnapshot.statuses);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -58,6 +53,9 @@ const InventoryTestCaseRunner = () => {
   const [loadingStep, setLoadingStep] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
   const [runningChecked, setRunningChecked] = useState(false);
+  const [checkBalanceSheetAfterTransactions, setCheckBalanceSheetAfterTransactions] =
+    useState(true);
+  const checkBalanceSheetRef = useRef(true);
   const [checkedSteps, setCheckedSteps] = useState(() =>
     Array.from({ length: initialSnapshot.steps.length }, () => false)
   );
@@ -71,6 +69,10 @@ const InventoryTestCaseRunner = () => {
   useEffect(() => {
     variablesRef.current = variables;
   }, [variables]);
+
+  useEffect(() => {
+    checkBalanceSheetRef.current = checkBalanceSheetAfterTransactions;
+  }, [checkBalanceSheetAfterTransactions]);
 
   const selectedStep = steps[selectedIndex] ?? null;
 
@@ -106,7 +108,7 @@ const InventoryTestCaseRunner = () => {
       });
 
       const method = (step.method || 'GET').toUpperCase();
-      const interpVars = buildInterpVars(varsSnapshot, baseUrl);
+      const interpVars = buildWorkflowInterpVars(varsSnapshot, baseUrl);
       const authToken = resolveWorkflowAuthToken(interpVars);
 
       if (step.requiresAuth && !authToken) {
@@ -237,6 +239,52 @@ const InventoryTestCaseRunner = () => {
             persistWorkflowAppSession(res);
           }
           commitVariables(nextVariables);
+        }
+
+        if (checkBalanceSheetRef.current && isTransactionRelatedStep(step)) {
+          try {
+            const bsVars = buildWorkflowInterpVars(nextVariables, baseUrl);
+            const bsPath = interpolateUrl('{{url}}api/account/balance-sheet', bsVars);
+            const bsUrl = /^https?:\/\//i.test(bsPath)
+              ? bsPath
+              : `${baseUrl.replace(/\/$/, '')}${bsPath.startsWith('/') ? bsPath : `/${bsPath}`}`;
+            const bsRes = await axios({
+              method: 'GET',
+              url: bsUrl,
+              validateStatus: () => true,
+              headers: buildWorkflowRequestHeaders({
+                vars: bsVars,
+                method: 'GET',
+                bodyType: undefined,
+                hasJsonBody: false,
+              }),
+            });
+            payload.balanceSheetCheck = {
+              triggered: true,
+              url: bsUrl,
+              ok: bsRes.status >= 200 && bsRes.status < 300,
+              status: bsRes.status,
+              statusText: bsRes.statusText,
+              summary: extractBalanceSheetSummary(bsRes.data),
+            };
+          } catch (bsErr) {
+            payload.balanceSheetCheck = {
+              triggered: true,
+              ok: false,
+              status: bsErr?.response?.status ?? null,
+              statusText: bsErr?.response?.statusText ?? 'Network error',
+              summary: null,
+              errorMessage: bsErr?.message || 'Balance sheet check failed',
+            };
+          }
+          setStepResults((prev) => {
+            const next =
+              prev.length === steps.length
+                ? [...prev]
+                : Array.from({ length: steps.length }, () => null);
+            next[index] = { ...payload };
+            return next;
+          });
         }
 
         setStatuses((prev) => {
@@ -427,9 +475,18 @@ const InventoryTestCaseRunner = () => {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               disabled={busy}
-              placeholder="Empty = current origin (Vite proxies /api/)"
+              placeholder="From VITE_API_BASE_URL on live; origin + /api on dev"
               className="rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-slate-50"
             />
+          </label>
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={checkBalanceSheetAfterTransactions}
+              onChange={(e) => setCheckBalanceSheetAfterTransactions(e.target.checked)}
+              disabled={busy}
+            />
+            Check balance sheet after transaction requests
           </label>
           <div className="shrink-0 text-xs text-slate-500">
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono">
