@@ -179,8 +179,10 @@ const Transactions = () => {
       lines[0]._id ??
       lines[0].id ??
       '—';
-    const desc =
-      lines.map((r) => (r.description && String(r.description).trim()) || '').find(Boolean) || '—';
+    const descriptions = lines
+      .map((r) => (r.description != null ? String(r.description).trim() : ''))
+      .filter((d) => d && !d.includes('Mode of Payment'));
+    const desc = descriptions.length > 0 ? descriptions.join(' · ') : '—';
     let earliest = null;
     for (const r of lines) {
       if (!r.createdAt) continue;
@@ -336,7 +338,11 @@ const Transactions = () => {
                             </div>
                           </div>
                           <div className="card-body py-2 px-3 w-100">
-                            <p className="text-sm text-muted mb-2">{meta.description}</p>
+                            <div className="rounded bg-gray-100 px-3 py-2 mb-2">
+                              <p className="text-sm font-weight-bold text-dark mb-0 lh-base">
+                                {meta.description}
+                              </p>
+                            </div>
                             <table className="table table-sm table-flush mb-0 w-100">
                               <thead>
                                 <tr>

@@ -3,6 +3,7 @@
 import { AUTH_TOKEN_SAVE_PATHS } from './authToken.js';
 import { LOGIN_SAVE_MAP } from './loginSavePaths.js';
 import { applyQtyDelta, qtyLedgerDelta } from './inventoryQty.js';
+import { COMPANY_DEFAULT_ACCOUNT_KEYS } from '../../features/company/companyAPI.js';
 
 const PRODUCT_PRICE = 300;
 
@@ -196,9 +197,45 @@ function editedQty(tc) {
   return q > 1 ? q - 1 : q;
 }
 
+/** Response paths for default account fields on signup `user_company` response. */
+function companySignupFieldPaths(field) {
+  const bases = [
+    'response.data.data.company',
+    'response.data.data.user.company_id',
+    'response.data.company',
+  ];
+  const paths = [];
+  for (const base of bases) {
+    paths.push(`${base}.${field}._id`, `${base}.${field}.id`, `${base}.${field}`);
+  }
+  return paths;
+}
+
+/** Save map for company default account ids (cash, receivable, etc.). */
+function buildCompanyDefaultAccountSaveMap() {
+  /** @type {Record<string, string[]>} */
+  const save = {};
+  for (const key of COMPANY_DEFAULT_ACCOUNT_KEYS) {
+    save[`${key}_id`] = companySignupFieldPaths(key);
+  }
+  return save;
+}
+
+/** Cash when fully paid; accounts receivable when amount received is less than total. */
+function salePaymentAccountToken(amountReceived, total) {
+  const received = Number(amountReceived);
+  const due = Number(total);
+  if (Number.isFinite(received) && Number.isFinite(due) && due > 0 && received >= due) {
+    return '{{default_cash_account_id}}';
+  }
+  return '{{default_account_receivable_account_id}}';
+}
+
 /** @param {{ qty: number }} tc @param {number} qty */
 function saleBody(tc, qty = tc.qty) {
   const total = qty * PRODUCT_PRICE;
+  const amountReceived = String(total);
+  const payAccount = salePaymentAccountToken(amountReceived, total);
   return {
     name: 'Test Customer',
     email: '{{customer_email}}',
@@ -208,10 +245,10 @@ function saleBody(tc, qty = tc.qty) {
     discount: '0',
     shipping: '0',
     shipment: '0',
-    amount_received: String(total),
+    amount_received: amountReceived,
     change_given: '0',
-    payment_method_id: '{{payment_account_id}}',
-    posPayMethod: '{{payment_account_id}}',
+    payment_method_id: payAccount,
+    posPayMethod: payAccount,
     'product_id[0]': '{{product_1_id}}',
     'qty[0]': String(qty),
     'price[0]': String(PRODUCT_PRICE),
@@ -592,6 +629,7 @@ function createSetupSteps() {
         ],
         workflow_user_id: ['response.data.data.user._id', 'response.data.data.user.id'],
         warehouse_1_id: ['response.data.data.warehouse._id', 'response.data.data.warehouse.id'],
+        ...buildCompanyDefaultAccountSaveMap(),
       },
     },
     {
