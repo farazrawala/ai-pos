@@ -13,6 +13,7 @@ import {
 } from '../../features/purchaseOrderReturns/purchaseOrderReturnsSlice.js';
 import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -102,7 +103,6 @@ const PurchaseOrderReturns = () => {
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
     const params = {
@@ -149,37 +149,33 @@ const PurchaseOrderReturns = () => {
     dispatch(setLimit(limit));
   };
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
-    if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
+  const handleSort = (column, forceDesc = false) => {
+    if (forceDesc) {
       dispatch(setSort({ sortBy: null, sortOrder: null }));
+      return;
+    }
+    if (sort.sortBy === column) {
+      dispatch(setSort({ sortBy: column, sortOrder: sort.sortOrder === 'asc' ? 'desc' : 'asc' }));
     } else {
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-      sortClickTimeoutRef.current = setTimeout(() => {
-        dispatch(setSort({ sortBy }));
-        sortClickTimeoutRef.current = null;
-      }, 200);
+      dispatch(setSort({ sortBy: column, sortOrder: 'asc' }));
     }
   };
 
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }} />;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }} />
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }} />
-    );
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
+
+  const statusBadgeClass = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'active' || s === 'completed' || s === 'posted') return 'bg-gradient-success';
+    if (s === 'pending' || s === 'draft') return 'bg-gradient-warning';
+    if (s === 'cancelled' || s === 'void') return 'bg-gradient-danger';
+    return 'bg-gradient-secondary';
   };
 
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
 
@@ -198,56 +194,42 @@ const PurchaseOrderReturns = () => {
     dispatch(clearDeleteStatus());
   };
 
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
-
-
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center gy-2">
-                <div className="col-md-6">
-                  <div className="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
-                    <h5 className="mb-0">Purchase order returns</h5>
-                    <AddNewButton
-                      to="/purchase-order-returns/add"
-                      label="Create purchase order return"
-                      className="flex-shrink-0"
-                    />
-                  </div>
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-4 col-md-5">
+                  <h5 className="mb-1">Purchase order returns</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0 text-muted">
-                      Server-side pagination and search —{' '}
-                      <code className="small">
-                        GET /purchase_return/get-all-active?populate=vendor_id
-                      </code>
-                    </p>
+                    <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
+                <div className="col-lg-8 col-md-7">
+                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search…"
+                        placeholder="Search returns…"
                         value={localSearch}
                         onChange={handleSearchChange}
                         aria-label="Search purchase order returns"
                       />
                     </div>
+                    <AddNewButton to="/purchase-order-returns/add" label="Create return" size="sm" />
                   </div>
                 </div>
               </div>
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--purchase-orders"
                 loading={loading}
                 loadingLabel="Loading purchase order returns…"
                 error={error}
@@ -260,64 +242,21 @@ const PurchaseOrderReturns = () => {
                 <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('purchase_return_no')}
-                          onDoubleClick={() => handleSort('purchase_return_no', true)}
-                        >
-                          Return no
-                          {renderSortIcon('purchase_return_no')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('transaction_number')}
-                          onDoubleClick={() => handleSort('transaction_number', true)}
-                        >
-                          Transaction number
-                          {renderSortIcon('transaction_number')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('return_status')}
-                          onDoubleClick={() => handleSort('return_status', true)}
-                        >
-                          Return status
-                          {renderSortIcon('return_status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('supplier_name')}
-                          onDoubleClick={() => handleSort('supplier_name', true)}
-                        >
-                          Supplier
-                          {renderSortIcon('supplier_name')}
-                        </th>
-                        <th className="text-muted small">trace_no</th>
-                        <th
-                          className="text-end"
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('total_amount')}
-                          onDoubleClick={() => handleSort('total_amount', true)}
-                        >
-                          Total amount
-                          {renderSortIcon('total_amount')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th>Actions</th>
+                        <th className="text-center list-col-sno">#</th>
+                        {sortableTh('purchase_return_no', 'Return no')}
+                        {sortableTh('transaction_number', 'Transaction', 'list-col-truncate')}
+                        {sortableTh('return_status', 'Status')}
+                        {sortableTh('supplier_name', 'Supplier')}
+                        <th className="list-col-truncate-sm">Trace ID</th>
+                        {sortableTh('total_amount', 'Amount', 'text-end list-col-amount')}
+                        {sortableTh('createdAt', 'Created', 'list-col-date')}
+                        <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="text-center text-sm p-4 text-muted">
+                          <td colSpan={9} className="text-center py-5 text-muted">
                             <p className="mb-3">No purchase order returns found. Try adjusting search.</p>
                             <AddNewButton to="/purchase-order-returns/add" label="Create purchase order return" />
                           </td>
@@ -327,33 +266,40 @@ const PurchaseOrderReturns = () => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                           const id = poTraceId(item);
                           const created = poCreated(item);
+                          const txn = poTransactionNumber(item);
+                          const statusVal = poStatus(item);
+                          const supplier = poSupplier(item);
                           return (
                             <tr key={id || index}>
-                              <td className="text-sm">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{poRef(item)}</td>
-                              <td className="text-sm font-weight-normal text-break" style={{ maxWidth: '140px' }}>
-                                {poTransactionNumber(item)}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <span className="badge bg-secondary text-wrap">{String(poStatus(item))}</span>
-                              </td>
-                              <td className="text-sm font-weight-normal">{poSupplier(item)}</td>
-                              <td className="text-sm font-weight-normal text-muted text-break" style={{ maxWidth: '120px' }}>
-                                {id || '—'}
-                              </td>
-                              <td className="text-sm font-weight-normal text-end text-nowrap">
-                                {poTotalAmount(item)}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {created ? moment(created).format('MM-DD-YYYY h:mm a') : '—'}
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
+                              <td className="text-sm list-cell-truncate" title={txn !== '—' ? txn : undefined}>
+                                {txn}
                               </td>
                               <td className="text-sm">
+                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                  {String(statusVal)}
+                                </span>
+                              </td>
+                              <td className="text-sm list-cell-truncate" title={supplier}>
+                                {supplier}
+                              </td>
+                              <td className="text-sm text-muted list-cell-truncate-sm font-monospace" title={id || undefined}>
+                                {id ? `${id.slice(0, 8)}…` : '—'}
+                              </td>
+                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                                {poTotalAmount(item)}
+                              </td>
+                              <td className="text-sm text-nowrap list-col-date">
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              </td>
+                              <td className="text-end">
                                 {id ? (
-                                  <div className="d-flex flex-wrap gap-1">
+                                  <div className="list-table-actions">
                                     {canView ? (
                                       <button
                                         type="button"
-                                        className="btn btn-sm btn-outline-info mb-0"
+                                        className="btn btn-sm btn-outline-primary mb-0"
                                         onClick={() =>
                                           navigate(`/purchase-order-returns/edit/${encodeURIComponent(id)}`)
                                         }
@@ -364,7 +310,7 @@ const PurchaseOrderReturns = () => {
                                     {canDelete ? (
                                       <button
                                         type="button"
-                                        className="btn btn-sm btn-danger mb-0"
+                                        className="btn btn-sm btn-outline-danger mb-0"
                                         onClick={() => handleDelete(id, poRef(item))}
                                         disabled={deleteStatus === 'loading'}
                                       >

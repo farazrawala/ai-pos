@@ -99,14 +99,26 @@ body {
 }
 
 /* Argon list pages: keep Bootstrap grid in card-header (title left, search right) */
-.card .card-header.pb-0 {
+.card .card-header.pb-0,
+.card .card-header.pb-3 {
   display: block;
 }
 
-.card .card-header.pb-0 > .row {
+.card .card-header.pb-0 {
+  padding-bottom: 1.25rem;
+}
+
+.card .card-header.pb-0 > .row,
+.card .card-header.pb-3 > .row {
   width: 100%;
   margin-left: 0;
   margin-right: 0;
+  --bs-gutter-y: 0.75rem;
+}
+
+.card .card-header.pb-0 h5,
+.card .card-header.pb-3 h5 {
+  margin-bottom: 0.35rem;
 }
 
 /* Income statement — account lines list */
@@ -404,6 +416,68 @@ body {
 .list-data-table .col-permissions {
   min-width: 200px;
   max-width: 280px;
+}
+
+/* List table — column utilities (truncate long IDs / transaction numbers) */
+.list-data-table .list-col-sno {
+  width: 3rem;
+  min-width: 3rem;
+}
+
+.list-data-table .list-col-truncate {
+  min-width: 9rem;
+  max-width: 11rem;
+}
+
+.list-data-table .list-col-truncate-sm {
+  min-width: 5.5rem;
+  max-width: 6.5rem;
+}
+
+.list-data-table .list-col-amount {
+  min-width: 6.5rem;
+  width: 6.5rem;
+}
+
+.list-data-table .list-col-date {
+  min-width: 8.5rem;
+  white-space: nowrap;
+}
+
+.list-data-table .list-col-actions {
+  min-width: 9rem;
+  width: 9rem;
+}
+
+.list-data-table .list-cell-truncate {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-data-table .list-cell-truncate-sm {
+  max-width: 6.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-data-table .list-table-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.list-data-table.list-data-table--purchase-orders .table {
+  min-width: 1180px;
+}
+
+.list-data-table .font-monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
 }
 
 /* Users — permissions column */
