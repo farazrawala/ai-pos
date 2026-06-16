@@ -31,7 +31,10 @@ import {
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
+import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
+import '../purchase_order/po-form-module.css';
 
 const accountOptionLabel = (a) => {
   if (!a || typeof a !== 'object') return 'Account';
@@ -915,599 +918,593 @@ const SalesReturnEdit = () => {
 
   if (fetchStatus === 'loading') {
     return (
-      <div className="container-fluid py-4">
-        <p className="text-muted mb-0">Loading sales return…</p>
+      <div className="po-form-page container-fluid py-4">
+        <div className="card shadow-sm po-form-card mx-auto" style={{ maxWidth: 1200 }}>
+          <div className="card-body py-5 text-center text-muted">Loading sales return…</div>
+        </div>
       </div>
     );
   }
   if (fetchStatus === 'failed') {
     return (
-      <div className="container-fluid py-4">
-        <div className="alert alert-danger" role="alert">
-          {fetchError || 'Failed to load sales return.'}
+      <div className="po-form-page container-fluid py-4">
+        <div className="card shadow-sm po-form-card mx-auto" style={{ maxWidth: 1200 }}>
+          <div className="card-body">
+            <div className="alert alert-danger mb-3" role="alert">
+              {fetchError || 'Failed to load sales return.'}
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => navigate('/sales-returns')}
+            >
+              Back to list
+            </button>
+          </div>
         </div>
-        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/sales-returns')}>
-          Back to list
-        </button>
       </div>
     );
   }
 
+  const returnRefLabel = form.sales_order_no.trim() || '—';
+  const statusLabel = form.order_status
+    ? form.order_status.charAt(0).toUpperCase() + form.order_status.slice(1)
+    : '—';
+
   return (
-    <div className="po-add-page container-fluid py-3 px-2 px-lg-4">
-      <style>{`
-        .po-add-page {
-          font-family: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
-          max-width: 1100px;
-          margin: 0 auto;
-        }
-        .po-add-paper {
-          background: #fff;
-          border: 1px solid #e9ecef;
-          border-radius: 0.5rem;
-          box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,.06);
-        }
-        .po-add-title {
-          font-size: 2rem;
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          color: #212529;
-        }
-        .po-add-customer-name {
-          color: #11cdef;
-          font-weight: 700;
-        }
-        .po-add-table th {
-          background: #f8f9fa;
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-          color: #495057;
-          border-color: #dee2e6 !important;
-        }
-        .po-add-table td {
-          border-color: #dee2e6 !important;
-          vertical-align: middle;
-          font-size: 0.875rem;
-        }
-        .po-add-summary-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.25rem 0;
-          font-size: 0.9rem;
-        }
-        .po-add-summary-total {
-          font-weight: 700;
-          border-top: 1px solid #dee2e6;
-          margin-top: 0.35rem;
-          padding-top: 0.5rem;
-        }
-        .po-add-actions .btn {
-          border-radius: 0.5rem;
-          font-weight: 600;
-          font-size: 0.8rem;
-        }
-      `}</style>
-
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary"
-          onClick={() => navigate('/sales-returns')}
-        >
-          <i className="fas fa-arrow-left me-1" aria-hidden="true" />
-          Back to list
-        </button>
-        <div className="d-flex gap-2 po-add-actions">
-          <button
-            type="button"
-            className="btn btn-success"
-            onClick={handleNormalPrint}
-            disabled={!hasSaveableLines}
-            title={!hasSaveableLines ? 'Add at least one product line' : 'A4 print'}
-          >
-            <i className="fas fa-print me-1" aria-hidden="true" />
-            Normal Print
-          </button>
-        </div>
-      </div>
-
-      <form id="po-edit-form" onSubmit={handleSubmit}>
-        {updateError ? (
-          <div className="alert alert-warning py-2 mb-3" role="alert">
-            {updateError}
-          </div>
-        ) : null}
-        {errors.submit ? (
-          <div className="alert alert-danger py-2 mb-3" role="alert">
-            {errors.submit}
-          </div>
-        ) : null}
-
-        <div className="po-add-paper p-4 p-md-5 mb-4">
-          <div className="row align-items-start mb-4 pb-3 border-bottom">
-            <div className="col-md-6 mb-3 mb-md-0">
-              <div className="d-flex align-items-center gap-3">
-                {companyBrand.logoUrl ? (
-                  <img
-                    src={companyBrand.logoUrl}
-                    alt={`${companyBrand.name} logo`}
-                    className="rounded border bg-white flex-shrink-0"
-                    style={{ width: 72, height: 72, objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div
-                    className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
-                    style={{ width: 72, height: 72 }}
+    <div className="po-form-page container-fluid py-4 px-0">
+      <div className="row mt-4">
+        <div className="col-12" style={{ padding: '20px' }}>
+          <div className="card shadow-sm po-form-card">
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-6">
+                  <button
+                    type="button"
+                    className="po-form-back"
+                    onClick={() => navigate('/sales-returns')}
                   >
-                    <span className="fw-bold text-primary fs-4">
-                      {companyBrand.name.charAt(0).toUpperCase()}
+                    <i className="fas fa-arrow-left" aria-hidden="true" />
+                    Back to list
+                  </button>
+                  <h5 className="po-form-header-title mb-0">Edit sales return</h5>
+                  <div className="po-form-meta mt-2">
+                    <span className="po-form-ref-badge">{returnRefLabel}</span>
+                    <span className={`badge text-xxs ${poStatusBadgeClass(form.order_status)}`}>
+                      {statusLabel}
                     </span>
+                    <span className="po-form-total-pill">Total {fmt(summary.total)}</span>
                   </div>
-                )}
-                <div>
-                  <div className="fw-bold text-uppercase text-secondary" style={{ fontSize: '0.75rem' }}>
-                    {companyBrand.name}
+                </div>
+                <div className="col-lg-6">
+                  <div className="po-form-header-actions mt-2 mt-lg-0">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={handleNormalPrint}
+                      disabled={!hasSaveableLines}
+                      title={!hasSaveableLines ? 'Add at least one product line' : 'A4 print'}
+                    >
+                      <i className="fas fa-print me-1" aria-hidden="true" />
+                      Print
+                    </button>
                   </div>
-                  <div className="h5 mb-0 fw-semibold">{companyBrand.name}</div>
                 </div>
               </div>
             </div>
-            <div className="col-md-6 text-md-end">
-              <div className="po-add-title mb-2">EDIT SALES RETURN</div>
-              <p className="small text-muted mb-1">
-                <code>GET sales_return/get-sales-return-by-return-no/{id}</code>
-              </p>
-              <div className="mb-1">
-                <span className="text-muted">Reference / Return no. </span>
-                <span className="fw-bold">{form.sales_order_no.trim() || '—'}</span>
-              </div>
-              <div className="fw-semibold">Order total: {fmt(summary.total)}</div>
-            </div>
-          </div>
 
-          <div className="row mb-4">
-            <div className="col-12 col-lg-6">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Customer</div>
-              <div className="po-add-customer-name mb-2">{customerLabel}</div>
-              <label className="form-label small text-muted mb-1" htmlFor="po-edit-customer">
-                Vendor <span className="text-danger">*</span>
-              </label>
-              {usersStatus === 'failed' && usersError ? (
-                <div className="alert alert-warning py-2 mb-2" role="alert">
-                  {usersError}
+            <div className="card-body pt-3">
+              <form id="po-edit-form" onSubmit={handleSubmit}>
+                {updateError ? (
+                  <div className="alert alert-warning py-2 mb-3" role="alert">
+                    {updateError}
+                  </div>
+                ) : null}
+                {errors.submit ? (
+                  <div className="alert alert-danger py-2 mb-3" role="alert">
+                    {errors.submit}
+                  </div>
+                ) : null}
+
+                <div className="po-form-doc-strip">
+                  <div className="po-form-company">
+                    {companyBrand.logoUrl ? (
+                      <img
+                        src={companyBrand.logoUrl}
+                        alt={`${companyBrand.name} logo`}
+                        className="po-form-company-logo"
+                      />
+                    ) : (
+                      <div className="po-form-company-logo-fallback">
+                        {companyBrand.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="po-form-company-name">{companyBrand.name}</div>
+                      <div className="po-form-company-meta">
+                        {[companyBrand.email, companyBrand.phone].filter(Boolean).join(' · ') ||
+                          'Sales return'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-md-end">
+                    <div className="text-uppercase text-muted small fw-bold mb-1">Return total</div>
+                    <div className="h5 mb-0 fw-bold text-dark">{fmt(summary.total)}</div>
+                  </div>
                 </div>
-              ) : null}
-              <select
-                id="po-edit-customer"
-                className="form-select form-select-sm"
-                value={String(form.customer_id ?? '')}
-                onChange={(e) => setForm((p) => ({ ...p, customer_id: e.target.value }))}
-                disabled={customerSelectDisabled}
-              >
-                <option value="">No customer</option>
-                {!customerIdInList && form.customer_id ? (
-                  <option value={String(form.customer_id)}>
-                    Customer id: {String(form.customer_id)}
-                  </option>
-                ) : null}
-                {customerOptions.map((u) => {
-                  const value = getUserOptionValue(u);
-                  return (
-                    <option key={value} value={value}>
-                      {formatUserOptionLabel(u)}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
 
-          <div className="row mb-4">
-            <div className="col-md-6 text-md-start mb-3 mb-md-0">
-              <div className="small mb-2">
-                <span className="text-muted me-2">Expected delivery:</span>
-                <span className="fw-semibold">{formatDisplayDate(form.expected_delivery_date)}</span>
-              </div>
-              <label className="form-label small text-muted mb-1" htmlFor="po-edit-expected">
-                Expected delivery
-              </label>
-              <input
-                id="po-edit-expected"
-                type="date"
-                className="form-control form-control-sm"
-                value={form.expected_delivery_date}
-                onChange={(e) => setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="col-md-6 text-md-end">
-              <label className="form-label small text-muted mb-1 d-block text-md-end" htmlFor="po-edit-status">
-                Order status
-              </label>
-              <select
-                id="po-edit-status"
-                className="form-select form-select-sm ms-md-auto"
-                style={{ maxWidth: '280px' }}
-                value={form.order_status}
-                onChange={(e) => setForm((p) => ({ ...p, order_status: e.target.value }))}
-                disabled={isSubmitting}
-              >
-                {form.order_status && !PO_STATUS_OPTIONS.includes(form.order_status) ? (
-                  <option value={form.order_status}>{form.order_status}</option>
-                ) : null}
-                {PO_STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small text-muted mb-1" htmlFor="po-edit-product-search">
-              Add product
-            </label>
-            <input
-              id="po-edit-product-search"
-              type="search"
-              className="form-control form-control-sm"
-              placeholder="Search name, SKU, or barcode (min. 2 characters)…"
-              value={addProductQuery}
-              onChange={(e) => setAddProductQuery(e.target.value)}
-              autoComplete="off"
-              disabled={isSubmitting}
-            />
-            {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
-            {addProductError ? (
-              <div className="text-danger small mt-1" role="alert">
-                {addProductError}
-              </div>
-            ) : null}
-            {addProductResults.length > 0 ? (
-              <ul
-                className="list-group position-relative w-100 shadow-sm mt-1"
-                style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
-              >
-                {addProductResults.map((p) => {
-                  const pk = String(p._id ?? p.id ?? '');
-                  return (
-                    <li key={pk} className="list-group-item p-0">
-                      <button
-                        type="button"
-                        className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
-                        onClick={() => appendProduct(p)}
+                <div className="po-form-section">
+                  <div className="po-form-section-title">Return details</div>
+                  <div className="row g-3">
+                    <div className="col-lg-6">
+                      <label className="form-label" htmlFor="po-edit-customer">
+                        Customer <span className="text-danger">*</span>
+                      </label>
+                      {usersStatus === 'failed' && usersError ? (
+                        <div className="alert alert-warning py-2 mb-2" role="alert">
+                          {usersError}
+                        </div>
+                      ) : null}
+                      <select
+                        id="po-edit-customer"
+                        className="form-select form-select-sm"
+                        value={String(form.customer_id ?? '')}
+                        onChange={(e) => setForm((p) => ({ ...p, customer_id: e.target.value }))}
+                        disabled={customerSelectDisabled}
                       >
-                        <span className="fw-semibold">{productPickerLabel(p)}</span>
-                        <span className="text-muted ms-2">
-                          Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </div>
+                        <option value="">Select customer</option>
+                        {!customerIdInList && form.customer_id ? (
+                          <option value={String(form.customer_id)}>
+                            Customer id: {String(form.customer_id)}
+                          </option>
+                        ) : null}
+                        {customerOptions.map((u) => {
+                          const value = getUserOptionValue(u);
+                          return (
+                            <option key={value} value={value}>
+                              {formatUserOptionLabel(u)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {hasCustomer ? (
+                        <span className="d-block small text-muted mt-1">{customerLabel}</span>
+                      ) : null}
+                    </div>
+                    <div className="col-md-6 col-lg-3">
+                      <label className="form-label" htmlFor="po-edit-expected">
+                        Expected delivery
+                      </label>
+                      <input
+                        id="po-edit-expected"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={form.expected_delivery_date}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
+                        }
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="col-md-6 col-lg-3">
+                      <label className="form-label" htmlFor="po-edit-status">
+                        Return status
+                      </label>
+                      <select
+                        id="po-edit-status"
+                        className="form-select form-select-sm"
+                        value={form.order_status}
+                        onChange={(e) => setForm((p) => ({ ...p, order_status: e.target.value }))}
+                        disabled={isSubmitting}
+                      >
+                        {form.order_status && !PO_STATUS_OPTIONS.includes(form.order_status) ? (
+                          <option value={form.order_status}>{form.order_status}</option>
+                        ) : null}
+                        {PO_STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
-          <p className="small text-muted mb-2">
-            Set <strong>Warehouse</strong>, <strong>Rate</strong> (base unit price), <strong>Qty</strong>, and
-            optional <strong>Total shipping</strong> per line. <strong>Shipping / unit</strong> is calculated
-            automatically; <strong>Amount</strong> uses (rate + shipping per unit) × qty. Remove rows you do not
-            need.
-          </p>
+                <div className="po-form-section">
+                  <div className="po-form-section-title">Line items</div>
+                  <p className="po-form-section-hint">
+                    Search to add products, then set warehouse, rate, quantity, and optional shipping per
+                    line.
+                  </p>
+                  <label className="form-label" htmlFor="po-edit-product-search">
+                    Add product
+                  </label>
+                  <div className="po-form-product-search mb-3">
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text">
+                        <SearchInputIcon />
+                      </span>
+                      <input
+                        id="po-edit-product-search"
+                        type="search"
+                        className="form-control"
+                        placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                        value={addProductQuery}
+                        onChange={(e) => setAddProductQuery(e.target.value)}
+                        autoComplete="off"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
+                    {addProductError ? (
+                      <div className="text-danger small mt-1" role="alert">
+                        {addProductError}
+                      </div>
+                    ) : null}
+                    {addProductResults.length > 0 ? (
+                      <ul
+                        className="list-group position-relative w-100 shadow-sm mt-1"
+                        style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                      >
+                        {addProductResults.map((p) => {
+                          const pk = String(p._id ?? p.id ?? '');
+                          return (
+                            <li key={pk} className="list-group-item p-0">
+                              <button
+                                type="button"
+                                className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
+                                onClick={() => appendProduct(p)}
+                              >
+                                <span className="fw-semibold">{productPickerLabel(p)}</span>
+                                <span className="text-muted ms-2">
+                                  Wholesale{' '}
+                                  {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
 
-          <div className="table-responsive mb-4">
-            <table className="table table-bordered po-add-table mb-0">
-              <thead>
-                <tr>
-                  <th style={{ width: '48px' }}>#</th>
-                  <th>Description</th>
-                  <th style={{ minWidth: '180px' }}>Warehouse</th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Rate
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Qty
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Shipping / unit
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Total shipping
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Amount
-                  </th>
-                  <th className="text-center" style={{ width: '72px' }} aria-label="Remove row" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center text-muted py-4">
-                      No line items. Use <strong>Add product</strong> above to add rows.
-                    </td>
-                  </tr>
-                ) : (
-                  lines.map((row, i) => {
-                    const derived = computeLineDerived(row);
-                    const { shippingPerUnit, amount, hasLineShipping } = derived;
-                    return (
-                      <tr key={row.key}>
-                        <td className="text-center">{i + 1}</td>
-                        <td>
-                          <div>{row.label}</div>
-                          {!String(row.productId || '').trim() ? (
-                            <div className="small text-warning">Missing product — remove or pick again.</div>
-                          ) : null}
-                        </td>
-                        <td className="align-middle">
-                          <select
-                            className="form-select form-select-sm"
-                            aria-label={`Warehouse for line ${i + 1}`}
-                            value={String(row.warehouseId ?? '')}
-                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
-                            disabled={isSubmitting || warehousesStatus === 'loading'}
-                          >
-                            <option value="">Select warehouse</option>
-                            {(() => {
-                              const wid = String(row.warehouseId ?? '').trim();
-                              if (
-                                wid &&
-                                !warehouseOptions.some((w) => warehouseOptionValue(w) === wid)
-                              ) {
+                  <div className="po-form-table-wrap">
+                    <div className="po-form-table-scroll">
+                      <table className="table po-form-table mb-0">
+                        <thead>
+                          <tr>
+                            <th className="text-center po-form-col-sno">#</th>
+                            <th className="po-form-col-desc">Description</th>
+                            <th className="po-form-col-wh">Warehouse</th>
+                            <th className="text-end po-form-col-num">Rate</th>
+                            <th className="text-end po-form-col-num">Qty</th>
+                            <th className="text-end po-form-col-ship">Ship / unit</th>
+                            <th className="text-end po-form-col-ship">Total ship</th>
+                            <th className="text-end po-form-col-amt">Amount</th>
+                            <th className="text-center po-form-col-action" aria-label="Remove row" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="text-center text-muted py-4">
+                                No line items. Search above to add products.
+                              </td>
+                            </tr>
+                          ) : (
+                            lines.map((row, i) => {
+                              const derived = computeLineDerived(row);
+                              const { shippingPerUnit, amount, hasLineShipping } = derived;
+                              return (
+                                <tr key={row.key}>
+                                  <td className="text-center text-muted">{i + 1}</td>
+                                  <td>
+                                    <div className="po-form-line-desc" title={row.label}>
+                                      {row.label}
+                                    </div>
+                                    {!String(row.productId || '').trim() ? (
+                                      <div className="small text-warning">Missing product</div>
+                                    ) : null}
+                                  </td>
+                                  <td>
+                                    <select
+                                      className="form-select form-select-sm"
+                                      aria-label={`Warehouse for line ${i + 1}`}
+                                      value={String(row.warehouseId ?? '')}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'warehouseId', e.target.value)
+                                      }
+                                      disabled={isSubmitting || warehousesStatus === 'loading'}
+                                    >
+                                      <option value="">Select</option>
+                                      {(() => {
+                                        const wid = String(row.warehouseId ?? '').trim();
+                                        if (
+                                          wid &&
+                                          !warehouseOptions.some((w) => warehouseOptionValue(w) === wid)
+                                        ) {
+                                          return (
+                                            <option value={wid} title={wid}>
+                                              Current (not in list)
+                                            </option>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+                                      {warehouseOptions.map((w) => {
+                                        const value = warehouseOptionValue(w);
+                                        return (
+                                          <option key={value} value={value}>
+                                            {warehouseOptionLabel(w)}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Rate for line ${i + 1}`}
+                                      value={row.rate}
+                                      onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Quantity for line ${i + 1}`}
+                                      value={row.qty}
+                                      onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end">
+                                    <div
+                                      className="po-form-readonly-cell"
+                                      title="Total shipping ÷ qty"
+                                      aria-label={`Shipping per unit for line ${i + 1}`}
+                                    >
+                                      {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                                    </div>
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      placeholder="0"
+                                      aria-label={`Total shipping for line ${i + 1}`}
+                                      value={row.totalShipping ?? ''}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'totalShipping', e.target.value)
+                                      }
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end fw-semibold text-nowrap">{fmt(amount)}</td>
+                                  <td className="text-center">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      aria-label={`Remove line ${i + 1}`}
+                                      onClick={() => removeLine(row.key)}
+                                      disabled={isSubmitting}
+                                    >
+                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="po-form-section">
+                  <div className="row g-4">
+                    <div className="col-lg-6">
+                      <div className="po-form-section-title">Notes</div>
+                      <label className="form-label visually-hidden" htmlFor="po-edit-notes">
+                        Notes
+                      </label>
+                      <textarea
+                        id="po-edit-notes"
+                        className="form-control form-control-sm"
+                        rows={5}
+                        value={form.notes}
+                        onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                        disabled={isSubmitting}
+                        placeholder="Internal notes…"
+                      />
+                    </div>
+                    <div className="col-lg-6">
+                      <div className="po-form-summary-panel">
+                        <div className="po-form-section-title mb-3">Summary &amp; payment</div>
+                        <div className="row g-2 mb-2">
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-edit-shipment">
+                              Shipment
+                            </label>
+                            <input
+                              id="po-edit-shipment"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="form-control form-control-sm text-end"
+                              placeholder="0.00"
+                              value={form.shipment}
+                              onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-edit-discount">
+                              Discount
+                            </label>
+                            <input
+                              id="po-edit-discount"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="form-control form-control-sm text-end"
+                              placeholder="0.00"
+                              value={form.discount}
+                              onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-12">
+                            <label className="form-label" htmlFor="po-edit-account">
+                              Mode of payment <span className="text-danger">*</span>
+                            </label>
+                            {accountsStatus === 'failed' && accountsError ? (
+                              <div className="alert alert-warning py-2 mb-2" role="alert">
+                                {accountsError}
+                              </div>
+                            ) : null}
+                            <select
+                              id="po-edit-account"
+                              className={`form-select form-select-sm ${errors.account_id ? 'is-invalid' : ''}`}
+                              value={form.account_id}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setForm((p) => ({ ...p, account_id: v }));
+                                setErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next.account_id;
+                                  if (next.submit === 'Mode of payment is required.') delete next.submit;
+                                  return next;
+                                });
+                              }}
+                              required
+                              disabled={accountSelectDisabled}
+                            >
+                              <option value="">Select mode of payment</option>
+                              {!accountIdInList && form.account_id ? (
+                                <option value={form.account_id}>Payment id: {form.account_id}</option>
+                              ) : null}
+                              {accountOptions.map((a) => {
+                                const value = accountOptionValue(a);
                                 return (
-                                  <option value={wid} title={wid}>
-                                    Current warehouse (not in list)
+                                  <option key={value} value={value}>
+                                    {accountOptionLabel(a)}
                                   </option>
                                 );
-                              }
-                              return null;
-                            })()}
-                            {warehouseOptions.map((w) => {
-                              const value = warehouseOptionValue(w);
-                              return (
-                                <option key={value} value={value}>
-                                  {warehouseOptionLabel(w)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Rate for line ${i + 1}`}
-                            value={row.rate}
-                            onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Quantity for line ${i + 1}`}
-                            value={row.qty}
-                            onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <div
-                            className="form-control form-control-sm text-end bg-light border mb-0 py-1"
-                            title="Total shipping ÷ qty (read-only)"
-                            aria-label={`Shipping per unit for line ${i + 1}`}
-                          >
-                            {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                              })}
+                            </select>
+                            {errors.account_id ? (
+                              <div className="text-danger small mt-1">{errors.account_id}</div>
+                            ) : null}
                           </div>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            placeholder="0.00"
-                            aria-label={`Total shipping for line ${i + 1}`}
-                            value={row.totalShipping ?? ''}
-                            onChange={(e) => handleLineEdit(row.key, 'totalShipping', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
-                        <td className="text-center align-middle">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger py-0 px-2"
-                            aria-label={`Remove line ${i + 1}`}
-                            onClick={() => removeLine(row.key)}
-                            disabled={isSubmitting}
-                          >
-                            <i className="fas fa-trash-alt" aria-hidden="true" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="row mb-2">
-            <div className="col-md-6 mb-3 mb-md-0">
-              <label className="form-label small text-muted mb-1" htmlFor="po-edit-notes">
-                Notes
-              </label>
-              <textarea
-                id="po-edit-notes"
-                className="form-control form-control-sm"
-                rows={4}
-                value={form.notes}
-                onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                disabled={isSubmitting}
-                placeholder="Internal notes…"
-              />
-            </div>
-            <div className="col-md-6">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
-              <div className="row g-2 mb-3">
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-shipment">
-                    Shipment
-                  </label>
-                  <input
-                    id="po-edit-shipment"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.shipment}
-                    onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-discount">
-                    Discount
-                  </label>
-                  <input
-                    id="po-edit-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.discount}
-                    onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-account">
-                    Mode of payment <span className="text-danger">*</span>
-                  </label>
-                  {accountsStatus === 'failed' && accountsError ? (
-                    <div className="alert alert-warning py-2 mb-2" role="alert">
-                      {accountsError}
+                        </div>
+                        <div className="po-form-summary-box">
+                          <div className="po-form-summary-row">
+                            <span>Sub total</span>
+                            <span>{fmt(summary.subTotal)}</span>
+                          </div>
+                          <div className="po-form-summary-row">
+                            <span>Shipment</span>
+                            <span>{fmt(summary.shipment)}</span>
+                          </div>
+                          <div className="po-form-summary-row">
+                            <span>Discount</span>
+                            <span>−{fmt(summary.discount)}</span>
+                          </div>
+                          <div className="po-form-summary-row po-form-summary-total">
+                            <span>Total</span>
+                            <span>{fmt(summary.total)}</span>
+                          </div>
+                        </div>
+                        <div className="row g-2 mt-3">
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-edit-received">
+                              Amount paid
+                            </label>
+                            <input
+                              id="po-edit-received"
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              className="form-control form-control-sm"
+                              value={form.amount_received}
+                              onChange={(e) => {
+                                setAmountPaidDirty(true);
+                                setForm((p) => ({
+                                  ...p,
+                                  amount_received: sanitizeAmountPaidInput(e.target.value),
+                                }));
+                              }}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-edit-remaining">
+                              Remaining
+                            </label>
+                            <input
+                              id="po-edit-remaining"
+                              type="text"
+                              readOnly
+                              tabIndex={-1}
+                              className="form-control form-control-sm bg-body-secondary"
+                              value={fmt(paymentRemaining)}
+                              aria-live="polite"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
-                  <select
-                    id="po-edit-account"
-                    className={`form-select form-select-sm ${errors.account_id ? 'is-invalid' : ''}`}
-                    value={form.account_id}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((p) => ({ ...p, account_id: v }));
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.account_id;
-                        if (next.submit === 'Mode of payment is required.') delete next.submit;
-                        return next;
-                      });
-                    }}
-                    required
-                    disabled={accountSelectDisabled}
-                  >
-                    <option value="">Select mode of payment</option>
-                    {!accountIdInList && form.account_id ? (
-                      <option value={form.account_id}>Payment id: {form.account_id}</option>
-                    ) : null}
-                    {accountOptions.map((a) => {
-                      const value = accountOptionValue(a);
-                      return (
-                        <option key={value} value={value}>
-                          {accountOptionLabel(a)}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {errors.account_id ? (
-                    <div className="text-danger small mt-1">{errors.account_id}</div>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="border rounded p-3 bg-light mb-3">
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Sub total</span>
-                  <span className="fw-semibold">{fmt(summary.subTotal)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Shipment</span>
-                  <span className="fw-semibold">{fmt(summary.shipment)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Discount</span>
-                  <span className="fw-semibold">−{fmt(summary.discount)}</span>
-                </div>
-                <div className="po-add-summary-row po-add-summary-total">
-                  <span>Total</span>
-                  <span>{fmt(summary.total)}</span>
-                </div>
-              </div>
-              <div className="text-uppercase text-muted small fw-bold mb-2">Payment</div>
-              <div className="row g-2">
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-received">
-                    Amount paid
-                  </label>
-                  <input
-                    id="po-edit-received"
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    className="form-control form-control-sm"
-                    value={form.amount_received}
-                    onChange={(e) => {
-                      setAmountPaidDirty(true);
-                      setForm((p) => ({
-                        ...p,
-                        amount_received: sanitizeAmountPaidInput(e.target.value),
-                      }));
-                    }}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-edit-remaining">
-                    Remaining
-                  </label>
-                  <input
-                    id="po-edit-remaining"
-                    type="text"
-                    readOnly
-                    tabIndex={-1}
-                    className="form-control form-control-sm bg-body-secondary"
-                    value={fmt(paymentRemaining)}
-                    aria-live="polite"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="d-flex flex-wrap justify-content-end gap-2 pt-3 mt-3 border-top po-add-actions">
-            <button
-              type="button"
-              className="btn btn-outline-secondary"
-              disabled={isSubmitting}
-              onClick={() => navigate('/sales-returns')}
-            >
-              Cancel
-            </button>
+                <div className="po-form-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={isSubmitting}
+                    onClick={() => navigate('/sales-returns')}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={submitDisabled}
+                    title={submitButtonTitle}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-1"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save me-1" aria-hidden="true" />
+                        Save changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 };
