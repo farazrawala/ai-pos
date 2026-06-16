@@ -18,6 +18,17 @@ export function sanitizeAmountPaidInput(value) {
   return out;
 }
 
+/** Badge class for PO status in list and form views. */
+export function poStatusBadgeClass(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'active' || s === 'completed' || s === 'posted' || s === 'delivered') {
+    return 'bg-gradient-success';
+  }
+  if (s === 'pending' || s === 'draft' || s === 'placed') return 'bg-gradient-warning';
+  if (s === 'cancelled' || s === 'void' || s === 'refunded') return 'bg-gradient-danger';
+  return 'bg-gradient-secondary';
+}
+
 /** Common PO statuses — align with your API enum if different. */
 export const PO_STATUS_OPTIONS = [
   'draft',

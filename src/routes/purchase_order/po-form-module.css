@@ -1,0 +1,358 @@
+/* Purchase order add / edit — professional form layout */
+
+.po-form-page {
+  --po-border: #e9ecef;
+  --po-muted: #67748e;
+  --po-ink: #344767;
+  --po-surface: #f8f9fa;
+  width: 100%;
+  max-width: 100%;
+}
+
+.po-form-page .po-form-card {
+  border: 1px solid var(--po-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.po-form-page .po-form-back {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--po-muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.po-form-page .po-form-back:hover {
+  color: #5e72e4;
+}
+
+.po-form-page .po-form-header-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--po-ink);
+  margin-bottom: 0.35rem;
+}
+
+.po-form-page .po-form-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.po-form-page .po-form-ref-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5e72e4;
+  background: rgba(94, 114, 228, 0.1);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.po-form-page .po-form-total-pill {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--po-ink);
+  background: var(--po-surface);
+  border: 1px solid var(--po-border);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.65rem;
+}
+
+.po-form-page .po-form-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.po-form-page .po-form-header-actions .btn {
+  font-weight: 600;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.po-form-page .po-form-doc-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fc 0%, #fff 100%);
+  border: 1px solid var(--po-border);
+  border-radius: 0.625rem;
+}
+
+.po-form-page .po-form-company {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.po-form-page .po-form-company-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  border: 1px solid var(--po-border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.po-form-page .po-form-company-logo-fallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.5rem;
+  border: 1px solid var(--po-border);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #5e72e4;
+}
+
+.po-form-page .po-form-company-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--po-ink);
+  margin-bottom: 0.1rem;
+}
+
+.po-form-page .po-form-company-meta {
+  font-size: 0.75rem;
+  color: var(--po-muted);
+  line-height: 1.4;
+}
+
+.po-form-page .po-form-section {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.po-form-page .po-form-section:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.po-form-page .po-form-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--po-muted);
+  margin-bottom: 1rem;
+}
+
+.po-form-page .po-form-section-hint {
+  font-size: 0.75rem;
+  color: var(--po-muted);
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+.po-form-page .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--po-ink);
+  margin-bottom: 0.35rem;
+}
+
+.po-form-page .form-control,
+.po-form-page .form-select {
+  border-color: var(--po-border);
+  font-size: 0.875rem;
+}
+
+.po-form-page .form-control:focus,
+.po-form-page .form-select:focus {
+  border-color: rgba(94, 114, 228, 0.45);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.po-form-page .po-form-product-search .input-group-text {
+  background: #fff;
+  border-color: var(--po-border);
+  color: var(--po-muted);
+}
+
+.po-form-page .po-form-table-wrap {
+  border: 1px solid var(--po-border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+}
+
+.po-form-page .po-form-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.po-form-page .po-form-table {
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 0;
+  font-size: 0.8125rem;
+}
+
+.po-form-page .po-form-table thead th {
+  background: var(--po-surface);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--po-muted);
+  border-bottom: 1px solid var(--po-border);
+  padding: 0.65rem 0.5rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.po-form-page .po-form-table tbody td {
+  border-bottom: 1px solid #f1f3f5;
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+.po-form-page .po-form-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.po-form-page .po-form-table tbody tr:hover td {
+  background: #fafbfc;
+}
+
+.po-form-page .po-form-table .form-control,
+.po-form-page .po-form-table .form-select {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  min-height: 2rem;
+}
+
+.po-form-page .po-form-table .po-form-readonly-cell {
+  background: var(--po-surface);
+  border: 1px solid var(--po-border);
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--po-muted);
+}
+
+.po-form-page .po-form-col-sno {
+  width: 2.5rem;
+}
+
+.po-form-page .po-form-col-desc {
+  min-width: 8rem;
+}
+
+.po-form-page .po-form-col-wh {
+  width: 9.5rem;
+}
+
+.po-form-page .po-form-col-num {
+  width: 5.5rem;
+}
+
+.po-form-page .po-form-col-ship {
+  width: 6rem;
+}
+
+.po-form-page .po-form-col-amt {
+  width: 6.5rem;
+}
+
+.po-form-page .po-form-col-action {
+  width: 2.75rem;
+}
+
+.po-form-page .po-form-line-desc {
+  font-weight: 600;
+  color: var(--po-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.po-form-page .po-form-summary-panel {
+  border: 1px solid var(--po-border);
+  border-radius: 0.625rem;
+  padding: 1rem 1.15rem;
+  background: #fff;
+}
+
+.po-form-page .po-form-summary-box {
+  background: var(--po-surface);
+  border: 1px solid var(--po-border);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  margin-top: 0.75rem;
+}
+
+.po-form-page .po-form-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+  font-size: 0.875rem;
+  color: var(--po-muted);
+}
+
+.po-form-page .po-form-summary-row span:last-child {
+  font-weight: 600;
+  color: var(--po-ink);
+}
+
+.po-form-page .po-form-summary-total {
+  margin-top: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--po-border);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--po-ink);
+}
+
+.po-form-page .po-form-summary-total span:last-child {
+  font-size: 1rem;
+  color: #5e72e4;
+}
+
+.po-form-page .po-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f1f3f5;
+}
+
+.po-form-page .po-form-footer .btn {
+  font-weight: 600;
+  border-radius: 0.5rem;
+  min-width: 7rem;
+}
+
+@media (max-width: 767.98px) {
+  .po-form-page .po-form-doc-strip {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
