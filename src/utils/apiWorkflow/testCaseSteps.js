@@ -115,10 +115,10 @@ export const INVENTORY_TEST_CASES = [
   {
     n: 20,
     type: 'delete_purchase',
-    label: 'Delete #2 Purchase 50 @ 120',
+    label: 'Delete #2 Purchase 49 @ 120 (edited from 50)',
     ref: 2,
     refQty: 50,
-    expected: 175,
+    expected: 176,
   },
   {
     n: 21,
@@ -126,46 +126,46 @@ export const INVENTORY_TEST_CASES = [
     label: 'Purchase Return 15 @ 300',
     qty: 15,
     price: 300,
-    expected: 160,
+    expected: 161,
   },
-  { n: 22, type: 'sales_return', label: 'Sales Return 20 (from #19)', qty: 20, expected: 180 },
-  { n: 23, type: 'purchase', label: 'Purchase 30 @ 350', qty: 30, price: 350, expected: 210 },
-  { n: 24, type: 'sale', label: 'Sale 40', qty: 40, expected: 170 },
-  { n: 25, type: 'purchase', label: 'Purchase 50 @ 400', qty: 50, price: 400, expected: 220 },
+  { n: 22, type: 'sales_return', label: 'Sales Return 20 (from #19)', qty: 20, expected: 181 },
+  { n: 23, type: 'purchase', label: 'Purchase 30 @ 350', qty: 30, price: 350, expected: 211 },
+  { n: 24, type: 'sale', label: 'Sale 40', qty: 40, expected: 171 },
+  { n: 25, type: 'purchase', label: 'Purchase 50 @ 400', qty: 50, price: 400, expected: 221 },
   {
     n: 26,
     type: 'delete_purchase_return',
     label: 'Delete #13 Purchase Return',
     ref: 13,
     refQty: 10,
-    expected: 230,
+    expected: 231,
   },
-  { n: 27, type: 'sale', label: 'Sale 35', qty: 35, expected: 195 },
+  { n: 27, type: 'sale', label: 'Sale 35', qty: 35, expected: 196 },
   {
     n: 28,
     type: 'purchase_return',
     label: 'Purchase Return 5 @ 400',
     qty: 5,
     price: 400,
-    expected: 190,
+    expected: 191,
   },
-  { n: 29, type: 'sales_return', label: 'Sales Return 10 (from #27)', qty: 10, expected: 200 },
-  { n: 30, type: 'delete_sale', label: 'Delete #24 Sale 40', ref: 24, refQty: 40, expected: 240 },
+  { n: 29, type: 'sales_return', label: 'Sales Return 10 (from #27)', qty: 10, expected: 201 },
+  { n: 30, type: 'delete_sale', label: 'Delete #24 Sale 39 (edited from 40)', ref: 24, refQty: 40, expected: 241 },
   {
     n: 31,
     type: 'delete_sales_return',
     label: 'Delete #29 Sales Return',
     ref: 29,
     refQty: 10,
-    expected: 230,
+    expected: 231,
   },
   {
     n: 32,
     type: 'delete_purchase',
-    label: 'Delete #18 Purchase 75 @ 300',
+    label: 'Delete #18 Purchase 74 @ 300 (edited from 75)',
     ref: 18,
     refQty: 75,
-    expected: 155,
+    expected: 158,
   },
 ];
 
@@ -195,6 +195,19 @@ function buildBulkUserSaleCases() {
 function editedQty(tc) {
   const q = Number(tc.qty) || 0;
   return q > 1 ? q - 1 : q;
+}
+
+/**
+ * Qty still on the invoice/PO when a delete step runs (after optional edit sub-step).
+ * Purchases and sales are edited down by 1 before a later delete in this suite.
+ * @param {typeof INVENTORY_TEST_CASES[number] | undefined} refCase
+ */
+function effectiveTxnQty(refCase) {
+  if (!refCase) return 0;
+  const q = Number(refCase.qty) || 0;
+  if (refCase.deleteAfterCreate || refCase.skipEdit) return q;
+  if (refCase.type === 'purchase' || refCase.type === 'sale') return editedQty(refCase);
+  return q;
 }
 
 function inventoryCase(n) {
@@ -527,6 +540,7 @@ function buildStepsForCase(tc) {
       return buildSalesReturnSteps(tc);
     case 'delete_purchase': {
       const refCase = inventoryCase(tc.ref);
+      const undoQty = effectiveTxnQty(refCase) || Number(tc.refQty) || 0;
       return [
         {
           ...base,
@@ -535,22 +549,25 @@ function buildStepsForCase(tc) {
           body: {},
           qtyLedger: {
             type: 'delete_purchase',
-            qty: tc.refQty,
+            qty: undoQty,
             unitPrice: refCase?.price ?? 0,
           },
         },
       ];
     }
-    case 'delete_sale':
+    case 'delete_sale': {
+      const refCase = inventoryCase(tc.ref);
+      const undoQty = effectiveTxnQty(refCase) || Number(tc.refQty) || 0;
       return [
         {
           ...base,
           method: 'DELETE',
           url: `{{url}}api/order/order_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_sale', qty: tc.refQty, unitPrice: PRODUCT_PRICE },
+          qtyLedger: { type: 'delete_sale', qty: undoQty, unitPrice: PRODUCT_PRICE },
         },
       ];
+    }
     case 'delete_purchase_return': {
       const refCase = inventoryCase(tc.ref);
       return [

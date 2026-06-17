@@ -4,7 +4,7 @@
 #   a) GET invoice/order
 #   b) PATCH edit — qty reduced by 1 (e.g. 40 → 39)
 # Purchase returns and sales returns: create + GET only (no edit).
-# Expected qty in the UI is recomputed from qty ledger deltas.
+# Purchase/sale deletes undo the edited invoice qty (e.g. PO #2 at 49 after edit), not the original create qty.
 #
 | #  | Transaction                  | Expected Qty |
 | -- | ---------------------------- | -----------: |
@@ -27,21 +27,21 @@
 | 17 | Sale 25                      |          210 |
 | 18 | Purchase 75 @ 300            |          285 |
 | 19 | Sale 60                      |          225 |
-| 20 | Delete #2 Purchase 50 @ 120  |          175 |
-| 21 | Purchase Return 15 @ 300     |          160 |
-| 22 | Sales Return 20 (from #19)   |          180 |
-| 23 | Purchase 30 @ 350            |          210 |
-| 24 | Sale 40                      |          170 |
-| 25 | Purchase 50 @ 400            |          220 |
-| 26 | Delete #13 Purchase Return   |          230 |
-| 27 | Sale 35                      |          195 |
-| 28 | Purchase Return 5 @ 400      |          190 |
-| 29 | Sales Return 10 (from #27)   |          200 |
-| 30 | Delete #24 Sale 40           |          240 |
-| 31 | Delete #29 Sales Return      |          230 |
-| 32 | Delete #18 Purchase 75 @ 300 |          155 |
+| 20 | Delete #2 Purchase 49 @ 120  |          176 |
+| 21 | Purchase Return 15 @ 300     |          161 |
+| 22 | Sales Return 20 (from #19)   |          181 |
+| 23 | Purchase 30 @ 350            |          211 |
+| 24 | Sale 40                      |          171 |
+| 25 | Purchase 50 @ 400            |          221 |
+| 26 | Delete #13 Purchase Return   |          231 |
+| 27 | Sale 35                      |          196 |
+| 28 | Purchase Return 5 @ 400      |          191 |
+| 29 | Sales Return 10 (from #27)   |          201 |
+| 30 | Delete #24 Sale 39           |          241 |
+| 31 | Delete #29 Sales Return      |          231 |
+| 32 | Delete #18 Purchase 74 @ 300 |          158 |
 |
 | Bulk (same customer user) — cases #33–#60, qty 1 each, no edit sub-steps |
-| 33 | Bulk sale 1/28 |          154 |
+| 33 | Bulk sale 1/28 |          157 |
 | … | … | … |
-| 60 | Bulk sale 28/28 |          127 |
+| 60 | Bulk sale 28/28 |          130 |
