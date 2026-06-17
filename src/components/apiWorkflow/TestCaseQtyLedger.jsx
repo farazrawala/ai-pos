@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { buildQtyLedgerFromSteps } from '../../utils/apiWorkflow/inventoryQty.js';
 import { formatLedgerMoney } from '../../utils/apiWorkflow/inventoryCost.js';
+import MaximizedPanelOverlay from './MaximizedPanelOverlay.jsx';
 
 function formatAvgCost(avgCost, qty) {
   const avg = Number(avgCost);
@@ -140,15 +141,6 @@ export default function TestCaseQtyLedger({ steps, statuses }) {
   const [maximized, setMaximized] = useState(false);
   const rows = useMemo(() => buildQtyLedgerFromSteps(steps), [steps]);
 
-  useEffect(() => {
-    if (!maximized) return undefined;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') setMaximized(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [maximized]);
-
   const header = (onToggle) => (
     <div className="flex items-start justify-between gap-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -190,27 +182,18 @@ export default function TestCaseQtyLedger({ steps, statuses }) {
         </div>
       </div>
 
-      {maximized ? (
-        <div
-          className="fixed inset-0 z-[200] flex flex-col bg-slate-900/50 p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Expected quantity ledger maximized"
-          onClick={() => setMaximized(false)}
-        >
-          <div
-            className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
-              {header(() => setMaximized(false))}
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
-              <QtyLedgerTable rows={rows} statuses={statuses} scrollMaxHeight="calc(100vh - 8rem)" />
-            </div>
-          </div>
+      <MaximizedPanelOverlay
+        open={maximized}
+        onClose={() => setMaximized(false)}
+        ariaLabel="Expected quantity ledger maximized"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          {header(() => setMaximized(false))}
         </div>
-      ) : null}
+        <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
+          <QtyLedgerTable rows={rows} statuses={statuses} scrollMaxHeight="calc(100vh - 8rem)" />
+        </div>
+      </MaximizedPanelOverlay>
     </>
   );
 }

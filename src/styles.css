@@ -854,3 +854,15 @@ body {
 }
 
 /* Sidebar overrides live in /assets/css/pos-sidenav-override.css (linked after Argon in index.html). */
+
+/* Test-case maximized panels — above Argon sidenav (999) and sticky nav (1020). */
+.tc-maximized-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 10050 !important;
+  margin: 0 !important;
+  max-width: none !important;
+}

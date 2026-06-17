@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   buildBalanceLedgerFromSteps,
   formatLedgerMoney,
 } from '../../utils/apiWorkflow/testCaseBalance.js';
+import MaximizedPanelOverlay from './MaximizedPanelOverlay.jsx';
 
 function formatMoney(n) {
   const x = Number(n);
@@ -93,15 +94,6 @@ export default function TestCaseBalanceLedger({ steps, statuses }) {
   const [maximized, setMaximized] = useState(false);
   const rows = useMemo(() => buildBalanceLedgerFromSteps(steps), [steps]);
 
-  useEffect(() => {
-    if (!maximized) return undefined;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') setMaximized(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [maximized]);
-
   const header = (onToggle) => (
     <div className="flex items-start justify-between gap-2">
       <div>
@@ -147,29 +139,20 @@ export default function TestCaseBalanceLedger({ steps, statuses }) {
         </div>
       </div>
 
-      {maximized ? (
-        <div
-          className="fixed inset-0 z-[200] flex flex-col bg-slate-900/50 p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Expected balance ledger maximized"
-          onClick={() => setMaximized(false)}
-        >
-          <div
-            className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="border-b border-slate-200 px-4 py-3">{header(() => setMaximized(false))}</div>
-            <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
-              <BalanceLedgerTable
-                rows={rows}
-                statuses={statuses}
-                scrollMaxHeight="calc(100vh - 8rem)"
-              />
-            </div>
-          </div>
+      <MaximizedPanelOverlay
+        open={maximized}
+        onClose={() => setMaximized(false)}
+        ariaLabel="Expected balance ledger maximized"
+      >
+        <div className="border-b border-slate-200 px-4 py-3">{header(() => setMaximized(false))}</div>
+        <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
+          <BalanceLedgerTable
+            rows={rows}
+            statuses={statuses}
+            scrollMaxHeight="calc(100vh - 8rem)"
+          />
         </div>
-      ) : null}
+      </MaximizedPanelOverlay>
     </>
   );
 }
