@@ -1,9 +1,16 @@
 function StepResponseBlock({ stepIndex, name, payload }) {
-  const { ok, status, statusText, timeMs, data, errorMessage, headers, balanceSheetCheck } =
+  const { ok, status, statusText, timeMs, data, errorMessage, headers, balanceSheetCheck, qtyCheck } =
     payload;
 
+  const qtyBanner =
+    qtyCheck?.triggered && qtyCheck.match
+      ? 'border-emerald-300 bg-emerald-50/90'
+      : qtyCheck?.triggered && !qtyCheck.match
+        ? 'border-rose-300 bg-rose-50/90'
+        : '';
+
   return (
-    <div className="border-b border-slate-100 last:border-b-0">
+    <div className={`border-b border-slate-100 last:border-b-0 ${qtyBanner ? `border-l-4 ${qtyBanner}` : ''}`}>
       <div className="bg-slate-50/90 px-3 py-2">
         <p className="text-xs font-semibold text-slate-700">
           <span className="font-mono text-slate-500">{stepIndex + 1}.</span> {name || `Step ${stepIndex + 1}`}
@@ -48,6 +55,48 @@ function StepResponseBlock({ stepIndex, name, payload }) {
             <pre className="mt-2 max-h-[180px] overflow-auto rounded border border-violet-100 bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-emerald-100">
               {JSON.stringify(balanceSheetCheck.summary ?? null, null, 2)}
             </pre>
+          </div>
+        ) : null}
+        {qtyCheck?.triggered ? (
+          <div
+            className={`mt-3 rounded-lg border p-3 ${
+              qtyCheck.match
+                ? 'border-emerald-300 bg-emerald-50'
+                : 'border-rose-300 bg-rose-50'
+            }`}
+          >
+            <p
+              className={`text-xs font-semibold ${
+                qtyCheck.match ? 'text-emerald-900' : 'text-rose-900'
+              }`}
+            >
+              {qtyCheck.match ? 'Qty check — OK' : 'Qty check — mismatch'}
+            </p>
+            <p
+              className={`mt-1 text-[11px] ${
+                qtyCheck.match ? 'text-emerald-800' : 'text-rose-800'
+              }`}
+            >
+              Expected <strong className="font-mono">{qtyCheck.expected}</strong>
+              {' · '}
+              Actual <strong className="font-mono">{qtyCheck.actual ?? '—'}</strong>
+              {qtyCheck.ok === false ? (
+                <>
+                  {' '}
+                  — HTTP {qtyCheck.status ?? '—'}
+                  {qtyCheck.statusText ? ` · ${qtyCheck.statusText}` : ''}
+                </>
+              ) : null}
+            </p>
+            {qtyCheck.errorMessage ? (
+              <p className="mt-1 text-[11px] text-rose-600">{qtyCheck.errorMessage}</p>
+            ) : null}
+            {!qtyCheck.match && qtyCheck.actual != null ? (
+              <p className="mt-1 text-[11px] font-medium text-rose-700">
+                Difference: {qtyCheck.actual - qtyCheck.expected > 0 ? '+' : ''}
+                {qtyCheck.actual - qtyCheck.expected}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {headers && Object.keys(headers).length > 0 && (

@@ -114,3 +114,20 @@ export function buildQtyLedgerFromSteps(steps) {
 
   return rows;
 }
+
+/**
+ * Running expected qty after applying all qtyLedger entries through stepIndex (inclusive).
+ * @param {{ qtyLedger?: import('./inventoryQty.js').QtyLedgerEntry }[]} steps
+ * @param {number} stepIndex
+ */
+export function computeExpectedQtyThroughStep(steps, stepIndex) {
+  let qty = 0;
+  const end = Math.min(stepIndex, steps.length - 1);
+  for (let i = 0; i <= end; i++) {
+    const lg = steps[i]?.qtyLedger;
+    if (!lg) continue;
+    const delta = qtyLedgerDelta(lg);
+    if (delta !== 0) qty = applyQtyDelta(qty, delta);
+  }
+  return qty;
+}

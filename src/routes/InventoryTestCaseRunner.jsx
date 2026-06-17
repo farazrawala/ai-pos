@@ -23,6 +23,13 @@ import {
   isTransactionRelatedStep,
 } from '../utils/apiWorkflow/balanceSheetCheck.js';
 import {
+  buildWarehouseInventoryCheckUrl,
+  expectedQtyForStep,
+  extractWarehouseQtyForProduct,
+  qtyMatchesExpected,
+  shouldCheckQtyAfterStep,
+} from '../utils/apiWorkflow/qtyCheck.js';
+import {
   buildWorkflowInterpVars,
   getWorkflowBaseUrl,
 } from '../utils/apiWorkflow/workflowBaseUrl.js';
@@ -58,6 +65,8 @@ const InventoryTestCaseRunner = () => {
   const [checkBalanceSheetAfterTransactions, setCheckBalanceSheetAfterTransactions] =
     useState(true);
   const checkBalanceSheetRef = useRef(true);
+  const [checkQtyAsExpected, setCheckQtyAsExpected] = useState(true);
+  const checkQtyRef = useRef(true);
   const [checkedSteps, setCheckedSteps] = useState(() =>
     Array.from({ length: initialSnapshot.steps.length }, () => false)
   );
@@ -75,6 +84,10 @@ const InventoryTestCaseRunner = () => {
   useEffect(() => {
     checkBalanceSheetRef.current = checkBalanceSheetAfterTransactions;
   }, [checkBalanceSheetAfterTransactions]);
+
+  useEffect(() => {
+    checkQtyRef.current = checkQtyAsExpected;
+  }, [checkQtyAsExpected]);
 
   const selectedStep = steps[selectedIndex] ?? null;
 
@@ -289,6 +302,63 @@ const InventoryTestCaseRunner = () => {
           });
         }
 
+        if (checkQtyRef.current && ok && shouldCheckQtyAfterStep(nextVariables)) {
+          try {
+            const qtyVars = buildWorkflowInterpVars(nextVariables, baseUrl);
+            const wiUrl = buildWarehouseInventoryCheckUrl(baseUrl);
+            const wiRes = await axios({
+              method: 'GET',
+              url: wiUrl,
+              validateStatus: () => true,
+              headers: buildWorkflowRequestHeaders({
+                vars: qtyVars,
+                method: 'GET',
+                bodyType: undefined,
+                hasJsonBody: false,
+              }),
+            });
+            const expected = expectedQtyForStep(step, index, steps);
+            const actual = extractWarehouseQtyForProduct(
+              wiRes.data,
+              qtyVars.product_1_id,
+              qtyVars.warehouse_1_id
+            );
+            const apiOk = wiRes.status >= 200 && wiRes.status < 300;
+            payload.qtyCheck = {
+              triggered: true,
+              url: wiUrl,
+              ok: apiOk,
+              status: wiRes.status,
+              statusText: wiRes.statusText,
+              expected,
+              actual,
+              match: apiOk && qtyMatchesExpected(actual, expected),
+              productId: qtyVars.product_1_id,
+              warehouseId: qtyVars.warehouse_1_id ?? null,
+            };
+          } catch (qtyErr) {
+            const expected = expectedQtyForStep(step, index, steps);
+            payload.qtyCheck = {
+              triggered: true,
+              ok: false,
+              status: qtyErr?.response?.status ?? null,
+              statusText: qtyErr?.response?.statusText ?? 'Network error',
+              expected,
+              actual: null,
+              match: false,
+              errorMessage: qtyErr?.message || 'Quantity check failed',
+            };
+          }
+          setStepResults((prev) => {
+            const next =
+              prev.length === steps.length
+                ? [...prev]
+                : Array.from({ length: steps.length }, () => null);
+            next[index] = { ...payload };
+            return next;
+          });
+        }
+
         setStatuses((prev) => {
           const next = [...prev];
           next[index] = ok ? 'success' : 'failed';
@@ -453,8 +523,8 @@ const InventoryTestCaseRunner = () => {
           </div>
         </header>
 
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600">
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:min-w-[240px]">
             Base URL
             <input
               type="text"
@@ -474,6 +544,15 @@ const InventoryTestCaseRunner = () => {
             />
             Check balance sheet after transaction requests
           </label>
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={checkQtyAsExpected}
+              onChange={(e) => setCheckQtyAsExpected(e.target.checked)}
+              disabled={busy}
+            />
+            Check qty as expected
+          </label>
           <div className="shrink-0 text-xs text-slate-500">
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono">
               Enter
@@ -488,6 +567,7 @@ const InventoryTestCaseRunner = () => {
               <TestCaseWorkflowList
                 steps={steps}
                 statuses={statuses}
+                stepResults={stepResults}
                 selectedIndex={selectedIndex}
                 checkedSteps={checkedSteps}
                 onSelect={setSelectedIndex}

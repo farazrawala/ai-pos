@@ -16,6 +16,7 @@ const methodStyles = {
 const TestCaseWorkflowList = ({
   steps,
   statuses,
+  stepResults = [],
   selectedIndex,
   checkedSteps = [],
   onSelect,
@@ -78,12 +79,17 @@ const TestCaseWorkflowList = ({
         const selected = index === selectedIndex;
         const isSetup = !step.caseNo;
         const checked = checkedSteps[index] ?? false;
+        const qtyCheck = stepResults[index]?.qtyCheck;
+        const qtyOk = qtyCheck?.triggered && qtyCheck.match;
+        const qtyBad = qtyCheck?.triggered && !qtyCheck.match;
         return (
           <li key={index} className="mb-1">
             <div
               className={[
                 'tc-step-row flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 transition',
-                statusStyles[status] ?? statusStyles.pending,
+                qtyBad ? 'border-rose-400 bg-rose-50 text-rose-900' : '',
+                qtyOk ? 'border-emerald-400 bg-emerald-50/80' : '',
+                !qtyBad && !qtyOk ? statusStyles[status] ?? statusStyles.pending : '',
                 selected ? 'ring-2 ring-indigo-400 ring-offset-1' : 'hover:opacity-90',
                 disabled ? 'opacity-60' : '',
               ].join(' ')}
@@ -128,6 +134,20 @@ const TestCaseWorkflowList = ({
                 {!isSetup && step.expectedQty != null ? (
                   <span className="text-[10px] font-medium text-slate-600">
                     Expected qty after step: <strong>{step.expectedQty}</strong>
+                  </span>
+                ) : null}
+                {qtyCheck?.triggered ? (
+                  <span
+                    className={[
+                      'inline-flex w-fit rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                      qtyCheck.match
+                        ? 'bg-emerald-200 text-emerald-900'
+                        : 'bg-rose-200 text-rose-900',
+                    ].join(' ')}
+                  >
+                    {qtyCheck.match
+                      ? `Qty OK (${qtyCheck.actual})`
+                      : `Qty mismatch — expected ${qtyCheck.expected}, got ${qtyCheck.actual ?? '—'}`}
                   </span>
                 ) : null}
                 <span className="truncate font-mono text-[11px] text-slate-500">{step.url}</span>
