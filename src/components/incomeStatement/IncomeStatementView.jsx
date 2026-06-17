@@ -12,6 +12,7 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../SearchInputIcon.jsx';
 import NavIcon from '../NavIcon.jsx';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import { buildApiUrl } from '../../config/apiConfig.js';
 import '../common/devApiSources.css';
 import {
   FaBoxesStacked,
@@ -684,12 +685,18 @@ export default function IncomeStatementView() {
 
   const apiSources = useMemo(
     () => [
-      { label: 'Income statement', url: 'GET /api/reports/income-statement?startDate=&endDate=' },
-      { label: 'Sales', url: 'GET /api/order/sales' },
-      { label: 'COGS', url: 'GET /api/order_item/cost-of-goods-sold-by-order-item' },
+      {
+        label: 'Income statement',
+        url: `GET ${buildApiUrl('reports/income-statement?startDate=&endDate=')}`,
+      },
+      { label: 'Sales', url: `GET ${buildApiUrl('order/sales')}` },
+      {
+        label: 'COGS',
+        url: `GET ${buildApiUrl('order_item/cost-of-goods-sold-by-order-item')}`,
+      },
       {
         label: 'Operating expenses',
-        url: 'GET /api/account/fetch-account-by-type?account_type=operating_expense',
+        url: `GET ${buildApiUrl('account/fetch-account-by-type?account_type=operating_expense')}`,
       },
     ],
     []
