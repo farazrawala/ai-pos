@@ -1,6 +1,8 @@
+import { EMPTY_INVENTORY, applyQtyLedgerCost } from './inventoryCost.js';
+
 /**
  * Running quantity ledger for inventory test cases (from test_case.rb).
- * @typedef {{ type: string; qty: number }} QtyLedgerEntry
+ * @typedef {{ type: string; qty: number; unitCost?: number }} QtyLedgerEntry
  */
 
 /** @param {number} state @param {number} delta */
@@ -82,7 +84,9 @@ export function qtyLedgerDetail(lg) {
  */
 export function buildQtyLedgerFromSteps(steps) {
   let qty = 0;
-  /** @type {Array<{ stepIndex: number; stepName: string; caseNo?: number; kind: string; delta: number; qty: number; expectedQty?: number; detail: string }>} */
+  /** @type {import('./inventoryCost.js').InventoryState} */
+  let costState = { ...EMPTY_INVENTORY };
+  /** @type {Array<{ stepIndex: number; stepName: string; caseNo?: number; kind: string; delta: number; qty: number; expectedQty?: number; avgCost: number; detail: string }>} */
   const rows = [];
 
   steps.forEach((step, index) => {
@@ -94,6 +98,7 @@ export function buildQtyLedgerFromSteps(steps) {
 
     const detail = qtyLedgerDetail(lg);
     qty = applyQtyDelta(qty, delta);
+    costState = applyQtyLedgerCost(costState, lg);
     rows.push({
       stepIndex: index,
       stepName: step.name || `Step ${index + 1}`,
@@ -102,6 +107,7 @@ export function buildQtyLedgerFromSteps(steps) {
       delta,
       qty,
       expectedQty: step.expectedQty,
+      avgCost: costState.avgCost,
       detail,
     });
   });

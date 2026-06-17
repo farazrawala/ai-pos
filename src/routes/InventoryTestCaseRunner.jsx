@@ -5,6 +5,8 @@ import TestCaseWorkflowList from '../components/apiWorkflow/TestCaseWorkflowList
 import ApiEditor from '../components/apiWorkflow/ApiEditor.jsx';
 import ResponseViewer from '../components/apiWorkflow/ResponseViewer.jsx';
 import TestCaseQtyLedger from '../components/apiWorkflow/TestCaseQtyLedger.jsx';
+import TestCaseBalanceLedger from '../components/apiWorkflow/TestCaseBalanceLedger.jsx';
+import TestCaseBalanceSheetExpected from '../components/apiWorkflow/TestCaseBalanceSheetExpected.jsx';
 import { createInventoryTestCaseSteps, BULK_USER_TXN_COUNT } from '../utils/apiWorkflow/testCaseSteps.js';
 import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableReplace.js';
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
@@ -554,6 +556,8 @@ const InventoryTestCaseRunner = () => {
               </pre>
             </div>
             <TestCaseQtyLedger steps={steps} statuses={statuses} />
+            <TestCaseBalanceLedger steps={steps} statuses={statuses} />
+            <TestCaseBalanceSheetExpected steps={steps} statuses={statuses} />
           </div>
         </div>
       </div>

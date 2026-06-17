@@ -197,6 +197,15 @@ function editedQty(tc) {
   return q > 1 ? q - 1 : q;
 }
 
+function inventoryCase(n) {
+  return INVENTORY_TEST_CASES.find((c) => c.n === n);
+}
+
+/** @param {number} qty */
+function saleQtyLedger(qty) {
+  return { type: 'sale', qty, unitPrice: PRODUCT_PRICE };
+}
+
 /** Response paths for default account fields on signup `user_company` response. */
 function companySignupFieldPaths(field) {
   const bases = [
@@ -263,8 +272,8 @@ function purchaseBody(tc, qty = tc.qty) {
     ref_no: `TC-PO-${tc.n}`,
     discount: '0',
     shipment: '0',
-    payment_method_accounts_id: '{{payment_account_id}}',
-    account_id: '{{payment_account_id}}',
+    payment_method_accounts_id: '{{default_account_payable_account_id}}',
+    account_id: '{{default_account_payable_account_id}}',
     amount_paid: String(total),
     remaining_amount: '0',
     total_amount: String(total),
@@ -286,8 +295,8 @@ function purchaseReturnBody(tc, qty = tc.qty) {
     ref_no: `TC-PR-${tc.n}`,
     discount: '0',
     shipment: '0',
-    payment_method_accounts_id: '{{receipt_account_id}}',
-    account_id: '{{receipt_account_id}}',
+    payment_method_accounts_id: '{{default_account_payable_account_id}}',
+    account_id: '{{default_account_payable_account_id}}',
     amount_paid: String(total),
     remaining_amount: '0',
     total_amount: String(total),
@@ -308,8 +317,8 @@ function salesReturnBody(tc, qty = tc.qty) {
     ref_no: `TC-SR-${tc.n}`,
     discount: '0',
     shipment: '0',
-    payment_method_accounts_id: '{{receipt_account_id}}',
-    account_id: '{{receipt_account_id}}',
+    payment_method_accounts_id: '{{default_cash_account_id}}',
+    account_id: '{{default_cash_account_id}}',
     amount_paid: String(total),
     remaining_amount: '0',
     total_amount: String(total),
@@ -333,7 +342,7 @@ function buildPurchaseReturnSteps(tc) {
       url: '{{url}}api/purchase_return/purchase_return_create',
       bodyType: 'form',
       body: purchaseReturnBody(tc),
-      qtyLedger: { type: 'purchase_return', qty: tc.qty },
+      qtyLedger: { type: 'purchase_return', qty: tc.qty, unitPrice: tc.price },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -359,7 +368,7 @@ function buildSalesReturnSteps(tc) {
       url: '{{url}}api/sales_return/sales_return_create',
       bodyType: 'form',
       body: salesReturnBody(tc),
-      qtyLedger: { type: 'sales_return', qty: tc.qty },
+      qtyLedger: { type: 'sales_return', qty: tc.qty, unitPrice: PRODUCT_PRICE },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -388,7 +397,7 @@ function buildPurchaseSteps(tc) {
       url: '{{url}}api/purchase_order/purchase_order_create',
       bodyType: 'form',
       body: purchaseBody(tc),
-      qtyLedger: { type: 'purchase', qty: tc.qty },
+      qtyLedger: { type: 'purchase', qty: tc.qty, unitCost: tc.price, unitPrice: tc.price },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -407,7 +416,7 @@ function buildPurchaseSteps(tc) {
       url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.n}_id}}`,
       bodyType: 'form',
       body: purchaseBody(tc, nextQty),
-      qtyLedger: editDelta > 0 ? { type: 'edit_purchase', qty: editDelta } : undefined,
+      qtyLedger: editDelta > 0 ? { type: 'edit_purchase', qty: editDelta, unitPrice: tc.price } : undefined,
       caseFinal: true,
     },
   ];
@@ -427,7 +436,7 @@ function buildSaleSteps(tc) {
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
         body: saleBody(tc),
-        qtyLedger: { type: 'sale', qty: tc.qty },
+        qtyLedger: saleQtyLedger(tc.qty),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
       },
       {
@@ -437,7 +446,7 @@ function buildSaleSteps(tc) {
         method: 'DELETE',
         url: `{{url}}api/order/order_delete/{{txn_${tc.n}_id}}`,
         body: {},
-        qtyLedger: { type: 'delete_sale', qty: tc.qty },
+        qtyLedger: { type: 'delete_sale', qty: tc.qty, unitPrice: PRODUCT_PRICE },
         caseFinal: true,
       },
     ];
@@ -453,7 +462,7 @@ function buildSaleSteps(tc) {
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
         body: saleBody(tc),
-        qtyLedger: { type: 'sale', qty: tc.qty },
+        qtyLedger: saleQtyLedger(tc.qty),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
         caseFinal: true,
       },
@@ -472,7 +481,7 @@ function buildSaleSteps(tc) {
       url: '{{url}}api/order/order_save',
       bodyType: 'form',
       body: saleBody(tc),
-      qtyLedger: { type: 'sale', qty: tc.qty },
+      qtyLedger: saleQtyLedger(tc.qty),
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -491,7 +500,7 @@ function buildSaleSteps(tc) {
       url: `{{url}}api/order/order_update/{{txn_${tc.n}_id}}`,
       bodyType: 'form',
       body: saleBody(tc, nextQty),
-      qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta } : undefined,
+      qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta, unitPrice: PRODUCT_PRICE } : undefined,
       caseFinal: true,
     },
   ];
@@ -516,16 +525,22 @@ function buildStepsForCase(tc) {
       return buildPurchaseReturnSteps(tc);
     case 'sales_return':
       return buildSalesReturnSteps(tc);
-    case 'delete_purchase':
+    case 'delete_purchase': {
+      const refCase = inventoryCase(tc.ref);
       return [
         {
           ...base,
           method: 'DELETE',
           url: `{{url}}api/purchase_order/purchase_order_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_purchase', qty: tc.refQty },
+          qtyLedger: {
+            type: 'delete_purchase',
+            qty: tc.refQty,
+            unitPrice: refCase?.price ?? 0,
+          },
         },
       ];
+    }
     case 'delete_sale':
       return [
         {
@@ -533,19 +548,25 @@ function buildStepsForCase(tc) {
           method: 'DELETE',
           url: `{{url}}api/order/order_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_sale', qty: tc.refQty },
+          qtyLedger: { type: 'delete_sale', qty: tc.refQty, unitPrice: PRODUCT_PRICE },
         },
       ];
-    case 'delete_purchase_return':
+    case 'delete_purchase_return': {
+      const refCase = inventoryCase(tc.ref);
       return [
         {
           ...base,
           method: 'DELETE',
           url: `{{url}}api/purchase_return/purchase_return_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_purchase_return', qty: tc.refQty },
+          qtyLedger: {
+            type: 'delete_purchase_return',
+            qty: tc.refQty,
+            unitPrice: refCase?.price ?? 0,
+          },
         },
       ];
+    }
     case 'delete_sales_return':
       return [
         {
@@ -553,7 +574,11 @@ function buildStepsForCase(tc) {
           method: 'DELETE',
           url: `{{url}}api/sales_return/sales_return_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_sales_return', qty: tc.refQty },
+          qtyLedger: {
+            type: 'delete_sales_return',
+            qty: tc.refQty,
+            unitPrice: PRODUCT_PRICE,
+          },
         },
       ];
     default:

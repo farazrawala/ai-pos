@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildQtyLedgerFromSteps } from '../../utils/apiWorkflow/inventoryQty.js';
+import { formatLedgerMoney } from '../../utils/apiWorkflow/inventoryCost.js';
+
+function formatAvgCost(avgCost, qty) {
+  const avg = Number(avgCost);
+  const q = Number(qty);
+  if (!Number.isFinite(avg) || avg <= 0 || !Number.isFinite(q) || q <= 0) return '—';
+  return `Rs. ${formatLedgerMoney(avg)}`;
+}
 
 /** Step change: running qty after this step minus running qty before. */
 function stepQtyChange(row, rowIndex, rows) {
@@ -32,13 +40,14 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
       className="overflow-x-auto overflow-y-auto"
       style={scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
     >
-      <table className="w-full min-w-[360px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[480px] border-collapse text-left text-xs">
         <thead className="sticky top-0 z-[1] bg-white">
           <tr className="border-b border-slate-200 text-slate-500">
             <th className="py-2 pr-2 font-semibold">Case</th>
             <th className="py-2 pr-2 text-end font-semibold">Running</th>
             <th className="py-2 pr-2 text-end font-semibold">Expected</th>
-            <th className="py-2 text-end font-semibold">Difference</th>
+            <th className="py-2 pr-2 text-end font-semibold">Difference</th>
+            <th className="py-2 text-end font-semibold">Avg cost</th>
           </tr>
         </thead>
         <tbody>
@@ -48,6 +57,7 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
             const stepChange = stepQtyChange(row, rowIndex, rows);
             const match = row.expectedQty != null && verified && row.qty === row.expectedQty;
             const mismatch = row.expectedQty != null && verified && row.qty !== row.expectedQty;
+            const isPurchase = row.kind === 'purchase';
             return (
               <tr
                 key={row.stepIndex}
@@ -83,6 +93,14 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
                 >
                   {formatDifference(stepChange)}
                 </td>
+                <td
+                  className={[
+                    'py-2 text-end font-mono font-semibold',
+                    isPurchase ? 'text-indigo-700' : 'text-slate-600',
+                  ].join(' ')}
+                >
+                  {formatAvgCost(row.avgCost, row.qty)}
+                </td>
               </tr>
             );
           })}
@@ -103,6 +121,9 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
                 ].join(' ')}
               >
                 {formatDifference(finalStepChange)}
+              </td>
+              <td className="py-2 text-end font-mono text-indigo-700">
+                {formatAvgCost(last.avgCost, last.qty)}
               </td>
             </tr>
           </tfoot>
@@ -154,7 +175,7 @@ export default function TestCaseQtyLedger({ steps, statuses }) {
         </h3>
         <p className="mt-2 text-xs text-slate-500">
           Complete setup steps, then run transactions from <code>test_case.rb</code> one at a time.
-          Running qty, expected qty, and per-step change appear here.
+          Running qty, expected qty, per-step change, and weighted average cost appear here.
         </p>
       </div>
     );

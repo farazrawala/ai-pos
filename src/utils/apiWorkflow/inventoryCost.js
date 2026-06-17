@@ -36,6 +36,32 @@ export function applySale(state, qty) {
   };
 }
 
+/** @typedef {{ type: string; qty: number; unitCost?: number }} QtyLedgerCostEntry */
+
+/** Apply a test-case qty ledger entry to running WAC inventory state. */
+export function applyQtyLedgerCost(state, lg) {
+  const q = Number(lg?.qty);
+  if (!Number.isFinite(q) || q <= 0) return state;
+
+  switch (lg.type) {
+    case 'purchase':
+      return applyPurchase(state, q, lg.unitCost);
+    case 'sale':
+    case 'edit_purchase':
+    case 'purchase_return':
+    case 'delete_purchase':
+    case 'delete_sales_return':
+      return applySale(state, q);
+    case 'edit_sale':
+    case 'sales_return':
+    case 'delete_sale':
+    case 'delete_purchase_return':
+      return applyPurchase(state, q, state.avgCost);
+    default:
+      return state;
+  }
+}
+
 /**
  * Build running WAC rows from workflow steps that define `ledger`.
  * @param {{ name?: string; ledger?: { type: string; qty: number; unitCost?: number } }[]} steps
