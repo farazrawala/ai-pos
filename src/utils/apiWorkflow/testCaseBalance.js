@@ -12,6 +12,7 @@ export const TEST_CASE_SALE_UNIT_PRICE = 300;
 /**
  * Cash / AP balance change for a qty-ledger step (full payment model).
  * Purchases paid from `default_account_payable_account`; sales to `default_cash_account`.
+ * AP is a positive liability balance (credit); cash is a positive asset balance (debit).
  * @param {{ type: string; qty: number; unitPrice?: number; unitCost?: number }} lg
  */
 export function balanceLedgerDeltas(lg) {
@@ -25,14 +26,14 @@ export function balanceLedgerDeltas(lg) {
 
   switch (lg.type) {
     case 'purchase':
-      return { ap: -amount, cash: 0 };
+      return { ap: amount, cash: 0 };
     case 'edit_purchase':
     case 'delete_purchase':
-      return { ap: amount, cash: 0 };
-    case 'purchase_return':
-      return { ap: amount, cash: 0 };
-    case 'delete_purchase_return':
       return { ap: -amount, cash: 0 };
+    case 'purchase_return':
+      return { ap: -amount, cash: 0 };
+    case 'delete_purchase_return':
+      return { ap: amount, cash: 0 };
     case 'sale':
       return { ap: 0, cash: amount };
     case 'edit_sale':
