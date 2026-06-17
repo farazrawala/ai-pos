@@ -39,12 +39,26 @@ function BalanceSheetPanel({ sheet, compact = false }) {
           <div>
             <p className="font-semibold text-slate-800">Inventory</p>
             <div className="mt-1 flex justify-between text-slate-700">
-              <span>Inventory</span>
-              <span className="font-mono">{formatMoney(sheet.inventory.total)}</span>
+              <span>Inventory (avg cost)</span>
+              <span className="font-mono">
+                {formatMoney(sheet.inventory.atCost ?? sheet.inventory.total)}
+              </span>
             </div>
+            <div className="mt-1 flex justify-between text-slate-700">
+              <span>Inventory (stock × wholesale)</span>
+              <span className="font-mono">{formatMoney(sheet.inventory.wholesaleTotal)}</span>
+            </div>
+            {sheet.inventory.qty > 0 ? (
+              <p className="text-[10px] text-slate-500">
+                {sheet.inventory.qty} units × Rs.{' '}
+                {formatLedgerMoney(sheet.inventory.wholesaleUnitPrice ?? 250)}
+              </p>
+            ) : null}
             <div className="flex justify-between border-t border-emerald-100 pt-1 font-medium text-slate-800">
-              <span>Total inventory</span>
-              <span className="font-mono">{formatMoney(sheet.inventory.total)}</span>
+              <span>Total inventory (avg cost)</span>
+              <span className="font-mono">
+                {formatMoney(sheet.inventory.atCost ?? sheet.inventory.total)}
+              </span>
             </div>
           </div>
           <div>
@@ -173,7 +187,7 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
           Expected balance sheet
         </h3>
         <p className="mt-0.5 text-[10px] text-slate-500">
-          Current assets · Inventory · Fixed assets · Liabilities · Equity
+          Current assets · Inventory (avg cost &amp; stock × wholesale) · Liabilities · Equity
         </p>
       </div>
       {rows.length > 0 ? (

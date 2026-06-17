@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   buildBalanceLedgerFromSteps,
   formatLedgerMoney,
+  TEST_CASE_WHOLESALE_PRICE,
 } from '../../utils/apiWorkflow/testCaseBalance.js';
 import MaximizedPanelOverlay from './MaximizedPanelOverlay.jsx';
 
@@ -32,7 +33,8 @@ function BalanceLedgerTable({ rows, statuses, scrollMaxHeight }) {
             <th className="py-2 pr-2 font-semibold">Case</th>
             <th className="py-2 pr-2 text-end font-semibold">Payable</th>
             <th className="py-2 pr-2 text-end font-semibold">Cash</th>
-            <th className="py-2 text-end font-semibold">Inventory</th>
+            <th className="py-2 pr-2 text-end font-semibold">Inventory (cost)</th>
+            <th className="py-2 text-end font-semibold">Inventory (wholesale)</th>
           </tr>
         </thead>
         <tbody>
@@ -59,8 +61,11 @@ function BalanceLedgerTable({ rows, statuses, scrollMaxHeight }) {
                 <td className="py-2 pr-2 text-end font-mono text-emerald-800">
                   {formatMoney(row.cash)}
                 </td>
-                <td className="py-2 text-end font-mono text-indigo-800">
+                <td className="py-2 pr-2 text-end font-mono text-indigo-800">
                   {formatMoney(row.inventoryValue)}
+                </td>
+                <td className="py-2 text-end font-mono text-violet-800">
+                  {formatMoney(row.inventoryWholesale)}
                 </td>
               </tr>
             );
@@ -72,8 +77,11 @@ function BalanceLedgerTable({ rows, statuses, scrollMaxHeight }) {
               <td className="py-2 pr-2">Final (expected)</td>
               <td className="py-2 pr-2 text-end font-mono text-amber-900">{formatMoney(last.ap)}</td>
               <td className="py-2 pr-2 text-end font-mono text-emerald-900">{formatMoney(last.cash)}</td>
-              <td className="py-2 text-end font-mono text-indigo-900">
+              <td className="py-2 pr-2 text-end font-mono text-indigo-900">
                 {formatMoney(last.inventoryValue)}
+              </td>
+              <td className="py-2 text-end font-mono text-violet-900">
+                {formatMoney(last.inventoryWholesale)}
               </td>
             </tr>
           </tfoot>
@@ -81,7 +89,8 @@ function BalanceLedgerTable({ rows, statuses, scrollMaxHeight }) {
       </table>
       <p className="mt-2 text-[10px] text-slate-500">
         Payable = <code>default_account_payable_account</code> · Cash ={' '}
-        <code>default_cash_account</code> · Inventory at weighted average cost.
+        <code>default_cash_account</code> · Inventory at weighted average cost · Wholesale = stock
+        × Rs. {formatLedgerMoney(TEST_CASE_WHOLESALE_PRICE)} (test product <code>wholesale_price</code>).
       </p>
     </div>
   );

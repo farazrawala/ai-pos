@@ -9,6 +9,9 @@ import { qtyLedgerDelta } from './inventoryQty.js';
 /** POS sale unit price in inventory test cases (matches testCaseSteps PRODUCT_PRICE). */
 export const TEST_CASE_SALE_UNIT_PRICE = 300;
 
+/** Test product wholesale_price from Setup: Create product (matches testCaseSteps). */
+export const TEST_CASE_WHOLESALE_PRICE = 250;
+
 /**
  * Cash / AP balance change for a qty-ledger step (full payment model).
  * Purchases paid from `default_account_payable_account`; sales to `default_cash_account`.
@@ -73,12 +76,17 @@ export function equityDeltaFromLedger(lg, costStateBefore) {
   }
 }
 
-/** @param {{ cash: number; inventory: number; fixedAssets: number; ap: number; longTermLiabilities: number; equity: number }} p */
+/** @param {{ cash: number; inventory: number; inventoryQty?: number; inventoryWholesale?: number; wholesaleUnitPrice?: number; fixedAssets: number; ap: number; longTermLiabilities: number; equity: number }} p */
 export function buildBalanceSheetSnapshot(p) {
   const currentAssetsTotal = roundMoney2(p.cash);
-  const inventoryTotal = roundMoney2(p.inventory);
+  const inventoryAtCost = roundMoney2(p.inventory);
+  const inventoryQty = Number(p.inventoryQty) || 0;
+  const wholesaleUnit = Number(p.wholesaleUnitPrice) || TEST_CASE_WHOLESALE_PRICE;
+  const inventoryWholesale = roundMoney2(
+    p.inventoryWholesale != null ? p.inventoryWholesale : inventoryQty * wholesaleUnit
+  );
   const fixedAssetsTotal = roundMoney2(p.fixedAssets);
-  const totalAssets = roundMoney2(currentAssetsTotal + inventoryTotal + fixedAssetsTotal);
+  const totalAssets = roundMoney2(currentAssetsTotal + inventoryAtCost + fixedAssetsTotal);
 
   const currentLiabilitiesTotal = roundMoney2(p.ap);
   const longTermLiabilitiesTotal = roundMoney2(p.longTermLiabilities);
@@ -94,7 +102,11 @@ export function buildBalanceSheetSnapshot(p) {
       total: currentAssetsTotal,
     },
     inventory: {
-      total: inventoryTotal,
+      qty: inventoryQty,
+      atCost: inventoryAtCost,
+      wholesaleUnitPrice: wholesaleUnit,
+      wholesaleTotal: inventoryWholesale,
+      total: inventoryAtCost,
     },
     fixedAssets: {
       total: fixedAssetsTotal,
@@ -136,6 +148,8 @@ export function buildBalanceLedgerFromSteps(steps) {
    *   ap: number;
    *   cash: number;
    *   inventoryValue: number;
+   *   inventoryWholesale: number;
+   *   inventoryQty: number;
    *   equity: number;
    *   totalCurrentAssets: number;
    *   totalCurrentLiabilities: number;
@@ -176,9 +190,14 @@ export function buildBalanceLedgerFromSteps(steps) {
       detailParts.push(`${lg.type} ${lg.qty} @ ${unit}`);
     }
 
+    const inventoryWholesale = roundMoney2(costState.qty * TEST_CASE_WHOLESALE_PRICE);
+
     const balanceSheet = buildBalanceSheetSnapshot({
       cash,
       inventory: costState.value,
+      inventoryQty: costState.qty,
+      inventoryWholesale,
+      wholesaleUnitPrice: TEST_CASE_WHOLESALE_PRICE,
       fixedAssets: 0,
       ap,
       longTermLiabilities: 0,
@@ -193,6 +212,8 @@ export function buildBalanceLedgerFromSteps(steps) {
       ap,
       cash,
       inventoryValue: costState.value,
+      inventoryWholesale,
+      inventoryQty: costState.qty,
       equity,
       totalCurrentAssets: balanceSheet.currentAssets.total,
       totalCurrentLiabilities: balanceSheet.currentLiabilities.total,
