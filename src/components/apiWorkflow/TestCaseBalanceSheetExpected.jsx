@@ -12,6 +12,109 @@ function formatMoney(n) {
   return `Rs. ${formatted}`;
 }
 
+function BalanceSheetPanel({ sheet, compact = false }) {
+  if (!sheet) return null;
+
+  const sectionTitle = compact
+    ? 'text-[10px] font-bold uppercase tracking-wide'
+    : 'text-[11px] font-bold uppercase tracking-wide';
+
+  return (
+    <div className={`grid gap-3 ${compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
+      <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-2.5">
+        <p className={`${sectionTitle} text-emerald-900`}>Assets</p>
+        <div className="mt-2 space-y-2 text-[11px]">
+          <div>
+            <p className="font-semibold text-slate-800">Current assets</p>
+            <div className="mt-1 flex justify-between text-slate-700">
+              <span>Cash</span>
+              <span className="font-mono">{formatMoney(sheet.currentAssets.cash)}</span>
+            </div>
+            <div className="flex justify-between border-t border-emerald-100 pt-1 font-medium text-slate-800">
+              <span>Total current assets</span>
+              <span className="font-mono">{formatMoney(sheet.currentAssets.total)}</span>
+            </div>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Inventory</p>
+            <div className="mt-1 flex justify-between text-slate-700">
+              <span>Inventory</span>
+              <span className="font-mono">{formatMoney(sheet.inventory.total)}</span>
+            </div>
+            <div className="flex justify-between border-t border-emerald-100 pt-1 font-medium text-slate-800">
+              <span>Total inventory</span>
+              <span className="font-mono">{formatMoney(sheet.inventory.total)}</span>
+            </div>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Fixed assets</p>
+            <div className="flex justify-between border-t border-emerald-100 pt-1 font-medium text-slate-800">
+              <span>Total fixed assets</span>
+              <span className="font-mono">{formatMoney(sheet.fixedAssets.total)}</span>
+            </div>
+          </div>
+          <div className="flex justify-between border-t-2 border-emerald-200 pt-1 text-xs font-bold text-emerald-900">
+            <span>Total assets</span>
+            <span className="font-mono">{formatMoney(sheet.totalAssets)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-2.5">
+        <p className={`${sectionTitle} text-amber-900`}>Liabilities &amp; equity</p>
+        <div className="mt-2 space-y-2 text-[11px]">
+          <div>
+            <p className="font-semibold text-slate-800">Liabilities</p>
+            <div className="mt-1 flex justify-between text-slate-700">
+              <span>Current liabilities · Accounts payable</span>
+              <span className="font-mono">{formatMoney(sheet.currentLiabilities.accountsPayable)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Total current liabilities</span>
+              <span className="font-mono">{formatMoney(sheet.currentLiabilities.total)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Long-term liabilities</span>
+              <span className="font-mono">{formatMoney(sheet.longTermLiabilities.total)}</span>
+            </div>
+            <div className="flex justify-between border-t border-amber-100 pt-1 font-medium text-slate-800">
+              <span>Total liabilities</span>
+              <span className="font-mono">{formatMoney(sheet.totalLiabilities)}</span>
+            </div>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Equity</p>
+            <div className="mt-1 flex justify-between text-slate-700">
+              <span>Owner&apos;s equity</span>
+              <span className="font-mono">{formatMoney(sheet.equity.ownersEquity)}</span>
+            </div>
+            <div className="flex justify-between border-t border-amber-100 pt-1 font-medium text-slate-800">
+              <span>Total equity</span>
+              <span className="font-mono">{formatMoney(sheet.equity.total)}</span>
+            </div>
+          </div>
+          <div className="flex justify-between border-t-2 border-amber-200 pt-1 text-xs font-bold text-amber-900">
+            <span>Total liabilities &amp; equity</span>
+            <span className="font-mono">{formatMoney(sheet.totalLiabilitiesAndEquity)}</span>
+          </div>
+        </div>
+      </div>
+      <div
+        className={`sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-[11px] ${
+          sheet.balanced
+            ? 'border-emerald-200 bg-emerald-50/80 text-emerald-900'
+            : 'border-rose-200 bg-rose-50/80 text-rose-900'
+        }`}
+      >
+        <span className="font-semibold">{sheet.balanced ? 'Balanced' : 'Out of balance'}</span>
+        <span className="font-mono">
+          Assets − (Liabilities + Equity) = {formatMoney(sheet.outOfBalance)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /**
  * @param {{
  *   rows: ReturnType<typeof buildBalanceLedgerFromSteps>;
@@ -19,99 +122,36 @@ function formatMoney(n) {
  *   scrollMaxHeight?: string;
  * }} props
  */
-function BalanceSheetTable({ rows, statuses, scrollMaxHeight }) {
-  const last = rows.length ? rows[rows.length - 1] : null;
-
+function BalanceSheetStepsList({ rows, statuses, scrollMaxHeight }) {
   return (
     <div
-      className="overflow-x-auto overflow-y-auto"
+      className="space-y-3 overflow-y-auto pr-1"
       style={scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
     >
-      <table className="w-full min-w-[560px] border-collapse text-left text-xs">
-        <thead className="sticky top-0 z-[1] bg-white">
-          <tr className="border-b border-slate-200 text-slate-500">
-            <th className="py-2 pr-2 font-semibold" rowSpan={2}>
-              Case
-            </th>
-            <th
-              className="border-b border-slate-100 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-800"
-              colSpan={3}
-            >
-              Current assets
-            </th>
-            <th
-              className="border-b border-slate-100 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-amber-800"
-              colSpan={2}
-            >
-              Current liabilities
-            </th>
-          </tr>
-          <tr className="border-b border-slate-200 text-slate-500">
-            <th className="py-2 pr-2 text-end font-semibold">Cash</th>
-            <th className="py-2 pr-2 text-end font-semibold">Inventory</th>
-            <th className="py-2 pr-2 text-end font-semibold">Total</th>
-            <th className="py-2 pr-2 text-end font-semibold">Payable</th>
-            <th className="py-2 text-end font-semibold">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const status = statuses[row.stepIndex] ?? 'pending';
-            const verified = status === 'success';
-            return (
-              <tr
-                key={row.stepIndex}
-                className={['border-b border-slate-100', verified ? 'bg-slate-50/50' : ''].join(' ')}
-              >
-                <td className="py-2 pr-2">
-                  <div className="font-medium text-slate-800">
-                    {row.caseNo != null ? `#${row.caseNo}` : ''} {row.stepName}
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    {row.detail}
-                    {verified ? ' · done' : ''}
-                  </div>
-                </td>
-                <td className="py-2 pr-2 text-end font-mono text-emerald-800">
-                  {formatMoney(row.cash)}
-                </td>
-                <td className="py-2 pr-2 text-end font-mono text-indigo-800">
-                  {formatMoney(row.inventoryValue)}
-                </td>
-                <td className="py-2 pr-2 text-end font-mono font-semibold text-emerald-900">
-                  {formatMoney(row.totalCurrentAssets)}
-                </td>
-                <td className="py-2 pr-2 text-end font-mono text-amber-800">
-                  {formatMoney(row.ap)}
-                </td>
-                <td className="py-2 text-end font-mono font-semibold text-amber-900">
-                  {formatMoney(row.totalCurrentLiabilities)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        {last ? (
-          <tfoot className="sticky bottom-0 z-[1] bg-slate-50">
-            <tr className="border-t-2 border-slate-300 font-semibold text-slate-800">
-              <td className="py-2 pr-2">Final (expected)</td>
-              <td className="py-2 pr-2 text-end font-mono">{formatMoney(last.cash)}</td>
-              <td className="py-2 pr-2 text-end font-mono">{formatMoney(last.inventoryValue)}</td>
-              <td className="py-2 pr-2 text-end font-mono text-emerald-900">
-                {formatMoney(last.totalCurrentAssets)}
-              </td>
-              <td className="py-2 pr-2 text-end font-mono">{formatMoney(last.ap)}</td>
-              <td className="py-2 text-end font-mono text-amber-900">
-                {formatMoney(last.totalCurrentLiabilities)}
-              </td>
-            </tr>
-          </tfoot>
-        ) : null}
-      </table>
-      <p className="mt-2 text-[10px] text-slate-500">
-        Current assets: <code>default_cash_account</code> + inventory (WAC). Current liabilities:{' '}
-        <code>default_account_payable_account</code>. Parentheses = credit / negative balance.
-      </p>
+      {rows.map((row) => {
+        const status = statuses[row.stepIndex] ?? 'pending';
+        const verified = status === 'success';
+        return (
+          <div
+            key={row.stepIndex}
+            className={[
+              'rounded-lg border border-slate-200 p-2.5',
+              verified ? 'bg-white' : 'bg-slate-50/50',
+            ].join(' ')}
+          >
+            <div className="mb-2">
+              <div className="font-medium text-slate-800">
+                {row.caseNo != null ? `#${row.caseNo}` : ''} {row.stepName}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {row.detail}
+                {verified ? ' · done' : ''}
+              </div>
+            </div>
+            <BalanceSheetPanel sheet={row.balanceSheet} compact />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -123,6 +163,7 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
   const [maximized, setMaximized] = useState(false);
   const rows = useMemo(() => buildBalanceLedgerFromSteps(steps), [steps]);
   const last = rows.length ? rows[rows.length - 1] : null;
+  const finalSheet = last?.balanceSheet ?? null;
 
   useEffect(() => {
     if (!maximized) return undefined;
@@ -140,7 +181,7 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
           Expected balance sheet
         </h3>
         <p className="mt-0.5 text-[10px] text-slate-500">
-          Current assets vs current liabilities after each step
+          Current assets · Inventory · Fixed assets · Liabilities · Equity
         </p>
       </div>
       {rows.length > 0 ? (
@@ -163,7 +204,7 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
           Expected balance sheet
         </h3>
         <p className="mt-2 text-xs text-slate-500">
-          Run inventory transactions to see expected current assets and liabilities.
+          Run inventory transactions to see the expected balance sheet after each step.
         </p>
       </div>
     );
@@ -173,38 +214,21 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
     <>
       <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         {header(() => setMaximized(true))}
-        {last ? (
-          <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2 text-[11px] sm:grid-cols-2">
-            <div>
-              <p className="font-bold uppercase tracking-wide text-emerald-800">Current assets</p>
-              <div className="mt-1 flex justify-between text-slate-700">
-                <span>Cash</span>
-                <span className="font-mono">{formatMoney(last.cash)}</span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Inventory</span>
-                <span className="font-mono">{formatMoney(last.inventoryValue)}</span>
-              </div>
-              <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-semibold text-emerald-900">
-                <span>Total</span>
-                <span className="font-mono">{formatMoney(last.totalCurrentAssets)}</span>
-              </div>
-            </div>
-            <div>
-              <p className="font-bold uppercase tracking-wide text-amber-800">Current liabilities</p>
-              <div className="mt-1 flex justify-between text-slate-700">
-                <span>Accounts payable</span>
-                <span className="font-mono">{formatMoney(last.ap)}</span>
-              </div>
-              <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-semibold text-amber-900">
-                <span>Total</span>
-                <span className="font-mono">{formatMoney(last.totalCurrentLiabilities)}</span>
-              </div>
-            </div>
+        {finalSheet ? (
+          <div className="mt-2">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Final expected
+            </p>
+            <BalanceSheetPanel sheet={finalSheet} />
           </div>
         ) : null}
-        <div className="mt-2 max-h-64">
-          <BalanceSheetTable rows={rows} statuses={statuses} scrollMaxHeight="16rem" />
+        <div className="mt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            After each step
+          </p>
+          <div className="max-h-72">
+            <BalanceSheetStepsList rows={rows} statuses={statuses} scrollMaxHeight="18rem" />
+          </div>
         </div>
       </div>
 
@@ -217,12 +241,12 @@ export default function TestCaseBalanceSheetExpected({ steps, statuses }) {
           onClick={() => setMaximized(false)}
         >
           <div
-            className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+            className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-slate-200 px-4 py-3">{header(() => setMaximized(false))}</div>
             <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
-              <BalanceSheetTable
+              <BalanceSheetStepsList
                 rows={rows}
                 statuses={statuses}
                 scrollMaxHeight="calc(100vh - 8rem)"
