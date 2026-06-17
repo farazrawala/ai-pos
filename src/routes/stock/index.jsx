@@ -294,15 +294,18 @@ const StockListing = () => {
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {refName || refType ? (
-                                  <>
+                                  <div className="d-flex flex-column gap-1">
+                                    {refName ? (
+                                      <span>{refName}</span>
+                                    ) : null}
                                     {refType ? (
-                                      <span className="badge bg-light text-dark border mt-1">
+                                      <span className="badge bg-light text-dark border align-self-start">
                                         {refType
                                           .replace(/_/g, ' ')
                                           .replace(/\b\w/g, (c) => c.toUpperCase())}
                                       </span>
                                     ) : null}
-                                  </>
+                                  </div>
                                 ) : (
                                   '—'
                                 )}
