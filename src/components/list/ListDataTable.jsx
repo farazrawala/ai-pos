@@ -28,9 +28,10 @@ const ListDataTable = ({
   }
 
   if (error) {
+    const errorText = errorPrefix ? `${errorPrefix}: ${error}` : error;
     return (
       <div className="alert alert-danger mx-3 mt-3 mb-3" role="alert">
-        {errorPrefix}: {error}
+        {errorText}
       </div>
     );
   }

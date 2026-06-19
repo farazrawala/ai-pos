@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import moment from 'moment';
 import {
   fetchCompanyListCache,
+  normalizeCompanyCacheEntries,
   removeCompanyCacheRequest,
 } from '../../features/company/companyAPI.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -37,21 +38,23 @@ function formatValueSummary(summary) {
   return parts.length > 0 ? parts.join(', ') : JSON.stringify(summary);
 }
 
+const EMPTY_META = {
+  company_id: null,
+  pattern: null,
+  count: 0,
+  memory_count: 0,
+  redis_count: 0,
+  redis_enabled: false,
+  redis_connected: false,
+};
+
 const CompanyCachePage = () => {
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState('');
   const [includeValues, setIncludeValues] = useState(false);
-  const [meta, setMeta] = useState({
-    company_id: null,
-    pattern: null,
-    count: 0,
-    memory_count: 0,
-    redis_count: 0,
-    redis_enabled: false,
-    redis_connected: false,
-  });
+  const [meta, setMeta] = useState({ ...EMPTY_META });
   const [entries, setEntries] = useState([]);
 
   const loadCache = useCallback(async () => {
@@ -69,11 +72,14 @@ const CompanyCachePage = () => {
         redis_enabled: Boolean(data.redis_enabled),
         redis_connected: Boolean(data.redis_connected),
       });
-      setEntries(Array.isArray(data.entries) ? data.entries : []);
+      setEntries(normalizeCompanyCacheEntries(data.entries));
       if (typeof data.message === 'string') setMessage(data.message);
     } catch (err) {
-      setError(err?.message || 'Failed to load cache');
+      const exactError = err?.message || String(err) || 'Failed to load cache';
+      const statusSuffix = err?.status ? ` (HTTP ${err.status})` : '';
+      setError(`${exactError}${statusSuffix}`);
       setEntries([]);
+      setMeta({ ...EMPTY_META });
     } finally {
       setLoading(false);
     }
@@ -98,7 +104,9 @@ const CompanyCachePage = () => {
       if (typeof data?.message === 'string') setMessage(data.message);
       await loadCache();
     } catch (err) {
-      setError(err?.message || 'Failed to clear cache');
+      const exactError = err?.message || String(err) || 'Failed to clear cache';
+      const statusSuffix = err?.status ? ` (HTTP ${err.status})` : '';
+      setError(`${exactError}${statusSuffix}`);
     } finally {
       setClearing(false);
     }
@@ -153,6 +161,11 @@ const CompanyCachePage = () => {
               </div>
             </div>
             <div className="card-body pt-3">
+              {error ? (
+                <div className="alert alert-danger text-sm py-2 mb-3" role="alert">
+                  {error}
+                </div>
+              ) : null}
               {message ? (
                 <div className="alert alert-info text-sm py-2 mb-3" role="status">
                   {message}
@@ -203,13 +216,13 @@ const CompanyCachePage = () => {
               ) : null}
             </div>
             <div className="card-body pt-0 px-0 pb-0">
-              <ListDataTable
-                loading={loading}
-                loadingLabel="Loading cache entries…"
-                error={error}
-                pagination={{ total: entries.length, page: 1, limit: entries.length || 1, totalPages: 1 }}
-                showPagination={false}
-              >
+              {!error || loading ? (
+                <ListDataTable
+                  loading={loading}
+                  loadingLabel="Loading cache entries…"
+                  pagination={{ total: entries.length, page: 1, limit: entries.length || 1, totalPages: 1 }}
+                  showPagination={false}
+                >
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
@@ -265,7 +278,7 @@ const CompanyCachePage = () => {
                           </td>
                           <td className="text-sm font-weight-normal text-break">
                             <code className="text-xs" title={row.key}>
-                              {row.key || '—'}
+                              {row.key != null && row.key !== '' ? String(row.key) : '—'}
                             </code>
                           </td>
                           {includeValues ? (
@@ -279,6 +292,7 @@ const CompanyCachePage = () => {
                   </tbody>
                 </table>
               </ListDataTable>
+              ) : null}
             </div>
           </div>
         </div>

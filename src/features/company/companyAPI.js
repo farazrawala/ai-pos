@@ -345,6 +345,85 @@ async function parseJsonResponse(res) {
   return { data, ok: res.ok, status: res.status };
 }
 
+/** Pull the most specific API error string from a JSON envelope. */
+function extractCompanyApiErrorMessage(data, status) {
+  if (!data || typeof data !== 'object') {
+    return `Request failed (${status})`;
+  }
+  if (typeof data.message === 'string' && data.message.trim()) {
+    return data.message.trim();
+  }
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return data.error.trim();
+  }
+  if (data.error && typeof data.error === 'object') {
+    if (typeof data.error.message === 'string' && data.error.message.trim()) {
+      return data.error.message.trim();
+    }
+    if (typeof data.error.error === 'string' && data.error.error.trim()) {
+      return data.error.error.trim();
+    }
+  }
+  if (typeof data.detail === 'string' && data.detail.trim()) {
+    return data.detail.trim();
+  }
+  if (typeof data.details === 'string' && data.details.trim()) {
+    return data.details.trim();
+  }
+  if (data.data && typeof data.data === 'object' && typeof data.data.message === 'string') {
+    const nested = data.data.message.trim();
+    if (nested) return nested;
+  }
+  try {
+    const compact = JSON.stringify(data);
+    if (compact && compact !== '{}') {
+      return compact.length > 500 ? `${compact.slice(0, 500)}…` : compact;
+    }
+  } catch {
+    /* ignore circular payloads */
+  }
+  return `Request failed (${status})`;
+}
+
+function throwCompanyApiError(data, status) {
+  const message = extractCompanyApiErrorMessage(data, status);
+  const err = new Error(message);
+  err.status = status;
+  err.payload = data;
+  throw err;
+}
+
+/** Coerce list-cache rows so `key` is always a string (avoids render issues). */
+export function normalizeCompanyCacheEntries(raw) {
+  if (raw == null) return [];
+  const rows = Array.isArray(raw) ? raw : typeof raw === 'object' ? Object.entries(raw) : [];
+  const normalized = [];
+
+  for (const item of rows) {
+    let row = item;
+    if (Array.isArray(item) && item.length >= 2) {
+      const [cacheKey, value] = item;
+      if (value != null && typeof value === 'object' && !Array.isArray(value)) {
+        row = { ...value, key: value.key ?? cacheKey };
+      } else {
+        row = { key: cacheKey, value_summary: value };
+      }
+    }
+
+    if (row == null) continue;
+    if (typeof row === 'string' || typeof row === 'number') {
+      normalized.push({ key: String(row) });
+      continue;
+    }
+    if (typeof row !== 'object' || Array.isArray(row)) continue;
+
+    const key = row.key != null && row.key !== '' ? String(row.key) : '';
+    normalized.push({ ...row, key });
+  }
+
+  return normalized;
+}
+
 /** GET URL to list company-scoped list-cache entries (Redis + memory). */
 export function buildCompanyListCacheUrl(includeValues = false) {
   const base = `${API_BASE_URL}/company/list-cache`;
@@ -366,21 +445,13 @@ export async function fetchCompanyListCache(includeValues = false) {
     },
   });
   const { data, ok, status } = await parseJsonResponse(res);
-  if (!ok) {
-    const msg =
-      (typeof data?.message === 'string' && data.message) ||
-      (typeof data?.error === 'string' && data.error) ||
-      `Request failed (${status})`;
-    throw new Error(msg);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
   }
-  if (data && data.success === false) {
-    const msg =
-      (typeof data.message === 'string' && data.message) ||
-      (typeof data.error === 'string' && data.error) ||
-      'Failed to load company cache';
-    throw new Error(msg);
-  }
-  return data;
+  return {
+    ...data,
+    entries: normalizeCompanyCacheEntries(data?.entries),
+  };
 }
 
 /** DELETE URL to invalidate company-scoped API cache before balance sheet loads. */
@@ -402,19 +473,8 @@ export async function removeCompanyCacheRequest() {
     },
   });
   const { data, ok, status } = await parseJsonResponse(res);
-  if (!ok) {
-    const msg =
-      (typeof data?.message === 'string' && data.message) ||
-      (typeof data?.error === 'string' && data.error) ||
-      `Request failed (${status})`;
-    throw new Error(msg);
-  }
-  if (data && data.success === false) {
-    const msg =
-      (typeof data.message === 'string' && data.message) ||
-      (typeof data.error === 'string' && data.error) ||
-      'Failed to clear company cache';
-    throw new Error(msg);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
   }
   return data;
 }
