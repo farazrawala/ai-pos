@@ -45,3 +45,14 @@
 | 33 | Bulk sale 1/28 |          157 |
 | … | … | … |
 | 60 | Bulk sale 28/28 |          130 |
+
+## Purchase → Sell → Repurchase → Sales return
+
+Select **Purchase → Sell → Repurchase → Sales return** in the test-case runner.
+
+| # | Transaction | Expected Qty |
+| - | ----------- | -----------: |
+| 1 | Purchase 1 @ 60 | 1 |
+| 2 | Sale 1 @ 100 (order #1) | 0 |
+| 3 | Purchase 1 @ 90 | 1 |
+| 4 | Sales Return 1 (from order #1) | 2 |

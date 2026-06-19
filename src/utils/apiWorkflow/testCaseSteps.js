@@ -169,6 +169,73 @@ export const INVENTORY_TEST_CASES = [
   },
 ];
 
+/** Short scenario: purchase → sell → repurchase → sales return. */
+export const SIMPLE_PURCHASE_SELL_RETURN_CASES = [
+  {
+    n: 1,
+    type: 'purchase',
+    label: 'Purchase 1 @ 60',
+    qty: 1,
+    price: 60,
+    expected: 1,
+    skipEdit: true,
+  },
+  {
+    n: 2,
+    type: 'sale',
+    label: 'Sale 1 @ 100 (order #1)',
+    qty: 1,
+    salePrice: 100,
+    expected: 0,
+    skipEdit: true,
+  },
+  {
+    n: 3,
+    type: 'purchase',
+    label: 'Purchase 1 @ 90',
+    qty: 1,
+    price: 90,
+    expected: 1,
+    skipEdit: true,
+  },
+  {
+    n: 4,
+    type: 'sales_return',
+    label: 'Sales Return 1 (from order #1 / sale #2)',
+    qty: 1,
+    salePrice: 100,
+    expected: 2,
+  },
+];
+
+/** Selectable test-case suites for the inventory runner. */
+export const TEST_CASE_SUITES = [
+  {
+    id: 'rb-full',
+    label: 'Full inventory suite (test_case.rb)',
+    description:
+      '32 scenarios from test_case.rb, plus bulk customer sales. Each sale/purchase adds GET + PATCH edit (qty −1). Returns are create + GET only.',
+    getTransactionCases: () => [...INVENTORY_TEST_CASES, ...buildBulkUserSaleCases()],
+    postTransactionSteps: () => [
+      {
+        name: `Verify: Ledger transactions for bulk user (${BULK_USER_TXN_COUNT}+ sales)`,
+        requiresAuth: true,
+        method: 'GET',
+        url: '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
+        body: {},
+      },
+    ],
+  },
+  {
+    id: 'purchase-sell-return',
+    label: 'Purchase → Sell → Repurchase → Sales return',
+    description:
+      'Purchase qty 1 @ Rs. 60, sell qty 1 @ Rs. 100 (order #1), purchase 1 more @ Rs. 90, then return order #1.',
+    getTransactionCases: () => SIMPLE_PURCHASE_SELL_RETURN_CASES,
+    postTransactionSteps: () => [],
+  },
+];
+
 /** Bulk block: same customer user, simple sales (no get/edit). Count in 25–30 range. */
 export const BULK_USER_TXN_COUNT = 28;
 
@@ -210,13 +277,20 @@ function effectiveTxnQty(refCase) {
   return q;
 }
 
-function inventoryCase(n) {
-  return INVENTORY_TEST_CASES.find((c) => c.n === n);
+/** @param {number} n @param {typeof INVENTORY_TEST_CASES} cases */
+function inventoryCase(n, cases) {
+  return cases.find((c) => c.n === n);
 }
 
-/** @param {number} qty */
-function saleQtyLedger(qty) {
-  return { type: 'sale', qty, unitPrice: PRODUCT_PRICE };
+/** @param {number} qty @param {number} [unitPrice] */
+function saleQtyLedger(qty, unitPrice = PRODUCT_PRICE) {
+  return { type: 'sale', qty, unitPrice };
+}
+
+/** @param {{ salePrice?: number }} tc */
+function saleUnitPrice(tc) {
+  const p = Number(tc.salePrice);
+  return Number.isFinite(p) && p > 0 ? p : PRODUCT_PRICE;
 }
 
 /** Response paths for default account fields on signup `user_company` response. */
@@ -253,9 +327,10 @@ function salePaymentAccountToken(amountReceived, total) {
   return '{{default_account_receivable_account_id}}';
 }
 
-/** @param {{ qty: number }} tc @param {number} qty */
+/** @param {{ qty: number; salePrice?: number }} tc @param {number} qty */
 function saleBody(tc, qty = tc.qty) {
-  const total = qty * PRODUCT_PRICE;
+  const unitPrice = saleUnitPrice(tc);
+  const total = qty * unitPrice;
   const amountReceived = String(total);
   const payAccount = salePaymentAccountToken(amountReceived, total);
   return {
@@ -273,7 +348,7 @@ function saleBody(tc, qty = tc.qty) {
     posPayMethod: payAccount,
     'product_id[0]': '{{product_1_id}}',
     'qty[0]': String(qty),
-    'price[0]': String(PRODUCT_PRICE),
+    'price[0]': String(unitPrice),
   };
 }
 
@@ -322,9 +397,10 @@ function purchaseReturnBody(tc, qty = tc.qty) {
   };
 }
 
-/** @param {{ n: number; qty: number }} tc @param {number} qty */
+/** @param {{ n: number; qty: number; salePrice?: number }} tc @param {number} qty */
 function salesReturnBody(tc, qty = tc.qty) {
-  const total = qty * PRODUCT_PRICE;
+  const unitPrice = saleUnitPrice(tc);
+  const total = qty * unitPrice;
   return {
     customer_id: '{{customer_id}}',
     ref_no: `TC-SR-${tc.n}`,
@@ -337,7 +413,7 @@ function salesReturnBody(tc, qty = tc.qty) {
     total_amount: String(total),
     'product_id[0]': '{{product_1_id}}',
     'qty[0]': String(qty),
-    'price[0]': String(PRODUCT_PRICE),
+    'price[0]': String(unitPrice),
     'warehouse_id[0]': '{{warehouse_1_id}}',
     'shipping_per_unit[0]': '0',
     'total_shipping[0]': '0',
@@ -381,7 +457,7 @@ function buildSalesReturnSteps(tc) {
       url: '{{url}}api/sales_return/sales_return_create',
       bodyType: 'form',
       body: salesReturnBody(tc),
-      qtyLedger: { type: 'sales_return', qty: tc.qty, unitPrice: PRODUCT_PRICE },
+      qtyLedger: { type: 'sales_return', qty: tc.qty, unitPrice: saleUnitPrice(tc) },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -398,6 +474,23 @@ function buildSalesReturnSteps(tc) {
 
 /** @param {typeof INVENTORY_TEST_CASES[number]} tc */
 function buildPurchaseSteps(tc) {
+  if (tc.skipEdit) {
+    return [
+      {
+        caseNo: tc.n,
+        name: `${tc.n}. ${tc.label}`,
+        requiresAuth: true,
+        method: 'POST',
+        url: '{{url}}api/purchase_order/purchase_order_create',
+        bodyType: 'form',
+        body: purchaseBody(tc),
+        qtyLedger: { type: 'purchase', qty: tc.qty, unitCost: tc.price, unitPrice: tc.price },
+        save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
+        caseFinal: true,
+      },
+    ];
+  }
+
   const nextQty = editedQty(tc);
   const editDelta = Number(tc.qty) - nextQty;
 
@@ -449,7 +542,7 @@ function buildSaleSteps(tc) {
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
         body: saleBody(tc),
-        qtyLedger: saleQtyLedger(tc.qty),
+        qtyLedger: saleQtyLedger(tc.qty, saleUnitPrice(tc)),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
       },
       {
@@ -459,7 +552,7 @@ function buildSaleSteps(tc) {
         method: 'DELETE',
         url: `{{url}}api/order/order_delete/{{txn_${tc.n}_id}}`,
         body: {},
-        qtyLedger: { type: 'delete_sale', qty: tc.qty, unitPrice: PRODUCT_PRICE },
+        qtyLedger: { type: 'delete_sale', qty: tc.qty, unitPrice: saleUnitPrice(tc) },
         caseFinal: true,
       },
     ];
@@ -475,7 +568,7 @@ function buildSaleSteps(tc) {
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
         body: saleBody(tc),
-        qtyLedger: saleQtyLedger(tc.qty),
+        qtyLedger: saleQtyLedger(tc.qty, saleUnitPrice(tc)),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
         caseFinal: true,
       },
@@ -484,6 +577,7 @@ function buildSaleSteps(tc) {
 
   const nextQty = editedQty(tc);
   const editDelta = Number(tc.qty) - nextQty;
+  const unitPrice = saleUnitPrice(tc);
 
   return [
     {
@@ -494,7 +588,7 @@ function buildSaleSteps(tc) {
       url: '{{url}}api/order/order_save',
       bodyType: 'form',
       body: saleBody(tc),
-      qtyLedger: saleQtyLedger(tc.qty),
+      qtyLedger: saleQtyLedger(tc.qty, unitPrice),
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
     {
@@ -513,14 +607,14 @@ function buildSaleSteps(tc) {
       url: `{{url}}api/order/order_update/{{txn_${tc.n}_id}}`,
       bodyType: 'form',
       body: saleBody(tc, nextQty),
-      qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta, unitPrice: PRODUCT_PRICE } : undefined,
+      qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta, unitPrice } : undefined,
       caseFinal: true,
     },
   ];
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildStepsForCase(tc) {
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {typeof INVENTORY_TEST_CASES} allCases */
+function buildStepsForCase(tc, allCases) {
   const base = {
     caseNo: tc.n,
     name: `${tc.n}. ${tc.label}`,
@@ -539,7 +633,7 @@ function buildStepsForCase(tc) {
     case 'sales_return':
       return buildSalesReturnSteps(tc);
     case 'delete_purchase': {
-      const refCase = inventoryCase(tc.ref);
+      const refCase = inventoryCase(tc.ref, allCases);
       const undoQty = effectiveTxnQty(refCase) || Number(tc.refQty) || 0;
       return [
         {
@@ -556,7 +650,7 @@ function buildStepsForCase(tc) {
       ];
     }
     case 'delete_sale': {
-      const refCase = inventoryCase(tc.ref);
+      const refCase = inventoryCase(tc.ref, allCases);
       const undoQty = effectiveTxnQty(refCase) || Number(tc.refQty) || 0;
       return [
         {
@@ -564,12 +658,16 @@ function buildStepsForCase(tc) {
           method: 'DELETE',
           url: `{{url}}api/order/order_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: { type: 'delete_sale', qty: undoQty, unitPrice: PRODUCT_PRICE },
+          qtyLedger: {
+            type: 'delete_sale',
+            qty: undoQty,
+            unitPrice: refCase ? saleUnitPrice(refCase) : PRODUCT_PRICE,
+          },
         },
       ];
     }
     case 'delete_purchase_return': {
-      const refCase = inventoryCase(tc.ref);
+      const refCase = inventoryCase(tc.ref, allCases);
       return [
         {
           ...base,
@@ -793,19 +891,16 @@ function createSetupSteps() {
   ];
 }
 
-/** Full workflow: setup + inventory transactions from test_case.rb (+ bulk user sales). */
-export function createInventoryTestCaseSteps() {
-  const bulkCases = buildBulkUserSaleCases();
+/**
+ * Full workflow: setup + inventory transactions for the selected suite.
+ * @param {string} [suiteId]
+ */
+export function createInventoryTestCaseSteps(suiteId = TEST_CASE_SUITES[0].id) {
+  const suite = TEST_CASE_SUITES.find((s) => s.id === suiteId) ?? TEST_CASE_SUITES[0];
+  const cases = suite.getTransactionCases();
   const txnSteps = [
-    ...INVENTORY_TEST_CASES.flatMap(buildStepsForCase),
-    ...bulkCases.flatMap(buildStepsForCase),
-    {
-      name: `Verify: Ledger transactions for bulk user (${BULK_USER_TXN_COUNT}+ sales)`,
-      requiresAuth: true,
-      method: 'GET',
-      url: '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
-      body: {},
-    },
+    ...cases.flatMap((tc) => buildStepsForCase(tc, cases)),
+    ...suite.postTransactionSteps(),
   ];
   return assignRunningExpected([...createSetupSteps(), ...txnSteps]);
 }

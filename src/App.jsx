@@ -55,6 +55,7 @@ import LedgerListingPage from './routes/ledger/index.jsx';
 import UserLedgerDetailPage from './routes/ledger/UserLedgerDetailPage.jsx';
 import BalanceSheetPage from './routes/balanceSheet/index.jsx';
 import AdvanceBalanceSheetPage from './routes/advanceBalanceSheet/index.jsx';
+import ProfitVsGlGapPage from './routes/profitVsGlGap/index.jsx';
 import IncomeStatementPage from './routes/incomeStatement/index.jsx';
 import PaymentManagementPage from './routes/payments/index.jsx';
 import PaymentReceiptsList from './routes/payment_receipt/index.jsx';
@@ -146,6 +147,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
+          <Route path="/profit-vs-gl-gap" element={<ProfitVsGlGapPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
@@ -254,6 +256,7 @@ const App = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
+          <Route path="/profit-vs-gl-gap" element={<ProfitVsGlGapPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />

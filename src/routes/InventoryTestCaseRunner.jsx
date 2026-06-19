@@ -7,7 +7,11 @@ import ResponseViewer from '../components/apiWorkflow/ResponseViewer.jsx';
 import TestCaseQtyLedger from '../components/apiWorkflow/TestCaseQtyLedger.jsx';
 import TestCaseBalanceLedger from '../components/apiWorkflow/TestCaseBalanceLedger.jsx';
 import TestCaseBalanceSheetExpected from '../components/apiWorkflow/TestCaseBalanceSheetExpected.jsx';
-import { createInventoryTestCaseSteps, BULK_USER_TXN_COUNT } from '../utils/apiWorkflow/testCaseSteps.js';
+import {
+  createInventoryTestCaseSteps,
+  BULK_USER_TXN_COUNT,
+  TEST_CASE_SUITES,
+} from '../utils/apiWorkflow/testCaseSteps.js';
 import { interpolateDeep, interpolateUrl } from '../utils/apiWorkflow/variableReplace.js';
 import { applySaveMap } from '../utils/apiWorkflow/extractFromResponse.js';
 import { objectToFormData } from '../utils/apiWorkflow/formData.js';
@@ -36,29 +40,26 @@ import {
 
 const emptyStatuses = (n) => Array.from({ length: n }, () => 'pending');
 
-function useInitialRunnerSnapshot() {
-  const ref = useRef(null);
-  if (ref.current === null) {
-    const steps = createInventoryTestCaseSteps();
-    ref.current = {
-      steps,
-      statuses: emptyStatuses(steps.length),
-      bodyText: JSON.stringify(steps[0]?.body ?? {}, null, 2),
-      stepResults: Array.from({ length: steps.length }, () => null),
-    };
-  }
-  return ref.current;
-}
-
 const InventoryTestCaseRunner = () => {
-  const initialSnapshot = useInitialRunnerSnapshot();
-  const [steps] = useState(() => initialSnapshot.steps);
+  const [selectedSuiteId, setSelectedSuiteId] = useState(() => TEST_CASE_SUITES[0].id);
+  const selectedSuite = useMemo(
+    () => TEST_CASE_SUITES.find((s) => s.id === selectedSuiteId) ?? TEST_CASE_SUITES[0],
+    [selectedSuiteId]
+  );
+  const steps = useMemo(
+    () => createInventoryTestCaseSteps(selectedSuiteId),
+    [selectedSuiteId]
+  );
   const [baseUrl, setBaseUrl] = useState(() => getWorkflowBaseUrl());
   const [variables, setVariables] = useState(() => seedTestCaseWorkflowVars({}));
-  const [statuses, setStatuses] = useState(() => initialSnapshot.statuses);
+  const [statuses, setStatuses] = useState(() => emptyStatuses(steps.length));
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [bodyText, setBodyText] = useState(() => initialSnapshot.bodyText);
-  const [stepResults, setStepResults] = useState(() => initialSnapshot.stepResults);
+  const [bodyText, setBodyText] = useState(() =>
+    JSON.stringify(steps[0]?.body ?? {}, null, 2)
+  );
+  const [stepResults, setStepResults] = useState(() =>
+    Array.from({ length: steps.length }, () => null)
+  );
   const [loadingStep, setLoadingStep] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
   const [runningChecked, setRunningChecked] = useState(false);
@@ -68,7 +69,7 @@ const InventoryTestCaseRunner = () => {
   const [checkQtyAsExpected, setCheckQtyAsExpected] = useState(true);
   const checkQtyRef = useRef(true);
   const [checkedSteps, setCheckedSteps] = useState(() =>
-    Array.from({ length: initialSnapshot.steps.length }, () => false)
+    Array.from({ length: steps.length }, () => false)
   );
 
   const variablesRef = useRef(variables);
@@ -89,6 +90,18 @@ const InventoryTestCaseRunner = () => {
     checkQtyRef.current = checkQtyAsExpected;
   }, [checkQtyAsExpected]);
 
+  useEffect(() => {
+    const initial = seedTestCaseWorkflowVars({});
+    variablesRef.current = initial;
+    setVariables(initial);
+    setStatuses(emptyStatuses(steps.length));
+    setStepResults(Array.from({ length: steps.length }, () => null));
+    setCheckedSteps(Array.from({ length: steps.length }, () => false));
+    setSelectedIndex(0);
+    setLoadingStep(null);
+    setBodyText(JSON.stringify(steps[0]?.body ?? {}, null, 2));
+  }, [selectedSuiteId, steps]);
+
   const selectedStep = steps[selectedIndex] ?? null;
 
   useEffect(() => {
@@ -106,6 +119,7 @@ const InventoryTestCaseRunner = () => {
     setVariables(initial);
     setStatuses(emptyStatuses(steps.length));
     setStepResults(Array.from({ length: steps.length }, () => null));
+    setCheckedSteps(Array.from({ length: steps.length }, () => false));
     setLoadingStep(null);
     setSelectedIndex(0);
   }, [steps.length]);
@@ -494,15 +508,16 @@ const InventoryTestCaseRunner = () => {
               Inventory test case runner
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Manual API checks from <code className="text-indigo-600">test_case.rb</code> — check
-              steps in the list and use <strong>Run selected steps</strong>, or run one at a time.
-              Each <strong>sale</strong> and <strong>purchase</strong> adds GET + PATCH edit (qty −1).{' '}
-              <strong>Purchase returns</strong> and <strong>sales returns</strong> are create + GET
-              only (no edit). After case #32,{' '}
-              <strong>{BULK_USER_TXN_COUNT} bulk sales</strong> use the same customer user (
-              <code className="text-indigo-600">bulk_user_id</code>). Run all setup steps in order
-              through <strong>Setup: Verify products (list)</strong> before inventory cases — POS
-              will be empty until the product setup steps succeed.
+              {selectedSuite.description} Run setup through{' '}
+              <strong>Setup: Verify products (list)</strong> before inventory cases — POS will be
+              empty until product setup succeeds.
+              {selectedSuiteId === 'rb-full' ? (
+                <>
+                  {' '}
+                  After case #32, <strong>{BULK_USER_TXN_COUNT} bulk sales</strong> use the same
+                  customer user (<code className="text-indigo-600">bulk_user_id</code>).
+                </>
+              ) : null}
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Also see{' '}
@@ -524,6 +539,21 @@ const InventoryTestCaseRunner = () => {
         </header>
 
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:min-w-[280px]">
+            Test case suite
+            <select
+              value={selectedSuiteId}
+              onChange={(e) => setSelectedSuiteId(e.target.value)}
+              disabled={busy}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-slate-50"
+            >
+              {TEST_CASE_SUITES.map((suite) => (
+                <option key={suite.id} value={suite.id}>
+                  {suite.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:min-w-[240px]">
             Base URL
             <input
