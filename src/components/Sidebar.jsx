@@ -91,7 +91,7 @@ const navItems = [
     // adminOnly: true,
     // debugOnly: true,
   },
-  { to: '/company-cache', label: 'Company cache', icon: FaDatabase, debugOnly: true },
+  { to: '/company-cache', label: 'Company cache', icon: FaDatabase },
 ];
 
 const Sidebar = () => {
