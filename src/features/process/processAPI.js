@@ -194,6 +194,14 @@ export const createBulkSyncBrandProcessRequest = async (integrationId, brandIds 
     brand_ids: brandIds,
   });
 
+/** Queue import of all products from a store integration (WooCommerce / Shopify). */
+export const createFetchProductProcessRequest = async (integrationId) =>
+  createProcessRequest({
+    integration_id: integrationId,
+    action: 'fetch_product',
+    priority: 1000,
+  });
+
 export const createSyncProductProcessRequest = async (integrationId) =>
   createProcessRequest({
     integration_id: integrationId,

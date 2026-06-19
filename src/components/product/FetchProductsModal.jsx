@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
-import { createSyncProductProcessRequest } from '../../features/process/processAPI.js';
+import { createFetchProductProcessRequest } from '../../features/process/processAPI.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -62,7 +62,7 @@ export default function FetchProductsModal({ open, onClose, onSaved }) {
     setSaveError(null);
 
     try {
-      await createSyncProductProcessRequest(selectedIntegrationId);
+      await createFetchProductProcessRequest(selectedIntegrationId);
       setSaveStatus('succeeded');
       onSaved?.();
       onClose?.();
