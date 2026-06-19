@@ -47,8 +47,8 @@ import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 const navItems = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
   { to: '/pos', label: 'POS', icon: FaLaptop },
-  { to: '/orders', label: 'Orders', icon: FaCartShopping },
   { to: '/products', label: 'Products', icon: FaBox },
+  { to: '/orders', label: 'Orders', icon: FaCartShopping },
   { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
   { to: '/purchase-order-returns', label: 'Purchase order returns', icon: FaArrowRotateLeft },
   { to: '/sales-returns', label: 'Sales returns', icon: FaArrowRotateLeft },
