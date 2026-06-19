@@ -1,0 +1,101 @@
+﻿Handle,Title,Body HTML,Collection Type,Published,Sort Order,Tags,Parent
+clothing,Clothing,Discover premium clothing with fast shipping and easy returns.,manual,TRUE,best-selling,,
+electronics,Electronics,New arrivals in electronics — updated weekly for our Shopify store.,manual,TRUE,best-selling,,
+home-garden,Home & Garden,Best-selling home & garden for online shoppers — quality you can trust.,manual,TRUE,best-selling,,
+sports-outdoors,Sports & Outdoors,Discover premium sports & outdoors with fast shipping and easy returns.,manual,TRUE,best-selling,,
+beauty-personal-care,Beauty & Personal Care,"Affordable beauty & personal care designed for comfort, style, and durability.",manual,TRUE,best-selling,,
+toys-games,Toys & Games,"Affordable toys & games designed for comfort, style, and durability.",manual,TRUE,best-selling,,
+books-media,Books & Media,Browse books & media from trusted brands in our catalog.,manual,TRUE,best-selling,,
+automotive,Automotive,"Affordable automotive designed for comfort, style, and durability.",manual,TRUE,best-selling,,
+pet-supplies,Pet Supplies,Explore top-rated pet supplies at competitive prices.,manual,TRUE,best-selling,,
+office-supplies,Office Supplies,Limited-time deals on popular office supplies items.,manual,TRUE,best-selling,,
+health-wellness,Health & Wellness,Limited-time deals on popular health & wellness items.,manual,TRUE,best-selling,,
+jewelry-watches,Jewelry & Watches,Best-selling jewelry & watches for online shoppers — quality you can trust.,manual,TRUE,best-selling,,
+baby-kids,Baby & Kids,Limited-time deals on popular baby & kids items.,manual,TRUE,best-selling,,
+food-beverages,Food & Beverages,"Affordable food & beverages designed for comfort, style, and durability.",manual,TRUE,best-selling,,
+furniture,Furniture,Shop our curated selection of furniture for everyday use and special occasions.,manual,TRUE,best-selling,,
+tools-hardware,Tools & Hardware,Explore top-rated tools & hardware at competitive prices.,manual,TRUE,best-selling,,
+arts-crafts,Arts & Crafts,"Affordable arts & crafts designed for comfort, style, and durability.",manual,TRUE,best-selling,,
+musical-instruments,Musical Instruments,Browse musical instruments from trusted brands in our catalog.,manual,TRUE,best-selling,,
+travel-luggage,Travel & Luggage,Shop our curated selection of travel & luggage for everyday use and special occasions.,manual,TRUE,best-selling,,
+shoes-footwear,Shoes & Footwear,Browse shoes & footwear from trusted brands in our catalog.,manual,TRUE,best-selling,,
+men-s-t-shirts,Men's T-Shirts,Explore top-rated men's t-shirts at competitive prices.,manual,TRUE,best-selling,parent:clothing,Clothing
+women-s-dresses,Women's Dresses,Explore top-rated women's dresses at competitive prices.,manual,TRUE,best-selling,parent:clothing,Clothing
+kids-hoodies,Kids Hoodies,Best-selling kids hoodies for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:clothing,Clothing
+activewear,Activewear,Discover premium activewear with fast shipping and easy returns.,manual,TRUE,best-selling,parent:clothing,Clothing
+smartphones,Smartphones,Discover premium smartphones with fast shipping and easy returns.,manual,TRUE,best-selling,parent:electronics,Electronics
+laptops,Laptops,Browse laptops from trusted brands in our catalog.,manual,TRUE,best-selling,parent:electronics,Electronics
+tablets,Tablets,Best-selling tablets for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:electronics,Electronics
+headphones,Headphones,Limited-time deals on popular headphones items.,manual,TRUE,best-selling,parent:electronics,Electronics
+kitchen-appliances,Kitchen Appliances,Best-selling kitchen appliances for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:home-garden,Home & Garden
+bedding,Bedding,New arrivals in bedding — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:home-garden,Home & Garden
+bathroom-accessories,Bathroom Accessories,New arrivals in bathroom accessories — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:home-garden,Home & Garden
+lighting,Lighting,Limited-time deals on popular lighting items.,manual,TRUE,best-selling,parent:home-garden,Home & Garden
+camping-gear,Camping Gear,New arrivals in camping gear — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:sports-outdoors,Sports & Outdoors
+cycling,Cycling,Best-selling cycling for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:sports-outdoors,Sports & Outdoors
+fitness-equipment,Fitness Equipment,Browse fitness equipment from trusted brands in our catalog.,manual,TRUE,best-selling,parent:sports-outdoors,Sports & Outdoors
+team-sports,Team Sports,"Affordable team sports designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:sports-outdoors,Sports & Outdoors
+skincare,Skincare,Best-selling skincare for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:beauty-personal-care,Beauty & Personal Care
+makeup,Makeup,Best-selling makeup for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:beauty-personal-care,Beauty & Personal Care
+hair-care,Hair Care,Discover premium hair care with fast shipping and easy returns.,manual,TRUE,best-selling,parent:beauty-personal-care,Beauty & Personal Care
+fragrances,Fragrances,"Affordable fragrances designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:beauty-personal-care,Beauty & Personal Care
+action-figures,Action Figures,Shop our curated selection of action figures for everyday use and special occasions.,manual,TRUE,best-selling,parent:toys-games,Toys & Games
+board-games,Board Games,Explore top-rated board games at competitive prices.,manual,TRUE,best-selling,parent:toys-games,Toys & Games
+educational-toys,Educational Toys,"Affordable educational toys designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:toys-games,Toys & Games
+puzzles,Puzzles,"Affordable puzzles designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:toys-games,Toys & Games
+fiction,Fiction,"Affordable fiction designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:books-media,Books & Media
+non-fiction,Non-Fiction,New arrivals in non-fiction — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:books-media,Books & Media
+children-s-books,Children's Books,New arrivals in children's books — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:books-media,Books & Media
+comics-manga,Comics & Manga,Explore top-rated comics & manga at competitive prices.,manual,TRUE,best-selling,parent:books-media,Books & Media
+car-care,Car Care,New arrivals in car care — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:automotive,Automotive
+interior-accessories,Interior Accessories,"Affordable interior accessories designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:automotive,Automotive
+exterior-accessories,Exterior Accessories,Discover premium exterior accessories with fast shipping and easy returns.,manual,TRUE,best-selling,parent:automotive,Automotive
+motorcycle-gear,Motorcycle Gear,"Affordable motorcycle gear designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:automotive,Automotive
+dog-food,Dog Food,Best-selling dog food for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:pet-supplies,Pet Supplies
+cat-food,Cat Food,Limited-time deals on popular cat food items.,manual,TRUE,best-selling,parent:pet-supplies,Pet Supplies
+pet-toys,Pet Toys,Browse pet toys from trusted brands in our catalog.,manual,TRUE,best-selling,parent:pet-supplies,Pet Supplies
+aquarium-supplies,Aquarium Supplies,New arrivals in aquarium supplies — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:pet-supplies,Pet Supplies
+pens-pencils,Pens & Pencils,Discover premium pens & pencils with fast shipping and easy returns.,manual,TRUE,best-selling,parent:office-supplies,Office Supplies
+notebooks,Notebooks,New arrivals in notebooks — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:office-supplies,Office Supplies
+printers-ink,Printers & Ink,Discover premium printers & ink with fast shipping and easy returns.,manual,TRUE,best-selling,parent:office-supplies,Office Supplies
+desk-organizers,Desk Organizers,"Affordable desk organizers designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:office-supplies,Office Supplies
+vitamins-supplements,Vitamins & Supplements,Discover premium vitamins & supplements with fast shipping and easy returns.,manual,TRUE,best-selling,parent:health-wellness,Health & Wellness
+first-aid,First Aid,Browse first aid from trusted brands in our catalog.,manual,TRUE,best-selling,parent:health-wellness,Health & Wellness
+medical-devices,Medical Devices,Discover premium medical devices with fast shipping and easy returns.,manual,TRUE,best-selling,parent:health-wellness,Health & Wellness
+massage-relaxation,Massage & Relaxation,Shop our curated selection of massage & relaxation for everyday use and special occasions.,manual,TRUE,best-selling,parent:health-wellness,Health & Wellness
+necklaces,Necklaces,Shop our curated selection of necklaces for everyday use and special occasions.,manual,TRUE,best-selling,parent:jewelry-watches,Jewelry & Watches
+earrings,Earrings,Discover premium earrings with fast shipping and easy returns.,manual,TRUE,best-selling,parent:jewelry-watches,Jewelry & Watches
+bracelets,Bracelets,New arrivals in bracelets — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:jewelry-watches,Jewelry & Watches
+rings,Rings,Browse rings from trusted brands in our catalog.,manual,TRUE,best-selling,parent:jewelry-watches,Jewelry & Watches
+diapers-wipes,Diapers & Wipes,Discover premium diapers & wipes with fast shipping and easy returns.,manual,TRUE,best-selling,parent:baby-kids,Baby & Kids
+baby-clothing,Baby Clothing,Limited-time deals on popular baby clothing items.,manual,TRUE,best-selling,parent:baby-kids,Baby & Kids
+strollers,Strollers,Explore top-rated strollers at competitive prices.,manual,TRUE,best-selling,parent:baby-kids,Baby & Kids
+car-seats,Car Seats,Explore top-rated car seats at competitive prices.,manual,TRUE,best-selling,parent:baby-kids,Baby & Kids
+snacks,Snacks,Browse snacks from trusted brands in our catalog.,manual,TRUE,best-selling,parent:food-beverages,Food & Beverages
+coffee-tea,Coffee & Tea,New arrivals in coffee & tea — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:food-beverages,Food & Beverages
+pantry-staples,Pantry Staples,New arrivals in pantry staples — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:food-beverages,Food & Beverages
+organic-foods,Organic Foods,"Affordable organic foods designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:food-beverages,Food & Beverages
+living-room,Living Room,Browse living room from trusted brands in our catalog.,manual,TRUE,best-selling,parent:furniture,Furniture
+bedroom,Bedroom,Explore top-rated bedroom at competitive prices.,manual,TRUE,best-selling,parent:furniture,Furniture
+dining-room,Dining Room,New arrivals in dining room — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:furniture,Furniture
+office-furniture,Office Furniture,Browse office furniture from trusted brands in our catalog.,manual,TRUE,best-selling,parent:furniture,Furniture
+power-tools,Power Tools,Best-selling power tools for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:tools-hardware,Tools & Hardware
+hand-tools,Hand Tools,Discover premium hand tools with fast shipping and easy returns.,manual,TRUE,best-selling,parent:tools-hardware,Tools & Hardware
+plumbing,Plumbing,Browse plumbing from trusted brands in our catalog.,manual,TRUE,best-selling,parent:tools-hardware,Tools & Hardware
+electrical,Electrical,Explore top-rated electrical at competitive prices.,manual,TRUE,best-selling,parent:tools-hardware,Tools & Hardware
+painting-supplies,Painting Supplies,"Affordable painting supplies designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:arts-crafts,Arts & Crafts
+sewing-knitting,Sewing & Knitting,Limited-time deals on popular sewing & knitting items.,manual,TRUE,best-selling,parent:arts-crafts,Arts & Crafts
+scrapbooking,Scrapbooking,Shop our curated selection of scrapbooking for everyday use and special occasions.,manual,TRUE,best-selling,parent:arts-crafts,Arts & Crafts
+beading-jewelry-making,Beading & Jewelry Making,Discover premium beading & jewelry making with fast shipping and easy returns.,manual,TRUE,best-selling,parent:arts-crafts,Arts & Crafts
+guitars,Guitars,Best-selling guitars for online shoppers — quality you can trust.,manual,TRUE,best-selling,parent:musical-instruments,Musical Instruments
+keyboards-pianos,Keyboards & Pianos,Limited-time deals on popular keyboards & pianos items.,manual,TRUE,best-selling,parent:musical-instruments,Musical Instruments
+drums-percussion,Drums & Percussion,"Affordable drums & percussion designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:musical-instruments,Musical Instruments
+wind-instruments,Wind Instruments,"Affordable wind instruments designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:musical-instruments,Musical Instruments
+carry-on-bags,Carry-On Bags,New arrivals in carry-on bags — updated weekly for our Shopify store.,manual,TRUE,best-selling,parent:travel-luggage,Travel & Luggage
+checked-luggage,Checked Luggage,Explore top-rated checked luggage at competitive prices.,manual,TRUE,best-selling,parent:travel-luggage,Travel & Luggage
+backpacks,Backpacks,Limited-time deals on popular backpacks items.,manual,TRUE,best-selling,parent:travel-luggage,Travel & Luggage
+travel-accessories,Travel Accessories,"Affordable travel accessories designed for comfort, style, and durability.",manual,TRUE,best-selling,parent:travel-luggage,Travel & Luggage
+men-s-sneakers,Men's Sneakers,Discover premium men's sneakers with fast shipping and easy returns.,manual,TRUE,best-selling,parent:shoes-footwear,Shoes & Footwear
+women-s-heels,Women's Heels,Shop our curated selection of women's heels for everyday use and special occasions.,manual,TRUE,best-selling,parent:shoes-footwear,Shoes & Footwear
+running-shoes,Running Shoes,Limited-time deals on popular running shoes items.,manual,TRUE,best-selling,parent:shoes-footwear,Shoes & Footwear
+boots,Boots,Browse boots from trusted brands in our catalog.,manual,TRUE,best-selling,parent:shoes-footwear,Shoes & Footwear
