@@ -8,6 +8,7 @@ import {
   FaBuilding,
   FaGlobe,
   FaLandmark,
+  FaListUl,
   FaCartShopping,
   FaChartBar,
   FaChartLine,
@@ -92,6 +93,7 @@ const navItems = [
     // debugOnly: true,
   },
   { to: '/company-cache', label: 'Company cache', icon: FaDatabase },
+  { to: '/company-queues', label: 'Company queues', icon: FaListUl },
 ];
 
 const Sidebar = () => {

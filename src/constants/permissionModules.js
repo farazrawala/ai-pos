@@ -74,6 +74,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/transactions': 'transactions',
   '/logs': 'logs',
   '/company-cache': null,
+  '/company-queues': null,
 };
 
 export function getPermissionModuleForPath(pathname = '') {

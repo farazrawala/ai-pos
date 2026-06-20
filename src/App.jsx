@@ -63,6 +63,7 @@ import PaymentReceiptEditPage from './routes/payment_receipt/edit.jsx';
 import ApiWorkflowRunner from './routes/ApiWorkflowRunner.jsx';
 import InventoryTestCaseRunner from './routes/InventoryTestCaseRunner.jsx';
 import CompanyCachePage from './routes/companyCache/index.jsx';
+import CompanyQueuesPage from './routes/companyQueues/index.jsx';
 import CompanyPage from './routes/company/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
@@ -292,6 +293,7 @@ const App = () => {
           <Route path="/test-case" element={<InventoryTestCaseRunner />} />
           <Route path="/company" element={<CompanyPage />} />
           <Route path="/company-cache" element={<CompanyCachePage />} />
+          <Route path="/company-queues" element={<CompanyQueuesPage />} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

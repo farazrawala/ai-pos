@@ -479,6 +479,109 @@ export async function removeCompanyCacheRequest() {
   return data;
 }
 
+/** GET URL for all tenant Redis queues (`/api/company/queue`). */
+export function buildCompanyQueuesUrl() {
+  return `${API_BASE_URL}/company/queue`;
+}
+
+/** GET URL for one module queue (`/api/company/queue/:module`). */
+export function buildCompanyQueueModuleUrl(module = 'process') {
+  const mod = String(module || 'process').trim() || 'process';
+  return `${API_BASE_URL}/company/queue/${encodeURIComponent(mod)}`;
+}
+
+/** DELETE URL to clear a tenant module queue. */
+export function buildCompanyClearQueueUrl(module = 'process') {
+  return buildCompanyQueueModuleUrl(module);
+}
+
+/** Normalize pending queue rows from API (`jobId` / `member`, `score`). */
+export function normalizeQueuePending(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item, index) => {
+    if (item == null) return { rank: index + 1, jobId: '', score: null };
+    if (typeof item === 'string' || typeof item === 'number') {
+      return { rank: index + 1, jobId: String(item), score: null };
+    }
+    const jobId = item.jobId ?? item.job_id ?? item.member ?? item.id ?? '';
+    return {
+      rank: index + 1,
+      jobId: jobId != null && jobId !== '' ? String(jobId) : '',
+      score: item.score ?? null,
+    };
+  });
+}
+
+/**
+ * GET `company/queue` — list all module queues for the signed-in company.
+ */
+export async function fetchCompanyQueues() {
+  const token = getAuthToken();
+  const url = buildCompanyQueuesUrl();
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  const queues = Array.isArray(data?.queues) ? data.queues : [];
+  return {
+    ...data,
+    queues: queues.map((row) => ({
+      ...row,
+      pending: normalizeQueuePending(row.pending),
+    })),
+  };
+}
+
+/**
+ * GET `company/queue/:module` — peek pending jobs for one queue (e.g. `process`).
+ */
+export async function fetchCompanyQueueModule(module = 'process') {
+  const token = getAuthToken();
+  const url = buildCompanyQueueModuleUrl(module);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return {
+    ...data,
+    pending: normalizeQueuePending(data?.pending),
+  };
+}
+
+/**
+ * DELETE `company/queue/:module` — clear all jobs in a tenant module queue.
+ */
+export async function clearCompanyQueueModule(module = 'process') {
+  const token = getAuthToken();
+  const url = buildCompanyClearQueueUrl(module);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return data;
+}
+
 export async function fetchCompanyById(companyId) {
   const token = getAuthToken();
   const url = `${API_BASE_URL}/company/get/${encodeURIComponent(companyId)}`;
