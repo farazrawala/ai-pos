@@ -361,6 +361,7 @@ export default function BalanceSheetView() {
     completed: 0,
     total: 0,
   });
+  const [cacheClearWarning, setCacheClearWarning] = useState(null);
 
   const periodStart = useMemo(
     () => startOfCalendarMonth(fromYear, fromMonth),
@@ -431,6 +432,7 @@ export default function BalanceSheetView() {
       setFixedAssetsStatus({ loading: true, error: null });
       setInventoryStatus({ loading: true, error: null });
       setInventoryGrandTotal(0);
+      setCacheClearWarning(null);
       setLoadProgress({
         active: true,
         percent: 0,
@@ -481,7 +483,6 @@ export default function BalanceSheetView() {
       });
 
       const { results: apiResults } = await trackApiCallsSequential(allApiDefinitions, {
-        stopOnFirstError: true,
         onStepStart: ({ index, total, definition }) => {
           if (cancelled) return;
           markSourceStatus(definition.key ?? definition.label, 'loading');
@@ -516,16 +517,7 @@ export default function BalanceSheetView() {
 
       const cacheResult = apiResults[0];
       if (!cacheResult || cacheResult.status !== 'success') {
-        const cacheErr = cacheResult?.error || 'Failed to clear company cache';
-        const failed = { loading: false, error: cacheErr };
-        setLoadProgress((prev) => ({ ...prev, active: false }));
-        setCurrentAssetsStatus(failed);
-        setEquityStatus(failed);
-        setCurrentLiabilitiesStatus(failed);
-        setLongTermLiabilitiesStatus(failed);
-        setFixedAssetsStatus(failed);
-        setInventoryStatus(failed);
-        return;
+        setCacheClearWarning(cacheResult?.error || 'Failed to clear company cache');
       }
 
       const results = apiResults.slice(1);
@@ -832,6 +824,16 @@ export default function BalanceSheetView() {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
+      {cacheClearWarning ? (
+        <div className="row mt-2">
+          <div className="col-12 px-3 px-md-4">
+            <div className="alert alert-warning text-sm py-2 mb-0" role="alert">
+              Company cache could not be cleared before loading: {cacheClearWarning}. Balance sheet
+              data may include cached list values until the API is updated.
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="row mt-4">
         <div className="col-12 px-3 px-md-4 py-2">
           <div className="bs-bs-dark">
