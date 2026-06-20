@@ -17,6 +17,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { withBase } from '../../config/appBase.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
@@ -111,6 +112,12 @@ const getProductStockDisplay = (item) => {
 
 const productIdFromRecord = (item) => item?._id || item?.id || item?.product_id || '';
 
+const statusBadgeClass = (active) =>
+  active ? 'bg-gradient-success' : 'bg-gradient-secondary';
+
+const productIsActive = (item) =>
+  item?.status === 'active' || item?.isActive || item?.status === 1;
+
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -185,38 +192,18 @@ const Product = () => {
     dispatch(setLimit(limit));
   };
 
-  // Handle sort change with double-click detection
-  const sortClickTimeoutRef = useRef(null);
-
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  // Handle sort change
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
       dispatch(setSort({ sortBy: null, sortOrder: null }));
-    } else {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-      }
-      sortClickTimeoutRef.current = setTimeout(() => {
-        dispatch(setSort({ sortBy }));
-        sortClickTimeoutRef.current = null;
-      }, 200);
+      return;
     }
+    dispatch(setSort({ sortBy: column }));
   };
 
-  // Render sort icon
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
-  };
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
 
   // Handle toggle status
   const handleToggleStatus = async (productId, currentStatus) => {
@@ -374,13 +361,8 @@ const Product = () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-      }
     };
   }, []);
-
-  const firstSegment = window.location.pathname.split('/')[1];
 
   const showToast = (elementId, bodyText) => {
     const toastElement = document.getElementById(elementId);
@@ -432,68 +414,69 @@ const Product = () => {
     refreshProductList();
   };
 
-  // Calculate pagination info
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
-
-  // Reusable Pagination Component
+  const openWarehouseStock = (item) => {
+    setWarehouseStockTarget({
+      productId: productIdFromRecord(item),
+      productName: item.name || item.product_name || 'Product',
+    });
+  };
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center">
-                <div className="col-md-6">
-                  <h5 className="mb-0">
-                    {firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1)}
-                  </h5>
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-4 col-md-5">
+                  <h5 className="mb-1">Products</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                    <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                <div className="col-lg-8 col-md-7">
+                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search products..."
+                        placeholder="Search products…"
                         value={localSearch}
                         onChange={handleSearchChange}
+                        aria-label="Search products"
                       />
                     </div>
-                    {canCreate && (
+                    {canCreate ? (
                       <>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setFetchProductsModalOpen(true)}
                         >
-                          <i className="fas fa-cloud-download-alt me-1" />
-                          Fetch Products
+                          <i className="fas fa-cloud-download-alt me-1" aria-hidden="true" />
+                          Fetch
                         </button>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setSyncProductsModalOpen(true)}
                         >
                           <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
-                          Sync Products
+                          Sync
                         </button>
-                        <AddNewButton to="/products/add" label="Add New Product" />
+                        <AddNewButton to="/products/add" label="Add product" size="sm" />
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--products"
                 loading={loading}
                 loadingLabel="Loading products…"
                 error={error}
@@ -503,119 +486,36 @@ const Product = () => {
                 selectId="products-table-page-size"
                 showPagination={!loading && !error && pagination.total > 0}
               >
-                <table className="table align-items-center mb-0" id="datatable-search">
+                <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Image
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
-                        </th>
-                        <th
-                          className="text-end"
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('stock')}
-                          onDoubleClick={() => handleSort('stock', true)}
-                        >
-                          Stock
-                          {renderSortIcon('stock')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('wholesale_price')}
-                          onDoubleClick={() => handleSort('wholesale_price', true)}
-                        >
-                          Wholesale price
-                          {renderSortIcon('wholesale_price')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('price')}
-                          onDoubleClick={() => handleSort('price', true)}
-                        >
-                          Price
-                          {renderSortIcon('price')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('tax_rate')}
-                          onDoubleClick={() => handleSort('tax_rate', true)}
-                        >
-                          Tax
-                          {renderSortIcon('tax_rate')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('alert_qty')}
-                          onDoubleClick={() => handleSort('alert_qty', true)}
-                        >
-                          Alert quantity
-                          {renderSortIcon('alert_qty')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('barcode')}
-                          onDoubleClick={() => handleSort('barcode', true)}
-                        >
-                          Barcode
-                          {renderSortIcon('barcode')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('product_type')}
-                          onDoubleClick={() => handleSort('product_type', true)}
-                        >
-                          Product Type
-                          {renderSortIcon('product_type')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last updated at
-                          {renderSortIcon('updatedAt')}
-                        </th>
-                        <th>Actions</th>
+                        <th className="text-center list-col-sno">#</th>
+                        <th className="list-col-product-img">Image</th>
+                        {sortableTh('name', 'Name', 'list-col-truncate')}
+                        {sortableTh('stock', 'Stock', 'text-end list-col-stock')}
+                        {sortableTh('wholesale_price', 'Wholesale', 'text-end list-col-amount')}
+                        {sortableTh('price', 'Price', 'text-end list-col-amount')}
+                        {sortableTh('tax_rate', 'Tax', 'text-center list-col-tax')}
+                        {sortableTh('alert_qty', 'Alert', 'text-center list-col-qty')}
+                        {sortableTh('barcode', 'Barcode', 'list-col-truncate-sm font-monospace')}
+                        {sortableTh('product_type', 'Type', 'list-col-truncate-sm')}
+                        {sortableTh('status', 'Status')}
+                        {sortableTh('createdAt', 'Created', 'list-col-date')}
+                        <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="14" className="text-center text-sm font-weight-normal p-4">
-                            No products found
+                          <td colSpan={12} className="text-center py-5 text-muted">
+                            No products found. Try adjusting your search.
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                          const productId = productIdFromRecord(item);
+                          const productName = item.name || item.product_name || 'Product';
                           const mainImage =
                             item.product_image ||
                             (item.multi_images && item.multi_images.length > 0
@@ -626,253 +526,180 @@ const Product = () => {
                             null;
                           const { total: stockTotal, lines: warehouseLines } =
                             getProductStockDisplay(item);
+                          const isActive = productIsActive(item);
+                          const isToggling = togglingProductId === productId;
+                          const created = item.createdAt ?? item.created_at;
+                          const updated = item.updatedAt ?? item.updated_at;
+                          const taxRate = item.tax_rate ?? item.taxRate;
+                          const alertQty =
+                            item.alert_qty != null && item.alert_qty !== ''
+                              ? item.alert_qty
+                              : item.alertQty != null && item.alertQty !== ''
+                                ? item.alertQty
+                                : '—';
+                          const productType = item.product_type || item.productType || '—';
+                          const barcode = item.barcode ? String(item.barcode) : '—';
+
                           return (
-                            <tr key={item._id || index}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">
+                            <tr key={productId || index}>
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td>
                                 {mainImage ? (
                                   <img
                                     src={mainImage}
-                                    alt={item.product_name || 'Product'}
-                                    style={{
-                                      width: '50px',
-                                      height: '50px',
-                                      objectFit: 'cover',
-                                      borderRadius: '4px',
-                                    }}
+                                    alt={productName}
+                                    className="list-product-thumb"
                                     onError={(e) => {
                                       e.target.src = withBase('/assets/img/default.jpg');
                                     }}
                                   />
                                 ) : (
-                                  <div
-                                    style={{
-                                      width: '50px',
-                                      height: '50px',
-                                      backgroundColor: '#f0f0f0',
-                                      borderRadius: '4px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    <i className="fas fa-image text-muted"></i>
+                                  <div className="list-product-thumb list-product-thumb--empty">
+                                    <i className="fas fa-image text-muted" aria-hidden="true" />
                                   </div>
                                 )}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.name || item.product_name || '-'}
+                              <td
+                                className="text-sm font-weight-bold text-dark list-cell-truncate"
+                                title={productName !== 'Product' ? productName : undefined}
+                              >
+                                {productName}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-column align-items-end gap-1">
-                                  <span
-                                    className="badge bg-gradient-dark text-white mb-0"
-                                    title="Total quantity"
-                                  >
-                                    Total: {formatProductStock(stockTotal)}
-                                  </span>
-                                  {warehouseLines.length > 0 ? (
-                                    <div className="d-flex flex-wrap justify-content-end gap-1">
-                                      {warehouseLines.map((line) => (
-                                        <span
-                                          key={line.key}
-                                          role="button"
-                                          tabIndex={0}
-                                          className="badge bg-light text-dark border mb-0"
-                                          style={{ cursor: 'pointer' }}
-                                          title={`${line.name} — open stock movements`}
-                                          onClick={() =>
-                                            setWarehouseStockTarget({
-                                              productId:
-                                                item._id || item.id || item.product_id,
-                                              productName:
-                                                item.name || item.product_name || 'Product',
-                                            })
-                                          }
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                              e.preventDefault();
-                                              setWarehouseStockTarget({
-                                                productId:
-                                                  item._id || item.id || item.product_id,
-                                                productName:
-                                                  item.name || item.product_name || 'Product',
-                                              });
-                                            }
-                                          }}
-                                        >
-                                          {line.name}: {formatProductStock(line.qty)}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className="btn btn-link btn-sm text-secondary p-0 mb-0"
-                                      onClick={() =>
-                                        setWarehouseStockTarget({
-                                          productId:
-                                            item._id || item.id || item.product_id,
-                                          productName:
-                                            item.name || item.product_name || 'Product',
-                                        })
-                                      }
-                                    >
-                                      Stock details
-                                    </button>
-                                  )}
-                                </div>
+                              <td className="text-sm text-end list-col-stock">
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none list-stock-total"
+                                  title="View stock by warehouse"
+                                  onClick={() => openWarehouseStock(item)}
+                                >
+                                  {formatProductStock(stockTotal)}
+                                </button>
+                                {warehouseLines.length > 0 ? (
+                                  <div className="list-stock-warehouses">
+                                    {warehouseLines.slice(0, 2).map((line) => (
+                                      <button
+                                        key={line.key}
+                                        type="button"
+                                        className="btn btn-link btn-sm p-0 mb-0 text-muted text-xxs text-decoration-none list-cell-truncate-sm d-block w-100 text-end"
+                                        title={`${line.name}: ${formatProductStock(line.qty)}`}
+                                        onClick={() => openWarehouseStock(item)}
+                                      >
+                                        {line.name}: {formatProductStock(line.qty)}
+                                      </button>
+                                    ))}
+                                    {warehouseLines.length > 2 ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-link btn-sm p-0 mb-0 text-primary text-xxs text-decoration-none"
+                                        onClick={() => openWarehouseStock(item)}
+                                      >
+                                        +{warehouseLines.length - 2} more
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </td>
-                              <td className="text-sm font-weight-normal">
+                              <td className="text-sm text-end text-nowrap list-col-amount">
                                 {item.wholesale_price != null && item.wholesale_price !== ''
                                   ? formatMoney(item.wholesale_price)
-                                  : '-'}
+                                  : '—'}
                               </td>
-                              <td className="text-sm font-weight-normal">
+                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
                                 {item.price || item.product_price
                                   ? formatMoney(item.price || item.product_price || 0)
-                                  : '-'}
+                                  : '—'}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {(() => {
-                                  const rate = item.tax_rate ?? item.taxRate;
-                                  if (rate == null || rate === '') return '-';
-                                  const n = parseFloat(rate);
-                                  return Number.isFinite(n) ? `${n}%` : String(rate);
-                                })()}
+                              <td className="text-sm text-center">
+                                {taxRate == null || taxRate === ''
+                                  ? '—'
+                                  : (() => {
+                                      const n = parseFloat(taxRate);
+                                      return Number.isFinite(n) ? `${n}%` : String(taxRate);
+                                    })()}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.alert_qty != null && item.alert_qty !== ''
-                                  ? item.alert_qty
-                                  : item.alertQty != null && item.alertQty !== ''
-                                    ? item.alertQty
-                                    : '-'}
+                              <td className="text-sm text-center">{alertQty}</td>
+                              <td
+                                className="text-sm font-monospace list-cell-truncate-sm"
+                                title={barcode !== '—' ? barcode : undefined}
+                              >
+                                {barcode}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.barcode ? String(item.barcode) : '-'}
+                              <td
+                                className="text-sm list-cell-truncate-sm text-capitalize"
+                                title={productType !== '—' ? productType : undefined}
+                              >
+                                {productType}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.product_type || item.productType || '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex align-items-center gap-2">
-                                  <div className="form-check form-switch mb-0">
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      role="switch"
-                                      id={`toggle-${item._id || item.id || item.product_id || index}`}
-                                      checked={
-                                        item.status === 'active' ||
-                                        item.isActive ||
-                                        item.status === 1
-                                      }
-                                      onChange={() =>
-                                        handleToggleStatus(
-                                          item._id || item.id || item.product_id,
-                                          item.status === 'active' ||
-                                            item.isActive ||
-                                            item.status === 1
-                                        )
-                                      }
-                                      disabled={
-                                        togglingProductId ===
-                                        (item._id || item.id || item.product_id)
-                                      }
-                                      style={{
-                                        width: '2.5rem',
-                                        height: '1.25rem',
-                                        cursor:
-                                          togglingProductId ===
-                                          (item._id || item.id || item.product_id)
-                                            ? 'not-allowed'
-                                            : 'pointer',
-                                      }}
-                                    />
-                                  </div>
-                                  {togglingProductId ===
-                                  (item._id || item.id || item.product_id) ? (
-                                    <span
-                                      className="spinner-border spinner-border-sm text-primary"
-                                      role="status"
-                                      style={{ width: '1rem', height: '1rem' }}
-                                    >
-                                      <span className="visually-hidden">Loading...</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`badge ${
-                                        item.status === 'active' ||
-                                        item.isActive ||
-                                        item.status === 1
-                                          ? 'bg-success'
-                                          : 'bg-secondary'
-                                      }`}
-                                    >
-                                      {item.status === 'active' ||
-                                      item.isActive ||
-                                      item.status === 1
-                                        ? 'Active'
-                                        : 'Inactive'}
-                                    </span>
-                                  )}
+                              <td className="text-sm">
+                                <div className="d-flex align-items-center gap-2 flex-wrap">
+                                  <span className={`badge text-xxs ${statusBadgeClass(isActive)}`}>
+                                    {isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                  {canEdit ? (
+                                    <div className="form-check form-switch mb-0 list-status-switch">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id={`toggle-${productId || index}`}
+                                        checked={isActive}
+                                        onChange={() => handleToggleStatus(productId, isActive)}
+                                        disabled={isToggling}
+                                        aria-label={`Toggle ${productName} status`}
+                                      />
+                                      {isToggling ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-primary ms-1"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
+                              <td
+                                className="text-sm text-nowrap list-col-date"
+                                title={
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    : undefined
+                                }
+                              >
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).fromNow()
-                                  : '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-wrap gap-1">
+                              <td className="text-end">
+                                <div className="list-table-actions">
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-info mb-0 px-2 py-1"
-                                    title="View Sync"
-                                    aria-label="View Sync"
+                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                    title="View sync"
+                                    aria-label="View sync"
                                     onClick={() =>
-                                      setViewSyncProduct({
-                                        id: productIdFromRecord(item),
-                                        name: item.name || item.product_name || 'Product',
-                                      })
+                                      setViewSyncProduct({ id: productId, name: productName })
                                     }
                                   >
                                     <NavIcon icon={FaArrowsRotate} size={14} />
                                   </button>
-                                  {canEdit && (
+                                  {canEdit ? (
                                     <button
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() =>
-                                        navigate(
-                                          `/products/edit/${item._id || item.id || item.product_id}`
-                                        )
-                                      }
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      onClick={() => navigate(`/products/edit/${productId}`)}
                                     >
                                       Edit
                                     </button>
-                                  )}
-                                  {canDelete && (
+                                  ) : null}
+                                  {canDelete ? (
                                     <button
-                                      className="btn btn-sm btn-danger"
-                                      onClick={() =>
-                                        handleDelete(
-                                          item._id || item.id || item.product_id,
-                                          item.name || item.product_name || 'Product'
-                                        )
-                                      }
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
+                                      onClick={() => handleDelete(productId, productName)}
                                       disabled={deleteStatus === 'loading'}
                                     >
-                                      {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
+                                      {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}
                                     </button>
-                                  )}
-                                  {!canEdit && !canDelete && (
-                                    <span className="text-muted text-sm">No actions available</span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </td>
                             </tr>
