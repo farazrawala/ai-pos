@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FaBarcode, FaCreditCard, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
 import {
   fetchProductsRequest,
   fetchProductActiveRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import NavIcon from '../../components/NavIcon.jsx';
@@ -26,6 +27,34 @@ const getProductImageUrl = (p) => {
   return resolveCategoryMediaUrl(raw);
 };
 
+function normalizeSearchToken(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Match product by exact barcode, SKU, product code, or name (for scanner Enter). */
+function productMatchesExactQuery(product, query) {
+  const needle = normalizeSearchToken(query);
+  if (!needle) return false;
+  const haystacks = [
+    product?.barcode,
+    product?.sku,
+    product?.product_code,
+    product?.product_name,
+    product?.name,
+  ];
+  return haystacks.some((v) => v != null && normalizeSearchToken(v) === needle);
+}
+
+function pickScannedProduct(products, query) {
+  if (!Array.isArray(products) || products.length === 0) return null;
+  const exact = products.filter((p) => productMatchesExactQuery(p, query));
+  if (exact.length === 1) return exact[0];
+  if (products.length === 1) return products[0];
+  return null;
+}
+
 /**
  * POS right column: product search, category filter, grid, and checkout actions.
  */
@@ -46,6 +75,7 @@ const PosProducts = ({
   const [productsStatus, setProductsStatus] = useState('idle');
   const [productsError, setProductsError] = useState(null);
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(productQuery.trim()), 350);
@@ -60,7 +90,7 @@ const PosProducts = ({
       const result = debouncedQuery
         ? await fetchProductActiveRequest({
             search: debouncedQuery,
-            searchFields: 'product_name,sku,barcode',
+            searchFields: POS_PRODUCT_SEARCH_FIELDS,
             page: 1,
             limit: 2000,
             ...(categoryId ? { categoryId } : {}),
@@ -85,6 +115,58 @@ const PosProducts = ({
     loadProducts();
   }, [loadProducts]);
 
+  const clearSearchAndRefocus = useCallback(() => {
+    setProductQuery('');
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, [setProductQuery]);
+
+  const tryAddProductFromQuery = useCallback(
+    async (query) => {
+      const q = String(query ?? '').trim();
+      if (!q) return false;
+
+      const fromList = pickScannedProduct(products, q);
+      if (fromList) {
+        onAddToCart?.(fromList);
+        clearSearchAndRefocus();
+        return true;
+      }
+
+      try {
+        const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+        const result = await fetchProductActiveRequest({
+          search: q,
+          searchFields: POS_PRODUCT_SEARCH_FIELDS,
+          page: 1,
+          limit: 50,
+          ...(categoryId ? { categoryId } : {}),
+        });
+        const arr = Array.isArray(result?.data) ? result.data : [];
+        const picked = pickScannedProduct(arr, q);
+        if (picked) {
+          onAddToCart?.(picked);
+          clearSearchAndRefocus();
+          return true;
+        }
+      } catch (err) {
+        console.error('[POS] Barcode lookup failed', err);
+      }
+      return false;
+    },
+    [products, categoryFilter, onAddToCart, clearSearchAndRefocus]
+  );
+
+  const handleSearchKeyDown = useCallback(
+    async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const q = productQuery.trim();
+      if (!q) return;
+      await tryAddProductFromQuery(q);
+    },
+    [productQuery, tryAddProductFromQuery]
+  );
+
   return (
     <div className="col-lg-7 col-xl-8">
       <PosPaymentModal
@@ -95,7 +177,7 @@ const PosProducts = ({
       <div className="card shadow-sm pos-panel-card h-100 d-flex flex-column">
         <div className="pos-panel-header">
           <h5>Products</h5>
-          <p>Search, filter, and add items to the order</p>
+          <p>Search by name, code, SKU, or barcode — scan and press Enter to add</p>
         </div>
         <div className="pos-panel-body flex-grow-1 d-flex flex-column">
           <div className="row g-2 mb-3 pos-search-bar">
@@ -105,11 +187,16 @@ const PosProducts = ({
                   <NavIcon icon={FaBarcode} size={14} className="text-muted" />
                 </span>
                 <input
-                  type="text"
+                  ref={searchInputRef}
+                  type="search"
                   className="form-control"
-                  placeholder="Enter product name, code, or scan barcode"
+                  placeholder="Product name, code, SKU, or barcode — scan + Enter"
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Search products by name, code, SKU, or barcode"
                 />
               </div>
             </div>
@@ -154,7 +241,12 @@ const PosProducts = ({
               </div>
             )}
             {productsStatus !== 'loading' && !productsError && products.length === 0 && (
-              <div className="text-center text-muted py-5">No products found</div>
+              <div className="text-center text-muted py-5">
+                No products found
+                {debouncedQuery ? (
+                  <div className="small mt-1">Press Enter after scanning a barcode to add it</div>
+                ) : null}
+              </div>
             )}
             {productsStatus !== 'loading' && products.length > 0 && (
               <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-5 g-3">
@@ -203,12 +295,10 @@ const PosProducts = ({
           </div>
 
           <div className="pos-footer-actions">
-            
             <button type="button" className="btn btn-pay" onClick={() => openPosPaymentModal()}>
               <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
               Payment
             </button>
-            
           </div>
         </div>
       </div>

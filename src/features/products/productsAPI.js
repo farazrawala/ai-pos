@@ -152,8 +152,11 @@ export const fetchProductsRequest = async (params = {}) => {
   return normalizeProductsListResponse(result, params);
 };
 
+/** Fields used by POS product search (name, code, SKU, barcode). */
+export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode';
+
 /**
- * POS / search: `GET product/active?search=...&searchFields=product_name,sku,barcode`
+ * POS / search: `GET product/get-all-active-pos?search=...&searchFields=product_name,product_code,sku,barcode`
  */
 export const fetchProductActiveRequest = async (params = {}) => {
   const token = getAuthToken();
@@ -173,7 +176,7 @@ export const fetchProductActiveRequest = async (params = {}) => {
   const searchFields =
     params.searchFields != null && String(params.searchFields).trim() !== ''
       ? String(params.searchFields).trim()
-      : 'product_name,sku,barcode';
+      : POS_PRODUCT_SEARCH_FIELDS;
   if (queryParams.has('search')) {
     queryParams.set('searchFields', searchFields);
   }
