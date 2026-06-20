@@ -12,7 +12,7 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../SearchInputIcon.jsx';
 import NavIcon from '../NavIcon.jsx';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
-import { buildApiUrl } from '../../config/apiConfig.js';
+import IncomeStatementCharts from './IncomeStatementCharts.jsx';
 import '../common/devApiSources.css';
 import {
   FaBoxesStacked,
@@ -68,19 +68,6 @@ function getPriorRange(periodStart, periodEnd) {
   const priorStart = new Date(priorEnd.getTime() - lenMs);
   priorStart.setHours(0, 0, 0, 0);
   return { priorStart, priorEnd };
-}
-
-function formatRangeHeading(start, end) {
-  const my = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
-  const dmy = new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
-    return `${my.format(start)} (Ending ${dmy.format(end)})`;
-  }
-  return `${my.format(start)} – ${my.format(end)}`;
 }
 
 function formatCompactMillions(n) {
@@ -232,152 +219,14 @@ function SummaryStatCard({ title, value, delta, deltaKind, gradient, icon }) {
   );
 }
 
-function MonthlyBarsSvg({ labels, revenue, expenses }) {
-  const h = 160;
-  const pad = { t: 12, r: 8, b: 28, l: 36 };
-  const chartW = 420;
-  const innerW = chartW - pad.l - pad.r;
-  const innerH = h - pad.t - pad.b;
-  const maxVal = Math.max(1, ...revenue, ...expenses);
-  const n = labels.length;
-  const groupW = innerW / n;
-  const barW = (groupW * 0.32).toFixed(1);
-  const revenueFill = '#11cdef';
-  const expenseFill = '#fb6340';
-
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
-    y: pad.t + innerH * (1 - t),
-    lab: formatCompactMillions(maxVal * t),
-  }));
-
-  return (
-    <svg
-      viewBox={`0 0 ${chartW} ${h}`}
-      width="100%"
-      height={h}
-      style={{ display: 'block' }}
-      role="img"
-      aria-label="Monthly revenue versus expenses"
-    >
-      {yTicks.map((tk) => (
-        <g key={tk.lab}>
-          <line
-            x1={pad.l}
-            x2={chartW - pad.r}
-            y1={tk.y}
-            y2={tk.y}
-            stroke="#e9ecef"
-            strokeWidth="1"
-          />
-          <text x={4} y={tk.y + 4} fill="#8392ab" fontSize="10">
-            {tk.lab}
-          </text>
-        </g>
-      ))}
-      {labels.map((lab, i) => {
-        const gx = pad.l + i * groupW;
-        const xR = gx + groupW * 0.18;
-        const xE = gx + groupW * 0.52;
-        const hR = (revenue[i] / maxVal) * innerH;
-        const hE = (expenses[i] / maxVal) * innerH;
-        const yR = pad.t + innerH - hR;
-        const yE = pad.t + innerH - hE;
-        return (
-          <g key={lab}>
-            <rect x={xR} y={yR} width={barW} height={hR} fill={revenueFill} rx={2} />
-            <rect x={xE} y={yE} width={barW} height={hE} fill={expenseFill} rx={2} />
-            <text x={gx + groupW / 2} y={h - 6} fill="#67748e" fontSize="10" textAnchor="middle">
-              {lab}
-            </text>
-          </g>
-        );
-      })}
-      <g transform={`translate(${chartW - 120}, ${pad.t})`}>
-        <rect x={0} y={0} width={10} height={10} fill={revenueFill} rx={2} />
-        <text x={14} y={9} fill="#344767" fontSize="10">
-          Revenue
-        </text>
-        <rect x={0} y={16} width={10} height={10} fill={expenseFill} rx={2} />
-        <text x={14} y={25} fill="#344767" fontSize="10">
-          Expenses
-        </text>
-      </g>
-    </svg>
-  );
-}
-
-function OpExDonut({ items, colors }) {
-  const list = (Array.isArray(items) ? items : []).filter((x) => Number(x?.amount) > 0);
-  const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0) || 1;
-  let acc = 0;
-  const segs = list.map((it, i) => {
-    const pct = (Number(it.amount) / total) * 100;
-    const start = acc;
-    acc += pct;
-    return { ...it, start, pct, color: colors[i % colors.length] };
-  });
-  const stops = segs.map((s) => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ');
-  const gradient = segs.length ? `conic-gradient(from -90deg, ${stops})` : '#334155';
-
-  return (
-    <div className="d-flex flex-wrap align-items-center gap-3 justify-content-between">
-      <div
-        style={{
-          width: 140,
-          height: 140,
-          borderRadius: '50%',
-          background: gradient,
-          flexShrink: 0,
-          boxShadow: 'inset 0 0 0 28px #fff',
-        }}
-        aria-hidden
-      />
-      <ul className="list-unstyled mb-0 flex-grow-1" style={{ minWidth: '140px' }}>
-        {segs.map((s, i) => (
-          <li
-            key={`${s.label}-${i}`}
-            className="d-flex align-items-center justify-content-between gap-2 py-1"
-            style={{ fontSize: '0.75rem' }}
-          >
-            <span
-              className="d-flex align-items-center gap-2 text-truncate"
-              style={{ maxWidth: '10rem' }}
-            >
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: s.color,
-                  flexShrink: 0,
-                }}
-              />
-              <span className="text-truncate" title={s.label}>
-                {s.label}
-              </span>
-            </span>
-            <span
-              className="text-muted flex-shrink-0"
-              style={{ fontVariantNumeric: 'tabular-nums' }}
-            >
-              {((Number(s.amount) / total) * 100).toFixed(0)}%
-            </span>
-          </li>
-        ))}
-        {segs.length === 0 ? (
-          <li className="text-muted small">No operating expense lines</li>
-        ) : null}
-      </ul>
-    </div>
-  );
-}
-
 export default function IncomeStatementView() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { canView } = usePermissions('income-statement');
   useRequireModuleAccess('income-statement');
-  const { status, error, report, demo } = useSelector((state) => state.incomeStatement);
+  const { status, error, report, demo, apiSources, wallDurationMs } = useSelector(
+    (state) => state.incomeStatement
+  );
 
   const fmt = useCallback((n) => formatCurrencyFn(n), []);
 
@@ -403,10 +252,6 @@ export default function IncomeStatementView() {
     [periodStart, periodEnd]
   );
 
-  const rangeLabel = useMemo(
-    () => formatRangeHeading(periodStart, periodEnd),
-    [periodStart, periodEnd]
-  );
   const yearOptions = useMemo(() => {
     const y = new Date().getFullYear();
     const out = [];
@@ -496,29 +341,6 @@ export default function IncomeStatementView() {
     });
   };
 
-  const donutColors = ['#5e72e4', '#11cdef', '#2dce89', '#fb6340', '#8392ab', '#825ee4'];
-
-  const monthlyBars = useMemo(() => {
-    const revTotal = totals.totalRevenue;
-    const expTotal = totals.totalCOGS + totals.totalOperatingExpenses;
-    const n = 6;
-    const mults = [0.92, 1.05, 0.98, 1.12, 0.95, 1.02];
-    const sumM = mults.reduce((a, b) => a + b, 0);
-    const labels = [];
-    const revenue = [];
-    const expenses = [];
-    const d = new Date(periodEnd);
-    for (let i = n - 1; i >= 0; i -= 1) {
-      const dt = new Date(d);
-      dt.setMonth(dt.getMonth() - i);
-      labels.push(dt.toLocaleString(undefined, { month: 'short' }));
-      const m = (mults[n - 1 - i] / sumM) * n;
-      revenue.push((revTotal / n) * m);
-      expenses.push((expTotal / n) * m);
-    }
-    return { labels, revenue, expenses };
-  }, [totals.totalRevenue, totals.totalCOGS, totals.totalOperatingExpenses, periodEnd]);
-
   const tableRows = useMemo(() => {
     if (!report) return [];
     const pr = priorReport || {};
@@ -607,7 +429,12 @@ export default function IncomeStatementView() {
           const pri = priorAmountForLabel(pr.otherIncome, row.label);
           pushLeaf(row.label, row.amount, pri, false);
         });
-        pushSubtotal('Total other income', totals.totalOtherIncome, priorTotals.totalOtherIncome, false);
+        pushSubtotal(
+          'Total other income',
+          totals.totalOtherIncome,
+          priorTotals.totalOtherIncome,
+          false
+        );
       }
     }
 
@@ -683,75 +510,12 @@ export default function IncomeStatementView() {
     [priorReady, totals.netIncome, priorTotals.netIncome]
   );
 
-  const apiSources = useMemo(
-    () => [
-      {
-        label: 'Income statement',
-        url: `GET ${buildApiUrl('reports/income-statement?startDate=&endDate=')}`,
-      },
-      { label: 'Sales', url: `GET ${buildApiUrl('order/sales')}` },
-      {
-        label: 'COGS',
-        url: `GET ${buildApiUrl('order_item/cost-of-goods-sold-by-order-item')}`,
-      },
-      {
-        label: 'Operating expenses',
-        url: `GET ${buildApiUrl('account/fetch-account-by-type?account_type=operating_expense')}`,
-      },
-    ],
-    []
-  );
-
   return (
     <div className="container-fluid py-3">
-      <div className="row">
+      {/* <div className="row">
         <div className="col-12">
           <div className="card mb-3">
-            <div className="card-header pb-3 pt-3">
-              <div className="row align-items-lg-end w-100 g-3">
-                <div className="col-lg-8">
-                  <h5 className="mb-1">Income Statement</h5>
-                  <p className="text-sm text-muted mb-1 d-flex flex-wrap align-items-center gap-2">
-                    <span>{rangeLabel}</span>
-                    {demo ? (
-                      <span className="badge bg-gradient-warning mb-0">Demo data</span>
-                    ) : null}
-                  </p>
-                  <p className="text-sm text-muted mb-0">
-                    Revenue, COGS, operating expenses, and net income for the selected period.
-                  </p>
-                </div>
-                <div className="col-lg-4">
-                  <div className="d-flex flex-column align-items-stretch align-items-lg-end mt-2 mt-lg-0">
-                    <label
-                      className="form-label text-xs text-uppercase text-muted mb-2"
-                      htmlFor="is-quarter-preset"
-                    >
-                      Year / quarter
-                    </label>
-                    <select
-                      id="is-quarter-preset"
-                      className="form-select form-select-sm ms-lg-auto"
-                      style={{ maxWidth: '220px', width: '100%' }}
-                      aria-label="Quick quarter preset"
-                      defaultValue=""
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v) applyQuarterPreset(parseInt(v, 10));
-                        e.target.value = '';
-                      }}
-                    >
-                      <option value="">Presets…</option>
-                      <option value="1">Q1 (Jan–Mar)</option>
-                      <option value="2">Q2 (Apr–Jun)</option>
-                      <option value="3">Q3 (Jul–Sep)</option>
-                      <option value="4">Q4 (Oct–Dec)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="card-body border-top pt-2 pb-4">
+            <div className="card-body pb-4">
               <div className="row g-4 align-items-end">
                 <div className="col-md-4 col-lg-3">
                   <label className="form-label text-xs text-uppercase text-muted mb-2">From</label>
@@ -811,6 +575,36 @@ export default function IncomeStatementView() {
                     </select>
                   </div>
                 </div>
+                <div className="col-md-4 col-lg-3">
+                  <label
+                    className="form-label text-xs text-uppercase text-muted mb-2"
+                    htmlFor="is-quarter-preset"
+                  >
+                    Year / quarter
+                  </label>
+                  <select
+                    id="is-quarter-preset"
+                    className="form-select form-select-sm"
+                    aria-label="Quick quarter preset"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v) applyQuarterPreset(parseInt(v, 10));
+                      e.target.value = '';
+                    }}
+                  >
+                    <option value="">Presets…</option>
+                    <option value="1">Q1 (Jan–Mar)</option>
+                    <option value="2">Q2 (Apr–Jun)</option>
+                    <option value="3">Q3 (Jul–Sep)</option>
+                    <option value="4">Q4 (Oct–Dec)</option>
+                  </select>
+                </div>
+                {demo ? (
+                  <div className="col-md-4 col-lg-3">
+                    <span className="badge bg-gradient-warning mb-0">Demo data</span>
+                  </div>
+                ) : null}
                 {priorStatus === 'loading' ? (
                   <div className="col-md-4 col-lg-6">
                     <span className="text-sm text-muted">Loading prior period…</span>
@@ -820,7 +614,7 @@ export default function IncomeStatementView() {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {loading ? (
         <div className="row">
@@ -880,6 +674,8 @@ export default function IncomeStatementView() {
             />
           </div>
 
+          <IncomeStatementCharts report={report} />
+
           <div className="row">
             <div className="col-12">
               <div className="card shadow-sm">
@@ -931,37 +727,11 @@ export default function IncomeStatementView() {
                     fmt={fmt}
                   />
 
-                  <div className="row mt-4">
-                    <div className="col-lg-7 mb-4 mb-lg-0">
-                      <div className="card h-100 shadow-sm border-0 bg-gray-100">
-                        <div className="card-header pb-0 bg-transparent">
-                          <h6 className="mb-0">Monthly revenue vs. expenses</h6>
-                          <p className="text-sm text-muted mb-0">
-                            Illustrative split by month from current-period totals (no monthly API).
-                          </p>
-                        </div>
-                        <div className="card-body pt-2">
-                          <MonthlyBarsSvg
-                            labels={monthlyBars.labels}
-                            revenue={monthlyBars.revenue}
-                            expenses={monthlyBars.expenses}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-lg-5">
-                      <div className="card h-100 shadow-sm border-0 bg-gray-100">
-                        <div className="card-header pb-0 bg-transparent">
-                          <h6 className="mb-0">Operating expense breakdown</h6>
-                        </div>
-                        <div className="card-body pt-2">
-                          <OpExDonut items={report.operatingExpenses} colors={donutColors} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <DevApiSourcesFooter sources={apiSources} className="mt-3" />
+                  <DevApiSourcesFooter
+                    sources={apiSources}
+                    wallDurationMs={wallDurationMs}
+                    className="mt-3"
+                  />
                 </div>
               </div>
             </div>

@@ -95,7 +95,30 @@ const EditUser = () => {
   }, [dispatch, id]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    setForm({
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      initial_balance: '0',
+      status: 'active',
+      role: ['USER'],
+      permissions: normalizePermissions(null),
+    });
+    setErrors({});
+    setExistingProfileImageUrl('');
+    setProfileImageFile(null);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
+  }, [id]);
+
+  useEffect(() => {
+    if (!currentUser || !id) return;
+    const currentId = String(currentUser._id || currentUser.id || '');
+    if (currentId !== String(id)) return;
     setForm({
       name: currentUser.name || '',
       email: currentUser.email || '',
@@ -120,7 +143,7 @@ const EditUser = () => {
       return null;
     });
     if (profileImageInputRef.current) profileImageInputRef.current.value = '';
-  }, [currentUser]);
+  }, [currentUser, id]);
 
   const handleProfileImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -213,6 +236,11 @@ const EditUser = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    const loadedId = String(currentUser?._id || currentUser?.id || '');
+    if (!loadedId || loadedId !== String(id || '')) {
+      showToast('dangerToast', 'User data is still loading. Please wait and try again.');
+      return;
+    }
     try {
       const parsedInitialBalance = parseFloat(String(form.initial_balance).replace(/,/g, ''));
       const initial_balance = Number.isFinite(parsedInitialBalance) ? parsedInitialBalance : 0;

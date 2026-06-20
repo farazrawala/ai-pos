@@ -68,6 +68,7 @@ const initialState = {
     sortOrder: 'asc',
   },
   currentUser: null,
+  fetchRequestedUserId: null,
   fetchStatus: 'idle',
   fetchError: null,
   createStatus: 'idle',
@@ -111,6 +112,7 @@ const usersSlice = createSlice({
       state.fetchStatus = 'idle';
       state.fetchError = null;
       state.currentUser = null;
+      state.fetchRequestedUserId = null;
     },
     clearCreateStatus: (state) => {
       state.createStatus = 'idle';
@@ -143,16 +145,21 @@ const usersSlice = createSlice({
         state.error = action.payload || action.error.message || 'Failed to fetch users';
         state.list = [];
       })
-      .addCase(fetchUserById.pending, (state) => {
+      .addCase(fetchUserById.pending, (state, action) => {
         state.fetchStatus = 'loading';
         state.fetchError = null;
+        state.fetchRequestedUserId = String(action.meta.arg || '');
       })
       .addCase(fetchUserById.fulfilled, (state, action) => {
+        const requestedId = String(action.meta.arg || '');
+        if (state.fetchRequestedUserId !== requestedId) return;
         state.fetchStatus = 'succeeded';
         state.currentUser = action.payload;
         state.fetchError = null;
       })
       .addCase(fetchUserById.rejected, (state, action) => {
+        const requestedId = String(action.meta.arg || '');
+        if (state.fetchRequestedUserId !== requestedId) return;
         state.fetchStatus = 'failed';
         state.fetchError = action.payload || action.error.message || 'Failed to fetch user';
         state.currentUser = null;

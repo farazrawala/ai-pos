@@ -1,10 +1,22 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
-import { fetchAccountsByTypeRequest } from '../accounts/accountsAPI.js';
+import {
+  buildFetchAccountsByTypeUrl,
+  fetchAccountsByTypeRequest,
+} from '../accounts/accountsAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 const REPORT_PATH = 'reports/income-statement';
 const ORDER_SALES_PATH = 'order/sales';
+const SALES_RETURN_SALES_PATH = 'sales_return/sales';
+const PURCHASE_ORDER_PURCHASES_PATH = 'purchase_order/purchases';
+const PURCHASE_RETURN_PURCHASES_PATH = 'purchase_return/purchases';
 const COGS_BY_ORDER_ITEM_PATH = 'order_item/cost-of-goods-sold-by-order-item';
+
+const SALES_LABEL = 'Sales';
+const SALES_RETURN_LABEL = 'Sales returns';
+const COGS_LABEL = 'Cost of Goods Sold';
+const PURCHASES_LABEL = 'Purchases';
+const PURCHASE_RETURNS_LABEL = 'Purchase returns';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -43,6 +55,87 @@ const sumLines = (lines) => {
   if (!Array.isArray(lines)) return 0;
   return lines.reduce((acc, row) => acc + (Number(row?.amount) || 0), 0);
 };
+
+/** Append period params for reporting APIs (`startDate`/`endDate` and `from`/`to` aliases). */
+function appendReportDateParams(query, params = {}) {
+  if (params.startDate) {
+    const start = String(params.startDate);
+    query.set('startDate', start);
+    query.set('from', start);
+  }
+  if (params.endDate) {
+    const end = String(params.endDate);
+    query.set('endDate', end);
+    query.set('to', end);
+  }
+}
+
+function upsertReportLine(lines, label, amount) {
+  const arr = Array.isArray(lines) ? [...lines] : [];
+  const idx = arr.findIndex(
+    (row) => String(row?.label || '').trim().toLowerCase() === String(label).trim().toLowerCase()
+  );
+  const row = { label, amount: Number(amount) || 0 };
+  if (idx >= 0) {
+    arr[idx] = { ...arr[idx], ...row };
+  } else {
+    arr.push(row);
+  }
+  return arr;
+}
+
+async function parseJsonErrorMessage(response, fallback) {
+  const text = await response.text().catch(() => '');
+  let message = fallback || `HTTP ${response.status}`;
+  if (text) {
+    try {
+      const j = JSON.parse(text);
+      if (j?.message) message = j.message;
+      else if (j?.error) message = typeof j.error === 'string' ? j.error : message;
+    } catch {
+      const one = text.replace(/\s+/g, ' ').slice(0, 200);
+      if (one) message = one;
+    }
+  }
+  return message;
+}
+
+function parseHeaderTotalAmount(result) {
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Request was not successful';
+    throw new Error(msg);
+  }
+  const raw = result.total_amount ?? result.totalAmount;
+  const totalAmount =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const countRaw = result.document_count ?? result.documentCount ?? result.order_count ?? result.orderCount;
+  const documentCount =
+    typeof countRaw === 'number' && Number.isFinite(countRaw)
+      ? countRaw
+      : parseInt(String(countRaw ?? ''), 10);
+  return {
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    documentCount: Number.isFinite(documentCount) ? documentCount : 0,
+  };
+}
+
+async function fetchHeaderTotalRequest(path, params = {}) {
+  const query = new URLSearchParams();
+  appendReportDateParams(query, params);
+  const qs = query.toString();
+  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ''}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  if (!response.ok) {
+    throw new Error(await parseJsonErrorMessage(response, `HTTP ${response.status}`));
+  }
+  const result = await response.json().catch(() => ({}));
+  return parseHeaderTotalAmount(result);
+}
 
 /**
  * Normalize API JSON to a single report object.
@@ -111,19 +204,111 @@ async function loadIncomeStatementReport(params = {}) {
   return { report: normalizeIncomeStatementPayload(result), demo: false };
 }
 
-export async function fetchIncomeStatementRequest(params = {}) {
-  const [reportOutcome, salesOutcome, cogsOutcome, opexOutcome] = await Promise.allSettled([
-    loadIncomeStatementReport(params),
-    fetchOrderSalesRequest(params),
-    fetchCostOfGoodsSoldByOrderItemRequest(params),
-    fetchOperatingExpensesRequest(),
-  ]);
+/** GET URL for the base income statement report. */
+export function buildIncomeStatementReportUrl(params = {}) {
+  const query = new URLSearchParams();
+  appendReportDateParams(query, params);
+  const qs = query.toString();
+  return `${BASE_URL}${REPORT_PATH}${qs ? `?${qs}` : ''}`;
+}
 
+async function timedIncomeStatementFetch({ key, label, url, run }) {
+  const start = performance.now();
+  try {
+    const value = await run();
+    return {
+      outcome: { status: 'fulfilled', value },
+      source: {
+        key,
+        label,
+        url,
+        status: 'success',
+        durationMs: Math.round(performance.now() - start),
+        error: null,
+      },
+    };
+  } catch (error) {
+    return {
+      outcome: { status: 'rejected', reason: error },
+      source: {
+        key,
+        label,
+        url,
+        status: 'error',
+        durationMs: Math.round(performance.now() - start),
+        error: error?.message || 'Failed',
+      },
+    };
+  }
+}
+
+export async function fetchIncomeStatementRequest(params = {}) {
+  const wallStart = performance.now();
+
+  const tasks = [
+    {
+      key: 'report',
+      label: 'Income statement',
+      url: buildIncomeStatementReportUrl(params),
+      run: () => loadIncomeStatementReport(params),
+    },
+    {
+      key: 'sales',
+      label: 'Sales',
+      url: buildOrderSalesUrl(params),
+      run: () => fetchOrderSalesRequest(params),
+    },
+    {
+      key: 'salesReturns',
+      label: 'Sales returns',
+      url: buildSalesReturnSalesUrl(params),
+      run: () => fetchSalesReturnTotalsRequest(params),
+    },
+    {
+      key: 'purchases',
+      label: 'Purchases',
+      url: buildPurchaseOrderPurchasesUrl(params),
+      run: () => fetchPurchaseOrderTotalsRequest(params),
+    },
+    {
+      key: 'purchaseReturns',
+      label: 'Purchase returns',
+      url: buildPurchaseReturnPurchasesUrl(params),
+      run: () => fetchPurchaseReturnTotalsRequest(params),
+    },
+    {
+      key: 'cogs',
+      label: 'COGS',
+      url: buildCostOfGoodsSoldUrl(params),
+      run: () => fetchCostOfGoodsSoldByOrderItemRequest(params),
+    },
+    {
+      key: 'opex',
+      label: 'Operating expenses',
+      url: buildFetchAccountsByTypeUrl('operating_expense'),
+      run: () => fetchOperatingExpensesRequest(),
+    },
+  ];
+
+  const results = await Promise.all(tasks.map((task) => timedIncomeStatementFetch(task)));
+  const sources = results.map((r) => r.source);
+
+  const outcomeByKey = Object.fromEntries(
+    results.map((r) => [r.source.key, r.outcome])
+  );
+
+  const reportOutcome = outcomeByKey.report;
   if (reportOutcome.status === 'rejected') {
     throw reportOutcome.reason;
   }
 
   let { report, demo } = reportOutcome.value;
+  const salesOutcome = outcomeByKey.sales;
+  const salesReturnOutcome = outcomeByKey.salesReturns;
+  const purchaseOutcome = outcomeByKey.purchases;
+  const purchaseReturnOutcome = outcomeByKey.purchaseReturns;
+  const cogsOutcome = outcomeByKey.cogs;
+  const opexOutcome = outcomeByKey.opex;
 
   // Demo payload includes sample other income/expense lines; do not mix those with live sales/COGS/opex.
   if (demo) {
@@ -139,6 +324,13 @@ export async function fetchIncomeStatementRequest(params = {}) {
     }
   }
 
+  if (salesReturnOutcome.status === 'fulfilled') {
+    report = mergeSalesReturnIntoReport(report, salesReturnOutcome.value);
+  } else {
+    console.warn('[Income statement module] Could not load sales returns', salesReturnOutcome.reason);
+    report = mergeSalesReturnIntoReport(report, { totalAmount: 0 });
+  }
+
   if (cogsOutcome.status === 'fulfilled') {
     report = mergeCostOfGoodsIntoReport(report, cogsOutcome.value);
   } else {
@@ -149,6 +341,23 @@ export async function fetchIncomeStatementRequest(params = {}) {
     if (!Array.isArray(report.costOfGoodsSold) || report.costOfGoodsSold.length === 0) {
       report = mergeCostOfGoodsIntoReport(report, { costOfGoodsSold: 0 });
     }
+  }
+
+  if (purchaseOutcome.status === 'fulfilled') {
+    report = mergePurchasesIntoReport(report, purchaseOutcome.value);
+  } else {
+    console.warn('[Income statement module] Could not load purchases', purchaseOutcome.reason);
+    report = mergePurchasesIntoReport(report, { totalAmount: 0 });
+  }
+
+  if (purchaseReturnOutcome.status === 'fulfilled') {
+    report = mergePurchaseReturnsIntoReport(report, purchaseReturnOutcome.value);
+  } else {
+    console.warn(
+      '[Income statement module] Could not load purchase returns',
+      purchaseReturnOutcome.reason
+    );
+    report = mergePurchaseReturnsIntoReport(report, { totalAmount: 0 });
   }
 
   if (opexOutcome.status === 'fulfilled') {
@@ -163,16 +372,41 @@ export async function fetchIncomeStatementRequest(params = {}) {
     }
   }
 
-  return { report, demo };
+  return {
+    report,
+    demo,
+    sources,
+    wallDurationMs: Math.round(performance.now() - wallStart),
+  };
 }
 
 /** GET URL for order sales (income statement revenue). */
 export function buildOrderSalesUrl(params = {}) {
   const query = new URLSearchParams();
-  if (params.startDate) query.set('startDate', String(params.startDate));
-  if (params.endDate) query.set('endDate', String(params.endDate));
+  appendReportDateParams(query, params);
   const qs = query.toString();
   return `${BASE_URL}${ORDER_SALES_PATH}${qs ? `?${qs}` : ''}`;
+}
+
+export function buildSalesReturnSalesUrl(params = {}) {
+  const query = new URLSearchParams();
+  appendReportDateParams(query, params);
+  const qs = query.toString();
+  return `${BASE_URL}${SALES_RETURN_SALES_PATH}${qs ? `?${qs}` : ''}`;
+}
+
+export function buildPurchaseOrderPurchasesUrl(params = {}) {
+  const query = new URLSearchParams();
+  appendReportDateParams(query, params);
+  const qs = query.toString();
+  return `${BASE_URL}${PURCHASE_ORDER_PURCHASES_PATH}${qs ? `?${qs}` : ''}`;
+}
+
+export function buildPurchaseReturnPurchasesUrl(params = {}) {
+  const query = new URLSearchParams();
+  appendReportDateParams(query, params);
+  const qs = query.toString();
+  return `${BASE_URL}${PURCHASE_RETURN_PURCHASES_PATH}${qs ? `?${qs}` : ''}`;
 }
 
 /**
@@ -180,56 +414,22 @@ export function buildOrderSalesUrl(params = {}) {
  * @param {{ startDate?: string; endDate?: string }} [params]
  */
 export async function fetchOrderSalesRequest(params = {}) {
-  const url = buildOrderSalesUrl(params);
-  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  return fetchHeaderTotalRequest(ORDER_SALES_PATH, params);
+}
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    let message = `HTTP ${response.status}`;
-    if (text) {
-      try {
-        const j = JSON.parse(text);
-        if (j?.message) message = j.message;
-      } catch {
-        const one = text.replace(/\s+/g, ' ').slice(0, 200);
-        if (one) message = one;
-      }
-    }
-    throw new Error(message);
-  }
+/** GET `sales_return/sales` — period total of sales return headers. */
+export async function fetchSalesReturnTotalsRequest(params = {}) {
+  return fetchHeaderTotalRequest(SALES_RETURN_SALES_PATH, params);
+}
 
-  const result = await response.json().catch(() => ({}));
-  if (result && result.success === false) {
-    const msg =
-      typeof result.message === 'string' && result.message.trim() !== ''
-        ? result.message
-        : 'Sales request was not successful';
-    throw new Error(msg);
-  }
+/** GET `purchase_order/purchases` — period total of purchase orders. */
+export async function fetchPurchaseOrderTotalsRequest(params = {}) {
+  return fetchHeaderTotalRequest(PURCHASE_ORDER_PURCHASES_PATH, params);
+}
 
-  const raw = result.total_amount ?? result.totalAmount ?? result.sales;
-  const totalAmount =
-    typeof raw === 'number' && Number.isFinite(raw)
-      ? raw
-      : parseFloat(String(raw ?? '').replace(/,/g, '').trim());
-
-  const orderCountRaw = result.order_count ?? result.orderCount;
-  const orderCount =
-    typeof orderCountRaw === 'number' && Number.isFinite(orderCountRaw)
-      ? orderCountRaw
-      : parseInt(String(orderCountRaw ?? ''), 10);
-
-  const orderIds = Array.isArray(result.order_ids)
-    ? result.order_ids.map(String)
-    : Array.isArray(result.orderIds)
-      ? result.orderIds.map(String)
-      : [];
-
-  return {
-    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
-    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
-    orderIds,
-  };
+/** GET `purchase_return/purchases` — period total of purchase returns. */
+export async function fetchPurchaseReturnTotalsRequest(params = {}) {
+  return fetchHeaderTotalRequest(PURCHASE_RETURN_PURCHASES_PATH, params);
 }
 
 /** Inject or update the Sales line from `order/sales`. */
@@ -237,26 +437,27 @@ export function mergeOrderSalesIntoReport(report, sales) {
   const base = report && typeof report === 'object' ? report : emptyReport();
   const amount = Number(sales?.totalAmount);
   if (!Number.isFinite(amount)) return base;
+  return {
+    ...base,
+    revenue: upsertReportLine(base.revenue, SALES_LABEL, amount),
+  };
+}
 
-  const revenue = Array.isArray(base.revenue) ? [...base.revenue] : [];
-  const salesLabel = 'Sales';
-  const idx = revenue.findIndex(
-    (row) => String(row?.label || '').trim().toLowerCase() === salesLabel.toLowerCase()
-  );
-  const salesLine = { label: salesLabel, amount };
-  if (idx >= 0) {
-    revenue[idx] = { ...revenue[idx], ...salesLine };
-  } else {
-    revenue.unshift(salesLine);
-  }
-  return { ...base, revenue };
+/** Sales returns reduce revenue (stored as negative amount). */
+export function mergeSalesReturnIntoReport(report, salesReturn) {
+  const base = report && typeof report === 'object' ? report : emptyReport();
+  const raw = Number(salesReturn?.totalAmount);
+  const amount = Number.isFinite(raw) ? -Math.abs(raw) : 0;
+  return {
+    ...base,
+    revenue: upsertReportLine(base.revenue, SALES_RETURN_LABEL, amount),
+  };
 }
 
 /** GET URL for COGS on the income statement. */
 export function buildCostOfGoodsSoldUrl(params = {}) {
   const query = new URLSearchParams();
-  if (params.startDate) query.set('startDate', String(params.startDate));
-  if (params.endDate) query.set('endDate', String(params.endDate));
+  appendReportDateParams(query, params);
   const qs = query.toString();
   return `${BASE_URL}${COGS_BY_ORDER_ITEM_PATH}${qs ? `?${qs}` : ''}`;
 }
@@ -319,16 +520,36 @@ export async function fetchCostOfGoodsSoldByOrderItemRequest(params = {}) {
   };
 }
 
-const COGS_LABEL = 'Cost of Goods Sold';
-
-/** Inject COGS from `order_item/cost-of-goods-sold-by-order-item` using `cost_of_goods_sold`. */
+/** Inject COGS from `order_item/cost-of-goods-sold-by-order-item`. */
 export function mergeCostOfGoodsIntoReport(report, cogs) {
   const base = report && typeof report === 'object' ? report : emptyReport();
   const amount = Number(cogs?.costOfGoodsSold);
   const resolved = Number.isFinite(amount) ? amount : 0;
   return {
     ...base,
-    costOfGoodsSold: [{ label: COGS_LABEL, amount: resolved }],
+    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, COGS_LABEL, resolved),
+  };
+}
+
+/** Purchases (inventory received) shown under COGS section. */
+export function mergePurchasesIntoReport(report, purchases) {
+  const base = report && typeof report === 'object' ? report : emptyReport();
+  const raw = Number(purchases?.totalAmount);
+  const amount = Number.isFinite(raw) ? Math.abs(raw) : 0;
+  return {
+    ...base,
+    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, PURCHASES_LABEL, amount),
+  };
+}
+
+/** Purchase returns reduce COGS (stored as negative amount). */
+export function mergePurchaseReturnsIntoReport(report, purchaseReturn) {
+  const base = report && typeof report === 'object' ? report : emptyReport();
+  const raw = Number(purchaseReturn?.totalAmount);
+  const amount = Number.isFinite(raw) ? -Math.abs(raw) : 0;
+  return {
+    ...base,
+    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, PURCHASE_RETURNS_LABEL, amount),
   };
 }
 

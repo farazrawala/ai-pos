@@ -17,6 +17,8 @@ const initialState = {
   error: null,
   report: null,
   demo: false,
+  apiSources: [],
+  wallDurationMs: null,
 };
 
 const incomeStatementSlice = createSlice({
@@ -28,6 +30,8 @@ const incomeStatementSlice = createSlice({
       state.demo = false;
       state.error = null;
       state.status = 'idle';
+      state.apiSources = [];
+      state.wallDurationMs = null;
     },
   },
   extraReducers: (builder) => {
@@ -35,17 +39,24 @@ const incomeStatementSlice = createSlice({
       .addCase(fetchIncomeStatement.pending, (state) => {
         state.status = 'loading';
         state.error = null;
+        state.apiSources = [];
+        state.wallDurationMs = null;
       })
       .addCase(fetchIncomeStatement.fulfilled, (state, action) => {
         state.status = 'succeeded';
         state.report = action.payload.report;
         state.demo = Boolean(action.payload.demo);
+        state.apiSources = Array.isArray(action.payload.sources) ? action.payload.sources : [];
+        state.wallDurationMs =
+          action.payload.wallDurationMs != null ? action.payload.wallDurationMs : null;
       })
       .addCase(fetchIncomeStatement.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload || action.error.message || 'Failed to load income statement';
         state.report = null;
         state.demo = false;
+        state.apiSources = [];
+        state.wallDurationMs = null;
       });
   },
 });
