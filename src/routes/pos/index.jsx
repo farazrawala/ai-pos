@@ -79,11 +79,11 @@ function buildThermalReceiptFromCart({
   companyName,
 }) {
   const lines = (cartLines || []).map((line) => {
-    const qty = Number(line.quantity) || 0;
+    const qty = parsePosQty(line.quantity);
     const rate = Number(line.unitPrice) || 0;
     return {
       description: line.name || 'Product',
-      qtyLabel: String(qty),
+      qtyLabel: formatPosQtyLabel(qty),
       rate,
       amount: qty * rate,
     };
@@ -124,6 +124,45 @@ const parsePosUnitPrice = (product) => {
   const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
 };
+
+const POS_QTY_MIN = 0.01;
+
+function roundPosQty(n) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+/** Parse cart / order line quantity (supports decimals e.g. 2.45). */
+function parsePosQty(raw) {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? roundPosQty(n) : 0;
+}
+
+/** While typing qty — digits with optional single decimal, max 2 fractional digits. */
+function sanitizePosQtyInput(value) {
+  const s = String(value ?? '').replace(/,/g, '');
+  let out = '';
+  let sawDot = false;
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (ch >= '0' && ch <= '9') out += ch;
+    else if (ch === '.' && !sawDot) {
+      out += ch;
+      sawDot = true;
+    }
+  }
+  const dot = out.indexOf('.');
+  if (dot !== -1 && out.length - dot - 1 > 2) {
+    out = out.slice(0, dot + 3);
+  }
+  return out;
+}
+
+function formatPosQtyLabel(qty) {
+  const q = roundPosQty(qty);
+  if (!Number.isFinite(q) || q <= 0) return '0';
+  return Number.isInteger(q) ? String(q) : q.toFixed(2);
+}
 
 const Pos = () => {
   useRequireModuleAccess('pos');
@@ -279,10 +318,11 @@ const Pos = () => {
       const i = prev.findIndex((l) => l.productId === productId);
       if (i >= 0) {
         const next = [...prev];
-        next[i] = { ...next[i], quantity: next[i].quantity + 1 };
+        const q = parsePosQty(next[i].quantity) + 1;
+        next[i] = { ...next[i], quantity: formatPosQtyLabel(q) };
         return next;
       }
-      return [...prev, { productId, name, unitPrice, quantity: 1 }];
+      return [...prev, { productId, name, unitPrice, quantity: '1' }];
     });
   }, []);
 
@@ -290,21 +330,32 @@ const Pos = () => {
     setCartLines((prev) =>
       prev.flatMap((l) => {
         if (l.productId !== productId) return [l];
-        const next = l.quantity + delta;
-        if (next < 1) return [];
-        return [{ ...l, quantity: next }];
+        const next = roundPosQty(parsePosQty(l.quantity) + delta);
+        if (next < POS_QTY_MIN) return [];
+        return [{ ...l, quantity: formatPosQtyLabel(next) }];
       })
     );
   }, []);
 
   const setCartQty = useCallback((productId, raw) => {
-    const q = parseInt(String(raw).trim(), 10);
-    if (!Number.isFinite(q) || q < 1) {
+    const sanitized = sanitizePosQtyInput(raw);
+    if (sanitized === '') {
       setCartLines((prev) => prev.filter((l) => l.productId !== productId));
       return;
     }
     setCartLines((prev) =>
-      prev.map((l) => (l.productId === productId ? { ...l, quantity: q } : l))
+      prev.map((l) => (l.productId === productId ? { ...l, quantity: sanitized } : l))
+    );
+  }, []);
+
+  const commitCartQty = useCallback((productId) => {
+    setCartLines((prev) =>
+      prev.flatMap((l) => {
+        if (l.productId !== productId) return [l];
+        const q = parsePosQty(l.quantity);
+        if (q < POS_QTY_MIN) return [];
+        return [{ ...l, quantity: formatPosQtyLabel(q) }];
+      })
     );
   }, []);
 
@@ -315,7 +366,7 @@ const Pos = () => {
   }, []);
 
   const cartSubtotal = useMemo(
-    () => cartLines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0),
+    () => cartLines.reduce((sum, l) => sum + parsePosQty(l.quantity) * l.unitPrice, 0),
     [cartLines]
   );
 
@@ -349,9 +400,15 @@ const Pos = () => {
 
       const lines = cartLines.map((line) => ({
         productId: line.productId,
-        qty: line.quantity,
+        qty: parsePosQty(line.quantity),
         price: line.unitPrice,
       }));
+
+      const invalidQty = lines.find((line) => line.qty < POS_QTY_MIN);
+      if (invalidQty) {
+        alert(`Each line needs quantity of at least ${POS_QTY_MIN} (e.g. 2.45).`);
+        return null;
+      }
 
       const result = await createPosOrderRequest({
         name,
@@ -735,7 +792,8 @@ const Pos = () => {
                   <div className="text-center text-muted text-sm py-5">No products in cart</div>
                 ) : (
                   cartLines.map((line) => {
-                    const lineTotal = line.quantity * line.unitPrice;
+                    const qtyNum = parsePosQty(line.quantity);
+                    const lineTotal = qtyNum * line.unitPrice;
                     return (
                       <div key={line.productId} className="pos-cart-row">
                         <div className="pos-cart-product-name" title={line.name}>
@@ -753,10 +811,13 @@ const Pos = () => {
                             </button>
                             <input
                               type="number"
-                              min={1}
+                              min={POS_QTY_MIN}
+                              step="0.01"
+                              inputMode="decimal"
                               className="pos-qty-input"
                               value={line.quantity}
                               onChange={(e) => setCartQty(line.productId, e.target.value)}
+                              onBlur={() => commitCartQty(line.productId)}
                               aria-label={`Quantity for ${line.name}`}
                             />
                             <button
