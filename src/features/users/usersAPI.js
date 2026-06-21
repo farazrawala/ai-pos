@@ -19,7 +19,7 @@ const normalizeUsersPayload = (result) => {
 
 /**
  * GET list of users for POS / admin dropdowns.
- * Default: `GET /api/user/get-all-active?include_inactive=true&...`
+ * Default: `GET /api/user/get-all-active?limit=...&skip=...`
  * Adjust `USER_LIST_PATH` if your backend uses a different route.
  */
 const USER_LIST_PATH = 'user/get-all-active';
@@ -196,7 +196,6 @@ export async function fetchUsersListRequest(params = {}) {
   }
 
   const query = new URLSearchParams();
-  query.set('include_inactive', 'true');
   const limit = params.limit ?? 2000;
   const skip = params.skip ?? 0;
   query.set('limit', String(limit));
