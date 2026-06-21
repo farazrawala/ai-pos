@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import {
   fetchUsersListRequest,
@@ -18,13 +18,18 @@ import {
 } from '../../features/orders/ordersAPI.js';
 import {
   extractPrinterSettingsFromCompanyBody,
+  extractProductSettingsFromCompanyBody,
   fetchCompanyById,
   getCompanyFromApiBody,
   getCompanyIdFromUser,
   mergeCompanyRecordForSettings,
   mergePrinterSettings,
+  mergeProductSettings,
   pickCompanyLogoUrl,
+  getWarehouseIdFromCompany,
 } from '../../features/company/companyAPI.js';
+import { setCompany } from '../../features/user/userSlice.js';
+import { getProductAvailableStock } from '../../utils/productStock.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
@@ -134,7 +139,11 @@ function roundPosQty(n) {
 
 /** Parse cart / order line quantity (supports decimals e.g. 2.45). */
 function parsePosQty(raw) {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? roundPosQty(n) : 0;
 }
 
@@ -164,20 +173,77 @@ function formatPosQtyLabel(qty) {
   return Number.isInteger(q) ? String(q) : q.toFixed(2);
 }
 
+function posStockBlocksQty({ allowWhenInsufficient, availableStock, requestedQty, productName }) {
+  if (allowWhenInsufficient) return null;
+
+  if (availableStock == null || !Number.isFinite(availableStock)) {
+    const name = String(productName || 'Product').trim() || 'Product';
+    return `Cannot verify stock for "${name}". Reload POS or check warehouse inventory.`;
+  }
+
+  if (requestedQty <= availableStock) return null;
+  const name = String(productName || 'Product').trim() || 'Product';
+  return `Insufficient stock for "${name}": requested ${formatPosQtyLabel(requestedQty)}, available ${formatPosQtyLabel(availableStock)}.`;
+}
+
 const Pos = () => {
   useRequireModuleAccess('pos');
+  const dispatch = useDispatch();
   const authUser = useSelector((state) => state.user.user);
   const authCompany = useSelector((state) => state.user.company);
+
+  const companyId = useMemo(
+    () =>
+      getCompanyIdFromUser(authUser) ||
+      String(authCompany?._id ?? authCompany?.id ?? '').trim(),
+    [authUser, authCompany]
+  );
+
+  const defaultWarehouseId = useMemo(
+    () => getWarehouseIdFromCompany(authCompany),
+    [authCompany]
+  );
+
+  const authCompanyRef = useRef(authCompany);
+  authCompanyRef.current = authCompany;
+
+  useEffect(() => {
+    if (!companyId) return undefined;
+
+    let cancelled = false;
+    fetchCompanyById(companyId)
+      .then((body) => {
+        if (cancelled) return;
+        const fetched = getCompanyFromApiBody(body);
+        if (!fetched) return;
+        dispatch(
+          setCompany(mergeCompanyRecordForSettings(fetched, authCompanyRef.current))
+        );
+      })
+      .catch((err) => {
+        console.warn('[POS] Could not refresh company product settings', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, dispatch]);
 
   const printerSettings = useMemo(() => {
     const parsed = extractPrinterSettingsFromCompanyBody({ data: authCompany });
     return mergePrinterSettings(parsed);
   }, [authCompany]);
 
-  const companyBrand = useMemo(
-    () => buildCompanyBrandFromRecord(authCompany),
-    [authCompany]
+  const productSettings = useMemo(() => {
+    const parsed = extractProductSettingsFromCompanyBody({ data: authCompany });
+    return mergeProductSettings(parsed);
+  }, [authCompany]);
+
+  const allowAddWhenStockInsufficient = Boolean(
+    productSettings.allow_add_to_cart_when_stock_insufficient
   );
+
+  const companyBrand = useMemo(() => buildCompanyBrandFromRecord(authCompany), [authCompany]);
 
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
@@ -307,57 +373,122 @@ const Pos = () => {
     }
   }, [users, selectedCustomerId]);
 
-  const addToCart = useCallback((product) => {
-    if (!product || typeof product !== 'object') return;
-    const productId = String(product._id ?? product.id ?? product.product_id ?? '');
-    if (!productId) return;
-    const name = product.name || product.product_name || 'Product';
-    const unitPrice = parsePosUnitPrice(product);
+  const addToCart = useCallback(
+    (product) => {
+      if (!product || typeof product !== 'object') return;
+      const productId = String(product._id ?? product.id ?? product.product_id ?? '');
+      if (!productId) return;
+      const name = product.name || product.product_name || 'Product';
+      const unitPrice = parsePosUnitPrice(product);
+      const availableStock = getProductAvailableStock(product, {
+        warehouseId: defaultWarehouseId,
+      });
 
-    setCartLines((prev) => {
-      const i = prev.findIndex((l) => l.productId === productId);
-      if (i >= 0) {
-        const next = [...prev];
-        const q = parsePosQty(next[i].quantity) + 1;
-        next[i] = { ...next[i], quantity: formatPosQtyLabel(q) };
-        return next;
+      let stockMsg = null;
+      setCartLines((prev) => {
+        const i = prev.findIndex((l) => l.productId === productId);
+        const nextQty = i >= 0 ? parsePosQty(prev[i].quantity) + 1 : 1;
+        stockMsg = posStockBlocksQty({
+          allowWhenInsufficient: allowAddWhenStockInsufficient,
+          availableStock: i >= 0 ? (prev[i].availableStock ?? availableStock) : availableStock,
+          requestedQty: nextQty,
+          productName: name,
+        });
+        if (stockMsg) return prev;
+
+        if (i >= 0) {
+          const next = [...prev];
+          next[i] = {
+            ...next[i],
+            quantity: formatPosQtyLabel(nextQty),
+            availableStock: next[i].availableStock ?? availableStock,
+          };
+          return next;
+        }
+        return [
+          ...prev,
+          { productId, name, unitPrice, quantity: '1', availableStock },
+        ];
+      });
+      if (stockMsg) toast.warning(stockMsg);
+    },
+    [allowAddWhenStockInsufficient, defaultWarehouseId]
+  );
+
+  const bumpCartQty = useCallback(
+    (productId, delta) => {
+      let stockMsg = null;
+      setCartLines((prev) =>
+        prev.flatMap((l) => {
+          if (l.productId !== productId) return [l];
+          const next = roundPosQty(parsePosQty(l.quantity) + delta);
+          if (next < POS_QTY_MIN) return [];
+          if (delta > 0) {
+            stockMsg = posStockBlocksQty({
+              allowWhenInsufficient: allowAddWhenStockInsufficient,
+              availableStock: l.availableStock,
+              requestedQty: next,
+              productName: l.name,
+            });
+            if (stockMsg) return [l];
+          }
+          return [{ ...l, quantity: formatPosQtyLabel(next) }];
+        })
+      );
+      if (stockMsg) toast.warning(stockMsg);
+    },
+    [allowAddWhenStockInsufficient]
+  );
+
+  const setCartQty = useCallback(
+    (productId, raw) => {
+      const sanitized = sanitizePosQtyInput(raw);
+      if (sanitized === '') {
+        setCartLines((prev) => prev.filter((l) => l.productId !== productId));
+        return;
       }
-      return [...prev, { productId, name, unitPrice, quantity: '1' }];
-    });
-  }, []);
+      let stockMsg = null;
+      setCartLines((prev) =>
+        prev.flatMap((l) => {
+          if (l.productId !== productId) return [l];
+          const next = parsePosQty(sanitized);
+          stockMsg = posStockBlocksQty({
+            allowWhenInsufficient: allowAddWhenStockInsufficient,
+            availableStock: l.availableStock,
+            requestedQty: next,
+            productName: l.name,
+          });
+          if (stockMsg) return [l];
+          return [{ ...l, quantity: sanitized }];
+        })
+      );
+      if (stockMsg) toast.warning(stockMsg);
+    },
+    [allowAddWhenStockInsufficient]
+  );
 
-  const bumpCartQty = useCallback((productId, delta) => {
-    setCartLines((prev) =>
-      prev.flatMap((l) => {
-        if (l.productId !== productId) return [l];
-        const next = roundPosQty(parsePosQty(l.quantity) + delta);
-        if (next < POS_QTY_MIN) return [];
-        return [{ ...l, quantity: formatPosQtyLabel(next) }];
-      })
-    );
-  }, []);
-
-  const setCartQty = useCallback((productId, raw) => {
-    const sanitized = sanitizePosQtyInput(raw);
-    if (sanitized === '') {
-      setCartLines((prev) => prev.filter((l) => l.productId !== productId));
-      return;
-    }
-    setCartLines((prev) =>
-      prev.map((l) => (l.productId === productId ? { ...l, quantity: sanitized } : l))
-    );
-  }, []);
-
-  const commitCartQty = useCallback((productId) => {
-    setCartLines((prev) =>
-      prev.flatMap((l) => {
-        if (l.productId !== productId) return [l];
-        const q = parsePosQty(l.quantity);
-        if (q < POS_QTY_MIN) return [];
-        return [{ ...l, quantity: formatPosQtyLabel(q) }];
-      })
-    );
-  }, []);
+  const commitCartQty = useCallback(
+    (productId) => {
+      let stockMsg = null;
+      setCartLines((prev) =>
+        prev.flatMap((l) => {
+          if (l.productId !== productId) return [l];
+          const q = parsePosQty(l.quantity);
+          if (q < POS_QTY_MIN) return [];
+          stockMsg = posStockBlocksQty({
+            allowWhenInsufficient: allowAddWhenStockInsufficient,
+            availableStock: l.availableStock,
+            requestedQty: q,
+            productName: l.name,
+          });
+          if (stockMsg) return [l];
+          return [{ ...l, quantity: formatPosQtyLabel(q) }];
+        })
+      );
+      if (stockMsg) toast.warning(stockMsg);
+    },
+    [allowAddWhenStockInsufficient]
+  );
 
   const setCartUnitPrice = useCallback((productId, raw) => {
     const n = parseFloat(String(raw).replace(/,/g, ''));
@@ -614,8 +745,7 @@ const Pos = () => {
 
   const handleAddCustomerFieldChange = (e) => {
     const { name, value } = e.target;
-    const nextValue =
-      name === 'phone' ? digitsOnlyFromPhone(value).slice(0, 11) : value;
+    const nextValue = name === 'phone' ? digitsOnlyFromPhone(value).slice(0, 11) : value;
     setAddCustomerForm((prev) => ({ ...prev, [name]: nextValue }));
     if (addCustomerErrors[name]) {
       setAddCustomerErrors((prev) => ({ ...prev, [name]: '' }));
@@ -768,7 +898,12 @@ const Pos = () => {
               )}
               <div className="pos-customer-selected mb-3">
                 {(() => {
-                  if (!selectedCustomerId) return <span>Default: <strong>Walk In</strong></span>;
+                  if (!selectedCustomerId)
+                    return (
+                      <span>
+                        Default: <strong>Walk In</strong>
+                      </span>
+                    );
                   const u = users.find((row) => getUserOptionValue(row) === selectedCustomerId);
                   return u ? (
                     <span>

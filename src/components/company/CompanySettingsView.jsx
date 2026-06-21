@@ -5,14 +5,21 @@ import {
   COMPANY_LOGO_FIELD,
   PRINTER_SETTING_DEFS,
   PRINTER_SETTING_SECTIONS,
+  PRODUCT_SETTING_DEFS,
   buildPrinterSettingsPayload,
+  buildProductSettingsPayload,
   defaultPrinterSettings,
+  defaultProductSettings,
   extractPrinterSettingsFromCompanyBody,
+  extractProductSettingsFromCompanyBody,
   fetchCompanyById,
   getCompanyFromApiBody,
   mergePrinterSettings,
+  mergeProductSettings,
   normalizeIncomingPrinterSettings,
+  normalizeIncomingProductSettings,
   patchCompanyPrinterSettings,
+  patchCompanyProductSettings,
   pickCompanyLogoUrl,
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
@@ -63,9 +70,21 @@ export default function CompanySettingsView() {
   const [togglingPrinterKey, setTogglingPrinterKey] = useState('');
   const [printerSaveError, setPrinterSaveError] = useState('');
 
+  const [productSettings, setProductSettings] = useState(() => defaultProductSettings());
+  const [togglingProductKey, setTogglingProductKey] = useState('');
+  const [productSaveError, setProductSaveError] = useState('');
+
   const printerSettingByKey = useMemo(() => {
     const map = {};
     PRINTER_SETTING_DEFS.forEach((def) => {
+      map[def.key] = def;
+    });
+    return map;
+  }, []);
+
+  const productSettingByKey = useMemo(() => {
+    const map = {};
+    PRODUCT_SETTING_DEFS.forEach((def) => {
       map[def.key] = def;
     });
     return map;
@@ -89,6 +108,8 @@ export default function CompanySettingsView() {
     });
     const parsed = extractPrinterSettingsFromCompanyBody(body ?? { data: company });
     setPrinterSettings(mergePrinterSettings(parsed));
+    const productParsed = extractProductSettingsFromCompanyBody(body ?? { data: company });
+    setProductSettings(mergeProductSettings(productParsed));
   }, []);
 
   useEffect(() => {
@@ -163,7 +184,10 @@ export default function CompanySettingsView() {
   const validateCompany = () => {
     const next = {};
     if (!form.company_name.trim()) next.company_name = 'Company name is required.';
-    if (form.company_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.company_email.trim())) {
+    if (
+      form.company_email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.company_email.trim())
+    ) {
       next.company_email = 'Enter a valid email address.';
     }
     setErrors(next);
@@ -234,6 +258,41 @@ export default function CompanySettingsView() {
       showToast({ message, variant: 'error' });
     } finally {
       setTogglingPrinterKey('');
+    }
+  };
+
+  const persistProductSettings = async (nextSettings) => {
+    const payload = buildProductSettingsPayload(nextSettings);
+    const updated = await patchCompanyProductSettings(companyId, payload);
+    const fromApi = getCompanyFromApiBody(updated);
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      product_settings: fromApi?.product_settings ?? fromApi?.productSettings ?? payload,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractProductSettingsFromCompanyBody({ data: merged });
+    setProductSettings(mergeProductSettings(parsed));
+  };
+
+  const handleToggleProductSetting = async (key) => {
+    if (!companyId || togglingProductKey) return;
+
+    const previous = productSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    setProductSettings(next);
+    setProductSaveError('');
+    setTogglingProductKey(key);
+
+    try {
+      await persistProductSettings(next);
+    } catch (err) {
+      setProductSettings(previous);
+      const message = err?.message || 'Failed to update product setting';
+      setProductSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingProductKey('');
     }
   };
 
@@ -375,7 +434,11 @@ export default function CompanySettingsView() {
             ) : null}
 
             <div className="d-flex justify-content-end">
-              <button type="submit" className="btn btn-primary" disabled={companySaving || !companyId}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={companySaving || !companyId}
+              >
                 {companySaving ? 'Saving…' : 'Save company'}
               </button>
             </div>
@@ -392,90 +455,172 @@ export default function CompanySettingsView() {
           </p>
         </div>
         <div className="card-body pt-0">
-            <div className="table-responsive">
-              <table className="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th className="text-uppercase text-secondary text-xxs font-weight-bolder">
-                      Option
-                    </th>
-                    <th
-                      className="text-uppercase text-secondary text-xxs font-weight-bolder text-end"
-                      style={{ width: '180px' }}
-                    >
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PRINTER_SETTING_SECTIONS.map((section) => (
-                    <Fragment key={section.title}>
-                      <tr className="table-light">
-                        <td colSpan={2} className="text-xs text-uppercase text-secondary fw-bold py-2">
-                          {section.title}
-                        </td>
-                      </tr>
-                      {section.keys.map((key) => {
-                        const { label, hint } = printerSettingByKey[key] || { label: key };
-                        const isOn = Boolean(printerSettings[key]);
-                        return (
-                          <tr key={key}>
-                            <td className="text-sm">
-                              <div className="fw-semibold">{label}</div>
-                              {hint ? <small className="text-muted">{hint}</small> : null}
-                            </td>
-                            <td className="text-end">
-                              <div className="d-inline-flex align-items-center justify-content-end gap-2">
-                                <label
-                                  className="form-check form-switch mb-0"
-                                  htmlFor={`printer-setting-${key}`}
-                                  style={{
-                                    cursor:
-                                      togglingPrinterKey || !companyId
-                                        ? 'not-allowed'
-                                        : 'pointer',
-                                  }}
+          <div className="table-responsive">
+            <table className="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th className="text-uppercase text-secondary text-xxs font-weight-bolder">
+                    Option
+                  </th>
+                  <th
+                    className="text-uppercase text-secondary text-xxs font-weight-bolder text-end"
+                    style={{ width: '180px' }}
+                  >
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {PRINTER_SETTING_SECTIONS.map((section) => (
+                  <Fragment key={section.title}>
+                    <tr className="table-light">
+                      <td
+                        colSpan={2}
+                        className="text-xs text-uppercase text-secondary fw-bold py-2"
+                      >
+                        {section.title}
+                      </td>
+                    </tr>
+                    {section.keys.map((key) => {
+                      const { label, hint } = printerSettingByKey[key] || { label: key };
+                      const isOn = Boolean(printerSettings[key]);
+                      return (
+                        <tr key={key}>
+                          <td className="text-sm">
+                            <div className="fw-semibold">{label}</div>
+                            {hint ? <small className="text-muted">{hint}</small> : null}
+                          </td>
+                          <td className="text-end">
+                            <div className="d-inline-flex align-items-center justify-content-end gap-2">
+                              <label
+                                className="form-check form-switch mb-0"
+                                htmlFor={`printer-setting-${key}`}
+                                style={{
+                                  cursor:
+                                    togglingPrinterKey || !companyId ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                <input
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  role="switch"
+                                  id={`printer-setting-${key}`}
+                                  checked={isOn}
+                                  onChange={() => handleTogglePrinterSetting(key)}
+                                  disabled={!!togglingPrinterKey || !companyId}
+                                  aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                                />
+                              </label>
+                              {togglingPrinterKey === key ? (
+                                <span
+                                  className="spinner-border spinner-border-sm text-primary"
+                                  role="status"
+                                  style={{ width: '1rem', height: '1rem' }}
                                 >
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    role="switch"
-                                    id={`printer-setting-${key}`}
-                                    checked={isOn}
-                                    onChange={() => handleTogglePrinterSetting(key)}
-                                    disabled={!!togglingPrinterKey || !companyId}
-                                    aria-label={`${label} ${isOn ? 'on' : 'off'}`}
-                                  />
-                                </label>
-                                {togglingPrinterKey === key ? (
-                                  <span
-                                    className="spinner-border spinner-border-sm text-primary"
-                                    role="status"
-                                    style={{ width: '1rem', height: '1rem' }}
-                                  >
-                                    <span className="visually-hidden">Saving…</span>
-                                  </span>
-                                ) : (
-                                  <span
-                                    className={`badge ${isOn ? 'bg-success' : 'bg-secondary'}`}
-                                  >
-                                    {isOn ? 'On' : 'Off'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                                  <span className="visually-hidden">Saving…</span>
+                                </span>
+                              ) : (
+                                <span className={`badge ${isOn ? 'bg-success' : 'bg-secondary'}`}>
+                                  {isOn ? 'On' : 'Off'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-            {printerSaveError ? (
-              <div className="alert alert-danger py-2 mt-3">{printerSaveError}</div>
-            ) : null}
+          {printerSaveError ? (
+            <div className="alert alert-danger py-2 mt-3">{printerSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="card shadow-sm mt-4 mb-4" style={{ maxWidth: '720px', margin: '0 auto' }}>
+        <div className="card-header pb-3">
+          <h5 className="mb-1">Product settings</h5>
+          <p className="text-sm text-muted mb-0">
+            POS product behavior — changes save immediately to{' '}
+            <code className="text-xs">product_settings</code>.
+          </p>
+        </div>
+        <div className="card-body pt-0">
+          <div className="table-responsive">
+            <table className="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th className="text-uppercase text-secondary text-xxs font-weight-bolder">
+                    Option
+                  </th>
+                  <th
+                    className="text-uppercase text-secondary text-xxs font-weight-bolder text-end"
+                    style={{ width: '180px' }}
+                  >
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {PRODUCT_SETTING_DEFS.map(({ key }) => {
+                  const { label, hint } = productSettingByKey[key] || { label: key };
+                  const isOn = Boolean(productSettings[key]);
+                  return (
+                    <tr key={key}>
+                      <td className="text-sm">
+                        <div className="fw-semibold">{label}</div>
+                        {hint ? <small className="text-muted">{hint}</small> : null}
+                      </td>
+                      <td className="text-end">
+                        <div className="d-inline-flex align-items-center justify-content-end gap-2">
+                          <label
+                            className="form-check form-switch mb-0"
+                            htmlFor={`product-setting-${key}`}
+                            style={{
+                              cursor:
+                                togglingProductKey || !companyId ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              role="switch"
+                              id={`product-setting-${key}`}
+                              checked={isOn}
+                              onChange={() => handleToggleProductSetting(key)}
+                              disabled={!!togglingProductKey || !companyId}
+                              aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                            />
+                          </label>
+                          {togglingProductKey === key ? (
+                            <span
+                              className="spinner-border spinner-border-sm text-primary"
+                              role="status"
+                              style={{ width: '1rem', height: '1rem' }}
+                            >
+                              <span className="visually-hidden">Saving…</span>
+                            </span>
+                          ) : (
+                            <span className={`badge ${isOn ? 'bg-success' : 'bg-secondary'}`}>
+                              {isOn ? 'On' : 'Off'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {productSaveError ? (
+            <div className="alert alert-danger py-2 mt-3">{productSaveError}</div>
+          ) : null}
         </div>
       </div>
     </>

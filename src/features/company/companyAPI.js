@@ -190,7 +190,12 @@ export function normalizeLoginApiBody(body) {
   ).trim();
 
   let company = extractCompanyFromUser(user);
-  if (!company && root.company && typeof root.company === 'object' && !Array.isArray(root.company)) {
+  if (
+    !company &&
+    root.company &&
+    typeof root.company === 'object' &&
+    !Array.isArray(root.company)
+  ) {
     company = { ...root.company };
   }
 
@@ -629,11 +634,7 @@ export const COMPANY_LOGO_FIELD = 'company_logo';
 export function pickCompanyLogoUrl(company) {
   if (!company || typeof company !== 'object') return '';
   const raw =
-    company.company_logo ??
-    company.companyLogo ??
-    company.logo ??
-    company.logo_image ??
-    '';
+    company.company_logo ?? company.companyLogo ?? company.logo ?? company.logo_image ?? '';
   return resolveCategoryMediaUrl(raw);
 }
 
@@ -699,7 +700,8 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   if (rest.company_name !== undefined) fields.company_name = String(rest.company_name).trim();
   if (rest.company_phone !== undefined) fields.company_phone = String(rest.company_phone).trim();
   if (rest.company_email !== undefined) fields.company_email = String(rest.company_email).trim();
-  if (rest.company_address !== undefined) fields.company_address = String(rest.company_address).trim();
+  if (rest.company_address !== undefined)
+    fields.company_address = String(rest.company_address).trim();
 
   const useMultipart = isUserUploadFilePart(company_logo);
   if (useMultipart) {
@@ -715,7 +717,7 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
 const PRINTER_SETTING_META = {
   show_logo: {
     label: 'Show logo on invoice',
-    hint: 'Uses company_logo image from company details',
+    // hint: 'Uses company_logo image from company details',
     defaultValue: true,
   },
   show_company_name: { label: 'Show company name', defaultValue: true },
@@ -851,14 +853,13 @@ function readPrinterSettingsRaw(company) {
 export function mergeCompanyRecordForSettings(fetched, fallback) {
   if (!fetched) return fallback ?? null;
   if (!fallback) return fetched;
-  const printerRaw =
-    readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
+  const printerRaw = readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
+  const productRaw = readProductSettingsRaw(fetched) ?? readProductSettingsRaw(fallback) ?? null;
   return {
     ...fallback,
     ...fetched,
-    ...(printerRaw != null
-      ? { printer_settings: printerRaw, printerSettings: printerRaw }
-      : {}),
+    ...(printerRaw != null ? { printer_settings: printerRaw, printerSettings: printerRaw } : {}),
+    ...(productRaw != null ? { product_settings: productRaw, productSettings: productRaw } : {}),
   };
 }
 
@@ -932,4 +933,102 @@ export async function patchCompanyPrinterSettings(companyId, settingsObject) {
 /** @deprecated use patchCompanyPrinterSettings */
 export async function patchCompanyInvoicePrintSettings(companyId, settingsObject) {
   return patchCompanyPrinterSettings(companyId, settingsObject);
+}
+
+/** Product toggle metadata keyed by snake_case field name. */
+const PRODUCT_SETTING_META = {
+  allow_add_to_cart_when_stock_insufficient: {
+    label: 'Add to cart when stock is insufficient',
+    hint: 'When turned off, POS blocks adding products that would exceed available stock.',
+    defaultValue: true,
+  },
+};
+
+export const PRODUCT_SETTING_DEFS = Object.entries(PRODUCT_SETTING_META).map(([key, meta]) => ({
+  key,
+  ...meta,
+}));
+
+export function defaultProductSettings() {
+  const out = {};
+  PRODUCT_SETTING_DEFS.forEach(({ key, defaultValue }) => {
+    out[key] = defaultValue;
+  });
+  return out;
+}
+
+const PRODUCT_SETTING_ALT_KEYS = {
+  allow_add_to_cart_when_stock_insufficient: [
+    'allowAddToCartWhenStockInsufficient',
+    'add_to_cart_when_stock_insufficient',
+  ],
+};
+
+function readProductSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw = company.product_settings ?? company.productSettings;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.product_settings != null) return parsed.product_settings;
+    if (parsed?.productSettings != null) return parsed.productSettings;
+    if (parsed?.allow_add_to_cart_when_stock_insufficient !== undefined) return parsed;
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw = allFields.product_settings ?? allFields.productSettings;
+    if (raw != null) return raw;
+    if (allFields.allow_add_to_cart_when_stock_insufficient !== undefined) {
+      return allFields;
+    }
+  }
+
+  return null;
+}
+
+export function extractProductSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readProductSettingsRaw(company));
+}
+
+export function normalizeIncomingProductSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultProductSettings();
+  const out = { ...defaults };
+  PRODUCT_SETTING_DEFS.forEach(({ key }) => {
+    const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const candidates = [key, camel, ...(PRODUCT_SETTING_ALT_KEYS[key] || [])];
+    for (const candidate of candidates) {
+      if (parsed[candidate] !== undefined) {
+        out[key] = coerceSettingBool(parsed[candidate]);
+        break;
+      }
+    }
+  });
+  return out;
+}
+
+export function mergeProductSettings(parsed) {
+  return normalizeIncomingProductSettings(parsed) || defaultProductSettings();
+}
+
+/** Full JSON object saved to company `product_settings`. */
+export function buildProductSettingsPayload(values) {
+  const out = {};
+  PRODUCT_SETTING_DEFS.forEach(({ key }) => {
+    out[key] = Boolean(values[key]);
+  });
+  return out;
+}
+
+export async function patchCompanyProductSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    product_settings: JSON.stringify(settingsObject),
+  });
 }
