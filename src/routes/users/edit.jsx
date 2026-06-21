@@ -33,6 +33,15 @@ const normalizePermissions = (input) => {
   return base;
 };
 
+const buildBulkPermissions = (allGranted) =>
+  PERMISSION_MODULE_KEYS.reduce((acc, moduleName) => {
+    acc[moduleName] = PERMISSION_ACTIONS.reduce((obj, action) => {
+      obj[action] = allGranted;
+      return obj;
+    }, {});
+    return acc;
+  }, {});
+
 const pickUserProfileImageUrl = (user) => {
   if (!user || typeof user !== 'object') return '';
   const raw =
@@ -73,6 +82,22 @@ const EditUser = () => {
   const profileImageInputRef = useRef(null);
 
   const roleOptions = useMemo(() => ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'], []);
+
+  const allPermissionsGranted = useMemo(
+    () =>
+      PERMISSION_MODULE_KEYS.every((moduleName) =>
+        PERMISSION_ACTIONS.every((action) => Boolean(form.permissions[moduleName]?.[action]))
+      ),
+    [form.permissions]
+  );
+
+  const noPermissionsGranted = useMemo(
+    () =>
+      PERMISSION_MODULE_KEYS.every((moduleName) =>
+        PERMISSION_ACTIONS.every((action) => !form.permissions[moduleName]?.[action])
+      ),
+    [form.permissions]
+  );
 
   useEffect(() => {
     return () => {
@@ -230,6 +255,13 @@ const EditUser = () => {
           [actionName]: !prev.permissions[moduleName][actionName],
         },
       },
+    }));
+  };
+
+  const setAllPermissions = (granted) => {
+    setForm((prev) => ({
+      ...prev,
+      permissions: buildBulkPermissions(granted),
     }));
   };
 
@@ -477,6 +509,36 @@ const EditUser = () => {
 
                 <div className="mb-4">
                   <label className="form-label">Permissions</label>
+                  <div className="d-flex flex-wrap gap-4 mb-3">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="give-all-permissions"
+                        checked={allPermissionsGranted}
+                        onChange={(e) => setAllPermissions(e.target.checked)}
+                        disabled={isSubmitting}
+                      />
+                      <label className="form-check-label" htmlFor="give-all-permissions">
+                        Give all permission
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="remove-all-permissions"
+                        checked={noPermissionsGranted}
+                        onChange={(e) => {
+                          if (e.target.checked) setAllPermissions(false);
+                        }}
+                        disabled={isSubmitting}
+                      />
+                      <label className="form-check-label" htmlFor="remove-all-permissions">
+                        Remove all permission
+                      </label>
+                    </div>
+                  </div>
                   <div className="table-responsive">
                     <table className="table table-sm align-middle">
                       <thead>
