@@ -7,6 +7,9 @@ export const IS_LIVE = APP_ENV === 'live';
 
 export const APP_NAME = import.meta.env.VITE_APP_NAME || 'AI POS';
 
+/** Default shop / receipt name when company name is unset. */
+export const SHOP_NAME = import.meta.env.VITE_SHOP_NAME || APP_NAME;
+
 export const isDevServer = Boolean(import.meta.env.DEV);
 
 /** `VITE_DEBUG=true` — enables dev tooling (e.g. API sources footer). */

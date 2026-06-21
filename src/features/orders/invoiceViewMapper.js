@@ -1,5 +1,6 @@
 import { getOrderLineItems } from './ordersAPI.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
+import { SHOP_NAME } from '../../config/env.js';
 
 export const DEFAULT_INVOICE_TERMS = [
   'Payment On Receipt',
@@ -7,10 +8,7 @@ export const DEFAULT_INVOICE_TERMS = [
   'Late payments may incur fees after the due date.',
 ];
 
-export const shopName =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
-    ? String(import.meta.env.VITE_SHOP_NAME)
-    : 'Store';
+export const shopName = SHOP_NAME;
 
 export const formatInvoiceMoney = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

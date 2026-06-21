@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { setLoginSession } from '../features/user/userSlice.js';
 import apiClient from '../api/apiClient.js';
 import { API_BASE_URL } from '../config/apiConfig.js';
+import { APP_NAME } from '../config/env.js';
 
 const initialForm = {
   email: '',
@@ -100,7 +101,7 @@ const SignIn = () => {
       <div className="signin-content">
         <div className="signin-card">
           <header className="signin-card-header">
-            <h2>POS Sign in</h2>
+            <h2>{APP_NAME}</h2>
             <p className="muted">Sign in with your email credentials</p>
           </header>
 

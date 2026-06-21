@@ -132,7 +132,7 @@ const Sidebar = () => {
             className="navbar-brand-img h-100"
             alt="main_logo"
           />
-          <span className="ms-1 font-weight-bold">Creative Tim</span>
+          <span className="ms-1 font-weight-bold">AI POS</span>
         </NavLink>
       </div>
       <hr className="horizontal dark mt-0" />

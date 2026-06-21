@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { defaultPrinterSettings } from '../../features/company/companyAPI.js';
+import { APP_NAME } from '../../config/env.js';
 
 /**
  * @typedef {Object} ThermalReceiptLine
@@ -150,7 +151,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   } = options;
 
   const fmt = (n) => formatThermalMoney(n, { currencyLabel, locale });
-  const companyName = String(brand.name || d.shopName || 'Store').trim() || 'Store';
+  const companyName = String(brand.name || d.shopName || APP_NAME).trim() || APP_NAME;
 
   const logoHtml = ps.show_logo
     ? brand.logoUrl

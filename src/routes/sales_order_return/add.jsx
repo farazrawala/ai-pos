@@ -11,7 +11,7 @@ import {
   mergePrinterSettings,
   pickCompanyLogoUrl,
 } from '../../features/company/companyAPI.js';
-import { formatInvoiceDate } from '../../features/orders/invoiceViewMapper.js';
+import { formatInvoiceDate, shopName } from '../../features/orders/invoiceViewMapper.js';
 import { createSalesReturn } from '../../features/salesReturns/salesReturnsSlice.js';
 import {
   fetchProductActiveRequest,
@@ -33,11 +33,6 @@ import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
-
-const shopName =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
-    ? String(import.meta.env.VITE_SHOP_NAME)
-    : 'Store';
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

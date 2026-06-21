@@ -37,14 +37,10 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
+import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
-
-const shopName =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
-    ? String(import.meta.env.VITE_SHOP_NAME)
-    : 'Store';
 
 function pickOrderFromSaveResult(result) {
   if (!result || typeof result !== 'object') return null;

@@ -1,4 +1,4 @@
-# 🚀 AI POS - Point of Sale System
+# AI POS
 
 ### 👋 Modern POS System built with React, Redux Toolkit & Vite
 

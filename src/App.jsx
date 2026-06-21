@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { APP_NAME } from './config/env.js';
 import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
 import Profile from './routes/Profile.jsx';
@@ -106,6 +107,10 @@ const App = () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(t);
     };
+  }, []);
+
+  useEffect(() => {
+    document.title = APP_NAME;
   }, []);
 
   // Don't show sidebar/header on signin/signup, or on API workflow when logged out (public tool).

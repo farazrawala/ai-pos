@@ -11,7 +11,7 @@ import {
   mergePrinterSettings,
   pickCompanyLogoUrl,
 } from '../../features/company/companyAPI.js';
-import { formatInvoiceDate } from '../../features/orders/invoiceViewMapper.js';
+import { formatInvoiceDate, shopName } from '../../features/orders/invoiceViewMapper.js';
 import {
   fetchSalesReturnById,
   updateSalesReturn,
@@ -94,11 +94,6 @@ function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
   }
   return '';
 }
-
-const shopName =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_SHOP_NAME
-    ? String(import.meta.env.VITE_SHOP_NAME)
-    : 'Store';
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

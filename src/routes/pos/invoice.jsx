@@ -39,7 +39,7 @@ import './pos-invoice-module.css';
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
-  shopName: 'DISCOUNT SHOP',
+  shopName,
   invoiceNo: '42693',
   reference: '',
   grossAmount: 922.5,
