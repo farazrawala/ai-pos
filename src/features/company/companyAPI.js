@@ -726,7 +726,7 @@ const PRINTER_SETTING_META = {
   show_qrcode: {
     label: 'Show QR code',
     hint: 'Encodes the invoice public URL',
-    defaultValue: false,
+    defaultValue: true,
   },
   show_invoice_date: { label: 'Show invoice date', defaultValue: true },
   show_change_return: { label: 'Show change / return', defaultValue: true },
