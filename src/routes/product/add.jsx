@@ -691,6 +691,7 @@ const ProductAdd = () => {
                     required
                   >
                     <option value="Piece">Piece</option>
+                    <option value="Kg">Kg</option>
                     <option value="Ltr">Ltr</option>
                     <option value="Box">Box</option>
                     <option value="Meter">Meter</option>
