@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { NavLink } from 'react-router-dom';
 import {
   FaBasketShopping,
@@ -42,9 +42,8 @@ import {
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
 import { DEBUG, APP_NAME } from '../config/env.js';
-import { withBase } from '../config/appBase.js';
-import { pickCompanyLogoUrl } from '../features/company/companyAPI.js';
-import { selectCompany } from '../features/user/userSlice.js';
+import { pickCompanyLogoUrl, extractCompanyFromUser, fetchCompanyById, getCompanyFromApiBody, mergeCompanyRecordForSettings } from '../features/company/companyAPI.js';
+import { selectCompany, selectCompanyId, setCompany } from '../features/user/userSlice.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
@@ -100,15 +99,56 @@ const navItems = [
 ];
 
 const Sidebar = () => {
+  const dispatch = useDispatch();
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
+  const companyId = useSelector(selectCompanyId);
+  const authUser = useSelector((state) => state.user.user);
+
+  const mergedCompany = useMemo(() => {
+    const fromUser = extractCompanyFromUser(authUser);
+    return { ...(fromUser || {}), ...(company || {}) };
+  }, [company, authUser]);
+
+  const logoFetchAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    logoFetchAttemptedRef.current = false;
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId || logoFetchAttemptedRef.current) return undefined;
+
+    const existingLogo =
+      pickCompanyLogoUrl(company) || pickCompanyLogoUrl(extractCompanyFromUser(authUser));
+    if (existingLogo) return undefined;
+
+    logoFetchAttemptedRef.current = true;
+    let cancelled = false;
+    fetchCompanyById(companyId)
+      .then((body) => {
+        if (cancelled) return;
+        const fetched = getCompanyFromApiBody(body);
+        if (!fetched) return;
+        dispatch(
+          setCompany(
+            mergeCompanyRecordForSettings(fetched, company || extractCompanyFromUser(authUser))
+          )
+        );
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, dispatch, company, authUser]);
 
   const brandLabel = useMemo(() => {
-    const name = company?.company_name || company?.name || '';
+    const name = mergedCompany?.company_name || mergedCompany?.name || '';
     return String(name || APP_NAME).trim() || APP_NAME;
-  }, [company]);
+  }, [mergedCompany]);
 
-  const brandLogoUrl = useMemo(() => pickCompanyLogoUrl(company), [company]);
+  const brandLogoUrl = useMemo(() => pickCompanyLogoUrl(mergedCompany), [mergedCompany]);
 
   const visibleNavItems = useMemo(() => {
     return navItems.filter(({ to, adminOnly, debugOnly }) => {
@@ -136,13 +176,24 @@ const Sidebar = () => {
           <NavIcon icon={FaXmark} size={18} />
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
-          {/* <img
-            src={brandLogoUrl || withBase('/assets/img/logo-ct-dark.png')}
-            width={26}
-            height={26}
-            className="navbar-brand-img h-100"
-            alt={brandLabel}
-          /> */}
+          {brandLogoUrl ? (
+            <img
+              src={brandLogoUrl}
+              width={26}
+              height={26}
+              className="navbar-brand-img h-100"
+              alt={`${brandLabel} logo`}
+              style={{ objectFit: 'contain' }}
+            />
+          ) : (
+            <span
+              className="navbar-brand-img d-inline-flex align-items-center justify-content-center rounded bg-gradient-primary text-white text-xxs fw-bold"
+              style={{ width: 26, height: 26, flexShrink: 0 }}
+              aria-hidden
+            >
+              {brandLabel.charAt(0).toUpperCase()}
+            </span>
+          )}
           <span className="ms-1 font-weight-bold">{brandLabel}</span>
         </NavLink>
       </div>
