@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -14,6 +14,15 @@ const buildInitialPermissions = () =>
   PERMISSION_MODULE_KEYS.reduce((acc, moduleName) => {
     acc[moduleName] = PERMISSION_ACTIONS.reduce((obj, action) => {
       obj[action] = false;
+      return obj;
+    }, {});
+    return acc;
+  }, {});
+
+const buildBulkPermissions = (allGranted) =>
+  PERMISSION_MODULE_KEYS.reduce((acc, moduleName) => {
+    acc[moduleName] = PERMISSION_ACTIONS.reduce((obj, action) => {
+      obj[action] = allGranted;
       return obj;
     }, {});
     return acc;
@@ -37,6 +46,22 @@ const AddUser = () => {
     permissions: buildInitialPermissions(),
   });
   const [errors, setErrors] = useState({});
+
+  const allPermissionsGranted = useMemo(
+    () =>
+      PERMISSION_MODULE_KEYS.every((moduleName) =>
+        PERMISSION_ACTIONS.every((action) => Boolean(form.permissions[moduleName]?.[action]))
+      ),
+    [form.permissions]
+  );
+
+  const noPermissionsGranted = useMemo(
+    () =>
+      PERMISSION_MODULE_KEYS.every((moduleName) =>
+        PERMISSION_ACTIONS.every((action) => !form.permissions[moduleName]?.[action])
+      ),
+    [form.permissions]
+  );
 
   useEffect(() => {
     if (canCreate === false) navigate('/users');
@@ -102,6 +127,13 @@ const AddUser = () => {
           [actionName]: !prev.permissions[moduleName][actionName],
         },
       },
+    }));
+  };
+
+  const setAllPermissions = (granted) => {
+    setForm((prev) => ({
+      ...prev,
+      permissions: buildBulkPermissions(granted),
     }));
   };
 
@@ -269,6 +301,36 @@ const AddUser = () => {
 
                 <div className="mb-4">
                   <label className="form-label">Permissions</label>
+                  <div className="d-flex flex-wrap gap-4 mb-3">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="add-check-all-rights"
+                        checked={allPermissionsGranted}
+                        onChange={(e) => setAllPermissions(e.target.checked)}
+                        disabled={isSubmitting}
+                      />
+                      <label className="form-check-label" htmlFor="add-check-all-rights">
+                        Check all rights
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="add-remove-all-rights"
+                        checked={noPermissionsGranted}
+                        onChange={(e) => {
+                          if (e.target.checked) setAllPermissions(false);
+                        }}
+                        disabled={isSubmitting}
+                      />
+                      <label className="form-check-label" htmlFor="add-remove-all-rights">
+                        Remove all rights
+                      </label>
+                    </div>
+                  </div>
                   <div className="table-responsive">
                     <table className="table table-sm align-middle">
                       <thead>

@@ -520,7 +520,7 @@ const EditUser = () => {
                         disabled={isSubmitting}
                       />
                       <label className="form-check-label" htmlFor="give-all-permissions">
-                        Give all permission
+                        Check all rights
                       </label>
                     </div>
                     <div className="form-check">
@@ -535,7 +535,7 @@ const EditUser = () => {
                         disabled={isSubmitting}
                       />
                       <label className="form-check-label" htmlFor="remove-all-permissions">
-                        Remove all permission
+                        Remove all rights
                       </label>
                     </div>
                   </div>
