@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
-import { fetchUsers, setSearch, setPage, setLimit, setSort } from '../../features/users/usersSlice.js';
+import { fetchUsers, setSearch, setPage, setLimit, setSort, deleteUser, clearDeleteStatus } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -47,9 +47,12 @@ const Users = () => {
     pagination,
     search: searchTerm,
     sort,
+    deleteStatus,
+    deleteError,
   } = useSelector((state) => state.users);
+  const authUser = useSelector((state) => state.user.user);
 
-  const { canView, canCreate, canEdit } = usePermissions('users');
+  const { canView, canCreate, canEdit, canDelete } = usePermissions('users');
   useRequireModuleAccess('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -101,6 +104,48 @@ const Users = () => {
   const handleLimitChange = (limit) => {
     dispatch(setLimit(limit));
   };
+
+  const reloadUsers = useCallback(() => {
+    const params = {
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    dispatch(fetchUsers(params));
+  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  const handleDelete = async (userId, userName) => {
+    const authUserId = String(authUser?._id || authUser?.id || '');
+    if (authUserId && String(userId) === authUserId) {
+      window.alert('You cannot delete your own account.');
+      return;
+    }
+    const label = userName || 'this user';
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${label}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await dispatch(deleteUser(userId)).unwrap();
+      reloadUsers();
+    } catch (err) {
+      console.error('[Users] Delete failed', err);
+    }
+  };
+
+  useEffect(() => {
+    if (deleteStatus === 'succeeded') {
+      const timer = setTimeout(() => dispatch(clearDeleteStatus()), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [deleteStatus, dispatch]);
 
   const handleSort = (sortBy, isDoubleClick = false) => {
     if (isDoubleClick) {
@@ -222,7 +267,7 @@ const Users = () => {
                         {sortableTh('status', 'Status')}
                         {sortableTh('createdAt', 'Created')}
                         {sortableTh('updatedAt', 'Last Updated At')}
-                        <th className="text-center" style={{ width: '88px' }}>
+                        <th className="text-center" style={{ width: '140px' }}>
                           Action
                         </th>
                       </tr>
@@ -315,19 +360,34 @@ const Users = () => {
                                   : '—'}
                               </td>
                               <td className="text-center">
-                                {canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-primary mb-0"
-                                    onClick={() =>
-                                      navigate(`/users/edit/${item._id || item.id}`)
-                                    }
-                                  >
-                                    Edit
-                                  </button>
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
+                                <div className="d-flex flex-wrap gap-1 justify-content-center">
+                                  {canEdit ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      onClick={() =>
+                                        navigate(`/users/edit/${item._id || item.id}`)
+                                      }
+                                    >
+                                      Edit
+                                    </button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
+                                      onClick={() =>
+                                        handleDelete(item._id || item.id, item.name)
+                                      }
+                                      disabled={deleteStatus === 'loading'}
+                                    >
+                                      Delete
+                                    </button>
+                                  ) : null}
+                                  {!canEdit && !canDelete ? (
+                                    <span className="text-muted">—</span>
+                                  ) : null}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -336,6 +396,11 @@ const Users = () => {
                     </tbody>
                 </table>
               </ListDataTable>
+              {deleteError && (
+                <div className="alert alert-danger mx-3 mb-3" role="alert">
+                  {deleteError}
+                </div>
+              )}
             </div>
           </div>
         </div>

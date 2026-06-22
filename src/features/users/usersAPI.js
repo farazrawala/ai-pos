@@ -28,6 +28,7 @@ const USER_LIST_PATH = 'user/get-all-active';
 const USER_CREATE_PATH = 'user/create';
 const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
+const USER_DELETE_PATH = 'user/delete';
 const TOTAL_CUSTOMERS_PATH = 'user/total-customers';
 const TOTAL_USERS_PATH = 'user/total-users';
 
@@ -484,6 +485,29 @@ export async function updateUserRequest(userId, payload = {}) {
     throw new Error(result.message || result.error || 'Failed to update user');
   }
   return normalizeSingleUserPayload(result) || result;
+}
+
+export async function deleteUserRequest(userId) {
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}${USER_DELETE_PATH}/${userId}`;
+  const response = await fetch(url, { method: 'DELETE', headers });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    const message = errBody.message || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
 }
 
 /**

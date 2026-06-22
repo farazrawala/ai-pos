@@ -4,6 +4,7 @@ import {
   fetchUserByIdRequest,
   createUserRequest,
   updateUserRequest,
+  deleteUserRequest,
 } from './usersAPI.js';
 
 export const fetchUsers = createAsyncThunk(
@@ -52,6 +53,18 @@ export const updateUser = createAsyncThunk(
   }
 );
 
+export const deleteUser = createAsyncThunk(
+  'users/deleteUser',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const response = await deleteUserRequest(userId);
+      return { userId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to delete user');
+    }
+  }
+);
+
 const initialState = {
   status: 'idle',
   list: [],
@@ -75,6 +88,8 @@ const initialState = {
   createError: null,
   updateStatus: 'idle',
   updateError: null,
+  deleteStatus: 'idle',
+  deleteError: null,
 };
 
 const usersSlice = createSlice({
@@ -121,6 +136,10 @@ const usersSlice = createSlice({
     clearUpdateStatus: (state) => {
       state.updateStatus = 'idle';
       state.updateError = null;
+    },
+    clearDeleteStatus: (state) => {
+      state.deleteStatus = 'idle';
+      state.deleteError = null;
     },
   },
   extraReducers: (builder) => {
@@ -198,6 +217,26 @@ const usersSlice = createSlice({
       .addCase(updateUser.rejected, (state, action) => {
         state.updateStatus = 'failed';
         state.updateError = action.payload || action.error.message || 'Failed to update user';
+      })
+      .addCase(deleteUser.pending, (state) => {
+        state.deleteStatus = 'loading';
+        state.deleteError = null;
+      })
+      .addCase(deleteUser.fulfilled, (state, action) => {
+        state.deleteStatus = 'succeeded';
+        const userId = String(action.payload.userId);
+        state.list = state.list.filter((item) => String(item._id || item.id) !== userId);
+        if (state.pagination.total > 0) state.pagination.total -= 1;
+        if (
+          state.currentUser &&
+          String(state.currentUser._id || state.currentUser.id) === userId
+        ) {
+          state.currentUser = null;
+        }
+      })
+      .addCase(deleteUser.rejected, (state, action) => {
+        state.deleteStatus = 'failed';
+        state.deleteError = action.payload || action.error.message || 'Failed to delete user';
       });
   },
 });
@@ -211,5 +250,6 @@ export const {
   clearFetchStatus,
   clearCreateStatus,
   clearUpdateStatus,
+  clearDeleteStatus,
 } = usersSlice.actions;
 export default usersSlice.reducer;
