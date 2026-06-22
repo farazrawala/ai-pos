@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { NavLink } from 'react-router-dom';
 import {
   FaBasketShopping,
@@ -40,8 +41,10 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
-import { DEBUG } from '../config/env.js';
+import { DEBUG, APP_NAME } from '../config/env.js';
 import { withBase } from '../config/appBase.js';
+import { pickCompanyLogoUrl } from '../features/company/companyAPI.js';
+import { selectCompany } from '../features/user/userSlice.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
@@ -98,6 +101,14 @@ const navItems = [
 
 const Sidebar = () => {
   const { isAdmin, canView } = usePermissions();
+  const company = useSelector(selectCompany);
+
+  const brandLabel = useMemo(() => {
+    const name = company?.company_name || company?.name || '';
+    return String(name || APP_NAME).trim() || APP_NAME;
+  }, [company]);
+
+  const brandLogoUrl = useMemo(() => pickCompanyLogoUrl(company), [company]);
 
   const visibleNavItems = useMemo(() => {
     return navItems.filter(({ to, adminOnly, debugOnly }) => {
@@ -126,13 +137,13 @@ const Sidebar = () => {
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
           <img
-            src={withBase('/assets/img/logo-ct-dark.png')}
+            src={brandLogoUrl || withBase('/assets/img/logo-ct-dark.png')}
             width={26}
             height={26}
             className="navbar-brand-img h-100"
-            alt="main_logo"
+            alt={brandLabel}
           />
-          <span className="ms-1 font-weight-bold">AI POS</span>
+          <span className="ms-1 font-weight-bold">{brandLabel}</span>
         </NavLink>
       </div>
       <hr className="horizontal dark mt-0" />
