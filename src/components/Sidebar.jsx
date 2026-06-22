@@ -136,13 +136,13 @@ const Sidebar = () => {
           <NavIcon icon={FaXmark} size={18} />
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
-          <img
+          {/* <img
             src={brandLogoUrl || withBase('/assets/img/logo-ct-dark.png')}
             width={26}
             height={26}
             className="navbar-brand-img h-100"
             alt={brandLabel}
-          />
+          /> */}
           <span className="ms-1 font-weight-bold">{brandLabel}</span>
         </NavLink>
       </div>
