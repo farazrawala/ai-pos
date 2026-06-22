@@ -266,12 +266,13 @@ export function buildThermalReceiptHtml(data, options = {}) {
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
   @page { size: 80mm auto; margin: 2mm; }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; font-weight: 700; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 11px;
-    line-height: 1.35;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
     padding: 8px 10px 14px;
     width: 72mm;
     max-width: 72mm;
@@ -283,7 +284,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   }
   .receipt-badge {
     text-align: center;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.22em;
     color: #5e72e4;
@@ -309,7 +310,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
     border-radius: 8px;
     background: #5e72e4;
     color: #fff;
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -333,13 +334,13 @@ export function buildThermalReceiptHtml(data, options = {}) {
     min-width: 0;
   }
   .shop-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
     letter-spacing: 0.02em;
     margin-bottom: 2px;
-    line-height: 1.2;
+    line-height: 1.25;
   }
-  .shop-meta { font-size: 9px; color: #555; margin-top: 2px; line-height: 1.35; }
+  .shop-meta { font-size: 10px; font-weight: 700; color: #333; margin-top: 2px; line-height: 1.35; }
   .divider {
     border: none;
     border-top: 1px dashed #bbb;
@@ -353,8 +354,8 @@ export function buildThermalReceiptHtml(data, options = {}) {
   .meta-block { text-align: center; margin-bottom: 8px; }
   .meta-chip {
     display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 800;
     padding: 3px 7px;
     border-radius: 999px;
     background: #f0f3ff;
@@ -365,45 +366,47 @@ export function buildThermalReceiptHtml(data, options = {}) {
     word-break: break-word;
   }
   .meta-label {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.08em;
     color: #5e72e4;
   }
-  .meta-line { font-size: 10px; color: #444; margin-top: 2px; }
-  .pay-method { font-weight: 700; color: #0ea5c9; }
+  .meta-line { font-size: 11px; font-weight: 700; color: #333; margin-top: 2px; }
+  .pay-method { font-weight: 800; color: #0ea5c9; }
   .section-label {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #888;
+    color: #666;
     margin-bottom: 3px;
   }
-  .bill-name { font-size: 12px; font-weight: 700; color: #11cdef; }
-  .bill-meta { font-size: 9px; color: #555; margin-top: 1px; }
+  .bill-name { font-size: 13px; font-weight: 800; color: #11cdef; }
+  .bill-meta { font-size: 10px; font-weight: 700; color: #333; margin-top: 1px; }
   table { width: 100%; border-collapse: collapse; margin: 6px 0; }
   td { padding: 5px 0; vertical-align: top; border-bottom: 1px dotted #ddd; }
   tr.line-alt td { background: #fafafa; }
   tr:last-child td { border-bottom: none; }
-  .line-title { font-weight: 700; font-size: 11px; margin-bottom: 2px; }
+  .line-title { font-weight: 800; font-size: 12px; margin-bottom: 2px; }
   .line-detail {
     display: flex;
     justify-content: space-between;
-    font-size: 9px;
-    color: #444;
+    font-size: 10px;
+    font-weight: 700;
+    color: #333;
     font-family: ui-monospace, 'Courier New', monospace;
   }
-  .line-amt { font-weight: 700; color: #111; }
+  .line-amt { font-weight: 800; color: #111; }
   .row {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 11px;
+    font-weight: 700;
     padding: 2px 0;
   }
-  .row span:last-child { font-weight: 600; font-family: ui-monospace, 'Courier New', monospace; }
-  .row-muted span:last-child { font-weight: 500; }
-  .row-paid span:last-child { color: #dc3545; }
+  .row span:last-child { font-weight: 800; font-family: ui-monospace, 'Courier New', monospace; }
+  .row-muted span:last-child { font-weight: 700; }
+  .row-paid span:last-child { font-weight: 800; color: #dc3545; }
   .row-due span:last-child { font-weight: 800; }
   .total-box {
     display: flex;
@@ -413,27 +416,29 @@ export function buildThermalReceiptHtml(data, options = {}) {
     padding: 8px 10px;
     border: 2px solid #111;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
   }
   .total-box span:last-child {
     font-family: ui-monospace, 'Courier New', monospace;
+    font-weight: 800;
     color: #5e72e4;
   }
   .qr-wrap { text-align: center; margin: 10px 0 6px; }
-  .qr-caption { font-size: 8px; color: #888; margin-top: 4px; }
+  .qr-caption { font-size: 9px; font-weight: 700; color: #666; margin-top: 4px; }
   .foot {
     text-align: center;
-    font-size: 9px;
-    color: #666;
+    font-size: 10px;
+    font-weight: 700;
+    color: #444;
     margin-top: 10px;
     line-height: 1.45;
   }
   .foot-thanks {
-    font-weight: 700;
+    font-weight: 800;
     color: #111;
     margin-top: 4px;
-    font-size: 10px;
+    font-size: 11px;
   }
 </style></head><body>
   <div class="receipt-badge">RECEIPT</div>
