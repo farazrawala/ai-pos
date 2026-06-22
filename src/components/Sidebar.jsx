@@ -42,7 +42,13 @@ import {
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
 import { DEBUG, APP_NAME } from '../config/env.js';
-import { pickCompanyLogoUrl, extractCompanyFromUser, fetchCompanyById, getCompanyFromApiBody, mergeCompanyRecordForSettings } from '../features/company/companyAPI.js';
+import {
+  pickCompanyLogoUrl,
+  extractCompanyFromUser,
+  fetchCompanyById,
+  getCompanyFromApiBody,
+  mergeCompanyRecordForSettings,
+} from '../features/company/companyAPI.js';
 import { selectCompany, selectCompanyId, setCompany } from '../features/user/userSlice.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
@@ -176,7 +182,7 @@ const Sidebar = () => {
           <NavIcon icon={FaXmark} size={18} />
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
-          {brandLogoUrl ? (
+          {/* {brandLogoUrl ? (
             <img
               src={brandLogoUrl}
               width={26}
@@ -193,7 +199,7 @@ const Sidebar = () => {
             >
               {brandLabel.charAt(0).toUpperCase()}
             </span>
-          )}
+          )} */}
           <span className="ms-1 font-weight-bold">{brandLabel}</span>
         </NavLink>
       </div>
