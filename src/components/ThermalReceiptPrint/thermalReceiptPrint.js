@@ -266,7 +266,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
   @page { size: 80mm auto; margin: 2mm; }
-  * { box-sizing: border-box; font-weight: 700; }
+  * { box-sizing: border-box; font-weight: 700; color: #000; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
@@ -277,7 +277,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
     width: 72mm;
     max-width: 72mm;
     min-width: 260px;
-    color: #111;
+    color: #000;
     background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -287,7 +287,6 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.22em;
-    color: #5e72e4;
     margin-bottom: 8px;
   }
   .logo-block {
@@ -308,8 +307,8 @@ export function buildThermalReceiptHtml(data, options = {}) {
     height: 56px;
     margin: 0 auto;
     border-radius: 8px;
-    background: #5e72e4;
-    color: #fff;
+    background: #fff;
+    border: 2px solid #000;
     font-size: 24px;
     font-weight: 800;
     display: flex;
@@ -340,7 +339,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
     margin-bottom: 2px;
     line-height: 1.25;
   }
-  .shop-meta { font-size: 10px; font-weight: 700; color: #333; margin-top: 2px; line-height: 1.35; }
+  .shop-meta { font-size: 10px; font-weight: 700; margin-top: 2px; line-height: 1.35; }
   .divider {
     border: none;
     border-top: 1px dashed #bbb;
@@ -358,8 +357,8 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-weight: 800;
     padding: 3px 7px;
     border-radius: 999px;
-    background: #f0f3ff;
-    border: 1px solid #c5cff9;
+    background: #fff;
+    border: 1px solid #000;
     margin-top: 2px;
     margin-bottom: 2px;
     max-width: 100%;
@@ -369,20 +368,18 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.08em;
-    color: #5e72e4;
   }
-  .meta-line { font-size: 11px; font-weight: 700; color: #333; margin-top: 2px; }
-  .pay-method { font-weight: 800; color: #0ea5c9; }
+  .meta-line { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .pay-method { font-weight: 800; }
   .section-label {
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #666;
     margin-bottom: 3px;
   }
-  .bill-name { font-size: 13px; font-weight: 800; color: #11cdef; }
-  .bill-meta { font-size: 10px; font-weight: 700; color: #333; margin-top: 1px; }
+  .bill-name { font-size: 13px; font-weight: 800; }
+  .bill-meta { font-size: 10px; font-weight: 700; margin-top: 1px; }
   table { width: 100%; border-collapse: collapse; margin: 6px 0; }
   td { padding: 5px 0; vertical-align: top; border-bottom: 1px dotted #ddd; }
   tr.line-alt td { background: #fafafa; }
@@ -393,10 +390,9 @@ export function buildThermalReceiptHtml(data, options = {}) {
     justify-content: space-between;
     font-size: 10px;
     font-weight: 700;
-    color: #333;
     font-family: ui-monospace, 'Courier New', monospace;
   }
-  .line-amt { font-weight: 800; color: #111; }
+  .line-amt { font-weight: 800; }
   .row {
     display: flex;
     justify-content: space-between;
@@ -406,7 +402,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   }
   .row span:last-child { font-weight: 800; font-family: ui-monospace, 'Courier New', monospace; }
   .row-muted span:last-child { font-weight: 700; }
-  .row-paid span:last-child { font-weight: 800; color: #dc3545; }
+  .row-paid span:last-child { font-weight: 800; }
   .row-due span:last-child { font-weight: 800; }
   .total-box {
     display: flex;
@@ -422,21 +418,18 @@ export function buildThermalReceiptHtml(data, options = {}) {
   .total-box span:last-child {
     font-family: ui-monospace, 'Courier New', monospace;
     font-weight: 800;
-    color: #5e72e4;
   }
   .qr-wrap { text-align: center; margin: 10px 0 6px; }
-  .qr-caption { font-size: 9px; font-weight: 700; color: #666; margin-top: 4px; }
+  .qr-caption { font-size: 9px; font-weight: 700; margin-top: 4px; }
   .foot {
     text-align: center;
     font-size: 10px;
     font-weight: 700;
-    color: #444;
     margin-top: 10px;
     line-height: 1.45;
   }
   .foot-thanks {
     font-weight: 800;
-    color: #111;
     margin-top: 4px;
     font-size: 11px;
   }
