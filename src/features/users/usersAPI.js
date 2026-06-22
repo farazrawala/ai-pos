@@ -201,6 +201,8 @@ export async function fetchUsersListRequest(params = {}) {
   query.set('limit', String(limit));
   query.set('skip', String(skip));
   if (params.role) query.set('role', String(params.role));
+  if (params.sortBy) query.set('sortBy', String(params.sortBy));
+  if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
   const url = `${BASE_URL}${USER_LIST_PATH}?${query.toString()}`;
 
@@ -568,4 +570,27 @@ export function formatUserOptionLabel(user) {
 export function getUserOptionValue(user) {
   if (!user || typeof user !== 'object') return '';
   return String(user._id ?? user.id ?? user.user_id ?? '');
+}
+
+function userSortName(user) {
+  if (!user || typeof user !== 'object') return '';
+  return String(user.name || user.fullName || user.username || user.email || '').trim().toLowerCase();
+}
+
+/** Ascending by display name (matches users list `sortBy=name`). */
+export function compareUsersByNameAsc(a, b) {
+  const nameA = userSortName(a);
+  const nameB = userSortName(b);
+  if (nameA !== nameB) return nameA.localeCompare(nameB);
+  return getUserOptionValue(a).localeCompare(getUserOptionValue(b));
+}
+
+export function sortUsersByNameAsc(users) {
+  if (!Array.isArray(users)) return [];
+  return users.filter((u) => getUserOptionValue(u)).sort(compareUsersByNameAsc);
+}
+
+export function getFirstCustomerUserId(users) {
+  const sorted = sortUsersByNameAsc(users);
+  return sorted.length ? getUserOptionValue(sorted[0]) : '';
 }

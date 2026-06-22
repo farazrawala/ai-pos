@@ -4,7 +4,9 @@ import moment from 'moment';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
+  getFirstCustomerUserId,
   getUserOptionValue,
+  sortUsersByNameAsc,
   createCustomerUserRequest,
   pickCreatedUserFromResponse,
   POS_DEFAULT_CUSTOMER_PASSWORD,
@@ -285,8 +287,14 @@ const Pos = () => {
     setUsersStatus('loading');
     setUsersError(null);
     try {
-      const list = await fetchUsersListRequest({ limit: 2000, skip: 0, role: 'CUSTOMER' });
-      const arr = Array.isArray(list) ? list : [];
+      const list = await fetchUsersListRequest({
+        limit: 2000,
+        skip: 0,
+        role: 'CUSTOMER',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
+      const arr = sortUsersByNameAsc(Array.isArray(list) ? list : []);
       setUsers(arr);
       setUsersStatus('succeeded');
       if (selectAfter?.preferId) {
@@ -297,6 +305,9 @@ const Pos = () => {
         if (match) {
           setSelectedCustomerId(getUserOptionValue(match));
         }
+      } else {
+        const firstId = getFirstCustomerUserId(arr);
+        if (firstId) setSelectedCustomerId(firstId);
       }
     } catch (err) {
       console.error('[POS] Failed to load users for customer dropdown', err);
@@ -356,12 +367,13 @@ const Pos = () => {
         return false;
       });
     }
+    list = sortUsersByNameAsc(list);
     const cap = 150;
     return { rows: list.slice(0, cap), capped: list.length > cap };
   }, [users, customerFilter]);
 
   useEffect(() => {
-    const firstCustomerId = users.map((u) => getUserOptionValue(u)).find(Boolean) || '';
+    const firstCustomerId = getFirstCustomerUserId(users);
     if (!firstCustomerId) return;
     const selectedStillExists = users.some((u) => getUserOptionValue(u) === selectedCustomerId);
     if (!selectedCustomerId || !selectedStillExists) {
