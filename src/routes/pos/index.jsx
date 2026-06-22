@@ -170,6 +170,15 @@ function formatPosQtyLabel(qty) {
   return Number.isInteger(q) ? String(q) : q.toFixed(2);
 }
 
+/** True while user is mid-edit (e.g. ".", ".5", "2."). */
+function isPartialPosQtyInput(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return true;
+  if (s === '.') return true;
+  if (s.endsWith('.')) return true;
+  return false;
+}
+
 function posStockBlocksQty({ allowWhenInsufficient, availableStock, requestedQty, productName }) {
   if (allowWhenInsufficient) return null;
 
@@ -440,14 +449,13 @@ const Pos = () => {
   const setCartQty = useCallback(
     (productId, raw) => {
       const sanitized = sanitizePosQtyInput(raw);
-      if (sanitized === '') {
-        setCartLines((prev) => prev.filter((l) => l.productId !== productId));
-        return;
-      }
       let stockMsg = null;
       setCartLines((prev) =>
         prev.flatMap((l) => {
           if (l.productId !== productId) return [l];
+          if (sanitized === '' || isPartialPosQtyInput(sanitized)) {
+            return [{ ...l, quantity: sanitized }];
+          }
           const next = parsePosQty(sanitized);
           stockMsg = posStockBlocksQty({
             allowWhenInsufficient: allowAddWhenStockInsufficient,
@@ -942,9 +950,7 @@ const Pos = () => {
                               −
                             </button>
                             <input
-                              type="number"
-                              min={POS_QTY_MIN}
-                              step="0.01"
+                              type="text"
                               inputMode="decimal"
                               className="pos-qty-input"
                               value={line.quantity}
