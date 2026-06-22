@@ -283,8 +283,10 @@ export async function fetchUsersRequest(params = {}) {
 
 const normalizeSingleUserPayload = (result) => {
   if (!result || typeof result !== 'object') return null;
-  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) return result.data;
-  if (result.user && typeof result.user === 'object' && !Array.isArray(result.user)) return result.user;
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data))
+    return result.data;
+  if (result.user && typeof result.user === 'object' && !Array.isArray(result.user))
+    return result.user;
   if (result._id || result.id) return result;
   return null;
 };
@@ -340,12 +342,7 @@ function appendProfileFieldsToFormData(formData, data = {}) {
 export function pickUserProfileImageUrl(user) {
   if (!user || typeof user !== 'object') return '';
   const raw =
-    user.profile_image ??
-    user.profileImage ??
-    user.avatar ??
-    user.image ??
-    user.photo ??
-    '';
+    user.profile_image ?? user.profileImage ?? user.avatar ?? user.image ?? user.photo ?? '';
   return resolveCategoryMediaUrl(raw);
 }
 
@@ -535,9 +532,7 @@ export async function fetchTotalCustomersRequest() {
 
   const raw = result.customer_count ?? result.customerCount ?? result.total ?? result.count;
   const customerCount =
-    typeof raw === 'number' && Number.isFinite(raw)
-      ? raw
-      : parseInt(String(raw ?? ''), 10);
+    typeof raw === 'number' && Number.isFinite(raw) ? raw : parseInt(String(raw ?? ''), 10);
 
   return {
     customerCount: Number.isFinite(customerCount) ? customerCount : 0,
@@ -569,9 +564,7 @@ export async function fetchTotalUsersRequest() {
 
   const raw = result.user_count ?? result.userCount ?? result.total ?? result.count;
   const userCount =
-    typeof raw === 'number' && Number.isFinite(raw)
-      ? raw
-      : parseInt(String(raw ?? ''), 10);
+    typeof raw === 'number' && Number.isFinite(raw) ? raw : parseInt(String(raw ?? ''), 10);
 
   return {
     userCount: Number.isFinite(userCount) ? userCount : 0,
@@ -598,7 +591,9 @@ export function getUserOptionValue(user) {
 
 function userSortName(user) {
   if (!user || typeof user !== 'object') return '';
-  return String(user.name || user.fullName || user.username || user.email || '').trim().toLowerCase();
+  return String(user.name || user.fullName || user.username || user.email || '')
+    .trim()
+    .toLowerCase();
 }
 
 /** Ascending by display name (matches users list `sortBy=name`). */
@@ -615,6 +610,7 @@ export function sortUsersByNameAsc(users) {
 }
 
 export function getFirstCustomerUserId(users) {
-  const sorted = sortUsersByNameAsc(users);
-  return sorted.length ? getUserOptionValue(sorted[0]) : '';
+  if (!Array.isArray(users)) return '';
+  const first = users.find((u) => getUserOptionValue(u));
+  return first ? getUserOptionValue(first) : '';
 }

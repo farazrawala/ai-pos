@@ -6,7 +6,6 @@ import {
   formatUserOptionLabel,
   getFirstCustomerUserId,
   getUserOptionValue,
-  sortUsersByNameAsc,
   createCustomerUserRequest,
   pickCreatedUserFromResponse,
   POS_DEFAULT_CUSTOMER_PASSWORD,
@@ -192,15 +191,11 @@ const Pos = () => {
 
   const companyId = useMemo(
     () =>
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim(),
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim(),
     [authUser, authCompany]
   );
 
-  const defaultWarehouseId = useMemo(
-    () => getWarehouseIdFromCompany(authCompany),
-    [authCompany]
-  );
+  const defaultWarehouseId = useMemo(() => getWarehouseIdFromCompany(authCompany), [authCompany]);
 
   const authCompanyRef = useRef(authCompany);
   authCompanyRef.current = authCompany;
@@ -214,9 +209,7 @@ const Pos = () => {
         if (cancelled) return;
         const fetched = getCompanyFromApiBody(body);
         if (!fetched) return;
-        dispatch(
-          setCompany(mergeCompanyRecordForSettings(fetched, authCompanyRef.current))
-        );
+        dispatch(setCompany(mergeCompanyRecordForSettings(fetched, authCompanyRef.current)));
       })
       .catch((err) => {
         console.warn('[POS] Could not refresh company product settings', err);
@@ -291,10 +284,10 @@ const Pos = () => {
         limit: 2000,
         skip: 0,
         role: 'CUSTOMER',
-        sortBy: 'name',
+        sortBy: 'createdAt',
         sortOrder: 'asc',
       });
-      const arr = sortUsersByNameAsc(Array.isArray(list) ? list : []);
+      const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
       setUsers(arr);
       setUsersStatus('succeeded');
       if (selectAfter?.preferId) {
@@ -367,7 +360,6 @@ const Pos = () => {
         return false;
       });
     }
-    list = sortUsersByNameAsc(list);
     const cap = 150;
     return { rows: list.slice(0, cap), capped: list.length > cap };
   }, [users, customerFilter]);
@@ -413,10 +405,7 @@ const Pos = () => {
           };
           return next;
         }
-        return [
-          ...prev,
-          { productId, name, unitPrice, quantity: '1', availableStock },
-        ];
+        return [...prev, { productId, name, unitPrice, quantity: '1', availableStock }];
       });
       if (stockMsg) toast.warning(stockMsg);
     },

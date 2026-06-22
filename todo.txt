@@ -8,19 +8,6 @@ expense/get-all-active?account_type=current_asset&include_id=(default_account_pa
 Where IDs come from
 Resolved in this order:
 
-Company record (GET /company/get/:companyId using the signed-in user’s company_id)
-User / user.company from login (userData in Redux/localStorage)
-Supported field names:
-
-default_account_payable_account → include_id
-default_account_receivable_account → exclude_id
-
-// Front End :
-logs (done)
-users (done)
-branches
-warehouse
-Account
 
 
 Accounts: /api/account/get-all-active?skip=0&limit=500&sortBy=name&sortOrder=asc&account_type=current_asset&include_id=6a081271b7068827a21ad9bf&exclude_id=6a081270b7068827a21ad9a3
@@ -30,104 +17,16 @@ Uses default_account_payable_account (include) and default_account_receivable_ac
 https://cloud.mongodb.com/v2/6a0b617360de5cb1d83e2e14#/overview?automateSecurity=true
 
 
-Pos 
-    - add discount,subamount in db
-    - product image hove bring complete name.
-Orders 
-Invoice Edit
-    - integration done / modify api to complete 
-purchase order :: 
-    
-//
-
-stock transfer :: 
-Navigate with Permissions ::
-
-Purchase return ::
-sales return ::
-
-5.17.26
-env setup for debug (done)
-expense in balance sheet (done)
-purchase order Id not working well.2,4,6 (DONE)
-balance sheet with profit. (done)
-income statement  (done)
-live connection with mongo db (done)
-Stock transfer (done)
-Adjustments (done)
-fixed assets  (done)
-
-6.2.26
-User update with roles
-Add vendor, popup:: in purchase order
-cash transfer add withdraw account.
-default user role will add customer/vendor both
-User navigation acc to roles.
-
-
-3.6.26
-Alert
-stock according to warehouse. 
-dashboard dynamic.
-Sales return
-Purchase return
-
-
-adjustment not working.;
-
-// Remaining
-company settings.
-printer settings.
-
-add/edit variant product. 
-company info : details
-printer.
-in user add multiple accounts to be include and not to be include.
-
-load testing module
-Tax (will be done with printing)
-
-
-
-
-
-
-
-
 
 //modules to be tested.
 purchasing.
 
 
-
-
-Complete Test Case
-Purchase 10 @ 200 → Avg = 200
-Purchase 10 @ 220 → Avg = 210
-Sell 5 → Avg = 210
-Purchase 10 @ 250 → Avg = 226
-Sell 8 → Avg = 226
-Purchase 20 @ 300 → New Avg = 267.24
-
-Final verification:
-
-Qty	Value	Avg Cost
-37	9,888	267.24
+https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 
 
 
-//delete api.
-create an api for purchase order delete 
-where i will pass purchase_order _id in url 
-
-
-and it will soft delete 
-purchase_order
-fetch trans no  from  purchase_order_item 
-softdelete Transaction_no 
-insert qty in inventory_movements in
-update qty in warehouse_inventory.  
-
-
-
-https://testv3.websitedemolynk.com/pos
+//remainings:
+add/edit variant product. 
+mark_as_default_customer, mark_as_default_vendor functionality
+in user add multiple accounts to be include and not to be include.
