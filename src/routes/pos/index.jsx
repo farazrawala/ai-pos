@@ -13,6 +13,7 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
+import { fetchProductByIdRequest } from '../../features/products/productsAPI.js';
 import {
   createPosOrderRequest,
   pickOrderInvoiceNoFromSaveResponse,
@@ -37,6 +38,7 @@ import {
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
+import { openPosPaymentModal } from './PosPaymentModal.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
@@ -193,6 +195,82 @@ function posStockBlocksQty({ allowWhenInsufficient, availableStock, requestedQty
   if (requestedQty <= availableStock) return null;
   const name = String(productName || 'Product').trim() || 'Product';
   return `Insufficient stock for "${name}": requested ${formatPosQtyLabel(requestedQty)}, available ${formatPosQtyLabel(availableStock)}.`;
+}
+
+function pickProductFromApiBody(body) {
+  if (!body || typeof body !== 'object') return null;
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) return body.data;
+  if (body.product && typeof body.product === 'object') return body.product;
+  if (body._id != null || body.id != null) return body;
+  return null;
+}
+
+function normalizeCartLinesForCheckout(cartLines) {
+  if (!Array.isArray(cartLines) || cartLines.length === 0) {
+    return { error: 'Cart is empty. Add at least one product before payment.', lines: null };
+  }
+
+  const normalized = [];
+  for (const line of cartLines) {
+    const q = parsePosQty(line.quantity);
+    if (q < POS_QTY_MIN) {
+      const name = String(line.name || 'Product').trim() || 'Product';
+      return {
+        error: `Each line needs quantity of at least ${POS_QTY_MIN}. Check "${name}".`,
+        lines: null,
+      };
+    }
+    normalized.push({ ...line, quantity: formatPosQtyLabel(q) });
+  }
+
+  return { error: null, lines: normalized };
+}
+
+function collectCartStockIssues(cartLines) {
+  if (!Array.isArray(cartLines)) return [];
+  const issues = [];
+  for (const line of cartLines) {
+    const msg = posStockBlocksQty({
+      allowWhenInsufficient: false,
+      availableStock: line.availableStock,
+      requestedQty: parsePosQty(line.quantity),
+      productName: line.name,
+    });
+    if (msg) issues.push(msg);
+  }
+  return issues;
+}
+
+async function refreshCartLineStock(cartLines, warehouseId) {
+  const uniqueIds = [
+    ...new Set(cartLines.map((line) => String(line.productId || '').trim()).filter(Boolean)),
+  ];
+  if (uniqueIds.length === 0) return cartLines;
+
+  const stockById = {};
+  await Promise.all(
+    uniqueIds.map(async (productId) => {
+      try {
+        const result = await fetchProductByIdRequest(productId);
+        const product = pickProductFromApiBody(result);
+        stockById[productId] = getProductAvailableStock(product, { warehouseId });
+      } catch (err) {
+        console.warn('[POS] Could not refresh stock before payment', productId, err);
+        stockById[productId] = null;
+      }
+    })
+  );
+
+  return cartLines.map((line) => ({
+    ...line,
+    availableStock: stockById[line.productId] ?? line.availableStock,
+  }));
+}
+
+function formatCartStockIssueToast(issues) {
+  if (!issues.length) return '';
+  if (issues.length === 1) return issues[0];
+  return `${issues.length} items have insufficient stock:\n${issues.join('\n')}`;
 }
 
 const Pos = () => {
@@ -526,8 +604,23 @@ const Pos = () => {
 
   const savePosOrder = useCallback(
     async (payment) => {
-      if (!cartLines || cartLines.length === 0) {
-        alert('Cart is empty. Add at least one product before payment.');
+      const normalized = normalizeCartLinesForCheckout(cartLines);
+      if (normalized.error) {
+        alert(normalized.error);
+        return null;
+      }
+
+      let linesForSave = normalized.lines;
+      try {
+        linesForSave = await refreshCartLineStock(linesForSave, defaultWarehouseId);
+        setCartLines(linesForSave);
+      } catch (err) {
+        console.warn('[POS] Could not refresh stock before saving order', err);
+      }
+
+      const stockIssues = collectCartStockIssues(linesForSave);
+      if (stockIssues.length) {
+        toast.warning(formatCartStockIssueToast(stockIssues), { delay: 8000 });
         return null;
       }
 
@@ -537,7 +630,7 @@ const Pos = () => {
       const phone = customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
       const address = '';
 
-      const lines = cartLines.map((line) => ({
+      const lines = linesForSave.map((line) => ({
         productId: line.productId,
         qty: parsePosQty(line.quantity),
         price: line.unitPrice,
@@ -571,11 +664,37 @@ const Pos = () => {
         customerName: name,
         customerEmail: email,
         customerPhone: phone,
-        cartSnapshot: cartLines.map((line) => ({ ...line })),
+        cartSnapshot: linesForSave.map((line) => ({ ...line })),
       };
     },
-    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum]
+    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum, defaultWarehouseId]
   );
+
+  const handlePaymentClick = useCallback(async () => {
+    const normalized = normalizeCartLinesForCheckout(cartLines);
+    if (normalized.error) {
+      toast.warning(normalized.error);
+      return;
+    }
+
+    let linesForPayment = normalized.lines;
+    setCartLines(normalized.lines);
+
+    try {
+      linesForPayment = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+      setCartLines(linesForPayment);
+    } catch (err) {
+      console.warn('[POS] Could not refresh stock before payment', err);
+    }
+
+    const stockIssues = collectCartStockIssues(linesForPayment);
+    if (stockIssues.length) {
+      toast.warning(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+      return;
+    }
+
+    openPosPaymentModal();
+  }, [cartLines, defaultWarehouseId]);
 
   const clearCartAfterSale = useCallback(() => {
     setCartLines([]);
@@ -1050,6 +1169,7 @@ const Pos = () => {
           categoriesError={categoriesError}
           warehouseId={defaultWarehouseId}
           onAddToCart={addToCart}
+          onPaymentClick={handlePaymentClick}
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}

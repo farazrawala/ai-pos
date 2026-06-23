@@ -12,7 +12,7 @@ import {
   formatProductNameWithStock,
   getProductAvailableStock,
 } from '../../utils/productStock.js';
-import PosPaymentModal, { openPosPaymentModal } from './PosPaymentModal.jsx';
+import PosPaymentModal from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
 
@@ -72,6 +72,7 @@ const PosProducts = ({
   categoriesError,
   onAddToCart,
   warehouseId = '',
+  onPaymentClick,
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
@@ -304,7 +305,7 @@ const PosProducts = ({
           </div>
 
           <div className="pos-footer-actions">
-            <button type="button" className="btn btn-pay" onClick={() => openPosPaymentModal()}>
+            <button type="button" className="btn btn-pay" onClick={() => onPaymentClick?.()}>
               <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
               Payment
             </button>
