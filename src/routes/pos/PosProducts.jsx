@@ -8,6 +8,10 @@ import {
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import { withBase } from '../../config/appBase.js';
+import {
+  formatProductNameWithStock,
+  getProductAvailableStock,
+} from '../../utils/productStock.js';
 import PosPaymentModal, { openPosPaymentModal } from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
@@ -67,6 +71,7 @@ const PosProducts = ({
   categoriesStatus,
   categoriesError,
   onAddToCart,
+  warehouseId = '',
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
@@ -253,6 +258,8 @@ const PosProducts = ({
                 {products.map((p, index) => {
                   const id = getProductId(p) || `idx-${index}`;
                   const name = getProductName(p);
+                  const stock = getProductAvailableStock(p, { warehouseId });
+                  const displayName = formatProductNameWithStock(name, stock);
                   const imgUrl = getProductImageUrl(p);
                   return (
                     <div className="col" key={id}>
@@ -285,7 +292,9 @@ const PosProducts = ({
                             </div>
                           )}
                         </div>
-                        <div className="text-center pos-product-name flex-grow-1">{name}</div>
+                        <div className="text-center pos-product-name flex-grow-1" title={displayName}>
+                          {displayName}
+                        </div>
                       </div>
                     </div>
                   );

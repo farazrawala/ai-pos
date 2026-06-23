@@ -82,3 +82,11 @@ export function getProductAvailableStock(item, { warehouseId = '' } = {}) {
 
   return null;
 }
+
+/** Format POS label: "biscuit [25]" — stock omitted when unknown. */
+export function formatProductNameWithStock(name, stock) {
+  const base = String(name || 'Product').trim() || 'Product';
+  if (stock == null || !Number.isFinite(stock)) return base;
+  const label = Number.isInteger(stock) ? String(stock) : stock.toFixed(2);
+  return `${base} [${label}]`;
+}

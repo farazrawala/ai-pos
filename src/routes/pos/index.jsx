@@ -30,7 +30,10 @@ import {
   getWarehouseIdFromCompany,
 } from '../../features/company/companyAPI.js';
 import { setCompany } from '../../features/user/userSlice.js';
-import { getProductAvailableStock } from '../../utils/productStock.js';
+import {
+  formatProductNameWithStock,
+  getProductAvailableStock,
+} from '../../utils/productStock.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
@@ -934,10 +937,11 @@ const Pos = () => {
                   cartLines.map((line) => {
                     const qtyNum = parsePosQty(line.quantity);
                     const lineTotal = qtyNum * line.unitPrice;
+                    const displayName = formatProductNameWithStock(line.name, line.availableStock);
                     return (
                       <div key={line.productId} className="pos-cart-row">
-                        <div className="pos-cart-product-name" title={line.name}>
-                          {line.name}
+                        <div className="pos-cart-product-name" title={displayName}>
+                          {displayName}
                         </div>
                         <div className="d-flex justify-content-center">
                           <div className="pos-qty-group">
@@ -1044,6 +1048,7 @@ const Pos = () => {
           categories={categories}
           categoriesStatus={categoriesStatus}
           categoriesError={categoriesError}
+          warehouseId={defaultWarehouseId}
           onAddToCart={addToCart}
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
