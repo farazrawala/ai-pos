@@ -47,7 +47,7 @@ const THERMAL_RECEIPT_SOFTWARE_CONTACT = 'For Software Contact : 03361225588';
  * @property {boolean} [revokeBlobUrl=true]
  * @property {number} [printDelayMs=400]
  * @property {number} [fallbackPrintDelayMs=1500]
- * @property {string} [footerThankYou='Thank you for your business']
+ * @property {string} [footerThankYou] Defaults to "Thanks for purchasing from {company name}"
  * @property {string} [documentTitlePrefix='Receipt']
  * @property {string} [invoiceNumberPrefix='POS#']
  * @property {Record<string, boolean>} [printerSettings]
@@ -146,7 +146,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   const {
     currencyLabel = 'PKR',
     locale = 'en-PK',
-    footerThankYou = 'Thank you for your business',
+    footerThankYou,
     documentTitlePrefix = 'Receipt',
     invoiceNumberPrefix = 'POS#',
     qrDataUrl = '',
@@ -154,6 +154,10 @@ export function buildThermalReceiptHtml(data, options = {}) {
 
   const fmt = (n) => formatThermalMoney(n, { currencyLabel, locale });
   const companyName = String(brand.name || d.shopName || APP_NAME).trim() || APP_NAME;
+  const footerThanksMessage =
+    footerThankYou != null && String(footerThankYou).trim() !== ''
+      ? String(footerThankYou).trim()
+      : `Thanks for purchasing from ${companyName}`;
 
   const logoHtml = ps.show_logo
     ? brand.logoUrl
@@ -454,7 +458,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   ${qrBlock}
   <div class="foot">
     ${d.terms ? `${escapeHtml(d.terms)}<br/>` : ''}
-    <div class="foot-thanks">${escapeHtml(footerThankYou)}</div>
+    <div class="foot-thanks">${escapeHtml(footerThanksMessage)}</div>
     <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
 </body></html>`;
