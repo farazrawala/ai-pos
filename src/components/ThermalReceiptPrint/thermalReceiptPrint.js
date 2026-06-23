@@ -2,6 +2,8 @@ import QRCode from 'qrcode';
 import { defaultPrinterSettings } from '../../features/company/companyAPI.js';
 import { APP_NAME } from '../../config/env.js';
 
+const THERMAL_RECEIPT_SOFTWARE_CONTACT = 'For Software Contact : 03361225588';
+
 /**
  * @typedef {Object} ThermalReceiptLine
  * @property {string} description
@@ -433,6 +435,11 @@ export function buildThermalReceiptHtml(data, options = {}) {
     margin-top: 4px;
     font-size: 11px;
   }
+  .foot-contact {
+    font-weight: 700;
+    margin-top: 8px;
+    font-size: 10px;
+  }
 </style></head><body>
   <div class="receipt-badge">RECEIPT</div>
   ${logoBlock}
@@ -448,6 +455,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   <div class="foot">
     ${d.terms ? `${escapeHtml(d.terms)}<br/>` : ''}
     <div class="foot-thanks">${escapeHtml(footerThankYou)}</div>
+    <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
 </body></html>`;
 }
