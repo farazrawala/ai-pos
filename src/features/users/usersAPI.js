@@ -87,6 +87,43 @@ function buildUserUpdateFields(payload = {}) {
   return fields;
 }
 
+async function patchUserFieldsRequest(userId, fields = {}) {
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const id = String(userId ?? '').trim();
+  if (!id) throw new Error('Missing user id');
+
+  const url = `${BASE_URL}${USER_UPDATE_PATH}/${id}`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(fields),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || `HTTP ${response.status}`);
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || result.error || 'Failed to update user');
+  }
+  return normalizeSingleUserPayload(result) || result;
+}
+
+export async function markUserAsDefaultCustomerRequest(userId) {
+  return patchUserFieldsRequest(userId, { mark_as_default_customer: true });
+}
+
+export async function markUserAsDefaultVendorRequest(userId) {
+  return patchUserFieldsRequest(userId, { mark_as_default_vendor: true });
+}
+
 /** Must match user add/edit forms (`PERMISSION_MODULE_KEYS` / `PERMISSION_ACTIONS`). */
 
 function clonePlainJson(obj) {
@@ -613,4 +650,25 @@ export function getFirstCustomerUserId(users) {
   if (!Array.isArray(users)) return '';
   const first = users.find((u) => getUserOptionValue(u));
   return first ? getUserOptionValue(first) : '';
+}
+
+export function userHasRole(user, roleName) {
+  const roles = Array.isArray(user?.role) ? user.role : user?.role ? [user.role] : [];
+  return roles.some((r) => String(r).toUpperCase() === String(roleName).toUpperCase());
+}
+
+export function isDefaultCustomerUser(user) {
+  return Boolean(user?.mark_as_default_customer);
+}
+
+export function isDefaultVendorUser(user) {
+  return Boolean(user?.mark_as_default_vendor);
+}
+
+/** Prefer `mark_as_default_customer`, else first customer in API order. */
+export function getDefaultPosCustomerUserId(users) {
+  if (!Array.isArray(users)) return '';
+  const marked = users.find((u) => isDefaultCustomerUser(u) && getUserOptionValue(u));
+  if (marked) return getUserOptionValue(marked);
+  return getFirstCustomerUserId(users);
 }

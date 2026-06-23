@@ -10,6 +10,49 @@ import { DEBUG } from '../../config/env.js';
 const getProductLabel = (p) =>
   p?.product_name || p?.name || p?.sku || p?.product_code || 'Product';
 
+const ADJUSTMENT_QTY_MIN = 0.01;
+
+function roundAdjustmentQty(n) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function parseAdjustmentQty(raw) {
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
+  return Number.isFinite(n) ? roundAdjustmentQty(n) : 0;
+}
+
+function sanitizeAdjustmentQtyInput(value) {
+  const s = String(value ?? '').replace(/,/g, '');
+  let out = '';
+  let sawDot = false;
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (ch >= '0' && ch <= '9') out += ch;
+    else if (ch === '.' && !sawDot) {
+      out += ch;
+      sawDot = true;
+    }
+  }
+  const dot = out.indexOf('.');
+  if (dot !== -1 && out.length - dot - 1 > 2) {
+    out = out.slice(0, dot + 3);
+  }
+  return out;
+}
+
+function isPartialAdjustmentQtyInput(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return true;
+  if (s === '.') return true;
+  if (s.endsWith('.')) return true;
+  return false;
+}
+
 const AdjustmentAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -82,14 +125,33 @@ const AdjustmentAdd = () => {
     }
   };
 
+  const handleQuantityChange = (e) => {
+    const sanitized = sanitizeAdjustmentQtyInput(e.target.value);
+    setForm((prev) => ({ ...prev, quantity: sanitized }));
+    if (errors.quantity) {
+      setErrors((prev) => ({ ...prev, quantity: '' }));
+    }
+  };
+
+  const handleQuantityBlur = () => {
+    if (isPartialAdjustmentQtyInput(form.quantity)) return;
+    const qty = parseAdjustmentQty(form.quantity);
+    if (qty >= ADJUSTMENT_QTY_MIN) {
+      setForm((prev) => ({
+        ...prev,
+        quantity: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
+      }));
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
     if (!String(form.product_id || '').trim()) {
       newErrors.product_id = 'Product is required';
     }
-    const qty = parseInt(String(form.quantity).replace(/,/g, ''), 10);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      newErrors.quantity = 'Enter a valid quantity greater than zero';
+    const qty = parseAdjustmentQty(form.quantity);
+    if (!Number.isFinite(qty) || qty < ADJUSTMENT_QTY_MIN) {
+      newErrors.quantity = `Enter a valid quantity of at least ${ADJUSTMENT_QTY_MIN} (e.g. 0.5, 2.45)`;
     }
     if (!String(form.type || '').trim()) {
       newErrors.type = 'Type is required';
@@ -104,7 +166,7 @@ const AdjustmentAdd = () => {
 
     setIsSubmitting(true);
     try {
-      const qty = parseInt(String(form.quantity).replace(/,/g, ''), 10);
+      const qty = parseAdjustmentQty(form.quantity);
       await dispatch(
         createAdjustment({
           adjustmentFields: {
@@ -222,14 +284,15 @@ const AdjustmentAdd = () => {
                     </label>
                     <input
                       id="adjustment-quantity"
-                      type="number"
+                      type="text"
                       name="quantity"
-                      min={1}
-                      step={1}
+                      inputMode="decimal"
                       className={`form-control ${errors.quantity ? 'is-invalid' : ''}`}
                       value={form.quantity}
-                      onChange={handleChange}
+                      onChange={handleQuantityChange}
+                      onBlur={handleQuantityBlur}
                       disabled={isSubmitting}
+                      placeholder="e.g. 1 or 0.5"
                     />
                     {errors.quantity && (
                       <div className="invalid-feedback">{errors.quantity}</div>

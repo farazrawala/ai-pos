@@ -2,8 +2,16 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
+import { FaSort, FaSortDown, FaSortUp, FaEllipsisVertical } from 'react-icons/fa6';
 import { fetchUsers, setSearch, setPage, setLimit, setSort, deleteUser, clearDeleteStatus } from '../../features/users/usersSlice.js';
+import {
+  markUserAsDefaultCustomerRequest,
+  markUserAsDefaultVendorRequest,
+  isDefaultCustomerUser,
+  isDefaultVendorUser,
+  userHasRole,
+} from '../../features/users/usersAPI.js';
+import { toast } from '../../utils/toast.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -56,6 +64,7 @@ const Users = () => {
   useRequireModuleAccess('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [markingDefaultUserId, setMarkingDefaultUserId] = useState('');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -117,6 +126,44 @@ const Users = () => {
     }
     dispatch(fetchUsers(params));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  const handleMarkDefaultCustomer = async (user) => {
+    const userId = user?._id || user?.id;
+    if (!userId || isDefaultCustomerUser(user)) return;
+    if (!userHasRole(user, 'CUSTOMER')) {
+      toast.warning('Only users with the CUSTOMER role can be set as default customer.');
+      return;
+    }
+    setMarkingDefaultUserId(String(userId));
+    try {
+      await markUserAsDefaultCustomerRequest(userId);
+      toast.success(`"${user.name || 'User'}" is now the default customer.`);
+      reloadUsers();
+    } catch (err) {
+      toast.error(err?.message || 'Could not set default customer.');
+    } finally {
+      setMarkingDefaultUserId('');
+    }
+  };
+
+  const handleMarkDefaultVendor = async (user) => {
+    const userId = user?._id || user?.id;
+    if (!userId || isDefaultVendorUser(user)) return;
+    if (!userHasRole(user, 'VENDOR')) {
+      toast.warning('Only users with the VENDOR role can be set as default vendor.');
+      return;
+    }
+    setMarkingDefaultUserId(String(userId));
+    try {
+      await markUserAsDefaultVendorRequest(userId);
+      toast.success(`"${user.name || 'User'}" is now the default vendor.`);
+      reloadUsers();
+    } catch (err) {
+      toast.error(err?.message || 'Could not set default vendor.');
+    } finally {
+      setMarkingDefaultUserId('');
+    }
+  };
 
   const handleDelete = async (userId, userName) => {
     const authUserId = String(authUser?._id || authUser?.id || '');
@@ -252,7 +299,7 @@ const Users = () => {
                 <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
-                        <th className="text-center" style={{ width: '56px' }}>
+                        <th className="text-center" style={{ width: '72px' }}>
                           #
                         </th>
                         <th className="text-center" style={{ width: '72px' }}>
@@ -267,9 +314,6 @@ const Users = () => {
                         {sortableTh('status', 'Status')}
                         {sortableTh('createdAt', 'Created')}
                         {sortableTh('updatedAt', 'Last Updated At')}
-                        <th className="text-center" style={{ width: '140px' }}>
-                          Action
-                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -288,9 +332,95 @@ const Users = () => {
                           const isActive = String(statusVal).toLowerCase() === 'active';
                           const openingBalance = userOpeningBalance(item);
                           const profileUrl = userProfileImageUrl(item);
+                          const userId = item._id || item.id;
+                          const isCustomer = userHasRole(item, 'CUSTOMER');
+                          const isVendor = userHasRole(item, 'VENDOR');
+                          const isDefaultCustomer = isDefaultCustomerUser(item);
+                          const isDefaultVendor = isDefaultVendorUser(item);
+                          const showActionsMenu = canEdit || canDelete;
+                          const isMarking = markingDefaultUserId === String(userId);
                           return (
                             <tr key={key}>
-                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td
+                                className="text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="d-flex align-items-center justify-content-center gap-1">
+                                  <span className="text-muted text-sm">{seriesNumber}</span>
+                                  {showActionsMenu ? (
+                                    <div className="dropdown">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-secondary mb-0 px-2 py-1"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false"
+                                        aria-label={`Actions for ${item.name || 'user'}`}
+                                        disabled={isMarking || deleteStatus === 'loading'}
+                                      >
+                                        <NavIcon icon={FaEllipsisVertical} size={14} />
+                                      </button>
+                                      <ul className="dropdown-menu dropdown-menu-start text-sm shadow-sm">
+                                        {canEdit ? (
+                                          <li>
+                                            <button
+                                              type="button"
+                                              className="dropdown-item"
+                                              onClick={() => navigate(`/users/edit/${userId}`)}
+                                            >
+                                              Edit
+                                            </button>
+                                          </li>
+                                        ) : null}
+                                        {canEdit && isCustomer ? (
+                                          <li>
+                                            <button
+                                              type="button"
+                                              className="dropdown-item"
+                                              onClick={() => handleMarkDefaultCustomer(item)}
+                                              disabled={isDefaultCustomer || isMarking}
+                                            >
+                                              {isDefaultCustomer
+                                                ? 'Default customer'
+                                                : 'Make default customer'}
+                                            </button>
+                                          </li>
+                                        ) : null}
+                                        {canEdit && isVendor ? (
+                                          <li>
+                                            <button
+                                              type="button"
+                                              className="dropdown-item"
+                                              onClick={() => handleMarkDefaultVendor(item)}
+                                              disabled={isDefaultVendor || isMarking}
+                                            >
+                                              {isDefaultVendor
+                                                ? 'Default vendor'
+                                                : 'Make default vendor'}
+                                            </button>
+                                          </li>
+                                        ) : null}
+                                        {canEdit && (isCustomer || isVendor) && canDelete ? (
+                                          <li>
+                                            <hr className="dropdown-divider" />
+                                          </li>
+                                        ) : null}
+                                        {canDelete ? (
+                                          <li>
+                                            <button
+                                              type="button"
+                                              className="dropdown-item text-danger"
+                                              onClick={() => handleDelete(userId, item.name)}
+                                              disabled={deleteStatus === 'loading'}
+                                            >
+                                              Delete
+                                            </button>
+                                          </li>
+                                        ) : null}
+                                      </ul>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </td>
                               <td className="text-center">
                                 {profileUrl ? (
                                   <img
@@ -317,6 +447,16 @@ const Users = () => {
                                 <span className="font-weight-bold text-dark text-sm">
                                   {item.name || '—'}
                                 </span>
+                                {isDefaultCustomer ? (
+                                  <span className="badge bg-gradient-primary ms-1 mb-0 text-xxs">
+                                    Default customer
+                                  </span>
+                                ) : null}
+                                {isDefaultVendor ? (
+                                  <span className="badge bg-gradient-dark ms-1 mb-0 text-xxs">
+                                    Default vendor
+                                  </span>
+                                ) : null}
                               </td>
                               <td className="text-sm">{item.email || '—'}</td>
                               <td className="text-sm">{userPhoneDisplay(item)}</td>
@@ -358,36 +498,6 @@ const Users = () => {
                                 {item.updatedAt || item.updated_at
                                   ? moment(item.updatedAt || item.updated_at).fromNow()
                                   : '—'}
-                              </td>
-                              <td className="text-center">
-                                <div className="d-flex flex-wrap gap-1 justify-content-center">
-                                  {canEdit ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-primary mb-0"
-                                      onClick={() =>
-                                        navigate(`/users/edit/${item._id || item.id}`)
-                                      }
-                                    >
-                                      Edit
-                                    </button>
-                                  ) : null}
-                                  {canDelete ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger mb-0"
-                                      onClick={() =>
-                                        handleDelete(item._id || item.id, item.name)
-                                      }
-                                      disabled={deleteStatus === 'loading'}
-                                    >
-                                      Delete
-                                    </button>
-                                  ) : null}
-                                  {!canEdit && !canDelete ? (
-                                    <span className="text-muted">—</span>
-                                  ) : null}
-                                </div>
                               </td>
                             </tr>
                           );

@@ -4,7 +4,7 @@ import moment from 'moment';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
-  getFirstCustomerUserId,
+  getDefaultPosCustomerUserId,
   getUserOptionValue,
   createCustomerUserRequest,
   pickCreatedUserFromResponse,
@@ -308,8 +308,8 @@ const Pos = () => {
           setSelectedCustomerId(getUserOptionValue(match));
         }
       } else {
-        const firstId = getFirstCustomerUserId(arr);
-        if (firstId) setSelectedCustomerId(firstId);
+        const defaultId = getDefaultPosCustomerUserId(arr);
+        if (defaultId) setSelectedCustomerId(defaultId);
       }
     } catch (err) {
       console.error('[POS] Failed to load users for customer dropdown', err);
@@ -374,11 +374,11 @@ const Pos = () => {
   }, [users, customerFilter]);
 
   useEffect(() => {
-    const firstCustomerId = getFirstCustomerUserId(users);
-    if (!firstCustomerId) return;
+    const defaultCustomerId = getDefaultPosCustomerUserId(users);
+    if (!defaultCustomerId) return;
     const selectedStillExists = users.some((u) => getUserOptionValue(u) === selectedCustomerId);
     if (!selectedCustomerId || !selectedStillExists) {
-      setSelectedCustomerId(firstCustomerId);
+      setSelectedCustomerId(defaultCustomerId);
     }
   }, [users, selectedCustomerId]);
 
