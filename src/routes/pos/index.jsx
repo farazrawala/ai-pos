@@ -31,10 +31,7 @@ import {
   getWarehouseIdFromCompany,
 } from '../../features/company/companyAPI.js';
 import { setCompany } from '../../features/user/userSlice.js';
-import {
-  formatProductNameWithStock,
-  getProductAvailableStock,
-} from '../../utils/productStock.js';
+import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
@@ -497,7 +494,7 @@ const Pos = () => {
         }
         return [...prev, { productId, name, unitPrice, quantity: '1', availableStock }];
       });
-      if (stockMsg) toast.warning(stockMsg);
+      if (stockMsg) toast.error(stockMsg);
     },
     [allowAddWhenStockInsufficient, defaultWarehouseId]
   );
@@ -522,7 +519,7 @@ const Pos = () => {
           return [{ ...l, quantity: formatPosQtyLabel(next) }];
         })
       );
-      if (stockMsg) toast.warning(stockMsg);
+      if (stockMsg) toast.error(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -548,7 +545,7 @@ const Pos = () => {
           return [{ ...l, quantity: sanitized }];
         })
       );
-      if (stockMsg) toast.warning(stockMsg);
+      if (stockMsg) toast.error(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -571,7 +568,7 @@ const Pos = () => {
           return [{ ...l, quantity: formatPosQtyLabel(q) }];
         })
       );
-      if (stockMsg) toast.warning(stockMsg);
+      if (stockMsg) toast.error(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -620,7 +617,7 @@ const Pos = () => {
 
       const stockIssues = collectCartStockIssues(linesForSave);
       if (stockIssues.length) {
-        toast.warning(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+        toast.error(formatCartStockIssueToast(stockIssues), { delay: 5000 });
         return null;
       }
 
@@ -689,7 +686,7 @@ const Pos = () => {
 
     const stockIssues = collectCartStockIssues(linesForPayment);
     if (stockIssues.length) {
-      toast.warning(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+      toast.error(formatCartStockIssueToast(stockIssues), { delay: 8000 });
       return;
     }
 
