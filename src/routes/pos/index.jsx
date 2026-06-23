@@ -38,7 +38,7 @@ import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
-import { toast } from '../../utils/toast.js';
+import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import './pos-module.css';
@@ -270,6 +270,10 @@ function formatCartStockIssueToast(issues) {
   return `${issues.length} items have insufficient stock:\n${issues.join('\n')}`;
 }
 
+function showStockErrorToast(message, opts = {}) {
+  toast.error(boldQuotedNamesInMessage(message), { ...opts, html: true });
+}
+
 const Pos = () => {
   useRequireModuleAccess('pos');
   const dispatch = useDispatch();
@@ -494,7 +498,7 @@ const Pos = () => {
         }
         return [...prev, { productId, name, unitPrice, quantity: '1', availableStock }];
       });
-      if (stockMsg) toast.error(stockMsg);
+      if (stockMsg) showStockErrorToast(stockMsg);
     },
     [allowAddWhenStockInsufficient, defaultWarehouseId]
   );
@@ -519,7 +523,7 @@ const Pos = () => {
           return [{ ...l, quantity: formatPosQtyLabel(next) }];
         })
       );
-      if (stockMsg) toast.error(stockMsg);
+      if (stockMsg) showStockErrorToast(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -545,7 +549,7 @@ const Pos = () => {
           return [{ ...l, quantity: sanitized }];
         })
       );
-      if (stockMsg) toast.error(stockMsg);
+      if (stockMsg) showStockErrorToast(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -568,7 +572,7 @@ const Pos = () => {
           return [{ ...l, quantity: formatPosQtyLabel(q) }];
         })
       );
-      if (stockMsg) toast.error(stockMsg);
+      if (stockMsg) showStockErrorToast(stockMsg);
     },
     [allowAddWhenStockInsufficient]
   );
@@ -617,7 +621,7 @@ const Pos = () => {
 
       const stockIssues = collectCartStockIssues(linesForSave);
       if (stockIssues.length) {
-        toast.error(formatCartStockIssueToast(stockIssues), { delay: 5000 });
+        showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 5000 });
         return null;
       }
 
@@ -686,7 +690,7 @@ const Pos = () => {
 
     const stockIssues = collectCartStockIssues(linesForPayment);
     if (stockIssues.length) {
-      toast.error(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+      showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
       return;
     }
 
@@ -709,7 +713,7 @@ const Pos = () => {
         clearCartAfterSale();
       } catch (e) {
         console.error('[POS] Failed to save order', e);
-        toast.error(
+        showStockErrorToast(
           formatPosOrderErrorMessage(e?.message, {
             cartLines,
             productId: e?.productId,
@@ -790,7 +794,7 @@ const Pos = () => {
         clearCartAfterSale();
       } catch (e) {
         console.error('[POS] Failed to save order for print', e);
-        toast.error(
+        showStockErrorToast(
           formatPosOrderErrorMessage(e?.message, {
             cartLines,
             productId: e?.productId,

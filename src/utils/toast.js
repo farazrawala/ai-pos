@@ -24,12 +24,24 @@ const getContainer = () => {
   return container;
 };
 
+const escapeHtml = (text) =>
+  String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+/** Wrap quoted segments (e.g. product names) in <strong> for toast HTML bodies. */
+export function boldQuotedNamesInMessage(message) {
+  return String(message ?? '').replace(/"([^"]+)"/g, (_, name) => `"<strong>${escapeHtml(name)}</strong>"`);
+}
+
 export const showToast = ({
   message,
   title,
   variant = 'info',
   delay = 5000,
   autohide = true,
+  html = false,
 } = {}) => {
   const resolvedVariant = resolveVariant(variant);
   const config = VARIANT_MAP[resolvedVariant];
@@ -37,13 +49,37 @@ export const showToast = ({
   if (!container) return;
 
   const toastEl = document.createElement('div');
-  toastEl.className = 'toast fade p-2 mt-2 bg-white';
+  toastEl.className = 'toast fade p-2 mt-2 bg-white position-relative';
   toastEl.setAttribute('role', 'alert');
   toastEl.setAttribute('aria-live', 'assertive');
   toastEl.setAttribute('aria-atomic', 'true');
 
+  let toastInstance = null;
+
+  const dismissToast = () => {
+    if (toastInstance) {
+      toastInstance.hide();
+      return;
+    }
+    toastEl.classList.remove('show');
+    toastEl.remove();
+  };
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className =
+    'btn btn-link text-secondary p-0 position-absolute top-0 end-0 m-2 lh-1 app-toast-close';
+  closeBtn.style.zIndex = '2';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.innerHTML = '<i class="fas fa-times text-sm"></i>';
+  closeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dismissToast();
+  });
+
   const header = document.createElement('div');
-  header.className = 'toast-header border-0';
+  header.className = 'toast-header border-0 pe-4';
 
   const icon = document.createElement('i');
   icon.className = `${config.icon} ${config.iconClass} me-2`;
@@ -56,18 +92,12 @@ export const showToast = ({
   titleEl.textContent = title || config.title;
 
   const timeEl = document.createElement('small');
-  timeEl.className = 'text-body';
+  timeEl.className = 'text-body ms-2';
   timeEl.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-  const closeEl = document.createElement('i');
-  closeEl.className = 'fas fa-times text-md ms-3 cursor-pointer';
-  closeEl.setAttribute('data-bs-dismiss', 'toast');
-  closeEl.setAttribute('aria-label', 'Close');
 
   header.appendChild(icon);
   header.appendChild(titleEl);
   header.appendChild(timeEl);
-  header.appendChild(closeEl);
 
   const hr = document.createElement('hr');
   hr.className = 'horizontal dark m-0';
@@ -75,16 +105,21 @@ export const showToast = ({
   const body = document.createElement('div');
   body.className = 'toast-body';
   body.style.whiteSpace = 'pre-line';
-  body.textContent = String(message || '');
+  if (html) {
+    body.innerHTML = String(message || '');
+  } else {
+    body.textContent = String(message || '');
+  }
 
+  toastEl.appendChild(closeBtn);
   toastEl.appendChild(header);
   toastEl.appendChild(hr);
   toastEl.appendChild(body);
   container.appendChild(toastEl);
 
   if (window.bootstrap && window.bootstrap.Toast) {
-    const toast = new window.bootstrap.Toast(toastEl, { autohide, delay });
-    toast.show();
+    toastInstance = new window.bootstrap.Toast(toastEl, { autohide, delay });
+    toastInstance.show();
     toastEl.addEventListener(
       'hidden.bs.toast',
       () => {
