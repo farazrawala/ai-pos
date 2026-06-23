@@ -208,7 +208,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
       (line, i) => `
       <tr class="${i % 2 === 1 ? 'line-alt' : ''}">
         <td>
-          <div class="line-title">${escapeHtml(line.description)}</div>
+          <div class="line-title">${i + 1}. ${escapeHtml(line.description)}</div>
           <div class="line-detail">
             <span>${escapeHtml(line.qtyLabel)} × ${escapeHtml(fmt(line.rate))}</span>
             <span class="line-amt">${escapeHtml(fmt(line.amount))}</span>

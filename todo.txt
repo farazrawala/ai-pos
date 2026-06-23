@@ -1,3 +1,13 @@
+Shopkeepers run your POS (in-store + online via Woo/Shopify/Daraz sync), manage orders, couriers, basic accounting
+Main vendors/suppliers list their catalog centrally
+Any shopkeeper can pull a vendor's products into their own store/website without holding inventory
+When a customer orders, the shopkeeper doesn't pre-buy — the order triggers a purchase from the vendor (essentially dropshipping infrastructure, vendor-to-shopkeeper-to-end-customer)
+Vendor's stock levels sync in real time across every shopkeeper/website using that product
+
+That's effectively: POS/Retail Management + Multi-channel sync + B2B2C Dropship Marketplace + Order/Courier orchestration, all in one SaaS.
+Let me check a couple of things with you before I pull market data, since "Pakistan market for this" could mean different things.
+
+
 GET {{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id=69fd1d5668a2d809a34a3dd1
 
 
