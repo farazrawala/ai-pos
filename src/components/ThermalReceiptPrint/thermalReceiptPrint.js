@@ -154,10 +154,12 @@ export function buildThermalReceiptHtml(data, options = {}) {
 
   const fmt = (n) => formatThermalMoney(n, { currencyLabel, locale });
   const companyName = String(brand.name || d.shopName || APP_NAME).trim() || APP_NAME;
-  const footerThanksMessage =
+  const customFooterThankYou =
     footerThankYou != null && String(footerThankYou).trim() !== ''
       ? String(footerThankYou).trim()
-      : `Thanks for purchasing from ${companyName}`;
+      : '';
+  const footerThanksLine = customFooterThankYou || 'Thanks for purchasing from';
+  const footerThanksCompany = customFooterThankYou ? '' : companyName;
 
   const logoHtml = ps.show_logo
     ? brand.logoUrl
@@ -439,6 +441,11 @@ export function buildThermalReceiptHtml(data, options = {}) {
     margin-top: 4px;
     font-size: 11px;
   }
+  .foot-company {
+    font-weight: 800;
+    margin-top: 2px;
+    font-size: 11px;
+  }
   .foot-contact {
     font-weight: 700;
     margin-top: 8px;
@@ -458,7 +465,8 @@ export function buildThermalReceiptHtml(data, options = {}) {
   ${qrBlock}
   <div class="foot">
     ${d.terms ? `${escapeHtml(d.terms)}<br/>` : ''}
-    <div class="foot-thanks">${escapeHtml(footerThanksMessage)}</div>
+    <div class="foot-thanks">${escapeHtml(footerThanksLine)}</div>
+    ${footerThanksCompany ? `<div class="foot-company">${escapeHtml(footerThanksCompany)}</div>` : ''}
     <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
 </body></html>`;
