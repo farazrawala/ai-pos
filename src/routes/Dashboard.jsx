@@ -1,18 +1,17 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import {
-  FaCamera,
   FaCartShopping,
   FaCoins,
   FaFileInvoice,
   FaGlobe,
-  FaLightbulb,
-  FaTrophy,
 } from 'react-icons/fa6';
 import Footer from '../components/Footer.jsx';
 import NavIcon from '../components/NavIcon.jsx';
-import { withBase } from '../config/appBase.js';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
+import PosPaymentMethodsCard from '../components/dashboard/PosPaymentMethodsCard.jsx';
+import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
+import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
 import { useTodaySales } from '../hooks/useTodaySales.js';
@@ -254,89 +253,16 @@ const Dashboard = () => {
           <div className="col-lg-7 mb-4 mb-lg-0">
             <SalesOverviewCard />
           </div>
-          <div className="col-lg-5">
-            <div className="card card-carousel overflow-hidden h-100 p-0">
-              <div
-                id="carouselExampleCaptions"
-                className="carousel slide h-100"
-                data-bs-ride="carousel"
-              >
-                <div className="carousel-inner border-radius-lg h-100">
-                  <div
-                    className="carousel-item h-100 active"
-                    style={{
-                      backgroundImage: `url('${withBase('/assets/img/img-2.jpg')}')`,
-                      backgroundSize: 'cover',
-                    }}
-                  >
-                    <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
-                      <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <NavIcon icon={FaCamera} className="text-dark opacity-10" size={18} />
-                      </div>
-                      <h5 className="text-white mb-1">Get started with Argon</h5>
-                      <p>
-                        There's nothing I really wanted to do in life that I wasn't able to get good
-                        at.
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className="carousel-item h-100"
-                    style={{
-                      backgroundImage: `url('${withBase('/assets/img/img-1.jpg')}')`,
-                      backgroundSize: 'cover',
-                    }}
-                  >
-                    <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
-                      <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <NavIcon icon={FaLightbulb} className="text-dark opacity-10" size={18} />
-                      </div>
-                      <h5 className="text-white mb-1">Faster way to create web pages</h5>
-                      <p>
-                        That's my skill. I'm not really specifically talented at anything except for
-                        the ability to learn.
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className="carousel-item h-100"
-                    style={{
-                      backgroundImage: `url('${withBase('/assets/img/img-3.jpg')}')`,
-                      backgroundSize: 'cover',
-                    }}
-                  >
-                    <div className="carousel-caption d-none d-md-block bottom-0 text-start start-0 ms-5">
-                      <div className="icon icon-shape icon-sm bg-white text-center border-radius-md mb-3">
-                        <NavIcon icon={FaTrophy} className="text-dark opacity-10" size={18} />
-                      </div>
-                      <h5 className="text-white mb-1">Share with us your design tips!</h5>
-                      <p>
-                        Don't be afraid to be wrong because you can't learn anything from a
-                        compliment.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  className="carousel-control-prev w-5 me-3"
-                  type="button"
-                  data-bs-target="#carouselExampleCaptions"
-                  data-bs-slide="prev"
-                >
-                  <span className="carousel-control-prev-icon" aria-hidden="true"></span>
-                  <span className="visually-hidden">Previous</span>
-                </button>
-                <button
-                  className="carousel-control-next w-5 me-3"
-                  type="button"
-                  data-bs-target="#carouselExampleCaptions"
-                  data-bs-slide="next"
-                >
-                  <span className="carousel-control-next-icon" aria-hidden="true"></span>
-                  <span className="visually-hidden">Next</span>
-                </button>
-              </div>
-            </div>
+          <div className="col-lg-5 mb-4 mb-lg-0">
+            <PosPaymentMethodsCard />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-lg-6 mb-4 mb-lg-0">
+            <PosTopProductsCard />
+          </div>
+          <div className="col-lg-6 mb-4 mb-lg-0">
+            <PosPeakHoursCard />
           </div>
         </div>
       </div>
