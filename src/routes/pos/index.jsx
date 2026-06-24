@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
+import { FaTrash } from 'react-icons/fa6';
+import NavIcon from '../../components/NavIcon.jsx';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -528,6 +530,10 @@ const Pos = () => {
     [allowAddWhenStockInsufficient]
   );
 
+  const removeCartLine = useCallback((productId) => {
+    setCartLines((prev) => prev.filter((l) => l.productId !== productId));
+  }, []);
+
   const setCartQty = useCallback(
     (productId, raw) => {
       const sanitized = sanitizePosQtyInput(raw);
@@ -1045,21 +1051,24 @@ const Pos = () => {
 
               <div className="pos-section-label">Cart</div>
               <div className="pos-cart-header">
+                <div className="text-center">Sr</div>
                 <div>Product</div>
                 <div className="text-center">Qty</div>
                 <div className="text-end">Price</div>
                 <div className="text-end">Total</div>
+                <div aria-hidden="true" />
               </div>
               <div className="pos-cart-body mb-3">
                 {cartLines.length === 0 ? (
                   <div className="text-center text-muted text-sm py-5">No products in cart</div>
                 ) : (
-                  cartLines.map((line) => {
+                  cartLines.map((line, index) => {
                     const qtyNum = parsePosQty(line.quantity);
                     const lineTotal = qtyNum * line.unitPrice;
                     const displayName = formatProductNameWithStock(line.name, line.availableStock);
                     return (
                       <div key={line.productId} className="pos-cart-row">
+                        <div className="pos-cart-serial text-center">{index + 1}</div>
                         <div className="pos-cart-product-name" title={displayName}>
                           {displayName}
                         </div>
@@ -1104,6 +1113,16 @@ const Pos = () => {
                           />
                         </div>
                         <div className="pos-line-total">PKR {lineTotal.toFixed(2)}</div>
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm text-danger p-0 pos-cart-delete-btn"
+                            aria-label={`Remove ${line.name}`}
+                            onClick={() => removeCartLine(line.productId)}
+                          >
+                            <NavIcon icon={FaTrash} size={14} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })

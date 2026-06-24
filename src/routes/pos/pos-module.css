@@ -79,7 +79,7 @@
 
 .pos-page .pos-cart-header {
   display: grid;
-  grid-template-columns: 1fr 108px 88px 96px;
+  grid-template-columns: 28px 1fr 108px 88px 96px 32px;
   gap: 0.5rem;
   align-items: center;
   padding: 0.65rem 0.85rem;
@@ -114,7 +114,7 @@
 
 .pos-page .pos-cart-row {
   display: grid;
-  grid-template-columns: 1fr 108px 88px 96px;
+  grid-template-columns: 28px 1fr 108px 88px 96px 32px;
   gap: 0.5rem;
   align-items: center;
   padding: 0.65rem 0.85rem;
@@ -137,6 +137,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pos-page .pos-cart-serial {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--pos-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .pos-page .pos-qty-group {
@@ -196,6 +203,21 @@
   color: var(--pos-ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.pos-page .pos-cart-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.pos-page .pos-cart-delete-btn:hover,
+.pos-page .pos-cart-delete-btn:focus {
+  color: #f5365c !important;
 }
 
 .pos-page .pos-order-summary {
@@ -399,7 +421,7 @@
 @media (max-width: 991.98px) {
   .pos-page .pos-cart-header,
   .pos-page .pos-cart-row {
-    grid-template-columns: 1fr 100px 76px 84px;
+    grid-template-columns: 24px 1fr 100px 76px 84px 28px;
     font-size: 0.75rem;
   }
 
