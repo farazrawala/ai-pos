@@ -15,6 +15,12 @@ import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
 import PosDailyOrdersCard from '../components/dashboard/PosDailyOrdersCard.jsx';
 import PosAvgOrderValueCard from '../components/dashboard/PosAvgOrderValueCard.jsx';
 import PosSalesByCategoryCard from '../components/dashboard/PosSalesByCategoryCard.jsx';
+import PosAccountsReceivableSummaryCard from '../components/dashboard/PosAccountsReceivableSummaryCard.jsx';
+import PosReceivablesByCustomerCard from '../components/dashboard/PosReceivablesByCustomerCard.jsx';
+import PosReceivablesAgingCard from '../components/dashboard/PosReceivablesAgingCard.jsx';
+import PosExpenseSummaryCard from '../components/dashboard/PosExpenseSummaryCard.jsx';
+import PosExpensesByAccountCard from '../components/dashboard/PosExpensesByAccountCard.jsx';
+import PosExpenseVsRevenueCard from '../components/dashboard/PosExpenseVsRevenueCard.jsx';
 import LowStockAlertsTable from '../components/dashboard/LowStockAlertsTable.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
@@ -278,6 +284,28 @@ const Dashboard = () => {
           </div>
           <div className="col-lg-4 mb-4 mb-lg-0">
             <PosSalesByCategoryCard />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosAccountsReceivableSummaryCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosReceivablesByCustomerCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosReceivablesAgingCard />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosExpenseSummaryCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosExpensesByAccountCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosExpenseVsRevenueCard />
           </div>
         </div>
         <div className="row">
