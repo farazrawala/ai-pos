@@ -18,6 +18,7 @@ import {
   pickInvoiceRouteId,
   pickOrderDocumentId,
   getNoOfItemsDisplay,
+  fetchAllOrdersForExportRequest,
 } from '../../features/orders/ordersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -29,6 +30,7 @@ import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { toast } from '../../utils/toast.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 
 const getOrderStatusDisplay = (row) => {
   if (!row || typeof row !== 'object') return '';
@@ -68,6 +70,34 @@ const statusBadgeClass = (status) => {
   return 'bg-gradient-secondary';
 };
 
+const ORDER_EXPORT_COLUMNS = [
+  { key: 'sr', label: '#' },
+  { key: 'orderNo', label: 'Order no' },
+  { key: 'customer', label: 'Customer' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'items', label: 'Items' },
+  { key: 'total', label: 'Total (PKR)' },
+  { key: 'status', label: 'Status' },
+  { key: 'created', label: 'Created' },
+];
+
+const mapOrderToExportRow = (item, index) => {
+  const created = item.createdAt ?? item.created_at;
+  const total = getOrderItemsTotalDisplay(item);
+  return {
+    sr: index + 1,
+    orderNo: item.order_no || item.orderNo || '',
+    customer: item.name || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    items: getNoOfItemsDisplay(item),
+    total: total !== '—' ? total : '',
+    status: orderDisplayStatus(item),
+    created: created ? moment(created).format('DD MMM YYYY h:mm a') : '',
+  };
+};
+
 const Orders = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -90,6 +120,7 @@ const Orders = () => {
   const [editLoadingId, setEditLoadingId] = useState('');
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -167,6 +198,55 @@ const Orders = () => {
     setLocalStartDate('');
     setLocalEndDate('');
     dispatch(clearDateFilters());
+  };
+
+  const buildExportParams = () => {
+    const params = {};
+    if (searchTerm) params.search = searchTerm;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    return params;
+  };
+
+  const handleExport = async (format) => {
+    setExporting(true);
+    try {
+      const rows = await fetchAllOrdersForExportRequest(buildExportParams());
+      if (!rows.length) {
+        toast.info('No orders to export.');
+        return;
+      }
+      const mapped = rows.map((item, i) => mapOrderToExportRow(item, i));
+      const stamp = moment().format('YYYY-MM-DD-HHmm');
+      const filename = `orders-${stamp}`;
+      if (format === 'csv') {
+        exportRowsToCsv({ columns: ORDER_EXPORT_COLUMNS, rows: mapped, filename });
+      } else if (format === 'excel') {
+        exportRowsToExcel({
+          columns: ORDER_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          sheetTitle: 'Orders',
+        });
+      } else if (format === 'pdf') {
+        await exportRowsToPdf({
+          columns: ORDER_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          title: 'Orders',
+        });
+      }
+      toast.success(`Exported ${mapped.length} order(s) as ${format.toUpperCase()}.`);
+    } catch (err) {
+      console.error('[Orders] export failed', err);
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleSort = (column, isDoubleClick = false) => {
@@ -323,7 +403,7 @@ const Orders = () => {
                     onChange={(e) => setLocalEndDate(e.target.value)}
                   />
                 </div>
-                <div className="col-md-6 d-flex flex-wrap gap-2">
+                <div className="col-md-6 d-flex flex-wrap align-items-center gap-2">
                   <button
                     type="button"
                     className="btn btn-primary btn-sm mb-0"
@@ -337,6 +417,32 @@ const Orders = () => {
                     onClick={resetDateFilters}
                   >
                     Clear
+                  </button>
+                  <span className="text-muted text-sm mx-1 d-none d-md-inline">|</span>
+                  <span className="text-sm text-muted d-none d-md-inline">Download all:</span>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success btn-sm mb-0"
+                    disabled={exporting}
+                    onClick={() => handleExport('csv')}
+                  >
+                    {exporting ? 'Exporting…' : 'CSV'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success btn-sm mb-0"
+                    disabled={exporting}
+                    onClick={() => handleExport('excel')}
+                  >
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success btn-sm mb-0"
+                    disabled={exporting}
+                    onClick={() => handleExport('pdf')}
+                  >
+                    PDF
                   </button>
                 </div>
               </div>

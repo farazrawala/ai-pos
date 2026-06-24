@@ -467,6 +467,26 @@ export async function fetchOrdersRequest(params = {}) {
   };
 }
 
+/** Fetch every page matching filters (for CSV / Excel / PDF export). */
+export async function fetchAllOrdersForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchOrdersRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return allData;
+}
+
 /**
  * GET full order for one line item id (`order_item_id`).
  * Expected body shape: `_id`, `name`, `company_id`, `email`, `phone`, `address`, `created_by`,
