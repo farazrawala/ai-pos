@@ -614,29 +614,58 @@ function parseAvgOrderValueDayEntry(day) {
   return { ...base, averageOrderValue };
 }
 
-/**
- * GET `order/average-order-value`
- * @param {{ period?: string, from?: string, to?: string, timezone?: string }} [params]
- */
-export async function fetchAverageOrderValueRequest(params = {}) {
-  const query = buildReportPeriodQuery(params, 'current_month');
-  const result = await fetchOrderReportJson(AVERAGE_ORDER_VALUE_PATH, query);
-  const days = parseReportDays(result, parseAvgOrderValueDayEntry);
-  const summaryRaw = result.summary ?? result;
-  const totals = parseOrderSalesTotals(summaryRaw);
+function parseAverageOrderValueSummary(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { totalAmount: 0, orderCount: 0, averageOrderValue: 0 };
+  }
+  const totals = parseOrderSalesTotals(raw);
   let averageOrderValue = parseReportNumber(
-    summaryRaw.average_order_value ??
-      summaryRaw.averageOrderValue ??
-      summaryRaw.avg_order_value,
+    raw.average_order_value ?? raw.averageOrderValue ?? raw.avg_order_value,
     NaN
   );
   if (!Number.isFinite(averageOrderValue) && totals.orderCount > 0) {
     averageOrderValue = totals.totalAmount / totals.orderCount;
   }
   if (!Number.isFinite(averageOrderValue)) averageOrderValue = 0;
+  return { ...totals, averageOrderValue };
+}
+
+/**
+ * GET `order/average-order-value`
+ * Response: aggregate `data` object and/or optional `days[]` for daily trend.
+ * @param {{ period?: string, from?: string, to?: string, timezone?: string }} [params]
+ */
+export async function fetchAverageOrderValueRequest(params = {}) {
+  const query = buildReportPeriodQuery(params, 'current_month');
+  const result = await fetchOrderReportJson(AVERAGE_ORDER_VALUE_PATH, query);
+
+  let days = Array.isArray(result.days)
+    ? result.days.map(parseAvgOrderValueDayEntry)
+    : [];
+
+  if (Array.isArray(result.data)) {
+    days = result.data.map(parseAvgOrderValueDayEntry);
+  }
+
+  let summary;
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+    summary = parseAverageOrderValueSummary(result.data);
+  } else if (result.summary && typeof result.summary === 'object') {
+    summary = parseAverageOrderValueSummary(result.summary);
+  } else if (days.length) {
+    const totalAmount = days.reduce((sum, d) => sum + (d.totalAmount ?? 0), 0);
+    const orderCount = days.reduce((sum, d) => sum + (d.orderCount ?? 0), 0);
+    summary = parseAverageOrderValueSummary({
+      total_amount: totalAmount,
+      order_count: orderCount,
+    });
+  } else {
+    summary = parseAverageOrderValueSummary(result);
+  }
+
   return {
     days,
-    summary: { ...totals, averageOrderValue },
+    summary,
     period: result?.period && typeof result.period === 'object' ? result.period : null,
   };
 }
@@ -646,25 +675,83 @@ function parseSalesByCategoryEntry(raw) {
     return {
       categoryId: '',
       name: 'Uncategorized',
-      totalAmount: 0,
-      orderCount: 0,
+      slug: '',
+      totalRevenue: 0,
       totalQty: 0,
+      lineCount: 0,
     };
   }
-  const countRaw = raw.order_count ?? raw.orderCount;
-  const orderCount =
-    typeof countRaw === 'number' && Number.isFinite(countRaw)
-      ? countRaw
-      : parseInt(String(countRaw ?? ''), 10);
+
+  const lineRaw = raw.line_count ?? raw.lineCount ?? raw.order_count ?? raw.orderCount;
+  const lineCount =
+    typeof lineRaw === 'number' && Number.isFinite(lineRaw)
+      ? lineRaw
+      : parseInt(String(lineRaw ?? ''), 10);
+
+  const categoryIdRaw = raw.category_id ?? raw.categoryId ?? raw._id;
+  const categoryId =
+    categoryIdRaw == null || categoryIdRaw === ''
+      ? ''
+      : String(categoryIdRaw).trim();
+
+  const totalRevenue = parseReportNumber(
+    raw.total_revenue ?? raw.totalRevenue ?? raw.total_amount ?? raw.totalAmount ?? raw.amount
+  );
 
   return {
-    categoryId: String(raw.category_id ?? raw.categoryId ?? raw._id ?? '').trim(),
+    categoryId,
     name:
       String(raw.category_name ?? raw.categoryName ?? raw.name ?? 'Uncategorized').trim() ||
       'Uncategorized',
-    totalAmount: parseReportNumber(raw.total_amount ?? raw.totalAmount ?? raw.amount),
-    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
+    slug: String(raw.category_slug ?? raw.categorySlug ?? raw.slug ?? '').trim(),
+    totalRevenue,
     totalQty: parseReportNumber(raw.total_qty ?? raw.totalQty),
+    lineCount: Number.isFinite(lineCount) ? lineCount : 0,
+  };
+}
+
+function parseSalesByCategorySummary(raw, categories = []) {
+  if (!raw || typeof raw !== 'object') {
+    const totalRevenue = categories.reduce((sum, row) => sum + row.totalRevenue, 0);
+    const totalQty = categories.reduce((sum, row) => sum + row.totalQty, 0);
+    const lineCount = categories.reduce((sum, row) => sum + row.lineCount, 0);
+    return {
+      totalRevenue,
+      totalQty,
+      lineCount,
+      categoryCount: categories.length,
+    };
+  }
+
+  const totalRevenue = parseReportNumber(
+    raw.total_revenue ??
+      raw.totalRevenue ??
+      raw.total_amount ??
+      raw.totalAmount,
+    categories.reduce((sum, row) => sum + row.totalRevenue, 0)
+  );
+  const totalQty = parseReportNumber(
+    raw.total_qty ?? raw.totalQty,
+    categories.reduce((sum, row) => sum + row.totalQty, 0)
+  );
+  const lineRaw = raw.line_count ?? raw.lineCount;
+  const lineCount =
+    typeof lineRaw === 'number' && Number.isFinite(lineRaw)
+      ? lineRaw
+      : parseInt(String(lineRaw ?? ''), 10);
+  const categoryRaw = raw.category_count ?? raw.categoryCount;
+  const categoryCount =
+    typeof categoryRaw === 'number' && Number.isFinite(categoryRaw)
+      ? categoryRaw
+      : parseInt(String(categoryRaw ?? ''), 10);
+
+  return {
+    totalRevenue,
+    totalQty,
+    lineCount: Number.isFinite(lineCount)
+      ? lineCount
+      : categories.reduce((sum, row) => sum + row.lineCount, 0),
+    categoryCount: Number.isFinite(categoryCount) ? categoryCount : categories.length,
   };
 }
 
@@ -674,21 +761,18 @@ function parseSalesByCategoryEntry(raw) {
  */
 export async function fetchSalesByCategoryRequest(params = {}) {
   const query = buildReportPeriodQuery(params, 'last_30_days');
-  query.set('limit', String(params.limit ?? 20));
+  query.set('limit', String(params.limit ?? 10));
   const result = await fetchOrderReportJson(SALES_BY_CATEGORY_PATH, query);
   const categories = Array.isArray(result.data)
     ? result.data.map(parseSalesByCategoryEntry)
     : Array.isArray(result.categories)
       ? result.categories.map(parseSalesByCategoryEntry)
       : [];
-  const totalAmount = categories.reduce((sum, row) => sum + row.totalAmount, 0);
   return {
     categories,
-    summary: parseOrderSalesTotals(
-      result.summary ?? { total_amount: totalAmount, order_count: 0 }
-    ),
+    summary: parseSalesByCategorySummary(result.summary, categories),
     period: result?.period && typeof result.period === 'object' ? result.period : null,
-    total: Number(result.total) || categories.length,
+    categoryCount: categories.length,
   };
 }
 

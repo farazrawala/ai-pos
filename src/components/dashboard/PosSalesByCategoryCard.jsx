@@ -9,12 +9,12 @@ export default function PosSalesByCategoryCard() {
   const canvasRef = useRef(null);
   const { loading, categories, summary, period, error } = useSalesByCategory({
     period: 'last_30_days',
-    limit: 20,
+    limit: 10,
   });
 
-  const total =
-    summary?.totalAmount ?? categories.reduce((sum, row) => sum + row.totalAmount, 0);
-  const topAmount = categories.reduce((max, row) => Math.max(max, row.totalAmount), 0);
+  const totalRevenue =
+    summary?.totalRevenue ?? categories.reduce((sum, row) => sum + row.totalRevenue, 0);
+  const topRevenue = categories.reduce((max, row) => Math.max(max, row.totalRevenue), 0);
 
   useChartJs(
     canvasRef,
@@ -28,8 +28,8 @@ export default function PosSalesByCategoryCard() {
           categoryMeta: categories,
           datasets: [
             {
-              label: 'Sales',
-              data: categories.map((row) => row.totalAmount),
+              label: 'Revenue',
+              data: categories.map((row) => row.totalRevenue),
               backgroundColor: categories.map(
                 (_, i) => POS_CATEGORY_COLORS[i % POS_CATEGORY_COLORS.length]
               ),
@@ -62,13 +62,20 @@ export default function PosSalesByCategoryCard() {
                 },
                 label: (ctx) => {
                   const value = Number(ctx.parsed.x ?? 0);
-                  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+                  const pct = totalRevenue > 0 ? Math.round((value / totalRevenue) * 100) : 0;
                   return `${formatCurrency(value)} (${pct}%)`;
                 },
                 afterLabel: (ctx) => {
                   const row = categories[ctx.dataIndex];
-                  if (!row?.orderCount) return '';
-                  return `${row.orderCount} order${row.orderCount === 1 ? '' : 's'}`;
+                  if (!row) return '';
+                  const lines = [];
+                  if (row.totalQty > 0) {
+                    lines.push(`Qty: ${row.totalQty.toLocaleString()}`);
+                  }
+                  if (row.lineCount > 0) {
+                    lines.push(`${row.lineCount} line${row.lineCount === 1 ? '' : 's'}`);
+                  }
+                  return lines;
                 },
               },
             },
@@ -77,7 +84,7 @@ export default function PosSalesByCategoryCard() {
             x: {
               beginAtZero: true,
               grace: '8%',
-              suggestedMax: topAmount > 0 ? topAmount * 1.1 : undefined,
+              suggestedMax: topRevenue > 0 ? topRevenue * 1.1 : undefined,
               grid: { borderDash: [4, 4] },
               ticks: {
                 font: { size: 11 },
@@ -96,6 +103,7 @@ export default function PosSalesByCategoryCard() {
   );
 
   const periodLabel = periodLabelFromPeakApi(period);
+  const categoryCount = summary?.categoryCount ?? categories.length;
 
   return (
     <div className="card h-100">
@@ -108,7 +116,8 @@ export default function PosSalesByCategoryCard() {
             <span className="text-danger">{error}</span>
           ) : (
             <span className="text-secondary">
-              {formatCurrency(total)} total · {periodLabel}
+              {formatCurrency(totalRevenue)} revenue · {categoryCount} categor
+              {categoryCount === 1 ? 'y' : 'ies'} · {periodLabel}
             </span>
           )}
         </p>

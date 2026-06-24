@@ -4,16 +4,45 @@ import { useChartJs } from '../../hooks/useChartJs.js';
 import { useAverageOrderValue } from '../../hooks/useAverageOrderValue.js';
 import { dayLabelFromDate, periodLabelFromPeakApi } from './chartHelpers.js';
 
+function AovSummaryPanel({ summary }) {
+  const overallAvg = summary?.averageOrderValue ?? 0;
+  const totalAmount = summary?.totalAmount ?? 0;
+  const orderCount = summary?.orderCount ?? 0;
+
+  return (
+    <div
+      className="d-flex flex-column justify-content-center h-100 py-4 px-3"
+      style={{ minHeight: 260 }}
+    >
+      <div className="text-center mb-4">
+        <h2 className="font-weight-bold text-dark mb-1">{formatCurrency(overallAvg)}</h2>
+        <p className="text-sm text-secondary mb-0">average per order</p>
+      </div>
+      <div className="row g-3 text-center">
+        <div className="col-6">
+          <p className="text-xs text-uppercase text-secondary font-weight-bold mb-1">Total sales</p>
+          <p className="text-sm font-weight-bold mb-0">{formatCurrency(totalAmount)}</p>
+        </div>
+        <div className="col-6">
+          <p className="text-xs text-uppercase text-secondary font-weight-bold mb-1">Orders</p>
+          <p className="text-sm font-weight-bold mb-0">{orderCount.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PosAvgOrderValueCard() {
   const canvasRef = useRef(null);
   const { loading, days, summary, period, error } = useAverageOrderValue({
     period: 'current_month',
   });
+  const hasDailyTrend = days.length > 0;
 
   useChartJs(
     canvasRef,
     (Chart, canvas) => {
-      if (!days.length) return null;
+      if (!hasDailyTrend) return null;
 
       const avgValues = days.map((d) => d.averageOrderValue ?? 0);
       const peakAvg = avgValues.reduce((max, v) => Math.max(max, v), 0);
@@ -85,7 +114,7 @@ export default function PosAvgOrderValueCard() {
         },
       });
     },
-    [loading, error, days]
+    [loading, error, days, hasDailyTrend]
   );
 
   const periodLabel = periodLabelFromPeakApi(period);
@@ -100,18 +129,28 @@ export default function PosAvgOrderValueCard() {
             <span className="text-secondary">Loading…</span>
           ) : error ? (
             <span className="text-danger">{error}</span>
-          ) : (
+          ) : hasDailyTrend ? (
             <>
               <span className="font-weight-bold">{formatCurrency(overallAvg)}</span>
               <span className="text-secondary"> per order · {periodLabel}</span>
             </>
+          ) : (
+            <span className="text-secondary">{periodLabel}</span>
           )}
         </p>
       </div>
       <div className="card-body p-3 pt-2">
-        <div className="chart" style={{ minHeight: 260 }}>
-          <canvas ref={canvasRef} className="chart-canvas" height="260" />
-        </div>
+        {loading ? (
+          <div className="d-flex align-items-center justify-content-center text-secondary text-sm" style={{ minHeight: 260 }}>
+            Loading…
+          </div>
+        ) : error ? null : hasDailyTrend ? (
+          <div className="chart" style={{ minHeight: 260 }}>
+            <canvas ref={canvasRef} className="chart-canvas" height="260" />
+          </div>
+        ) : (
+          <AovSummaryPanel summary={summary} />
+        )}
       </div>
     </div>
   );
