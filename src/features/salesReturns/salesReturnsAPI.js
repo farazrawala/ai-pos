@@ -330,6 +330,8 @@ export async function fetchSalesReturnsListRequest(params = {}) {
   }
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
+  if (params.startDate) queryParams.append('startDate', String(params.startDate));
+  if (params.endDate) queryParams.append('endDate', String(params.endDate));
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${LIST_ALL_ACTIVE_PATH}${queryString ? `?${queryString}` : ''}`;
@@ -357,6 +359,53 @@ export async function fetchSalesReturnsListRequest(params = {}) {
   const result = await response.json().catch(() => null);
   assertSalesReturnJsonSuccess(result);
   return normalizeSalesReturnsListResponse(result, { page, limit });
+}
+
+/** Fetch every page matching filters (for CSV / Excel / PDF export). */
+export async function fetchAllSalesReturnsForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchSalesReturnsListRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return enrichSalesReturnsForExport(allData);
+}
+
+const EXPORT_DETAIL_CONCURRENCY = 5;
+
+async function enrichSalesReturnForExport(record) {
+  const { documentNeedsDetailFetch } = await import('../../utils/documentExportHelpers.js');
+  const { SALES_RETURN_ITEM_KEYS } = await import('./salesReturnExportMapper.js');
+  if (!documentNeedsDetailFetch(record, SALES_RETURN_ITEM_KEYS)) return record;
+  const id = String(record?._id ?? record?.id ?? '').trim();
+  if (!id) return record;
+  try {
+    const full = await fetchSalesReturnByIdRequest(id);
+    const unwrapped = unwrapSalesReturnRecord(full) ?? full;
+    return unwrapped && typeof unwrapped === 'object' ? unwrapped : record;
+  } catch {
+    return record;
+  }
+}
+
+async function enrichSalesReturnsForExport(records) {
+  const result = [];
+  for (let i = 0; i < records.length; i += EXPORT_DETAIL_CONCURRENCY) {
+    const batch = records.slice(i, i + EXPORT_DETAIL_CONCURRENCY);
+    const enriched = await Promise.all(batch.map(enrichSalesReturnForExport));
+    result.push(...enriched);
+  }
+  return result;
 }
 
 /**

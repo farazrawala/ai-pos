@@ -6,21 +6,32 @@ import {
   fetchPurchaseOrders,
   deletePurchaseOrder,
   setSearch,
+  setDateFilters,
+  clearDateFilters,
   setPage,
   setLimit,
   setSort,
   setFilterPurchaseItemId,
   clearDeleteStatus,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
-import { PURCHASE_ITEM_QUERY_KEY } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
+import {
+  PURCHASE_ITEM_QUERY_KEY,
+  fetchAllPurchaseOrdersForExportRequest,
+} from '../../features/purchaseOrders/purchaseOrdersAPI.js';
+import {
+  PURCHASE_ORDER_EXPORT_COLUMNS,
+  mapPurchaseOrdersToExportRows,
+} from '../../features/purchaseOrders/purchaseOrderExportMapper.js';
 import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ListDateExportBar from '../../components/list/ListDateExportBar.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -89,6 +100,7 @@ const PurchaseOrders = () => {
     error,
     pagination,
     search: searchTerm,
+    filters,
     sort,
     filterPurchaseItemId,
     deleteStatus,
@@ -97,6 +109,9 @@ const PurchaseOrders = () => {
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [localFilterId, setLocalFilterId] = useState(filterPurchaseItemId || '');
+  const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
+  const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
+  const [exporting, setExporting] = useState(false);
   const searchTimeoutRef = useRef(null);
   const filterTimeoutRef = useRef(null);
 
@@ -106,6 +121,8 @@ const PurchaseOrders = () => {
       limit: pagination.limit,
     };
     if (searchTerm) params.search = searchTerm;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -119,6 +136,8 @@ const PurchaseOrders = () => {
     pagination.page,
     pagination.limit,
     searchTerm,
+    filters.startDate,
+    filters.endDate,
     sort.sortBy,
     sort.sortOrder,
     filterPurchaseItemId,
@@ -157,6 +176,11 @@ const PurchaseOrders = () => {
   }, [filterPurchaseItemId]);
 
   useEffect(() => {
+    setLocalStartDate(filters.startDate || '');
+    setLocalEndDate(filters.endDate || '');
+  }, [filters.startDate, filters.endDate]);
+
+  useEffect(() => {
     if (error) {
       console.error('[Purchase order module] Failed to fetch purchase order list', error);
     }
@@ -170,6 +194,74 @@ const PurchaseOrders = () => {
 
   const handleLimitChange = (limit) => {
     dispatch(setLimit(limit));
+  };
+
+  const applyDateFilters = () => {
+    if (localStartDate && localEndDate && localStartDate > localEndDate) {
+      toast.error('From date cannot be later than to date.');
+      return;
+    }
+    dispatch(setDateFilters({ startDate: localStartDate, endDate: localEndDate }));
+  };
+
+  const resetDateFilters = () => {
+    setLocalStartDate('');
+    setLocalEndDate('');
+    dispatch(clearDateFilters());
+  };
+
+  const buildExportParams = () => {
+    const params = {};
+    if (searchTerm) params.search = searchTerm;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    if (filterPurchaseItemId && String(filterPurchaseItemId).trim()) {
+      params.filterPurchaseItemId = String(filterPurchaseItemId).trim();
+    }
+    return params;
+  };
+
+  const handleExport = async (format) => {
+    setExporting(true);
+    try {
+      const records = await fetchAllPurchaseOrdersForExportRequest(buildExportParams());
+      if (!records.length) {
+        toast.info('No purchase orders to export.');
+        return;
+      }
+      const mapped = mapPurchaseOrdersToExportRows(records);
+      const stamp = moment().format('YYYY-MM-DD-HHmm');
+      const filename = `purchase-orders-${stamp}`;
+      if (format === 'csv') {
+        exportRowsToCsv({ columns: PURCHASE_ORDER_EXPORT_COLUMNS, rows: mapped, filename });
+      } else if (format === 'excel') {
+        exportRowsToExcel({
+          columns: PURCHASE_ORDER_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          sheetTitle: 'Purchase orders',
+        });
+      } else if (format === 'pdf') {
+        await exportRowsToPdf({
+          columns: PURCHASE_ORDER_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          title: 'Purchase orders (with line items)',
+        });
+      }
+      toast.success(
+        `Exported ${mapped.length} line(s) from ${records.length} purchase order(s) as ${format.toUpperCase()}.`
+      );
+    } catch (err) {
+      console.error('[Purchase orders] export failed', err);
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleSort = (column, forceDesc = false) => {
@@ -265,6 +357,17 @@ const PurchaseOrders = () => {
                 </div>
               </div>
             </div>
+            <ListDateExportBar
+              idPrefix="purchase-orders"
+              localStartDate={localStartDate}
+              localEndDate={localEndDate}
+              onStartDateChange={setLocalStartDate}
+              onEndDateChange={setLocalEndDate}
+              onApply={applyDateFilters}
+              onClear={resetDateFilters}
+              exporting={exporting}
+              onExport={handleExport}
+            />
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 className="list-data-table--purchase-orders"
@@ -296,7 +399,7 @@ const PurchaseOrders = () => {
                         <tr>
                           <td colSpan={9} className="text-center py-5 text-muted">
                             <p className="mb-3">
-                              No purchase orders found. Try adjusting search or the optional item filter.
+                              No purchase orders found. Try adjusting search, date range, or the optional item filter.
                             </p>
                             <AddNewButton to="/purchase-orders/add" label="Create purchase order" />
                           </td>

@@ -285,6 +285,8 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
   }
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
+  if (params.startDate) queryParams.append('startDate', String(params.startDate));
+  if (params.endDate) queryParams.append('endDate', String(params.endDate));
 
   const filterId = params.purchase_item_id ?? params.filterPurchaseItemId;
   if (filterId != null && String(filterId).trim() !== '') {
@@ -316,6 +318,53 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
 
   const result = await response.json().catch(() => null);
   return normalizePurchaseOrdersListResponse(result, { page, limit });
+}
+
+/** Fetch every page matching filters (for CSV / Excel / PDF export). */
+export async function fetchAllPurchaseOrdersForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchPurchaseOrdersListRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return enrichPurchaseOrdersForExport(allData);
+}
+
+const EXPORT_DETAIL_CONCURRENCY = 5;
+
+async function enrichPurchaseOrderForExport(order) {
+  const { documentNeedsDetailFetch } = await import('../../utils/documentExportHelpers.js');
+  const { PURCHASE_ORDER_ITEM_KEYS } = await import('./purchaseOrderExportMapper.js');
+  if (!documentNeedsDetailFetch(order, PURCHASE_ORDER_ITEM_KEYS)) return order;
+  const id = String(order?._id ?? order?.id ?? '').trim();
+  if (!id) return order;
+  try {
+    const raw = await fetchPurchaseOrderByIdRequest(id);
+    const full = unwrapPurchaseOrderRecord(raw) ?? raw;
+    return full && typeof full === 'object' ? full : order;
+  } catch {
+    return order;
+  }
+}
+
+async function enrichPurchaseOrdersForExport(orders) {
+  const result = [];
+  for (let i = 0; i < orders.length; i += EXPORT_DETAIL_CONCURRENCY) {
+    const batch = orders.slice(i, i + EXPORT_DETAIL_CONCURRENCY);
+    const enriched = await Promise.all(batch.map(enrichPurchaseOrderForExport));
+    result.push(...enriched);
+  }
+  return result;
 }
 
 /**

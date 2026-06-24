@@ -92,6 +92,10 @@ const initialState = {
     totalPages: 0,
   },
   search: '',
+  filters: {
+    startDate: '',
+    endDate: '',
+  },
   sort: {
     sortBy: null,
     sortOrder: 'asc',
@@ -121,6 +125,16 @@ const purchaseOrderReturnsSlice = createSlice({
     },
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setDateFilters: (state, action) => {
+      state.filters.startDate = action.payload?.startDate || '';
+      state.filters.endDate = action.payload?.endDate || '';
+      state.pagination.page = 1;
+    },
+    clearDateFilters: (state) => {
+      state.filters.startDate = '';
+      state.filters.endDate = '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -273,6 +287,8 @@ const purchaseOrderReturnsSlice = createSlice({
 export const {
   clearError,
   setSearch,
+  setDateFilters,
+  clearDateFilters,
   setPage,
   setLimit,
   setSort,
