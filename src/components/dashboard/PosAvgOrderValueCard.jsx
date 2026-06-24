@@ -1,26 +1,22 @@
 import { useRef } from 'react';
 import { formatCurrency } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
-import { useSalesDayWise } from '../../hooks/useSalesDayWise.js';
-import { dayLabelFromDate, periodLabelFromApi } from './chartHelpers.js';
-
-function avgForDay(day) {
-  const count = day?.orderCount ?? 0;
-  if (count <= 0) return 0;
-  return (day.totalAmount ?? 0) / count;
-}
+import { useAverageOrderValue } from '../../hooks/useAverageOrderValue.js';
+import { dayLabelFromDate, periodLabelFromPeakApi } from './chartHelpers.js';
 
 export default function PosAvgOrderValueCard() {
   const canvasRef = useRef(null);
-  const { loading, days, summary, period, error } = useSalesDayWise();
-  const avgValues = days.map(avgForDay);
-  const peakAvg = avgValues.reduce((max, v) => Math.max(max, v), 0);
+  const { loading, days, summary, period, error } = useAverageOrderValue({
+    period: 'current_month',
+  });
 
   useChartJs(
     canvasRef,
     (Chart, canvas) => {
       if (!days.length) return null;
 
+      const avgValues = days.map((d) => d.averageOrderValue ?? 0);
+      const peakAvg = avgValues.reduce((max, v) => Math.max(max, v), 0);
       const ctx = canvas.getContext('2d');
       const gradient = ctx.createLinearGradient(0, 230, 0, 50);
       gradient.addColorStop(1, 'rgba(251, 99, 64, 0.2)');
@@ -92,10 +88,8 @@ export default function PosAvgOrderValueCard() {
     [loading, error, days]
   );
 
-  const monthLabel = periodLabelFromApi(period, days);
-  const totalAmount = summary?.totalAmount ?? 0;
-  const orderCount = summary?.orderCount ?? 0;
-  const overallAvg = orderCount > 0 ? totalAmount / orderCount : 0;
+  const periodLabel = periodLabelFromPeakApi(period);
+  const overallAvg = summary?.averageOrderValue ?? 0;
 
   return (
     <div className="card h-100">
@@ -109,7 +103,7 @@ export default function PosAvgOrderValueCard() {
           ) : (
             <>
               <span className="font-weight-bold">{formatCurrency(overallAvg)}</span>
-              <span className="text-secondary"> per order · {monthLabel}</span>
+              <span className="text-secondary"> per order · {periodLabel}</span>
             </>
           )}
         </p>

@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { useChartJs } from '../../hooks/useChartJs.js';
-import { useSalesDayWise } from '../../hooks/useSalesDayWise.js';
-import { dayLabelFromDate, periodLabelFromApi } from './chartHelpers.js';
+import { useDailyOrders } from '../../hooks/useDailyOrders.js';
+import { dayLabelFromDate, periodLabelFromPeakApi } from './chartHelpers.js';
 
 export default function PosDailyOrdersCard() {
   const canvasRef = useRef(null);
-  const { loading, days, summary, period, error } = useSalesDayWise();
+  const { loading, days, summary, period, error } = useDailyOrders({
+    period: 'last_30_days',
+  });
   const peakOrders = days.reduce((max, row) => Math.max(max, row.orderCount), 0);
 
   useChartJs(
@@ -66,7 +68,7 @@ export default function PosDailyOrdersCard() {
             y: {
               beginAtZero: true,
               grace: '8%',
-              suggestedMax: peakOrders + 2,
+              suggestedMax: peakOrders > 0 ? peakOrders * 1.1 : undefined,
               grid: { borderDash: [4, 4] },
               ticks: { font: { size: 11 }, padding: 8 },
             },
@@ -77,7 +79,7 @@ export default function PosDailyOrdersCard() {
     [loading, error, days]
   );
 
-  const monthLabel = periodLabelFromApi(period, days);
+  const periodLabel = periodLabelFromPeakApi(period);
   const orderCount = summary?.orderCount ?? 0;
 
   return (
@@ -91,7 +93,7 @@ export default function PosDailyOrdersCard() {
             <span className="text-danger">{error}</span>
           ) : (
             <span className="text-secondary">
-              {orderCount} order{orderCount === 1 ? '' : 's'} · {monthLabel}
+              {orderCount} order{orderCount === 1 ? '' : 's'} · {periodLabel}
             </span>
           )}
         </p>

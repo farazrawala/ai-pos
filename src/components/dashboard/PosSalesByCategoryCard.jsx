@@ -1,31 +1,38 @@
 import { useRef } from 'react';
 import { formatCurrency } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
-import {
-  POS_CATEGORY_COLORS,
-  POS_SALES_BY_CATEGORY_MOCK,
-} from './posDashboardMock.js';
+import { useSalesByCategory } from '../../hooks/useSalesByCategory.js';
+import { periodLabelFromPeakApi, truncateChartLabel } from './chartHelpers.js';
+import { POS_CATEGORY_COLORS } from './posDashboardMock.js';
 
 export default function PosSalesByCategoryCard() {
   const canvasRef = useRef(null);
-  const total = POS_SALES_BY_CATEGORY_MOCK.reduce((sum, row) => sum + row.amount, 0);
-  const topAmount = POS_SALES_BY_CATEGORY_MOCK.reduce(
-    (max, row) => Math.max(max, row.amount),
-    0
-  );
+  const { loading, categories, summary, period, error } = useSalesByCategory({
+    period: 'last_30_days',
+    limit: 20,
+  });
+
+  const total =
+    summary?.totalAmount ?? categories.reduce((sum, row) => sum + row.totalAmount, 0);
+  const topAmount = categories.reduce((max, row) => Math.max(max, row.totalAmount), 0);
 
   useChartJs(
     canvasRef,
-    (Chart, canvas) =>
-      new Chart(canvas.getContext('2d'), {
+    (Chart, canvas) => {
+      if (!categories.length) return null;
+
+      return new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: POS_SALES_BY_CATEGORY_MOCK.map((row) => row.name),
+          labels: categories.map((row) => truncateChartLabel(row.name)),
+          categoryMeta: categories,
           datasets: [
             {
               label: 'Sales',
-              data: POS_SALES_BY_CATEGORY_MOCK.map((row) => row.amount),
-              backgroundColor: POS_CATEGORY_COLORS,
+              data: categories.map((row) => row.totalAmount),
+              backgroundColor: categories.map(
+                (_, i) => POS_CATEGORY_COLORS[i % POS_CATEGORY_COLORS.length]
+              ),
               borderRadius: 4,
               maxBarThickness: 22,
             },
@@ -48,10 +55,20 @@ export default function PosSalesByCategoryCard() {
             legend: { display: false },
             tooltip: {
               callbacks: {
+                title: (items) => {
+                  const idx = items[0]?.dataIndex;
+                  const row = items[0]?.chart?.data?.categoryMeta?.[idx];
+                  return row?.name ?? items[0]?.label ?? '';
+                },
                 label: (ctx) => {
                   const value = Number(ctx.parsed.x ?? 0);
                   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
                   return `${formatCurrency(value)} (${pct}%)`;
+                },
+                afterLabel: (ctx) => {
+                  const row = categories[ctx.dataIndex];
+                  if (!row?.orderCount) return '';
+                  return `${row.orderCount} order${row.orderCount === 1 ? '' : 's'}`;
                 },
               },
             },
@@ -59,7 +76,8 @@ export default function PosSalesByCategoryCard() {
           scales: {
             x: {
               beginAtZero: true,
-              suggestedMax: topAmount * 1.1,
+              grace: '8%',
+              suggestedMax: topAmount > 0 ? topAmount * 1.1 : undefined,
               grid: { borderDash: [4, 4] },
               ticks: {
                 font: { size: 11 },
@@ -72,16 +90,27 @@ export default function PosSalesByCategoryCard() {
             },
           },
         },
-      }),
-    []
+      });
+    },
+    [loading, error, categories]
   );
+
+  const periodLabel = periodLabelFromPeakApi(period);
 
   return (
     <div className="card h-100">
       <div className="card-header pb-0 pt-3 bg-transparent">
         <h6 className="text-capitalize">Sales by category</h6>
-        <p className="text-sm mb-0 text-secondary">
-          Sample POS revenue split · {formatCurrency(total)} this month
+        <p className="text-sm mb-0">
+          {loading ? (
+            <span className="text-secondary">Loading…</span>
+          ) : error ? (
+            <span className="text-danger">{error}</span>
+          ) : (
+            <span className="text-secondary">
+              {formatCurrency(total)} total · {periodLabel}
+            </span>
+          )}
         </p>
       </div>
       <div className="card-body p-3 pt-2">
