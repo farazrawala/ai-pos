@@ -66,7 +66,7 @@ const navItems = [
   { to: '/brands', label: 'Brands', icon: FaTrademark },
   { to: '/integration', label: 'Integrations', icon: FaGlobe },
   { to: '/processes', label: 'Processes', icon: FaArrowsRotate },
-  { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
+  // { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
   { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
   { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
   { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
@@ -238,24 +238,24 @@ const Sidebar = () => {
           </NavLink>
         </div>
         <hr className="horizontal dark mt-0" />
-      <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
-        <ul className="navbar-nav">
-          {visibleNavItems.map(({ to, label, icon, end }) => (
-            <li className="nav-item" key={to}>
-              <NavLink
-                to={to}
-                end={end}
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                onClick={handleNavClick}
-              >
-                <SidebarNavIcon icon={icon} />
-                <span className="nav-link-text ms-1">{label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </aside>
+        <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
+          <ul className="navbar-nav">
+            {visibleNavItems.map(({ to, label, icon, end }) => (
+              <li className="nav-item" key={to}>
+                <NavLink
+                  to={to}
+                  end={end}
+                  className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                  onClick={handleNavClick}
+                >
+                  <SidebarNavIcon icon={icon} />
+                  <span className="nav-link-text ms-1">{label}</span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </aside>
     </>
   );
 };
