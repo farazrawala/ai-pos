@@ -289,7 +289,7 @@ const PosProducts = ({
               </div>
             )}
             {productsStatus !== 'loading' && visibleProducts.length > 0 && (
-              <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-5 g-3">
+              <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-4 g-3">
                 {visibleProducts.map((p, index) => {
                   const id = getProductId(p) || `idx-${index}`;
                   const name = getProductName(p);
