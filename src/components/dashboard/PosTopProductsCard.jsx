@@ -20,7 +20,7 @@ export default function PosTopProductsCard() {
               data: POS_TOP_PRODUCTS_MOCK.map((row) => row.qty),
               backgroundColor: 'rgba(94, 114, 228, 0.8)',
               borderRadius: 4,
-              maxBarThickness: 28,
+              maxBarThickness: 22,
             },
           ],
         },
@@ -28,6 +28,15 @@ export default function PosTopProductsCard() {
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          layout: {
+            padding: { top: 8, right: 16, bottom: 8, left: 8 },
+          },
+          datasets: {
+            bar: {
+              categoryPercentage: 0.65,
+              barPercentage: 0.75,
+            },
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -48,7 +57,7 @@ export default function PosTopProductsCard() {
             },
             y: {
               grid: { display: false },
-              ticks: { font: { size: 11 } },
+              ticks: { font: { size: 11 }, padding: 10 },
             },
           },
         },
@@ -62,8 +71,8 @@ export default function PosTopProductsCard() {
         <h6 className="text-capitalize">Top selling products</h6>
         <p className="text-sm mb-0 text-secondary">Sample POS items by quantity sold</p>
       </div>
-      <div className="card-body p-3">
-        <div className="chart" style={{ minHeight: 260 }}>
+      <div className="card-body p-3 pt-2">
+        <div className="chart" style={{ minHeight: 280 }}>
           <canvas ref={canvasRef} className="chart-canvas" height="260" />
         </div>
       </div>

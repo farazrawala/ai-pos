@@ -34,6 +34,9 @@ function buildChartOptions() {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: { top: 16, right: 16, bottom: 8, left: 8 },
+    },
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -54,6 +57,7 @@ function buildChartOptions() {
     interaction: { intersect: false, mode: 'index' },
     scales: {
       y: {
+        grace: '8%',
         grid: {
           drawBorder: false,
           display: true,
@@ -70,6 +74,7 @@ function buildChartOptions() {
         },
       },
       x: {
+        offset: true,
         grid: {
           drawBorder: false,
           display: false,
@@ -182,8 +187,8 @@ export default function SalesOverviewCard() {
           )}
         </p>
       </div>
-      <div className="card-body p-3">
-        <div className="chart">
+      <div className="card-body p-3 pt-2">
+        <div className="chart" style={{ minHeight: 300 }}>
           <canvas ref={canvasRef} className="chart-canvas" height="300" />
         </div>
       </div>
