@@ -75,7 +75,7 @@ const navItems = [
   { to: '/attributes', label: 'Attributes', icon: FaTags },
   { to: '/users', label: 'Users', icon: FaUser },
   { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
-  { to: '/branch', label: 'Branch', icon: FaBuilding },
+  // { to: '/branch', label: 'Branch', icon: FaBuilding },
   { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
   { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
   { to: '/advance-balance-sheet', label: 'Advance balance sheet', icon: FaScaleBalanced },

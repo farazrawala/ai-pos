@@ -158,6 +158,9 @@ export async function getErrorMessageFromResponse(response) {
 
 const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
 const SALES_LAST_30_DAYS_PATH = 'orders/sales-last-30-days';
+const PEAK_SALES_HOURS_PATH = 'order/peak-sales-hours';
+const TOP_SELLING_PRODUCTS_PATH = 'order/top-selling-products';
+const PRODUCT_TOP_SELLING_PATH = 'product/top-selling';
 
 /** Paginated order list (no id in path). Single-order invoice uses `ORDER_BY_ORDER_NO_PATH`. */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
@@ -267,6 +270,267 @@ export async function fetchSalesDayWiseRequest() {
     summary,
     period: result?.period && typeof result.period === 'object' ? result.period : null,
   };
+}
+
+function parsePeakSalesHourEntry(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { hour: 0, hourLabel: '', totalAmount: 0, orderCount: 0 };
+  }
+  const hourRaw = raw.hour;
+  const hour =
+    typeof hourRaw === 'number' && Number.isFinite(hourRaw)
+      ? hourRaw
+      : parseInt(String(hourRaw ?? ''), 10);
+
+  const amountRaw = raw.total_amount ?? raw.totalAmount;
+  const totalAmount =
+    typeof amountRaw === 'number' && Number.isFinite(amountRaw)
+      ? amountRaw
+      : parseFloat(String(amountRaw ?? '').replace(/,/g, ''));
+
+  const countRaw = raw.order_count ?? raw.orderCount;
+  const orderCount =
+    typeof countRaw === 'number' && Number.isFinite(countRaw)
+      ? countRaw
+      : parseInt(String(countRaw ?? ''), 10);
+
+  return {
+    hour: Number.isFinite(hour) ? hour : 0,
+    hourLabel: String(raw.hour_label ?? raw.hourLabel ?? '').trim(),
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
+  };
+}
+
+function parsePeakSalesHoursSummary(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      totalAmount: 0,
+      orderCount: 0,
+      peakHour: null,
+      peakHourLabel: '',
+      peakTotalAmount: 0,
+      peakOrderCount: 0,
+      peakBy: 'order_count',
+    };
+  }
+  const peakHourRaw = raw.peak_hour ?? raw.peakHour;
+  const peakHour =
+    typeof peakHourRaw === 'number' && Number.isFinite(peakHourRaw)
+      ? peakHourRaw
+      : parseInt(String(peakHourRaw ?? ''), 10);
+
+  const totalAmountRaw = raw.total_amount ?? raw.totalAmount;
+  const totalAmount =
+    typeof totalAmountRaw === 'number' && Number.isFinite(totalAmountRaw)
+      ? totalAmountRaw
+      : parseFloat(String(totalAmountRaw ?? '').replace(/,/g, ''));
+
+  const orderCountRaw = raw.order_count ?? raw.orderCount;
+  const orderCount =
+    typeof orderCountRaw === 'number' && Number.isFinite(orderCountRaw)
+      ? orderCountRaw
+      : parseInt(String(orderCountRaw ?? ''), 10);
+
+  const peakAmountRaw = raw.peak_total_amount ?? raw.peakTotalAmount;
+  const peakTotalAmount =
+    typeof peakAmountRaw === 'number' && Number.isFinite(peakAmountRaw)
+      ? peakAmountRaw
+      : parseFloat(String(peakAmountRaw ?? '').replace(/,/g, ''));
+
+  const peakCountRaw = raw.peak_order_count ?? raw.peakOrderCount;
+  const peakOrderCount =
+    typeof peakCountRaw === 'number' && Number.isFinite(peakCountRaw)
+      ? peakCountRaw
+      : parseInt(String(peakCountRaw ?? ''), 10);
+
+  return {
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    orderCount: Number.isFinite(orderCount) ? orderCount : 0,
+    peakHour: Number.isFinite(peakHour) ? peakHour : null,
+    peakHourLabel: String(raw.peak_hour_label ?? raw.peakHourLabel ?? '').trim(),
+    peakTotalAmount: Number.isFinite(peakTotalAmount) ? peakTotalAmount : 0,
+    peakOrderCount: Number.isFinite(peakOrderCount) ? peakOrderCount : 0,
+    peakBy: String(raw.peak_by ?? raw.peakBy ?? 'order_count').trim() || 'order_count',
+  };
+}
+
+/**
+ * GET `order/peak-sales-hours`
+ * @param {{ period?: string, peak_by?: 'order_count'|'total_amount', from?: string, to?: string, timezone?: string }} [params]
+ */
+export async function fetchPeakSalesHoursRequest(params = {}) {
+  const query = new URLSearchParams();
+  if (params.from && params.to) {
+    query.set('from', String(params.from));
+    query.set('to', String(params.to));
+    if (params.timezone) query.set('timezone', String(params.timezone));
+  } else {
+    query.set('period', String(params.period || 'last_30_days'));
+  }
+  if (params.peak_by) query.set('peak_by', String(params.peak_by));
+
+  const url = `${BASE_URL}${PEAK_SALES_HOURS_PATH}?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load peak sales hours';
+    throw new Error(msg);
+  }
+
+  const hours = Array.isArray(result.hours) ? result.hours.map(parsePeakSalesHourEntry) : [];
+  hours.sort((a, b) => a.hour - b.hour);
+
+  return {
+    hours,
+    summary: parsePeakSalesHoursSummary(result.summary ?? {}),
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+    peakBy: String(result.peak_by ?? result.peakBy ?? params.peak_by ?? 'order_count'),
+    timezone: result?.timezone ? String(result.timezone) : null,
+  };
+}
+
+function parseTopSellingProductEntry(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      productId: '',
+      name: 'Product',
+      code: '',
+      sku: '',
+      image: '',
+      price: 0,
+      totalQty: 0,
+      totalRevenue: 0,
+      totalProfit: 0,
+      lineCount: 0,
+    };
+  }
+
+  const qtyRaw = raw.total_qty ?? raw.totalQty ?? raw.qty;
+  const totalQty =
+    typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
+      ? qtyRaw
+      : parseFloat(String(qtyRaw ?? '').replace(/,/g, ''));
+
+  const revenueRaw = raw.total_revenue ?? raw.totalRevenue ?? raw.amount;
+  const totalRevenue =
+    typeof revenueRaw === 'number' && Number.isFinite(revenueRaw)
+      ? revenueRaw
+      : parseFloat(String(revenueRaw ?? '').replace(/,/g, ''));
+
+  const profitRaw = raw.total_profit ?? raw.totalProfit;
+  const totalProfit =
+    typeof profitRaw === 'number' && Number.isFinite(profitRaw)
+      ? profitRaw
+      : parseFloat(String(profitRaw ?? '').replace(/,/g, ''));
+
+  const priceRaw = raw.product_price ?? raw.productPrice ?? raw.price;
+  const price =
+    typeof priceRaw === 'number' && Number.isFinite(priceRaw)
+      ? priceRaw
+      : parseFloat(String(priceRaw ?? '').replace(/,/g, ''));
+
+  const lineRaw = raw.line_count ?? raw.lineCount;
+  const lineCount =
+    typeof lineRaw === 'number' && Number.isFinite(lineRaw)
+      ? lineRaw
+      : parseInt(String(lineRaw ?? ''), 10);
+
+  const productId = raw.product_id ?? raw.productId ?? raw._id ?? raw.id ?? '';
+
+  return {
+    productId: productId != null ? String(productId) : '',
+    name: String(raw.product_name ?? raw.productName ?? raw.name ?? 'Product').trim() || 'Product',
+    code: String(raw.product_code ?? raw.productCode ?? '').trim(),
+    sku: String(raw.sku ?? raw.barcode ?? '').trim(),
+    image: String(raw.product_image ?? raw.productImage ?? raw.image ?? '').trim(),
+    price: Number.isFinite(price) ? price : 0,
+    totalQty: Number.isFinite(totalQty) ? totalQty : 0,
+    totalRevenue: Number.isFinite(totalRevenue) ? totalRevenue : 0,
+    totalProfit: Number.isFinite(totalProfit) ? totalProfit : 0,
+    lineCount: Number.isFinite(lineCount) ? lineCount : 0,
+  };
+}
+
+function normalizeTopSellingProductsResponse(result, params = {}) {
+  const rawList = Array.isArray(result?.data)
+    ? result.data
+    : Array.isArray(result?.products)
+      ? result.products
+      : [];
+  return {
+    products: rawList.map(parseTopSellingProductEntry),
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+    sortBy: String(result.sort_by ?? result.sortBy ?? params.sort_by ?? params.sortBy ?? 'qty'),
+    total: Number(result?.total) || rawList.length,
+    count: Number(result?.count) || rawList.length,
+  };
+}
+
+function buildTopSellingProductsQuery(params = {}) {
+  const query = new URLSearchParams();
+  if (params.from && params.to) {
+    query.set('from', String(params.from));
+    query.set('to', String(params.to));
+  } else if (params.period) {
+    query.set('period', String(params.period));
+  }
+  query.set('limit', String(params.limit ?? 5));
+  query.set('sort_by', String(params.sort_by ?? params.sortBy ?? 'qty'));
+  return query;
+}
+
+async function fetchTopSellingProductsFromPath(path, params = {}) {
+  const query = buildTopSellingProductsQuery(params);
+  const url = `${BASE_URL}${path}?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Could not load top selling products';
+    throw new Error(msg);
+  }
+
+  return normalizeTopSellingProductsResponse(result, params);
+}
+
+/**
+ * GET `order/top-selling-products` (falls back to `product/top-selling` on 404).
+ * @param {{ period?: string, sort_by?: 'qty'|'revenue', sortBy?: string, limit?: number, from?: string, to?: string }} [params]
+ */
+export async function fetchTopSellingProductsRequest(params = {}) {
+  const paths = [TOP_SELLING_PRODUCTS_PATH, PRODUCT_TOP_SELLING_PATH];
+  let lastErr = null;
+
+  for (const path of paths) {
+    try {
+      return await fetchTopSellingProductsFromPath(path, params);
+    } catch (e) {
+      lastErr = e;
+      if (e?.status === 404) continue;
+      throw e;
+    }
+  }
+
+  throw lastErr || new Error('Could not load top selling products');
 }
 
 const ORDER_INVOICE_UPDATE_PATH = 'order/invoice-update';
