@@ -257,35 +257,35 @@ const Home = () => {
             </div>
           </div>
         </div>
-        <div className="row">
-          <div className="col-lg-7 mb-4 mb-lg-0">
+        <div className="row g-4 mb-4">
+          <div className="col-lg-7">
             <SalesOverviewCard />
           </div>
-          <div className="col-lg-5 mb-4 mb-lg-0">
+          <div className="col-lg-5">
             <PosPaymentMethodsCard />
           </div>
         </div>
-        <div className="row">
-          <div className="col-lg-6 mb-4 mb-lg-0">
+        <div className="row g-4 mb-4">
+          <div className="col-lg-6">
             <PosTopProductsCard />
           </div>
-          <div className="col-lg-6 mb-4 mb-lg-0">
+          <div className="col-lg-6">
             <PosPeakHoursCard />
           </div>
         </div>
-        <div className="row">
-          <div className="col-lg-4 mb-4 mb-lg-0">
+        <div className="row g-4 mb-4">
+          <div className="col-lg-4">
             <PosDailyOrdersCard />
           </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
+          <div className="col-lg-4">
             <PosAvgOrderValueCard />
           </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
+          <div className="col-lg-4">
             <PosSalesByCategoryCard />
           </div>
         </div>
-        <div className="row">
-          <div className="col-12 mb-4 mb-lg-0">
+        <div className="row g-4">
+          <div className="col-12">
             <LowStockAlertsTable />
           </div>
         </div>
