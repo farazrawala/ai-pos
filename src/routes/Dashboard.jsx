@@ -12,6 +12,10 @@ import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
 import PosPaymentMethodsCard from '../components/dashboard/PosPaymentMethodsCard.jsx';
 import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
 import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
+import PosDailyOrdersCard from '../components/dashboard/PosDailyOrdersCard.jsx';
+import PosAvgOrderValueCard from '../components/dashboard/PosAvgOrderValueCard.jsx';
+import PosSalesByCategoryCard from '../components/dashboard/PosSalesByCategoryCard.jsx';
+import LowStockAlertsTable from '../components/dashboard/LowStockAlertsTable.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
 import { useTodaySales } from '../hooks/useTodaySales.js';
@@ -263,6 +267,22 @@ const Dashboard = () => {
           </div>
           <div className="col-lg-6 mb-4 mb-lg-0">
             <PosPeakHoursCard />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosDailyOrdersCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosAvgOrderValueCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosSalesByCategoryCard />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-12 mb-4 mb-lg-0">
+            <LowStockAlertsTable />
           </div>
         </div>
       </div>

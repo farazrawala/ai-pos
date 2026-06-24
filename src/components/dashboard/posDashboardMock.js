@@ -31,3 +31,13 @@ export const POS_PEAK_HOURS_MOCK = [
   { hour: '7 PM', orders: 19 },
   { hour: '8 PM', orders: 14 },
 ];
+
+export const POS_SALES_BY_CATEGORY_MOCK = [
+  { name: 'Grocery', amount: 45200 },
+  { name: 'Beverages', amount: 31800 },
+  { name: 'Snacks', amount: 28600 },
+  { name: 'Dairy', amount: 22100 },
+  { name: 'Household', amount: 16800 },
+];
+
+export const POS_CATEGORY_COLORS = ['#5e72e4', '#2dce89', '#11cdef', '#fb6340', '#8392ab'];
