@@ -94,6 +94,16 @@
   .g-sidenav-show:not(.g-sidenav-pinned) .sidebar-menu-btn {
     display: none !important;
   }
+
+  /* Room for fixed sidebar menu button — keep breadcrumb/title visible */
+  .g-sidenav-show:not(.g-sidenav-pinned) .navbar-main .container-fluid {
+    padding-left: 3.75rem !important;
+  }
+
+  .g-sidenav-show:not(.g-sidenav-pinned) .navbar-main {
+    margin-left: 0.75rem !important;
+    margin-right: 0.75rem !important;
+  }
 }
 
 /* Mobile: slide sidebar off-screen when closed; overlay when open. */

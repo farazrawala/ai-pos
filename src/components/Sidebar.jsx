@@ -194,8 +194,8 @@ const Sidebar = () => {
       {!pinned ? (
         <button
           type="button"
-          className="sidebar-mobile-toggle btn btn-link text-dark p-3 position-fixed d-xl-none border-0 bg-white border-radius-xl shadow-sm"
-          style={{ top: '0.85rem', left: '0.85rem', zIndex: 1036 }}
+          className="sidebar-mobile-toggle btn btn-link text-dark p-2 position-fixed d-xl-none d-inline-flex align-items-center justify-content-center border-0 bg-white border-radius-xl shadow-sm"
+          style={{ top: '0.85rem', left: '0.75rem', zIndex: 1036, width: '2.75rem', height: '2.75rem' }}
           aria-label="Open menu"
           onClick={handleMenuToggle}
         >
