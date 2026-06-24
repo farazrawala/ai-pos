@@ -40,3 +40,9 @@ https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 add/edit variant product. 
 mark_as_default_customer, mark_as_default_vendor functionality
 in user add multiple accounts to be include and not to be include.
+
+
+
+
+- shipping should plus in sales.
+- a/c is not coming in transaction.

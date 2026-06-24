@@ -62,6 +62,7 @@ const TablePagination = ({
           <option value={25}>25</option>
           <option value={50}>50</option>
           <option value={100}>100</option>
+          <option value={500}>500</option>
         </select>
         <span className="list-table-toolbar-label mb-0">entries</span>
         <span className="list-table-toolbar-range text-sm text-muted">
