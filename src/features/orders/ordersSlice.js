@@ -30,6 +30,10 @@ const initialState = {
   error: null,
   pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   search: '',
+  filters: {
+    startDate: '',
+    endDate: '',
+  },
   sort: { sortBy: null, sortOrder: 'asc' },
   deleteStatus: 'idle',
   deleteError: null,
@@ -41,6 +45,16 @@ const ordersSlice = createSlice({
   reducers: {
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setDateFilters: (state, action) => {
+      state.filters.startDate = action.payload?.startDate || '';
+      state.filters.endDate = action.payload?.endDate || '';
+      state.pagination.page = 1;
+    },
+    clearDateFilters: (state) => {
+      state.filters.startDate = '';
+      state.filters.endDate = '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -110,5 +124,6 @@ const ordersSlice = createSlice({
   },
 });
 
-export const { setSearch, setPage, setLimit, setSort, clearDeleteStatus } = ordersSlice.actions;
+export const { setSearch, setDateFilters, clearDateFilters, setPage, setLimit, setSort, clearDeleteStatus } =
+  ordersSlice.actions;
 export default ordersSlice.reducer;

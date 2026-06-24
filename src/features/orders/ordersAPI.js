@@ -427,6 +427,8 @@ export async function fetchOrdersRequest(params = {}) {
   }
   if (params.limit) queryParams.append('limit', String(params.limit));
   if (params.search) queryParams.append('search', String(params.search));
+  if (params.startDate) queryParams.append('startDate', String(params.startDate));
+  if (params.endDate) queryParams.append('endDate', String(params.endDate));
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
 

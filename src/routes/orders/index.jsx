@@ -7,6 +7,8 @@ import {
   fetchOrders,
   deleteOrder,
   setSearch,
+  setDateFilters,
+  clearDateFilters,
   setPage,
   setLimit,
   setSort,
@@ -75,6 +77,7 @@ const Orders = () => {
     error,
     pagination,
     search: searchTerm,
+    filters,
     sort,
     deleteStatus,
   } = useSelector((state) => state.orders);
@@ -82,6 +85,8 @@ const Orders = () => {
   useRequireModuleAccess('orders');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
+  const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [editLoadingId, setEditLoadingId] = useState('');
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
@@ -90,16 +95,32 @@ const Orders = () => {
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchOrders(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    filters.startDate,
+    filters.endDate,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
   }, [searchTerm]);
+
+  useEffect(() => {
+    setLocalStartDate(filters.startDate || '');
+    setLocalEndDate(filters.endDate || '');
+  }, [filters.startDate, filters.endDate]);
 
   useEffect(() => {
     return () => {
@@ -128,6 +149,25 @@ const Orders = () => {
     },
     [dispatch]
   );
+
+  const applyDateFilters = () => {
+    if (localStartDate && localEndDate && localStartDate > localEndDate) {
+      toast.error('From date cannot be later than to date.');
+      return;
+    }
+    dispatch(
+      setDateFilters({
+        startDate: localStartDate,
+        endDate: localEndDate,
+      })
+    );
+  };
+
+  const resetDateFilters = () => {
+    setLocalStartDate('');
+    setLocalEndDate('');
+    dispatch(clearDateFilters());
+  };
 
   const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
@@ -186,6 +226,8 @@ const Orders = () => {
   const refreshOrderList = () => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -255,6 +297,50 @@ const Orders = () => {
                 </div>
               </div>
             </div>
+            <div className="card-body pt-0 px-3 pb-0">
+              <div className="row g-2 align-items-end mb-3">
+                <div className="col-md-3 col-sm-6">
+                  <label className="form-label mb-1 text-sm" htmlFor="orders-from-date">
+                    From date
+                  </label>
+                  <input
+                    id="orders-from-date"
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={localStartDate}
+                    onChange={(e) => setLocalStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="col-md-3 col-sm-6">
+                  <label className="form-label mb-1 text-sm" htmlFor="orders-to-date">
+                    To date
+                  </label>
+                  <input
+                    id="orders-to-date"
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={localEndDate}
+                    onChange={(e) => setLocalEndDate(e.target.value)}
+                  />
+                </div>
+                <div className="col-md-6 d-flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm mb-0"
+                    onClick={applyDateFilters}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm mb-0"
+                    onClick={resetDateFilters}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 className="list-data-table--orders"
@@ -286,7 +372,7 @@ const Orders = () => {
                       {data.length === 0 ? (
                         <tr>
                           <td colSpan={10} className="text-center py-5 text-muted">
-                            No orders found. Try adjusting your search.
+                            No orders found. Try adjusting your search or date range.
                           </td>
                         </tr>
                       ) : (
