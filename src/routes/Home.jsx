@@ -9,9 +9,10 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from '../components/NavIcon.jsx';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
-import PosPaymentMethodsCard from '../components/dashboard/PosPaymentMethodsCard.jsx';
+import PosPurchasesSummaryCard from '../components/dashboard/PosPurchasesSummaryCard.jsx';
 import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
 import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
+import PosTopVendorsCard from '../components/dashboard/PosTopVendorsCard.jsx';
 import PosDailyOrdersCard from '../components/dashboard/PosDailyOrdersCard.jsx';
 import PosAvgOrderValueCard from '../components/dashboard/PosAvgOrderValueCard.jsx';
 import PosSalesByCategoryCard from '../components/dashboard/PosSalesByCategoryCard.jsx';
@@ -268,15 +269,18 @@ const Home = () => {
             <SalesOverviewCard />
           </div>
           <div className="col-lg-5">
-            <PosPaymentMethodsCard />
+            <PosPurchasesSummaryCard />
           </div>
         </div>
         <div className="row g-4 mb-4">
-          <div className="col-lg-6">
+          <div className="col-lg-4">
             <PosTopProductsCard />
           </div>
-          <div className="col-lg-6">
+          <div className="col-lg-4">
             <PosPeakHoursCard />
+          </div>
+          <div className="col-lg-4">
+            <PosTopVendorsCard />
           </div>
         </div>
         <div className="row g-4 mb-4">

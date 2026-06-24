@@ -9,9 +9,10 @@ import {
 import Footer from '../components/Footer.jsx';
 import NavIcon from '../components/NavIcon.jsx';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
-import PosPaymentMethodsCard from '../components/dashboard/PosPaymentMethodsCard.jsx';
+import PosPurchasesSummaryCard from '../components/dashboard/PosPurchasesSummaryCard.jsx';
 import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
 import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
+import PosTopVendorsCard from '../components/dashboard/PosTopVendorsCard.jsx';
 import PosDailyOrdersCard from '../components/dashboard/PosDailyOrdersCard.jsx';
 import PosAvgOrderValueCard from '../components/dashboard/PosAvgOrderValueCard.jsx';
 import PosSalesByCategoryCard from '../components/dashboard/PosSalesByCategoryCard.jsx';
@@ -264,15 +265,18 @@ const Dashboard = () => {
             <SalesOverviewCard />
           </div>
           <div className="col-lg-5 mb-4 mb-lg-0">
-            <PosPaymentMethodsCard />
+            <PosPurchasesSummaryCard />
           </div>
         </div>
         <div className="row">
-          <div className="col-lg-6 mb-4 mb-lg-0">
+          <div className="col-lg-4 mb-4 mb-lg-0">
             <PosTopProductsCard />
           </div>
-          <div className="col-lg-6 mb-4 mb-lg-0">
+          <div className="col-lg-4 mb-4 mb-lg-0">
             <PosPeakHoursCard />
+          </div>
+          <div className="col-lg-4 mb-4 mb-lg-0">
+            <PosTopVendorsCard />
           </div>
         </div>
         <div className="row">
