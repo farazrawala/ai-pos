@@ -78,15 +78,22 @@
   margin-bottom: 0;
 }
 
-.sidebar-open-trigger {
-  z-index: 1035 !important;
+.sidebar-open-trigger,
+.sidebar-mobile-toggle {
   pointer-events: auto;
   transform: none !important;
 }
 
-.sidebar-open-trigger:hover,
-.sidebar-open-trigger:focus {
+.sidebar-mobile-toggle:hover,
+.sidebar-mobile-toggle:focus {
   transform: none !important;
+}
+
+/* Mobile: hide in-drawer menu btn until drawer is open; desktop always shows it. */
+@media (max-width: 1199.98px) {
+  .g-sidenav-show:not(.g-sidenav-pinned) .sidebar-menu-btn {
+    display: none !important;
+  }
 }
 
 /* Mobile: slide sidebar off-screen when closed; overlay when open. */

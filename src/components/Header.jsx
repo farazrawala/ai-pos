@@ -2,7 +2,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { withBase } from '../config/appBase.js';
 import {
-  FaBars,
   FaBell,
   FaBox,
   FaChevronDown,
@@ -52,17 +51,6 @@ const Header = () => {
             </li>
           </ol>
         </nav>
-        <button
-          type="button"
-          className="btn btn-link text-white p-1 ms-2 d-lg-none"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbar"
-          aria-controls="navbar"
-          aria-expanded="false"
-          aria-label="Open menu"
-        >
-          <NavIcon icon={FaBars} size={20} className="text-white" />
-        </button>
         <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
           <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (

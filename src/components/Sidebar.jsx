@@ -191,17 +191,17 @@ const Sidebar = () => {
           onClick={closeSidenav}
         />
       ) : null}
-      {!pinned && (
+      {!pinned ? (
         <button
           type="button"
-          className="sidebar-open-trigger btn btn-link text-dark p-3 position-fixed d-xl-none border-0 bg-white border-radius-xl shadow-sm"
-          style={{ top: '1rem', left: '1rem' }}
+          className="sidebar-mobile-toggle btn btn-link text-dark p-3 position-fixed d-xl-none border-0 bg-white border-radius-xl shadow-sm"
+          style={{ top: '0.85rem', left: '0.85rem', zIndex: 1036 }}
           aria-label="Open menu"
           onClick={handleMenuToggle}
         >
           <NavIcon icon={FaBars} size={18} />
         </button>
-      )}
+      ) : null}
       <aside
         className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
         id="sidenav-main"
