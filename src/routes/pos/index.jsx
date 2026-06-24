@@ -174,6 +174,44 @@ function formatPosQtyLabel(qty) {
   return Number.isInteger(q) ? String(q) : q.toFixed(2);
 }
 
+function parsePosMoneyInput(raw) {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatPosMoneyInput(n) {
+  if (!Number.isFinite(n) || n < 0) return '';
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+function formatPosPercentInput(n) {
+  if (!Number.isFinite(n) || n < 0) return '';
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+function amountFromDiscountPercent(subtotal, percentRaw) {
+  const pct = parsePosMoneyInput(percentRaw);
+  if (pct == null || pct <= 0) return '';
+  const sub = Number(subtotal) || 0;
+  if (sub <= 0) return '';
+  return formatPosMoneyInput((sub * pct) / 100);
+}
+
+function percentFromDiscountAmount(subtotal, amountRaw) {
+  const amt = parsePosMoneyInput(amountRaw);
+  if (amt == null || amt <= 0) return '';
+  const sub = Number(subtotal) || 0;
+  if (sub <= 0) return '';
+  return formatPosPercentInput((amt / sub) * 100);
+}
+
+function isPartialDiscountInput(value) {
+  const s = String(value ?? '').trim();
+  return !s || s === '.' || s.endsWith('.');
+}
+
 /** True while user is mid-edit (e.g. ".", ".5", "2."). */
 function isPartialPosQtyInput(value) {
   const s = String(value ?? '').trim();
@@ -344,6 +382,8 @@ const Pos = () => {
   const [categoriesError, setCategoriesError] = useState(null);
   const [shipping, setShipping] = useState('');
   const [extraDiscount, setExtraDiscount] = useState('');
+  const [extraDiscountPercent, setExtraDiscountPercent] = useState('');
+  const discountEditSourceRef = useRef(null);
   const [cartLines, setCartLines] = useState([]);
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
@@ -604,6 +644,56 @@ const Pos = () => {
     return Number.isFinite(n) ? n : 0;
   }, [extraDiscount]);
 
+  useEffect(() => {
+    if (discountEditSourceRef.current === 'percent') {
+      const pct = String(extraDiscountPercent).trim();
+      if (!pct) {
+        setExtraDiscount('');
+        return;
+      }
+      if (isPartialDiscountInput(pct)) return;
+      setExtraDiscount(amountFromDiscountPercent(cartSubtotal, pct));
+      return;
+    }
+    if (discountEditSourceRef.current === 'amount') {
+      const amt = String(extraDiscount).trim();
+      if (!amt) {
+        setExtraDiscountPercent('');
+        return;
+      }
+      if (isPartialDiscountInput(amt)) return;
+      setExtraDiscountPercent(percentFromDiscountAmount(cartSubtotal, amt));
+    }
+  }, [cartSubtotal, extraDiscountPercent, extraDiscount]);
+
+  const handleExtraDiscountPercentChange = useCallback(
+    (e) => {
+      const raw = e.target.value;
+      discountEditSourceRef.current = 'percent';
+      setExtraDiscountPercent(raw);
+      if (!raw.trim() || isPartialDiscountInput(raw)) {
+        if (!raw.trim()) setExtraDiscount('');
+        return;
+      }
+      setExtraDiscount(amountFromDiscountPercent(cartSubtotal, raw));
+    },
+    [cartSubtotal]
+  );
+
+  const handleExtraDiscountChange = useCallback(
+    (e) => {
+      const raw = e.target.value;
+      discountEditSourceRef.current = 'amount';
+      setExtraDiscount(raw);
+      if (!raw.trim() || isPartialDiscountInput(raw)) {
+        if (!raw.trim()) setExtraDiscountPercent('');
+        return;
+      }
+      setExtraDiscountPercent(percentFromDiscountAmount(cartSubtotal, raw));
+    },
+    [cartSubtotal]
+  );
+
   const grandTotal = useMemo(() => {
     const v = cartSubtotal + shippingNum - extraDiscountNum;
     return Number.isFinite(v) ? Math.max(0, v) : 0;
@@ -707,6 +797,8 @@ const Pos = () => {
     setCartLines([]);
     setShipping('');
     setExtraDiscount('');
+    setExtraDiscountPercent('');
+    discountEditSourceRef.current = null;
   }, []);
 
   const handlePaymentComplete = useCallback(
@@ -1141,14 +1233,30 @@ const Pos = () => {
                     onChange={(e) => setShipping(e.target.value)}
                   />
                 </div>
+                <div className="pos-field-row mb-2">
+                  <label htmlFor="pos-extra-discount-percent">Discount in %</label>
+                  <input
+                    id="pos-extra-discount-percent"
+                    type="text"
+                    inputMode="decimal"
+                    className="form-control form-control-sm"
+                    value={extraDiscountPercent}
+                    onChange={handleExtraDiscountPercentChange}
+                    placeholder="0"
+                    aria-label="Discount in percent"
+                  />
+                </div>
                 <div className="pos-field-row mb-0">
                   <label htmlFor="pos-extra-discount">Extra discount</label>
                   <input
                     id="pos-extra-discount"
                     type="text"
+                    inputMode="decimal"
                     className="form-control form-control-sm"
                     value={extraDiscount}
-                    onChange={(e) => setExtraDiscount(e.target.value)}
+                    onChange={handleExtraDiscountChange}
+                    placeholder="0"
+                    aria-label="Extra discount amount"
                   />
                 </div>
                 <div className="pos-summary-row mt-3">
