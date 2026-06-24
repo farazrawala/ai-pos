@@ -193,7 +193,7 @@ const PosProducts = ({
   );
 
   return (
-    <div className="col-lg-7 col-xl-8">
+    <div className="col-lg-6 col-xl-7">
       <PosPaymentModal
         orderTotal={orderTotal}
         onPayNow={onPaymentComplete}

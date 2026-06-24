@@ -922,7 +922,7 @@ const Pos = () => {
     <div className="pos-page container-fluid py-4 px-3 px-lg-4">
       <div className="row g-4">
         {/* Left: checkout */}
-        <div className="col-lg-5 col-xl-4">
+        <div className="col-lg-6 col-xl-5">
           <div className="card shadow-sm pos-panel-card h-100">
             <div className="pos-panel-header">
               <h5>Current order</h5>
