@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchTransactions,
@@ -23,9 +23,40 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import TablePagination from '../../components/TablePagination.jsx';
 import { DEBUG } from '../../config/env.js';
 
+const ORDER_NO_IN_TEXT_RE = /ORD-[A-Z0-9-]+/gi;
+
+const renderDescriptionWithOrderLinks = (text) => {
+  if (text == null || text === '' || text === '—') return text;
+  const str = String(text);
+  const parts = [];
+  let lastIndex = 0;
+  const re = new RegExp(ORDER_NO_IN_TEXT_RE.source, ORDER_NO_IN_TEXT_RE.flags);
+  let match;
+  while ((match = re.exec(str)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(str.slice(lastIndex, match.index));
+    }
+    const orderNo = match[0];
+    parts.push(
+      <Link
+        key={`${orderNo}-${match.index}`}
+        to={`/pos/invoice/${encodeURIComponent(orderNo)}`}
+        className="text-primary text-decoration-underline"
+        title="View order"
+      >
+        {orderNo}
+      </Link>
+    );
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < str.length) {
+    parts.push(str.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : str;
+};
+
 const Transactions = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const {
     list: data,
     status,
@@ -344,7 +375,7 @@ const Transactions = () => {
                           <div className="card-body py-2 px-3 w-100">
                             <div className="rounded bg-gray-100 px-3 py-2 mb-2">
                               <p className="text-sm font-weight-bold text-dark mb-0 lh-base">
-                                {meta.description}
+                                {renderDescriptionWithOrderLinks(meta.description)}
                               </p>
                             </div>
                             <table className="table table-sm table-flush mb-0 w-100">
@@ -476,7 +507,9 @@ const Transactions = () => {
                               </td>
                               <td className="text-sm font-weight-normal text-end">{debit}</td>
                               <td className="text-sm font-weight-normal text-end">{credit}</td>
-                              <td className="text-sm font-weight-normal">{item.description || '—'}</td>
+                              <td className="text-sm font-weight-normal">
+                                {renderDescriptionWithOrderLinks(item.description || '—')}
+                              </td>
                               <td className="text-sm font-weight-normal">
                                 {item.status ? (
                                   <span
