@@ -33,6 +33,7 @@ import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+import { posInvoiceRoutePath } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 
@@ -251,7 +252,7 @@ const Orders = () => {
         return;
       }
 
-      navigate(`/pos/invoice/${encodeURIComponent(invoiceId)}`);
+      navigate(posInvoiceRoutePath(invoiceId));
     } catch (err) {
       console.error('[Orders module] open invoice failed', err);
       window.alert(err?.message || 'Failed to load order for this line.');

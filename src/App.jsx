@@ -125,6 +125,8 @@ const App = () => {
           <Route path="/pos" element={<Pos />} />
           <Route path="/pos/invoice" element={<PosInvoice />} />
           <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
+          <Route path="/invoice" element={<PosInvoice />} />
+          <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/users" element={<Users />} />
@@ -244,6 +246,8 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/pos" element={<Pos />} />
           <Route path="/pos/invoice" element={<PosInvoice />} />
           <Route path="/pos/invoice/:invoiceId" element={<PosInvoice />} />
+          <Route path="/invoice" element={<PosInvoice />} />
+          <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/users" element={<Users />} />

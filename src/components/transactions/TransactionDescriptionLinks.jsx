@@ -1,30 +1,42 @@
 import { Link } from 'react-router-dom';
+import { posInvoiceRoutePath } from '../../config/appBase.js';
 
 /** Document refs embedded in transaction descriptions, e.g. ORD-0081, PO-0042, PR-0003, SR-0010. */
 const DOCUMENT_REF_RE = /(?:POR|ORD|PO|PR|SR)-[A-Z0-9-]+/gi;
 
-const routeForDocumentRef = (ref) => {
+const routeForDocumentRef = (ref, linkMap) => {
   const code = String(ref || '').trim();
   if (!code) return null;
   const upper = code.toUpperCase();
-  const encoded = encodeURIComponent(code);
+  const linked = linkMap?.get?.(upper);
+  const routeId = linked?.routeId;
+  if (!routeId) return null;
 
   if (upper.startsWith('ORD-')) {
-    return { to: `/pos/invoice/${encoded}`, title: 'View order' };
+    return { to: posInvoiceRoutePath(routeId), title: 'View order' };
   }
   if (upper.startsWith('PO-')) {
-    return { to: `/purchase-orders/edit/${encoded}`, title: 'View purchase order' };
+    return {
+      to: `/purchase-orders/edit/${encodeURIComponent(routeId)}`,
+      title: 'View purchase order',
+    };
   }
   if (upper.startsWith('POR-') || upper.startsWith('PR-')) {
-    return { to: `/purchase-order-returns/edit/${encoded}`, title: 'View purchase return' };
+    return {
+      to: `/purchase-order-returns/edit/${encodeURIComponent(routeId)}`,
+      title: 'View purchase return',
+    };
   }
   if (upper.startsWith('SR-')) {
-    return { to: `/sales-returns/edit/${encoded}`, title: 'View sales return' };
+    return {
+      to: `/sales-returns/edit/${encodeURIComponent(routeId)}`,
+      title: 'View sales return',
+    };
   }
   return null;
 };
 
-export const renderTransactionDescriptionLinks = (text) => {
+export const renderTransactionDescriptionLinks = (text, linkMap) => {
   if (text == null || text === '' || text === '—') return text;
   const str = String(text);
   const parts = [];
@@ -37,7 +49,7 @@ export const renderTransactionDescriptionLinks = (text) => {
       parts.push(str.slice(lastIndex, match.index));
     }
     const ref = match[0];
-    const route = routeForDocumentRef(ref);
+    const route = routeForDocumentRef(ref, linkMap);
     parts.push(
       route ? (
         <Link

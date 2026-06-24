@@ -318,6 +318,58 @@ export const extractDocumentRefNo = (row) => {
   return '';
 };
 
+const extractDocumentRefObject = (row) => {
+  if (!row || typeof row !== 'object') return null;
+
+  const directRef = row.ref_id ?? row.refId;
+  if (directRef && typeof directRef === 'object' && !Array.isArray(directRef)) {
+    if (
+      directRef._id ||
+      directRef.id ||
+      directRef.order_no ||
+      directRef.purchase_order_no ||
+      directRef.purchase_return_no ||
+      directRef.sales_return_no
+    ) {
+      return directRef;
+    }
+  }
+
+  const rid = row.reference_id ?? row.referenceId;
+  if (rid && typeof rid === 'object' && !Array.isArray(rid)) {
+    const nested = rid.ref_id ?? rid.refId;
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) return nested;
+  }
+
+  return null;
+};
+
+/** Mongo `_id` of the linked document on a transaction line (order, PO, return, …). */
+export const extractDocumentRouteId = (row) => {
+  const refObj = extractDocumentRefObject(row);
+  if (!refObj) return '';
+  const id = refObj._id ?? refObj.id;
+  return id != null ? String(id).trim() : '';
+};
+
+/** Map human-readable ref (e.g. ORD-0084) → `{ refNo, routeId }` from journal lines. */
+export const buildDocumentRefLinkMap = (rows) => {
+  const map = new Map();
+  if (!Array.isArray(rows)) return map;
+
+  for (const row of rows) {
+    const refNo = extractDocumentRefNo(row);
+    const routeId = extractDocumentRouteId(row);
+    if (!refNo || !routeId) continue;
+    const key = refNo.toUpperCase();
+    if (!map.has(key)) {
+      map.set(key, { refNo, routeId });
+    }
+  }
+
+  return map;
+};
+
 /** Append linked document no when API description is generic, e.g. "Purchase Order" → "Purchase Order (PO-0042)". */
 export const enrichTransactionDescription = (row) => {
   const raw = row?.description != null ? String(row.description).trim() : '';

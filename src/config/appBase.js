@@ -15,3 +15,11 @@ export function withBase(path = '') {
   const normalized = s.startsWith('/') ? s.slice(1) : s;
   return `${APP_BASE_URL}${normalized}`.replace(/([^:]\/)\/+/g, '$1');
 }
+
+/** POS invoice route — avoids `/pos/pos/invoice` when the app basename is `/pos`. */
+export function posInvoiceRoutePath(invoiceId) {
+  const id = String(invoiceId ?? '').trim();
+  if (!id) return ROUTER_BASENAME ? '/invoice' : '/pos/invoice';
+  const encoded = encodeURIComponent(id);
+  return ROUTER_BASENAME ? `/invoice/${encoded}` : `/pos/invoice/${encoded}`;
+}

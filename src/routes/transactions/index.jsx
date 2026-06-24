@@ -16,6 +16,7 @@ import {
   groupTransactionsIntoJournals,
   sumDebitCreditForLines,
   enrichTransactionDescription,
+  buildDocumentRefLinkMap,
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -300,6 +301,7 @@ const Transactions = () => {
                   ) : (
                     journals.map((lines, jIndex) => {
                       const meta = journalMeta(lines);
+                      const linkMap = buildDocumentRefLinkMap(lines);
                       const sums = sumDebitCreditForLines(lines);
                       const jKey =
                         lines[0]?._id ||
@@ -344,7 +346,7 @@ const Transactions = () => {
                           <div className="card-body py-2 px-3 w-100">
                             <div className="rounded bg-gray-100 px-3 py-2 mb-2">
                               <p className="text-sm font-weight-bold text-dark mb-0 lh-base">
-                                {renderTransactionDescriptionLinks(meta.description)}
+                                {renderTransactionDescriptionLinks(meta.description, linkMap)}
                               </p>
                             </div>
                             <table className="table table-sm table-flush mb-0 w-100">
@@ -478,7 +480,8 @@ const Transactions = () => {
                               <td className="text-sm font-weight-normal text-end">{credit}</td>
                               <td className="text-sm font-weight-normal">
                                 {renderTransactionDescriptionLinks(
-                                  enrichTransactionDescription(item) || '—'
+                                  enrichTransactionDescription(item) || '—',
+                                  buildDocumentRefLinkMap([item])
                                 )}
                               </td>
                               <td className="text-sm font-weight-normal">
