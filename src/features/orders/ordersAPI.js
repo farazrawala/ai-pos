@@ -484,7 +484,43 @@ export async function fetchAllOrdersForExportRequest(params = {}) {
     page += 1;
   }
 
-  return allData;
+  return enrichOrdersForExport(allData);
+}
+
+const EXPORT_DETAIL_CONCURRENCY = 5;
+
+function orderNeedsDetailFetchForExport(order) {
+  const lines = getOrderLineItems(order);
+  if (lines.length === 0) return true;
+  const expected = getNoOfItemsDisplay(order);
+  const expectedCount =
+    typeof expected === 'number' ? expected : parseInt(String(expected ?? ''), 10);
+  if (Number.isFinite(expectedCount) && expectedCount > 0 && lines.length < expectedCount) {
+    return true;
+  }
+  return false;
+}
+
+async function enrichOrderForExport(order) {
+  if (!orderNeedsDetailFetchForExport(order)) return order;
+  const id = pickInvoiceRouteId(order);
+  if (!id) return order;
+  try {
+    const full = await fetchOrderForInvoiceRequest(id);
+    return full || order;
+  } catch {
+    return order;
+  }
+}
+
+async function enrichOrdersForExport(orders) {
+  const result = [];
+  for (let i = 0; i < orders.length; i += EXPORT_DETAIL_CONCURRENCY) {
+    const batch = orders.slice(i, i + EXPORT_DETAIL_CONCURRENCY);
+    const enriched = await Promise.all(batch.map(enrichOrderForExport));
+    result.push(...enriched);
+  }
+  return result;
 }
 
 /**

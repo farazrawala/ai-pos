@@ -20,6 +20,10 @@ import {
   getNoOfItemsDisplay,
   fetchAllOrdersForExportRequest,
 } from '../../features/orders/ordersAPI.js';
+import {
+  ORDER_DETAIL_EXPORT_COLUMNS,
+  mapOrdersToDetailExportRows,
+} from '../../features/orders/orderExportMapper.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -68,34 +72,6 @@ const statusBadgeClass = (status) => {
   if (s === 'pending' || s === 'draft' || s === 'placed') return 'bg-gradient-warning';
   if (s === 'cancelled' || s === 'void' || s === 'refunded') return 'bg-gradient-danger';
   return 'bg-gradient-secondary';
-};
-
-const ORDER_EXPORT_COLUMNS = [
-  { key: 'sr', label: '#' },
-  { key: 'orderNo', label: 'Order no' },
-  { key: 'customer', label: 'Customer' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'items', label: 'Items' },
-  { key: 'total', label: 'Total (PKR)' },
-  { key: 'status', label: 'Status' },
-  { key: 'created', label: 'Created' },
-];
-
-const mapOrderToExportRow = (item, index) => {
-  const created = item.createdAt ?? item.created_at;
-  const total = getOrderItemsTotalDisplay(item);
-  return {
-    sr: index + 1,
-    orderNo: item.order_no || item.orderNo || '',
-    customer: item.name || '',
-    email: item.email || '',
-    phone: item.phone || '',
-    items: getNoOfItemsDisplay(item),
-    total: total !== '—' ? total : '',
-    status: orderDisplayStatus(item),
-    created: created ? moment(created).format('DD MMM YYYY h:mm a') : '',
-  };
 };
 
 const Orders = () => {
@@ -215,32 +191,34 @@ const Orders = () => {
   const handleExport = async (format) => {
     setExporting(true);
     try {
-      const rows = await fetchAllOrdersForExportRequest(buildExportParams());
-      if (!rows.length) {
+      const orders = await fetchAllOrdersForExportRequest(buildExportParams());
+      if (!orders.length) {
         toast.info('No orders to export.');
         return;
       }
-      const mapped = rows.map((item, i) => mapOrderToExportRow(item, i));
+      const mapped = mapOrdersToDetailExportRows(orders);
       const stamp = moment().format('YYYY-MM-DD-HHmm');
       const filename = `orders-${stamp}`;
       if (format === 'csv') {
-        exportRowsToCsv({ columns: ORDER_EXPORT_COLUMNS, rows: mapped, filename });
+        exportRowsToCsv({ columns: ORDER_DETAIL_EXPORT_COLUMNS, rows: mapped, filename });
       } else if (format === 'excel') {
         exportRowsToExcel({
-          columns: ORDER_EXPORT_COLUMNS,
+          columns: ORDER_DETAIL_EXPORT_COLUMNS,
           rows: mapped,
           filename,
           sheetTitle: 'Orders',
         });
       } else if (format === 'pdf') {
         await exportRowsToPdf({
-          columns: ORDER_EXPORT_COLUMNS,
+          columns: ORDER_DETAIL_EXPORT_COLUMNS,
           rows: mapped,
           filename,
-          title: 'Orders',
+          title: 'Orders (with line items)',
         });
       }
-      toast.success(`Exported ${mapped.length} order(s) as ${format.toUpperCase()}.`);
+      toast.success(
+        `Exported ${mapped.length} line(s) from ${orders.length} order(s) as ${format.toUpperCase()}.`
+      );
     } catch (err) {
       console.error('[Orders] export failed', err);
       toast.error(err?.message || 'Export failed.');

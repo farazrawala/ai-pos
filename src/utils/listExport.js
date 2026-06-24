@@ -60,7 +60,7 @@ export async function exportRowsToPdf({ columns, rows, filename, title }) {
   const { jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF({
-    orientation: columns.length > 6 ? 'landscape' : 'portrait',
+    orientation: columns.length > 8 ? 'landscape' : 'portrait',
     unit: 'pt',
     format: 'a4',
   });
@@ -70,8 +70,12 @@ export async function exportRowsToPdf({ columns, rows, filename, title }) {
     startY: 48,
     head: [columns.map((c) => c.label)],
     body: rows.map((row) => columns.map((c) => String(cellValue(c, row) ?? ''))),
-    styles: { fontSize: 8, cellPadding: 4 },
-    headStyles: { fillColor: [94, 114, 228] },
+    styles: {
+      fontSize: columns.length > 12 ? 6 : 8,
+      cellPadding: columns.length > 12 ? 2 : 4,
+      overflow: 'linebreak',
+    },
+    headStyles: { fillColor: [94, 114, 228], fontSize: columns.length > 12 ? 6 : 8 },
   });
   doc.save(`${filename}.pdf`);
 }
