@@ -89,14 +89,34 @@
   transform: none !important;
 }
 
-/* Mobile: slide sidebar off-screen when unpinned. */
+/* Mobile: slide sidebar off-screen when closed; overlay when open. */
 @media (max-width: 1199.98px) {
   .g-sidenav-show:not(.g-sidenav-pinned) .sidenav.fixed-start {
-    transform: translateX(calc(-100% - 1.5rem));
+    transform: translate3d(calc(-100% - 1.5rem), 0, 0) !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .g-sidenav-show.g-sidenav-pinned .sidenav.fixed-start {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 1035;
+  }
+
+  .sidenav-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1034;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0.45);
+    cursor: pointer;
+  }
+
+  body.g-sidenav-mobile-open {
+    overflow: hidden;
   }
 }
 

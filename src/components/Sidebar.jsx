@@ -107,7 +107,7 @@ const navItems = [
 
 const Sidebar = () => {
   const dispatch = useDispatch();
-  const { toggle: toggleSidenav, close: closeSidenav, pinned } = useSidenav();
+  const { toggle: toggleSidenav, close: closeSidenav, pinned, mobileMenuOpen } = useSidenav();
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
@@ -183,6 +183,14 @@ const Sidebar = () => {
 
   return (
     <>
+      {mobileMenuOpen ? (
+        <button
+          type="button"
+          className="sidenav-mobile-backdrop d-xl-none"
+          aria-label="Close menu"
+          onClick={closeSidenav}
+        />
+      ) : null}
       {!pinned && (
         <button
           type="button"
