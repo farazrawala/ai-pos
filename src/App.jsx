@@ -83,6 +83,7 @@ import IntegrationAdd from './routes/integration/add.jsx';
 import IntegrationEdit from './routes/integration/edit.jsx';
 import ProcessIndex from './routes/process/index.jsx';
 import { selectIsAuthenticated } from './features/user/userSlice.js';
+import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
 
 const App = () => {
   const location = useLocation();
@@ -93,21 +94,6 @@ const App = () => {
     location.pathname === '/signup' ||
     isPublicInvoiceRoute ||
     (!isAuthenticated && location.pathname === '/api-workflow');
-
-  // Argon "mini" mode adds body.g-sidenav-hidden (≥1200px): sidebar shrinks to ~6rem and labels get width:0 / opacity:0.
-  useEffect(() => {
-    const sync = () => {
-      document.body.classList.remove('g-sidenav-hidden');
-      document.body.classList.add('g-sidenav-show', 'g-sidenav-pinned');
-    };
-    sync();
-    const raf = requestAnimationFrame(sync);
-    const t = window.setTimeout(sync, 0);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(t);
-    };
-  }, []);
 
   useEffect(() => {
     document.title = APP_NAME;
@@ -217,7 +203,17 @@ const App = () => {
   }
 
   return (
-    <div className="g-sidenav-show g-sidenav-pinned bg-gray-100">
+    <SidenavProvider>
+      <AuthenticatedLayout isAuthenticated={isAuthenticated} />
+    </SidenavProvider>
+  );
+};
+
+const AuthenticatedLayout = ({ isAuthenticated }) => {
+  const { layoutClassName } = useSidenav();
+
+  return (
+    <div className={layoutClassName}>
       <Loader />
       <div className="min-height-300 bg-dark position-absolute w-100"></div>
       <Sidebar />

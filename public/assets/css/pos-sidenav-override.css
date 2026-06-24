@@ -1,0 +1,126 @@
+/* Sidebar header — menu toggle row + stacked brand (icon above name). */
+.sidenav-header {
+  position: relative;
+}
+
+.sidenav-header .sidebar-header-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 0.75rem 0.25rem;
+}
+
+.sidenav-header .sidebar-menu-btn {
+  position: relative;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  pointer-events: auto;
+  transform: none !important;
+}
+
+.sidenav-header .sidebar-menu-btn:hover,
+.sidenav-header .sidebar-menu-btn:focus,
+.sidenav-header .sidebar-menu-btn:active {
+  transform: none !important;
+}
+
+.sidenav-header .sidebar-brand-with-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.15rem 0.75rem 1rem !important;
+  text-align: center;
+}
+
+.sidenav-header .sidebar-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.35rem;
+}
+
+.sidenav-header .sidebar-brand-name {
+  display: block;
+  margin-left: 0 !important;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.g-sidenav-hidden .sidenav-header .sidebar-brand-with-menu {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+.g-sidenav-hidden .sidenav-header .sidebar-brand-name {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
+.g-sidenav-hidden .sidenav-header:hover .sidebar-brand-name,
+.g-sidenav-hidden .navbar-vertical:hover .sidenav-header .sidebar-brand-name {
+  opacity: 1;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  margin-bottom: 0;
+}
+
+.sidebar-open-trigger {
+  z-index: 1035 !important;
+  pointer-events: auto;
+  transform: none !important;
+}
+
+.sidebar-open-trigger:hover,
+.sidebar-open-trigger:focus {
+  transform: none !important;
+}
+
+/* Mobile: slide sidebar off-screen when unpinned. */
+@media (max-width: 1199.98px) {
+  .g-sidenav-show:not(.g-sidenav-pinned) .sidenav.fixed-start {
+    transform: translateX(calc(-100% - 1.5rem));
+  }
+
+  .g-sidenav-show.g-sidenav-pinned .sidenav.fixed-start {
+    transform: translateX(0);
+  }
+}
+
+/* Desktop: collapse to icon rail when hidden. */
+@media (min-width: 1200px) {
+  .g-sidenav-hidden .sidenav.navbar-vertical {
+    max-width: 6rem !important;
+  }
+
+  .g-sidenav-hidden .sidenav.navbar-vertical .sidebar-brand-name {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .g-sidenav-hidden .sidenav.navbar-vertical:hover {
+    max-width: 15.625rem !important;
+  }
+
+  .g-sidenav-hidden .sidenav.navbar-vertical:hover .sidebar-brand-name {
+    opacity: 1;
+    width: auto;
+    height: auto;
+    overflow: visible;
+  }
+}

@@ -37,7 +37,7 @@ import {
   FaUser,
   FaCircleUser,
   FaWarehouse,
-  FaXmark,
+  FaBars,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
@@ -52,6 +52,7 @@ import {
 import { selectCompany, selectCompanyId, setCompany } from '../features/user/userSlice.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
+import { useSidenav } from '../context/SidenavContext.jsx';
 
 const navItems = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
@@ -106,6 +107,7 @@ const navItems = [
 
 const Sidebar = () => {
   const dispatch = useDispatch();
+  const { toggle: toggleSidenav, close: closeSidenav, pinned } = useSidenav();
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
@@ -167,43 +169,75 @@ const Sidebar = () => {
     });
   }, [canView, isAdmin]);
 
+  const handleMenuToggle = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleSidenav();
+  };
+
+  const handleNavClick = () => {
+    if (window.innerWidth < 1200) {
+      closeSidenav();
+    }
+  };
+
   return (
-    <aside
-      className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
-      id="sidenav-main"
-    >
-      <div className="sidenav-header">
-        <span
-          id="iconSidenav"
-          className="p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none d-inline-flex"
-          role="button"
-          aria-label="Close sidebar"
+    <>
+      {!pinned && (
+        <button
+          type="button"
+          className="sidebar-open-trigger btn btn-link text-dark p-3 position-fixed d-xl-none border-0 bg-white border-radius-xl shadow-sm"
+          style={{ top: '1rem', left: '1rem' }}
+          aria-label="Open menu"
+          onClick={handleMenuToggle}
         >
-          <NavIcon icon={FaXmark} size={18} />
-        </span>
-        <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
-          {brandLogoUrl ? (
-            <img
-              src={brandLogoUrl}
-              width={26}
-              height={26}
-              className="navbar-brand-img h-100"
-              alt={`${brandLabel} logo`}
-              style={{ objectFit: 'contain' }}
-            />
-          ) : (
-            <span
-              className="navbar-brand-img d-inline-flex align-items-center justify-content-center rounded bg-gradient-primary text-white text-xxs fw-bold"
-              style={{ width: 26, height: 26, flexShrink: 0 }}
-              aria-hidden
+          <NavIcon icon={FaBars} size={18} />
+        </button>
+      )}
+      <aside
+        className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
+        id="sidenav-main"
+      >
+        <div className="sidenav-header">
+          <div className="sidebar-header-toolbar">
+            <button
+              type="button"
+              className="sidebar-menu-btn btn btn-link text-secondary border-0 bg-transparent"
+              aria-label="Toggle menu"
+              onClick={handleMenuToggle}
             >
-              {brandLabel.charAt(0).toUpperCase()}
+              <NavIcon icon={FaBars} size={18} />
+            </button>
+          </div>
+          <NavLink
+            className="navbar-brand m-0 sidebar-brand-with-menu"
+            rel="noopener noreferrer"
+            to="/"
+          >
+            <span className="sidebar-brand-mark">
+              {brandLogoUrl ? (
+                <img
+                  src={brandLogoUrl}
+                  width={32}
+                  height={32}
+                  className="navbar-brand-img"
+                  alt={`${brandLabel} logo`}
+                  style={{ objectFit: 'contain' }}
+                />
+              ) : (
+                <span
+                  className="navbar-brand-img d-inline-flex align-items-center justify-content-center rounded bg-gradient-primary text-white text-xxs fw-bold"
+                  style={{ width: 32, height: 32, flexShrink: 0 }}
+                  aria-hidden
+                >
+                  {brandLabel.charAt(0).toUpperCase()}
+                </span>
+              )}
             </span>
-          )}
-          <span className="ms-1 font-weight-bold">{brandLabel}</span>
-        </NavLink>
-      </div>
-      <hr className="horizontal dark mt-0" />
+            <span className="sidebar-brand-name font-weight-bold">{brandLabel}</span>
+          </NavLink>
+        </div>
+        <hr className="horizontal dark mt-0" />
       <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
         <ul className="navbar-nav">
           {visibleNavItems.map(({ to, label, icon, end }) => (
@@ -212,6 +246,7 @@ const Sidebar = () => {
                 to={to}
                 end={end}
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                onClick={handleNavClick}
               >
                 <SidebarNavIcon icon={icon} />
                 <span className="nav-link-text ms-1">{label}</span>
@@ -221,6 +256,7 @@ const Sidebar = () => {
         </ul>
       </div>
     </aside>
+    </>
   );
 };
 

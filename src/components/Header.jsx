@@ -52,15 +52,6 @@ const Header = () => {
             </li>
           </ol>
         </nav>
-        <div className="sidenav-toggler sidenav-toggler-inner d-xl-block d-none">
-          <a href="javascript:;" className="nav-link p-0">
-            <div className="sidenav-toggler-inner">
-              <i className="sidenav-toggler-line bg-white" />
-              <i className="sidenav-toggler-line bg-white" />
-              <i className="sidenav-toggler-line bg-white" />
-            </div>
-          </a>
-        </div>
         <button
           type="button"
           className="btn btn-link text-white p-1 ms-2 d-lg-none"
@@ -125,15 +116,6 @@ const Header = () => {
                 </Link>
               </li>
             )}
-            <li className="nav-item d-xl-none ps-3 d-flex align-items-center">
-              <a href="javascript:;" className="nav-link text-white p-0" id="iconNavbarSidenav">
-                <div className="sidenav-toggler-inner">
-                  <i className="sidenav-toggler-line bg-white" />
-                  <i className="sidenav-toggler-line bg-white" />
-                  <i className="sidenav-toggler-line bg-white" />
-                </div>
-              </a>
-            </li>
             <li className="nav-item px-3 d-flex align-items-center">
               <a href="javascript:;" className="nav-link text-white p-0">
                 <NavIcon
