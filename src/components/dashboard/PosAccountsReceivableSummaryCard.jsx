@@ -10,21 +10,22 @@ export default function PosAccountsReceivableSummaryCard() {
     period: 'current_month',
   });
 
-  const outstanding = summary?.totalOutstanding ?? summary?.totalReceivable ?? 0;
-  const collected = summary?.totalCollected ?? 0;
-  const chartTotal = outstanding + collected;
+  const closingBalance = summary?.closingBalance ?? 0;
+  const newCharges = summary?.newCharges ?? 0;
+  const collections = summary?.collections ?? 0;
+  const activityTotal = newCharges + collections;
 
   useChartJs(
     canvasRef,
     (Chart, canvas) => {
-      if (chartTotal <= 0) return null;
+      if (activityTotal <= 0) return null;
       return new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels: ['Outstanding', 'Collected'],
+          labels: ['New charges', 'Collections'],
           datasets: [
             {
-              data: [outstanding, collected],
+              data: [newCharges, collections],
               backgroundColor: ['#fb6340', '#2dce89'],
               borderWidth: 0,
             },
@@ -39,7 +40,7 @@ export default function PosAccountsReceivableSummaryCard() {
               callbacks: {
                 label: (ctx) => {
                   const value = Number(ctx.parsed ?? 0);
-                  const pct = chartTotal > 0 ? Math.round((value / chartTotal) * 100) : 0;
+                  const pct = activityTotal > 0 ? Math.round((value / activityTotal) * 100) : 0;
                   return `${ctx.label}: ${formatCurrency(value)} (${pct}%)`;
                 },
               },
@@ -49,7 +50,7 @@ export default function PosAccountsReceivableSummaryCard() {
         },
       });
     },
-    [loading, error, outstanding, collected, chartTotal]
+    [loading, error, newCharges, collections, activityTotal]
   );
 
   const periodLabel = periodLabelFromPeakApi(period);
@@ -65,7 +66,7 @@ export default function PosAccountsReceivableSummaryCard() {
             <span className="text-danger">{error}</span>
           ) : (
             <span className="text-secondary">
-              Outstanding {formatCurrency(outstanding)} · {periodLabel}
+              Closing {formatCurrency(closingBalance)} · {periodLabel}
             </span>
           )}
         </p>
@@ -73,29 +74,32 @@ export default function PosAccountsReceivableSummaryCard() {
       <div className="card-body p-3 pt-2">
         {loading ? (
           <div className="text-center text-secondary text-sm py-5">Loading…</div>
-        ) : error ? null : chartTotal > 0 ? (
+        ) : error ? null : activityTotal > 0 ? (
           <div className="chart" style={{ minHeight: 240 }}>
             <canvas ref={canvasRef} className="chart-canvas" height="240" />
           </div>
         ) : (
-          <div className="text-center py-4">
-            <p className="text-sm font-weight-bold text-dark mb-1">{formatCurrency(outstanding)}</p>
-            <p className="text-sm text-secondary mb-0">No receivable activity this period</p>
+          <div
+            className="d-flex flex-column justify-content-center text-center py-4"
+            style={{ minHeight: 240 }}
+          >
+            <p className="text-sm font-weight-bold text-dark mb-1">{formatCurrency(closingBalance)}</p>
+            <p className="text-sm text-secondary mb-0">No charge or collection activity this period</p>
           </div>
         )}
         {!loading && !error && summary ? (
           <div className="row g-2 text-center mt-1">
             <div className="col-4">
-              <p className="text-xxs text-uppercase text-secondary mb-0">Outstanding</p>
-              <p className="text-sm font-weight-bold mb-0">{formatCurrency(outstanding)}</p>
+              <p className="text-xxs text-uppercase text-secondary mb-0">Opening</p>
+              <p className="text-sm font-weight-bold mb-0">{formatCurrency(summary.openingBalance)}</p>
             </div>
             <div className="col-4">
-              <p className="text-xxs text-uppercase text-secondary mb-0">Collected</p>
-              <p className="text-sm font-weight-bold mb-0">{formatCurrency(collected)}</p>
+              <p className="text-xxs text-uppercase text-secondary mb-0">Net change</p>
+              <p className="text-sm font-weight-bold mb-0">{formatCurrency(summary.netChange)}</p>
             </div>
             <div className="col-4">
-              <p className="text-xxs text-uppercase text-secondary mb-0">Orders</p>
-              <p className="text-sm font-weight-bold mb-0">{summary.orderCount ?? 0}</p>
+              <p className="text-xxs text-uppercase text-secondary mb-0">Transactions</p>
+              <p className="text-sm font-weight-bold mb-0">{summary.transactionCount.toLocaleString()}</p>
             </div>
           </div>
         ) : null}

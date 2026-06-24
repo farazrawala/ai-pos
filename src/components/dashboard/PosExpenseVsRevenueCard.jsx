@@ -12,7 +12,10 @@ export default function PosExpenseVsRevenueCard() {
   const hasDaily = days.length > 0;
   const totalRevenue = summary?.totalRevenue ?? 0;
   const totalExpense = summary?.totalExpense ?? 0;
-  const net = summary?.net ?? totalRevenue - totalExpense;
+  const netProfit = summary?.netProfit ?? summary?.net ?? totalRevenue - totalExpense;
+  const orderCount = summary?.orderCount ?? 0;
+  const expenseCount = summary?.expenseCount ?? 0;
+  const expenseRatioPercent = summary?.expenseRatioPercent ?? 0;
 
   useChartJs(
     canvasRef,
@@ -84,14 +87,14 @@ export default function PosExpenseVsRevenueCard() {
       return new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: ['Revenue', 'Expenses', 'Net'],
+          labels: ['Revenue', 'Expenses'],
           datasets: [
             {
               label: 'Amount',
-              data: [totalRevenue, totalExpense, Math.max(0, net)],
-              backgroundColor: ['#2dce89', '#f5365c', '#5e72e4'],
+              data: [totalRevenue, totalExpense],
+              backgroundColor: ['#2dce89', '#f5365c'],
               borderRadius: 6,
-              maxBarThickness: 48,
+              maxBarThickness: 56,
             },
           ],
         },
@@ -101,13 +104,25 @@ export default function PosExpenseVsRevenueCard() {
           plugins: {
             legend: { display: false },
             tooltip: {
-              callbacks: { label: (ctx) => formatCurrency(Number(ctx.parsed.y ?? 0)) },
+              callbacks: {
+                label: (ctx) => formatCurrency(Number(ctx.parsed.y ?? 0)),
+                afterLabel: (ctx) => {
+                  if (ctx.dataIndex === 0 && orderCount) {
+                    return `${orderCount} order${orderCount === 1 ? '' : 's'}`;
+                  }
+                  if (ctx.dataIndex === 1 && expenseCount) {
+                    return `${expenseCount} expense${expenseCount === 1 ? '' : 's'}`;
+                  }
+                  return '';
+                },
+              },
             },
           },
           scales: {
             x: { grid: { display: false } },
             y: {
               beginAtZero: true,
+              grace: '8%',
               grid: { borderDash: [4, 4] },
               ticks: { callback: (v) => formatCurrency(Number(v)) },
             },
@@ -115,10 +130,12 @@ export default function PosExpenseVsRevenueCard() {
         },
       });
     },
-    [loading, error, days, hasDaily, totalRevenue, totalExpense, net]
+    [loading, error, days, hasDaily, totalRevenue, totalExpense, orderCount, expenseCount]
   );
 
   const periodLabel = periodLabelFromPeakApi(period);
+  const ratioLabel =
+    expenseRatioPercent > 0 ? `${expenseRatioPercent.toFixed(2)}% expense ratio` : null;
 
   return (
     <div className="card h-100">
@@ -130,10 +147,15 @@ export default function PosExpenseVsRevenueCard() {
           ) : error ? (
             <span className="text-danger">{error}</span>
           ) : (
-            <>
-              <span className="font-weight-bold">{formatCurrency(net)}</span>
-              <span className="text-secondary"> net · {periodLabel}</span>
-            </>
+            <span className="text-secondary">
+              {[
+                `${formatCurrency(netProfit)} net`,
+                ratioLabel,
+                periodLabel,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
           )}
         </p>
       </div>
@@ -146,14 +168,25 @@ export default function PosExpenseVsRevenueCard() {
             <div className="col-4">
               <p className="text-xxs text-uppercase text-secondary mb-0">Revenue</p>
               <p className="text-sm font-weight-bold text-success mb-0">{formatCurrency(totalRevenue)}</p>
+              {orderCount ? (
+                <p className="text-xxs text-secondary mb-0">
+                  {orderCount} order{orderCount === 1 ? '' : 's'}
+                </p>
+              ) : null}
             </div>
             <div className="col-4">
               <p className="text-xxs text-uppercase text-secondary mb-0">Expenses</p>
               <p className="text-sm font-weight-bold text-danger mb-0">{formatCurrency(totalExpense)}</p>
+              {expenseCount ? (
+                <p className="text-xxs text-secondary mb-0">
+                  {expenseCount} expense{expenseCount === 1 ? '' : 's'}
+                </p>
+              ) : null}
             </div>
             <div className="col-4">
-              <p className="text-xxs text-uppercase text-secondary mb-0">Net</p>
-              <p className="text-sm font-weight-bold mb-0">{formatCurrency(net)}</p>
+              <p className="text-xxs text-uppercase text-secondary mb-0">Net profit</p>
+              <p className="text-sm font-weight-bold mb-0">{formatCurrency(netProfit)}</p>
+              {ratioLabel ? <p className="text-xxs text-secondary mb-0">{ratioLabel}</p> : null}
             </div>
           </div>
         ) : null}

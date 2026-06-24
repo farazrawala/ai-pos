@@ -1,4 +1,4 @@
-import { formatCurrency } from '../balanceSheet/formatCurrency.js';
+import { formatCurrency, formatCurrencyAccounting } from '../balanceSheet/formatCurrency.js';
 import { useExpenseSummary } from '../../hooks/useExpenseSummary.js';
 import { periodLabelFromPeakApi } from './chartHelpers.js';
 
@@ -19,7 +19,9 @@ export default function PosExpenseSummaryCard() {
           ) : error ? (
             <span className="text-danger">{error}</span>
           ) : (
-            <span className="text-secondary">{periodLabel}</span>
+            <span className="text-secondary">
+              {formatCurrency(total)} · {periodLabel}
+            </span>
           )}
         </p>
       </div>
@@ -46,7 +48,7 @@ export default function PosExpenseSummaryCard() {
                 <p className="text-xs text-uppercase text-secondary font-weight-bold mb-1">
                   Average
                 </p>
-                <p className="text-sm font-weight-bold mb-0">{formatCurrency(average)}</p>
+                <p className="text-sm font-weight-bold mb-0">{formatCurrencyAccounting(average)}</p>
               </div>
             </div>
           </div>

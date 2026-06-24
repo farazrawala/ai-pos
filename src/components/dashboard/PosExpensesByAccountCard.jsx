@@ -12,7 +12,17 @@ export default function PosExpensesByAccountCard() {
     limit: 10,
   });
   const topAmount = accounts.reduce((max, row) => Math.max(max, row.totalAmount), 0);
-  const total = summary?.totalAmount ?? accounts.reduce((s, r) => s + r.totalAmount, 0);
+  const totalAmount = summary?.totalAmount ?? accounts.reduce((s, r) => s + r.totalAmount, 0);
+  const expenseCount = summary?.expenseCount ?? 0;
+  const accountCount = summary?.accountCount ?? accounts.length;
+  const periodLabel = periodLabelFromPeakApi(period);
+  const subtitleParts = [
+    `Top ${accounts.length}`,
+    formatCurrency(totalAmount),
+    expenseCount ? `${expenseCount} expense${expenseCount === 1 ? '' : 's'}` : null,
+    accountCount ? `${accountCount} account${accountCount === 1 ? '' : 's'}` : null,
+    periodLabel,
+  ].filter(Boolean);
 
   useChartJs(
     canvasRef,
@@ -46,7 +56,9 @@ export default function PosExpensesByAccountCard() {
               callbacks: {
                 title: (items) => {
                   const idx = items[0]?.dataIndex;
-                  return items[0]?.chart?.data?.accountMeta?.[idx]?.name ?? items[0]?.label ?? '';
+                  const row = items[0]?.chart?.data?.accountMeta?.[idx];
+                  if (!row) return items[0]?.label ?? '';
+                  return row.accountNumber ? `${row.accountNumber} · ${row.name}` : row.name;
                 },
                 label: (ctx) => formatCurrency(Number(ctx.parsed.x ?? 0)),
                 afterLabel: (ctx) => {
@@ -73,8 +85,6 @@ export default function PosExpensesByAccountCard() {
     [loading, error, accounts]
   );
 
-  const periodLabel = periodLabelFromPeakApi(period);
-
   return (
     <div className="card h-100">
       <div className="card-header pb-0 pt-3 bg-transparent">
@@ -85,9 +95,7 @@ export default function PosExpensesByAccountCard() {
           ) : error ? (
             <span className="text-danger">{error}</span>
           ) : (
-            <span className="text-secondary">
-              Top {accounts.length} · {formatCurrency(total)} · {periodLabel}
-            </span>
+            <span className="text-secondary">{subtitleParts.join(' · ')}</span>
           )}
         </p>
       </div>

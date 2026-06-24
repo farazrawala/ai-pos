@@ -14,31 +14,26 @@ const RECEIVABLES_AGING_PATH = 'ledger/receivables-aging';
 
 function parseAccountsReceivableSummary(raw) {
   const block = pickDataObject({ data: raw, summary: raw });
-  const totalReceivable = parseReportNumber(
-    block.total_receivable ??
-      block.totalReceivable ??
-      block.total_outstanding ??
-      block.totalOutstanding ??
-      block.outstanding ??
-      block.balance
+  const openingBalance = parseReportNumber(block.opening_balance ?? block.openingBalance);
+  const newCharges = parseReportNumber(block.new_charges ?? block.newCharges);
+  const collections = parseReportNumber(block.collections);
+  const netChange = parseReportNumber(block.net_change ?? block.netChange);
+  const closingBalance = parseReportNumber(block.closing_balance ?? block.closingBalance);
+  const computedClosingBalance = parseReportNumber(
+    block.computed_closing_balance ?? block.computedClosingBalance,
+    closingBalance
   );
-  const totalCollected = parseReportNumber(
-    block.total_collected ?? block.totalCollected ?? block.collected ?? block.amount_received
-  );
-  const orderCount =
-    parseInt(String(block.order_count ?? block.orderCount ?? block.count ?? ''), 10) || 0;
-  const customerCount =
-    parseInt(String(block.customer_count ?? block.customerCount ?? ''), 10) || 0;
+  const transactionCount =
+    parseInt(String(block.transaction_count ?? block.transactionCount ?? ''), 10) || 0;
 
   return {
-    totalReceivable,
-    totalCollected,
-    totalOutstanding: parseReportNumber(
-      block.total_outstanding ?? block.totalOutstanding,
-      totalReceivable
-    ),
-    orderCount,
-    customerCount,
+    openingBalance,
+    newCharges,
+    collections,
+    netChange,
+    closingBalance,
+    computedClosingBalance,
+    transactionCount,
   };
 }
 
@@ -50,7 +45,7 @@ export async function fetchAccountsReceivableSummaryRequest(params = {}) {
     query,
     'Could not load accounts receivable summary'
   );
-  const raw = result.data ?? result.summary ?? result;
+  const raw = result.summary ?? result.data ?? result;
   return {
     summary: parseAccountsReceivableSummary(raw),
     period: pickPeriod(result),
@@ -59,32 +54,30 @@ export async function fetchAccountsReceivableSummaryRequest(params = {}) {
 
 function parseReceivablePartyRow(raw) {
   if (!raw || typeof raw !== 'object') {
-    return { id: '', name: 'Unknown', balance: 0, receivable: 0 };
+    return {
+      id: '',
+      name: 'Unknown',
+      balance: 0,
+      totalDebit: 0,
+      totalCredit: 0,
+      transactionCount: 0,
+      lastActivityAt: null,
+    };
   }
-  const balance = parseReportNumber(
-    raw.balance ??
-      raw.receivable ??
-      raw.amount ??
-      raw.total_receivable ??
-      raw.totalReceivable ??
-      raw.outstanding
-  );
+  const balance = parseReportNumber(raw.balance);
   const id = String(
-    raw.user_id?._id ??
-      raw.user_id ??
-      raw.customer_id?._id ??
-      raw.customer_id ??
-      raw._id ??
-      raw.id ??
-      ''
+    raw.customer_id?._id ?? raw.customer_id ?? raw.user_id?._id ?? raw.user_id ?? raw._id ?? raw.id ?? ''
   ).trim();
-  const name = partyDisplayName(raw) || 'Unknown';
-  return {
-    id,
-    name,
-    balance,
-    receivable: parseReportNumber(raw.receivable ?? raw.total_receivable, balance),
-  };
+  const name =
+    String(raw.customer_name ?? raw.customerName ?? partyDisplayName(raw) ?? 'Unknown').trim() ||
+    'Unknown';
+  const totalDebit = parseReportNumber(raw.total_debit ?? raw.totalDebit);
+  const totalCredit = parseReportNumber(raw.total_credit ?? raw.totalCredit);
+  const transactionCount =
+    parseInt(String(raw.transaction_count ?? raw.transactionCount ?? ''), 10) || 0;
+  const lastActivityAt = raw.last_activity_at ?? raw.lastActivityAt ?? null;
+
+  return { id, name, balance, totalDebit, totalCredit, transactionCount, lastActivityAt };
 }
 
 /** GET `ledger/receivables-summary` */
@@ -100,60 +93,78 @@ export async function fetchReceivablesSummaryRequest(params = {}) {
   const rows = firstArray(result, 'data', 'receivables', 'parties', 'users').map(
     parseReceivablePartyRow
   );
-  const totalReceivable = parseReportNumber(
-    result.summary?.total_receivable ??
-      result.summary?.totalReceivable ??
-      result.total_receivable,
+  const summaryRaw = result.summary ?? {};
+  const totalOutstanding = parseReportNumber(
+    summaryRaw.total_outstanding ??
+      summaryRaw.totalOutstanding ??
+      summaryRaw.total_receivable ??
+      summaryRaw.totalReceivable,
     rows.reduce((sum, r) => sum + r.balance, 0)
   );
+  const customerCount =
+    parseInt(
+      String(summaryRaw.customer_count ?? summaryRaw.customerCount ?? rows.length),
+      10
+    ) || rows.length;
+
   return {
     parties: rows,
-    summary: { totalReceivable, count: rows.length },
+    summary: { totalOutstanding, customerCount, count: rows.length },
     period: pickPeriod(result),
   };
 }
 
 function parseAgingBucket(raw, index) {
   if (!raw || typeof raw !== 'object') {
-    return { label: `Bucket ${index + 1}`, amount: 0, count: 0 };
+    return { bucketKey: '', label: `Bucket ${index + 1}`, amount: 0, count: 0 };
   }
+  const bucketKey = String(raw.bucket ?? raw.aging_bucket ?? raw.agingBucket ?? '').trim();
   const label = String(
-    raw.label ??
-      raw.bucket ??
-      raw.range ??
-      raw.aging_bucket ??
-      raw.agingBucket ??
-      raw.name ??
-      `Bucket ${index + 1}`
+    raw.label ?? raw.range ?? raw.name ?? bucketKey ?? `Bucket ${index + 1}`
   ).trim();
   const amount = parseReportNumber(
     raw.amount ?? raw.total ?? raw.total_receivable ?? raw.totalReceivable ?? raw.balance
   );
   const count =
-    parseInt(String(raw.count ?? raw.order_count ?? raw.orderCount ?? raw.party_count ?? ''), 10) ||
+    parseInt(String(raw.count ?? raw.customer_count ?? raw.customerCount ?? raw.party_count ?? ''), 10) ||
     0;
-  return { label, amount, count };
+  return { bucketKey, label, amount, count };
 }
 
 /** GET `ledger/receivables-aging` */
 export async function fetchReceivablesAgingRequest(params = {}) {
-  const query = buildReportPeriodQuery(params, 'current_month');
+  const query = new URLSearchParams();
+  if (params.from && params.to) {
+    query.set('from', String(params.from));
+    query.set('to', String(params.to));
+    if (params.timezone) query.set('timezone', String(params.timezone));
+  } else if (params.period) {
+    query.set('period', String(params.period));
+  }
+
   const result = await fetchReportJson(
     RECEIVABLES_AGING_PATH,
     query,
     'Could not load receivables aging'
   );
   const buckets = firstArray(result, 'buckets', 'aging', 'data', 'rows').map(parseAgingBucket);
-  const totalAmount = parseReportNumber(
-    result.summary?.total ??
-      result.summary?.total_receivable ??
-      result.summary?.totalReceivable ??
-      result.total_receivable,
+  const summaryRaw = result.summary ?? {};
+  const totalOutstanding = parseReportNumber(
+    summaryRaw.total_outstanding ??
+      summaryRaw.totalOutstanding ??
+      summaryRaw.total ??
+      summaryRaw.total_receivable ??
+      summaryRaw.totalReceivable,
     buckets.reduce((sum, b) => sum + b.amount, 0)
   );
+  const customerCount =
+    parseInt(String(summaryRaw.customer_count ?? summaryRaw.customerCount ?? ''), 10) || 0;
+  const asOf = result.as_of ?? result.asOf ?? null;
+
   return {
     buckets,
-    summary: { totalAmount, bucketCount: buckets.length },
+    summary: { totalOutstanding, customerCount, bucketCount: buckets.length },
+    asOf,
     period: pickPeriod(result),
   };
 }

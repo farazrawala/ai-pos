@@ -41,7 +41,17 @@ export default function PosReceivablesByCustomerCard() {
                   const idx = items[0]?.dataIndex;
                   return items[0]?.chart?.data?.partyMeta?.[idx]?.name ?? items[0]?.label ?? '';
                 },
-                label: (ctx) => formatCurrency(Number(ctx.parsed.x ?? 0)),
+                label: (ctx) => {
+                  const idx = ctx.dataIndex;
+                  const row = ctx.chart?.data?.partyMeta?.[idx];
+                  const lines = [formatCurrency(Number(ctx.parsed.x ?? 0))];
+                  if (row?.transactionCount) {
+                    lines.push(
+                      `${row.transactionCount} transaction${row.transactionCount === 1 ? '' : 's'}`
+                    );
+                  }
+                  return lines;
+                },
               },
             },
           },
@@ -61,8 +71,15 @@ export default function PosReceivablesByCustomerCard() {
     [loading, error, parties]
   );
 
-  const periodLabel = periodLabelFromPeakApi(period);
-  const total = summary?.totalReceivable ?? parties.reduce((s, r) => s + r.balance, 0);
+  const totalOutstanding =
+    summary?.totalOutstanding ?? parties.reduce((s, r) => s + r.balance, 0);
+  const customerCount = summary?.customerCount ?? parties.length;
+  const subtitleParts = [
+    `Top ${parties.length}`,
+    formatCurrency(totalOutstanding),
+    `${customerCount} customer${customerCount === 1 ? '' : 's'}`,
+  ];
+  if (period) subtitleParts.push(periodLabelFromPeakApi(period));
 
   return (
     <div className="card h-100">
@@ -74,9 +91,7 @@ export default function PosReceivablesByCustomerCard() {
           ) : error ? (
             <span className="text-danger">{error}</span>
           ) : (
-            <span className="text-secondary">
-              Top {parties.length} · {formatCurrency(total)} · {periodLabel}
-            </span>
+            <span className="text-secondary">{subtitleParts.join(' · ')}</span>
           )}
         </p>
       </div>

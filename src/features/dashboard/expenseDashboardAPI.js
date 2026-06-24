@@ -13,7 +13,10 @@ const EXPENSE_BY_ACCOUNT_PATH = 'expense/by-account';
 const EXPENSE_VS_REVENUE_PATH = 'reports/expense-vs-revenue';
 
 function parseExpenseSummary(raw) {
-  const block = pickDataObject({ data: raw, summary: raw });
+  const block =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : pickDataObject({ data: raw, summary: raw });
   const totalAmount = parseReportNumber(
     block.total_amount ?? block.totalAmount ?? block.total ?? block.amount
   );
@@ -34,7 +37,7 @@ function parseExpenseSummary(raw) {
 export async function fetchExpenseSummaryRequest(params = {}) {
   const query = buildReportPeriodQuery(params, 'current_month');
   const result = await fetchReportJson(EXPENSE_SUMMARY_PATH, query, 'Could not load expense summary');
-  const raw = result.data ?? result.summary ?? result;
+  const raw = result.data ?? result.summary ?? {};
   return {
     summary: parseExpenseSummary(raw),
     period: pickPeriod(result),
@@ -43,18 +46,27 @@ export async function fetchExpenseSummaryRequest(params = {}) {
 
 function parseExpenseAccountRow(raw) {
   if (!raw || typeof raw !== 'object') {
-    return { accountId: '', name: 'Unknown', totalAmount: 0, expenseCount: 0 };
+    return {
+      accountId: '',
+      name: 'Unknown',
+      accountType: '',
+      accountNumber: '',
+      totalAmount: 0,
+      expenseCount: 0,
+    };
   }
   const accountId = String(
     raw.account_id?._id ?? raw.account_id ?? raw._id ?? raw.id ?? ''
   ).trim();
-  const name = accountDisplayName(raw) || 'Unknown';
+  const name = String(raw.account_name ?? raw.accountName ?? accountDisplayName(raw) ?? 'Unknown').trim() || 'Unknown';
+  const accountType = String(raw.account_type ?? raw.accountType ?? '').trim();
+  const accountNumber = String(raw.account_number ?? raw.accountNumber ?? '').trim();
   const totalAmount = parseReportNumber(
     raw.total_amount ?? raw.totalAmount ?? raw.amount ?? raw.total
   );
   const expenseCount =
     parseInt(String(raw.expense_count ?? raw.expenseCount ?? raw.count ?? ''), 10) || 0;
-  return { accountId, name, totalAmount, expenseCount };
+  return { accountId, name, accountType, accountNumber, totalAmount, expenseCount };
 }
 
 /** GET `expense/by-account` */
@@ -67,13 +79,20 @@ export async function fetchExpensesByAccountRequest(params = {}) {
     'Could not load expenses by account'
   );
   const accounts = firstArray(result, 'data', 'accounts', 'rows').map(parseExpenseAccountRow);
+  const summaryRaw = result.summary ?? {};
   const totalAmount = parseReportNumber(
-    result.summary?.total_amount ?? result.summary?.totalAmount ?? result.total_amount,
+    summaryRaw.total_amount ?? summaryRaw.totalAmount ?? result.total_amount,
     accounts.reduce((sum, r) => sum + r.totalAmount, 0)
   );
+  const expenseCount =
+    parseInt(String(summaryRaw.expense_count ?? summaryRaw.expenseCount ?? ''), 10) || 0;
+  const accountCount =
+    parseInt(String(summaryRaw.account_count ?? summaryRaw.accountCount ?? accounts.length), 10) ||
+    accounts.length;
+
   return {
     accounts,
-    summary: { totalAmount, count: accounts.length },
+    summary: { totalAmount, expenseCount, accountCount, count: accounts.length },
     period: pickPeriod(result),
   };
 }
@@ -89,6 +108,43 @@ function parseExpenseVsRevenueDay(raw) {
   };
 }
 
+function parseExpenseVsRevenueSummary(raw) {
+  const block =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : pickDataObject({ data: raw, summary: raw });
+  const totalRevenue = parseReportNumber(
+    block.total_revenue ?? block.totalRevenue ?? block.revenue
+  );
+  const totalExpense = parseReportNumber(
+    block.total_expense ?? block.totalExpense ?? block.expense
+  );
+  const orderCount =
+    parseInt(String(block.order_count ?? block.orderCount ?? ''), 10) || 0;
+  const expenseCount =
+    parseInt(String(block.expense_count ?? block.expenseCount ?? ''), 10) || 0;
+  let netProfit = parseReportNumber(block.net_profit ?? block.netProfit ?? block.net, NaN);
+  if (!Number.isFinite(netProfit)) netProfit = totalRevenue - totalExpense;
+  let expenseRatioPercent = parseReportNumber(
+    block.expense_ratio_percent ?? block.expenseRatioPercent,
+    NaN
+  );
+  if (!Number.isFinite(expenseRatioPercent) && totalRevenue > 0) {
+    expenseRatioPercent = (totalExpense / totalRevenue) * 100;
+  }
+  if (!Number.isFinite(expenseRatioPercent)) expenseRatioPercent = 0;
+
+  return {
+    totalRevenue,
+    totalExpense,
+    orderCount,
+    expenseCount,
+    netProfit,
+    expenseRatioPercent,
+    net: netProfit,
+  };
+}
+
 /** GET `reports/expense-vs-revenue` */
 export async function fetchExpenseVsRevenueRequest(params = {}) {
   const query = buildReportPeriodQuery(params, 'current_month');
@@ -97,27 +153,25 @@ export async function fetchExpenseVsRevenueRequest(params = {}) {
     query,
     'Could not load expense vs revenue'
   );
-  const days = firstArray(result, 'days', 'data', 'series').map(parseExpenseVsRevenueDay);
-  const summaryRaw = pickDataObject(result);
-  const totalRevenue = parseReportNumber(
-    summaryRaw.total_revenue ??
-      summaryRaw.totalRevenue ??
-      summaryRaw.revenue,
-    days.reduce((sum, d) => sum + d.revenue, 0)
-  );
-  const totalExpense = parseReportNumber(
-    summaryRaw.total_expense ??
-      summaryRaw.totalExpense ??
-      summaryRaw.expense,
-    days.reduce((sum, d) => sum + d.expense, 0)
-  );
+  const days = firstArray(result, 'days', 'series').map(parseExpenseVsRevenueDay);
+  const dataBlock = result.data;
+  const summary =
+    dataBlock && typeof dataBlock === 'object' && !Array.isArray(dataBlock)
+      ? parseExpenseVsRevenueSummary(dataBlock)
+      : parseExpenseVsRevenueSummary(pickDataObject(result));
+
+  if (days.length && !(dataBlock && typeof dataBlock === 'object' && !Array.isArray(dataBlock))) {
+    summary.totalRevenue =
+      summary.totalRevenue || days.reduce((sum, d) => sum + d.revenue, 0);
+    summary.totalExpense =
+      summary.totalExpense || days.reduce((sum, d) => sum + d.expense, 0);
+    summary.netProfit = summary.totalRevenue - summary.totalExpense;
+    summary.net = summary.netProfit;
+  }
+
   return {
     days,
-    summary: {
-      totalRevenue,
-      totalExpense,
-      net: totalRevenue - totalExpense,
-    },
+    summary,
     period: pickPeriod(result),
   };
 }

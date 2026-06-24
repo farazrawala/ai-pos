@@ -2,16 +2,22 @@ import { useRef } from 'react';
 import { formatCurrency } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
 import { useReceivablesAging } from '../../hooks/useReceivablesAging.js';
-import { periodLabelFromPeakApi } from './chartHelpers.js';
 
 const AGING_COLORS = ['#2dce89', '#11cdef', '#fb6340', '#8392ab', '#5e72e4'];
 
+function formatAsOfLabel(asOf) {
+  if (!asOf) return '';
+  const date = new Date(asOf);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function PosReceivablesAgingCard() {
   const canvasRef = useRef(null);
-  const { loading, buckets, summary, period, error } = useReceivablesAging({
-    period: 'current_month',
-  });
+  const { loading, buckets, summary, asOf, error } = useReceivablesAging();
   const topAmount = buckets.reduce((max, row) => Math.max(max, row.amount), 0);
+  const totalOutstanding =
+    summary?.totalOutstanding ?? buckets.reduce((s, b) => s + b.amount, 0);
 
   useChartJs(
     canvasRef,
@@ -42,7 +48,9 @@ export default function PosReceivablesAgingCard() {
                 label: (ctx) => formatCurrency(Number(ctx.parsed.y ?? 0)),
                 afterLabel: (ctx) => {
                   const row = buckets[ctx.dataIndex];
-                  return row?.count ? `${row.count} account${row.count === 1 ? '' : 's'}` : '';
+                  if (!row || totalOutstanding <= 0) return '';
+                  const pct = Math.round((row.amount / totalOutstanding) * 100);
+                  return `${pct}% of outstanding`;
                 },
               },
             },
@@ -60,11 +68,16 @@ export default function PosReceivablesAgingCard() {
         },
       });
     },
-    [loading, error, buckets]
+    [loading, error, buckets, totalOutstanding]
   );
 
-  const periodLabel = periodLabelFromPeakApi(period);
-  const total = summary?.totalAmount ?? buckets.reduce((s, b) => s + b.amount, 0);
+  const asOfLabel = formatAsOfLabel(asOf);
+  const customerCount = summary?.customerCount ?? 0;
+  const subtitleParts = [
+    formatCurrency(totalOutstanding),
+    customerCount ? `${customerCount} customer${customerCount === 1 ? '' : 's'}` : null,
+    asOfLabel ? `As of ${asOfLabel}` : null,
+  ].filter(Boolean);
 
   return (
     <div className="card h-100">
@@ -76,9 +89,7 @@ export default function PosReceivablesAgingCard() {
           ) : error ? (
             <span className="text-danger">{error}</span>
           ) : (
-            <span className="text-secondary">
-              {formatCurrency(total)} outstanding · {periodLabel}
-            </span>
+            <span className="text-secondary">{subtitleParts.join(' · ')}</span>
           )}
         </p>
       </div>

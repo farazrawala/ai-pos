@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { fetchReceivablesAgingRequest } from '../features/dashboard/receivablesDashboardAPI.js';
 
 export function useReceivablesAging(options = {}) {
-  const { period = 'current_month', from, to, timezone } = options;
+  const { period, from, to, timezone } = options;
   const [state, setState] = useState({
     loading: true,
     buckets: [],
     summary: null,
+    asOf: null,
     period: null,
     error: null,
   });
@@ -27,6 +28,7 @@ export function useReceivablesAging(options = {}) {
           loading: false,
           buckets: result.buckets,
           summary: result.summary,
+          asOf: result.asOf,
           period: result.period,
           error: null,
         });
@@ -36,6 +38,7 @@ export function useReceivablesAging(options = {}) {
           loading: false,
           buckets: [],
           summary: null,
+          asOf: null,
           period: null,
           error: e?.message || 'Could not load receivables aging',
         });
