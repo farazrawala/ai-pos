@@ -15,7 +15,6 @@ import {
   formatTransactionAmount,
   groupTransactionsIntoJournals,
   sumDebitCreditForLines,
-  sortJournalLinesDebitFirst,
   enrichTransactionDescription,
   buildDocumentRefLinkMap,
 } from '../../features/transactions/transactionsAPI.js';
@@ -303,7 +302,6 @@ const Transactions = () => {
                     journals.map((lines, jIndex) => {
                       const meta = journalMeta(lines);
                       const linkMap = buildDocumentRefLinkMap(lines);
-                      const sortedLines = sortJournalLinesDebitFirst(lines);
                       const sums = sumDebitCreditForLines(lines);
                       const jKey =
                         lines[0]?._id ||
@@ -360,7 +358,7 @@ const Transactions = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {sortedLines.map((item, idx) => {
+                                {lines.map((item, idx) => {
                                   const { debit, credit } = debitCreditCells(item);
                                   const rowKey = item._id || item.id || idx;
                                   return (

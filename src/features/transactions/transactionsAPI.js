@@ -435,26 +435,6 @@ export const groupTransactionsIntoJournals = (rows) => {
   return order.map((key) => map.get(key));
 };
 
-/** Sort journal lines: all debits first, then credits (stable within each group). */
-export const sortJournalLinesDebitFirst = (lines) => {
-  if (!Array.isArray(lines) || lines.length <= 1) return Array.isArray(lines) ? lines : [];
-
-  const typeRank = (row) => {
-    const t = String(row?.type || '').toLowerCase().trim();
-    if (t === 'debit') return 0;
-    if (t === 'credit') return 1;
-    return 2;
-  };
-
-  return lines
-    .map((row, index) => ({ row, index }))
-    .sort((a, b) => {
-      const byType = typeRank(a.row) - typeRank(b.row);
-      return byType !== 0 ? byType : a.index - b.index;
-    })
-    .map(({ row }) => row);
-};
-
 export const sumDebitCreditForLines = (lines) => {
   let debit = 0;
   let credit = 0;
