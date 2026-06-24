@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaBarcode, FaCreditCard, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
 import {
   fetchProductsRequest,
@@ -11,7 +11,9 @@ import { withBase } from '../../config/appBase.js';
 import {
   formatProductNameWithStock,
   getProductAvailableStock,
+  isProductStockBelowMinimum,
 } from '../../utils/productStock.js';
+import { toast } from '../../utils/toast.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
@@ -81,6 +83,7 @@ const PosProducts = ({
   const [productsStatus, setProductsStatus] = useState('idle');
   const [productsError, setProductsError] = useState(null);
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [hideLowStock, setHideLowStock] = useState(true);
   const searchInputRef = useRef(null);
 
   useEffect(() => {
@@ -121,6 +124,13 @@ const PosProducts = ({
     loadProducts();
   }, [loadProducts]);
 
+  const visibleProducts = useMemo(() => {
+    if (!hideLowStock) return products;
+    return products.filter(
+      (p) => !isProductStockBelowMinimum(p, { warehouseId, minimum: 1 })
+    );
+  }, [products, hideLowStock, warehouseId]);
+
   const clearSearchAndRefocus = useCallback(() => {
     setProductQuery('');
     requestAnimationFrame(() => searchInputRef.current?.focus());
@@ -131,11 +141,22 @@ const PosProducts = ({
       const q = String(query ?? '').trim();
       if (!q) return false;
 
-      const fromList = pickScannedProduct(products, q);
-      if (fromList) {
-        onAddToCart?.(fromList);
+      const tryAdd = (product) => {
+        if (
+          hideLowStock &&
+          isProductStockBelowMinimum(product, { warehouseId, minimum: 1 })
+        ) {
+          toast.info('Product hidden — stock is less than 1.');
+          return false;
+        }
+        onAddToCart?.(product);
         clearSearchAndRefocus();
         return true;
+      };
+
+      const fromList = pickScannedProduct(products, q);
+      if (fromList) {
+        return tryAdd(fromList);
       }
 
       try {
@@ -150,16 +171,14 @@ const PosProducts = ({
         const arr = Array.isArray(result?.data) ? result.data : [];
         const picked = pickScannedProduct(arr, q);
         if (picked) {
-          onAddToCart?.(picked);
-          clearSearchAndRefocus();
-          return true;
+          return tryAdd(picked);
         }
       } catch (err) {
         console.error('[POS] Barcode lookup failed', err);
       }
       return false;
     },
-    [products, categoryFilter, onAddToCart, clearSearchAndRefocus]
+    [products, categoryFilter, onAddToCart, clearSearchAndRefocus, hideLowStock, warehouseId]
   );
 
   const handleSearchKeyDown = useCallback(
@@ -230,6 +249,19 @@ const PosProducts = ({
             </div>
           </div>
 
+          <div className="form-check mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="posHideLowStock"
+              checked={hideLowStock}
+              onChange={(e) => setHideLowStock(e.target.checked)}
+            />
+            <label className="form-check-label text-sm" htmlFor="posHideLowStock">
+              Remove stock with less than 1
+            </label>
+          </div>
+
           <div className="pos-product-grid flex-grow-1">
             {productsStatus === 'loading' && (
               <div className="text-center text-muted py-5">
@@ -246,17 +278,19 @@ const PosProducts = ({
                 {productsError}
               </div>
             )}
-            {productsStatus !== 'loading' && !productsError && products.length === 0 && (
+            {productsStatus !== 'loading' && !productsError && visibleProducts.length === 0 && (
               <div className="text-center text-muted py-5">
                 No products found
-                {debouncedQuery ? (
+                {hideLowStock && products.length > 0 ? (
+                  <div className="small mt-1">Try unchecking &quot;Remove stock with less than 1&quot;</div>
+                ) : debouncedQuery ? (
                   <div className="small mt-1">Press Enter after scanning a barcode to add it</div>
                 ) : null}
               </div>
             )}
-            {productsStatus !== 'loading' && products.length > 0 && (
+            {productsStatus !== 'loading' && visibleProducts.length > 0 && (
               <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-5 g-3">
-                {products.map((p, index) => {
+                {visibleProducts.map((p, index) => {
                   const id = getProductId(p) || `idx-${index}`;
                   const name = getProductName(p);
                   const stock = getProductAvailableStock(p, { warehouseId });

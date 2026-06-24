@@ -90,3 +90,10 @@ export function formatProductNameWithStock(name, stock) {
   const label = Number.isInteger(stock) ? String(stock) : stock.toFixed(2);
   return `${base} [${label}]`;
 }
+
+/** True when known available stock is strictly below minimum (default 1). */
+export function isProductStockBelowMinimum(item, { warehouseId = '', minimum = 1 } = {}) {
+  const stock = getProductAvailableStock(item, { warehouseId });
+  if (stock == null || !Number.isFinite(stock)) return false;
+  return stock < minimum;
+}
