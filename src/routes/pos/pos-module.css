@@ -205,6 +205,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.pos-page .pos-cart-delete-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+}
+
 .pos-page .pos-cart-delete-btn {
   display: inline-flex;
   align-items: center;

@@ -1113,7 +1113,7 @@ const Pos = () => {
                           />
                         </div>
                         <div className="pos-line-total">PKR {lineTotal.toFixed(2)}</div>
-                        <div className="text-center">
+                        <div className="pos-cart-delete-cell">
                           <button
                             type="button"
                             className="btn btn-link btn-sm text-danger p-0 pos-cart-delete-btn"
