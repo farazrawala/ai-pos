@@ -182,7 +182,7 @@ const Sidebar = () => {
           <NavIcon icon={FaXmark} size={18} />
         </span>
         <NavLink className="navbar-brand m-0" rel="noopener noreferrer" to="/">
-          {/* {brandLogoUrl ? (
+          {brandLogoUrl ? (
             <img
               src={brandLogoUrl}
               width={26}
@@ -199,7 +199,7 @@ const Sidebar = () => {
             >
               {brandLabel.charAt(0).toUpperCase()}
             </span>
-          )} */}
+          )}
           <span className="ms-1 font-weight-bold">{brandLabel}</span>
         </NavLink>
       </div>
