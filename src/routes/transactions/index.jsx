@@ -179,9 +179,13 @@ const Transactions = () => {
       lines[0]._id ??
       lines[0].id ??
       '—';
-    const descriptions = lines
-      .map((r) => (r.description != null ? String(r.description).trim() : ''))
-      .filter((d) => d && !d.includes('Mode of Payment'));
+    const descriptions = [
+      ...new Set(
+        lines
+          .map((r) => (r.description != null ? String(r.description).trim() : ''))
+          .filter((d) => d && !d.includes('Mode of Payment'))
+      ),
+    ];
     const desc = descriptions.length > 0 ? descriptions.join(' · ') : '—';
     let earliest = null;
     for (const r of lines) {
