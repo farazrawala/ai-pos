@@ -46,3 +46,13 @@ in user add multiple accounts to be include and not to be include.
 
 - shipping should plus in sales.
 - a/c is not coming in transaction.
+
+
+//balance due
+TXN-240626-012249-4210503
+TXN-230626-045012-5092476
+
+
+//suspicious 
+TXN-230626-085621-7634937
+TXN-230626-075518-1804450
