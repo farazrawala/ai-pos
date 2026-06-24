@@ -14,6 +14,8 @@ export default function PosPurchasesSummaryCard() {
   const purchasesPercent = vs?.purchasesPercentOfSales ?? 0;
   const purchaseOrderCount = summary?.purchaseOrderCount ?? 0;
   const totalPurchaseReturns = summary?.totalPurchaseReturns ?? 0;
+  const purchaseReturnCount = summary?.purchaseReturnCount ?? 0;
+  const salesDifference = vs?.difference ?? sales - netPurchases;
   const averagePoValue = summary?.averagePurchaseOrderValue ?? 0;
 
   useChartJs(
@@ -74,6 +76,7 @@ export default function PosPurchasesSummaryCard() {
   const subtitleParts = [
     `${formatCurrency(netPurchases)} net purchases`,
     purchasesPercent > 0 ? `${purchasesPercent.toFixed(2)}% of sales` : null,
+    salesDifference > 0 ? `${formatCurrency(salesDifference)} margin` : null,
     periodLabel,
   ].filter(Boolean);
 
@@ -108,6 +111,11 @@ export default function PosPurchasesSummaryCard() {
                 <div className="col-4">
                   <p className="text-xxs text-uppercase text-secondary mb-0">Returns</p>
                   <p className="text-sm font-weight-bold mb-0">{formatCurrency(totalPurchaseReturns)}</p>
+                  {purchaseReturnCount ? (
+                    <p className="text-xxs text-secondary mb-0">
+                      {purchaseReturnCount} return{purchaseReturnCount === 1 ? '' : 's'}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-4">
                   <p className="text-xxs text-uppercase text-secondary mb-0">Avg PO</p>

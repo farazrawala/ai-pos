@@ -118,7 +118,11 @@ function parseTopVendorRow(raw) {
       purchaseOrderCount: 0,
     };
   }
-  const vendorId = String(raw.vendor_id?._id ?? raw.vendor_id ?? raw._id ?? raw.id ?? '').trim();
+  const rawVendorId = raw.vendor_id?._id ?? raw.vendor_id;
+  const vendorId =
+    rawVendorId != null && String(rawVendorId).trim() !== '' && String(rawVendorId) !== 'null'
+      ? String(rawVendorId).trim()
+      : '';
   const name =
     String(raw.vendor_name ?? raw.vendorName ?? raw.name ?? 'Unknown').trim() || 'Unknown';
   return {
