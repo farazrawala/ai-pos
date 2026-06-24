@@ -19,6 +19,17 @@ function monthLabelFromDays(days) {
   return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
+/** @param {{ from?: string } | null} period @param {{ date: string }[]} days */
+function periodLabelFromApi(period, days) {
+  if (period?.from) {
+    const from = new Date(period.from);
+    if (!Number.isNaN(from.getTime())) {
+      return from.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+  }
+  return monthLabelFromDays(days);
+}
+
 function buildChartOptions() {
   return {
     responsive: true,
@@ -80,7 +91,7 @@ function buildChartOptions() {
 
 export default function SalesOverviewCard() {
   const canvasRef = useRef(null);
-  const { loading, days, summary, error } = useSalesDayWise();
+  const { loading, days, summary, period, error } = useSalesDayWise();
 
   useEffect(() => {
     if (loading || error || !days.length) return undefined;
@@ -146,7 +157,7 @@ export default function SalesOverviewCard() {
     };
   }, [loading, error, days]);
 
-  const monthLabel = monthLabelFromDays(days);
+  const monthLabel = periodLabelFromApi(period, days);
   const totalAmount = summary?.totalAmount ?? 0;
   const orderCount = summary?.orderCount ?? 0;
 

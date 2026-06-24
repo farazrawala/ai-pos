@@ -157,7 +157,7 @@ export async function getErrorMessageFromResponse(response) {
 }
 
 const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
-const SALES_DAY_WISE_PATH = 'order/sales-day-wise';
+const SALES_LAST_30_DAYS_PATH = 'orders/sales-last-30-days';
 
 /** Paginated order list (no id in path). Single-order invoice uses `ORDER_BY_ORDER_NO_PATH`. */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
@@ -240,10 +240,10 @@ function parseSalesDayEntry(day) {
 }
 
 /**
- * GET `order/sales-day-wise` — daily sales for the current month.
+ * GET `orders/sales-last-30-days` — daily sales for the current month (summary + days[]).
  */
 export async function fetchSalesDayWiseRequest() {
-  const url = `${BASE_URL}${SALES_DAY_WISE_PATH}`;
+  const url = `${BASE_URL}${SALES_LAST_30_DAYS_PATH}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
 
   if (!response.ok) {
@@ -255,7 +255,7 @@ export async function fetchSalesDayWiseRequest() {
     const msg =
       typeof result.message === 'string' && result.message.trim() !== ''
         ? result.message
-        : 'Could not load day-wise sales';
+        : 'Could not load sales overview';
     throw new Error(msg);
   }
 
