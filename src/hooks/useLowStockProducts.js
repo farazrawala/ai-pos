@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
-import { fetchProductsRequest } from '../features/products/productsAPI.js';
-import { pickLowStockProducts } from '../utils/lowStockProducts.js';
+import { fetchLowStockAlertsRequest } from '../features/alerts/alertsAPI.js';
 
-const FETCH_LIMIT = 500;
-const DISPLAY_LIMIT = 20;
+const DISPLAY_LIMIT = 50;
 
 export function useLowStockProducts() {
   const [state, setState] = useState({
     loading: true,
     items: [],
-    totalScanned: 0,
+    total: 0,
     error: null,
   });
 
@@ -19,14 +17,13 @@ export function useLowStockProducts() {
     (async () => {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
-        const response = await fetchProductsRequest({ page: 1, limit: FETCH_LIMIT });
+        const result = await fetchLowStockAlertsRequest({ skip: 0, limit: DISPLAY_LIMIT });
         if (cancelled) return;
 
-        const products = Array.isArray(response.data) ? response.data : [];
         setState({
           loading: false,
-          items: pickLowStockProducts(products, DISPLAY_LIMIT),
-          totalScanned: products.length,
+          items: result.items,
+          total: result.total,
           error: null,
         });
       } catch (e) {
@@ -34,7 +31,7 @@ export function useLowStockProducts() {
         setState({
           loading: false,
           items: [],
-          totalScanned: 0,
+          total: 0,
           error: e?.message || 'Could not load low stock alerts',
         });
       }

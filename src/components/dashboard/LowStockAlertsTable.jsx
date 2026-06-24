@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { FaTriangleExclamation } from 'react-icons/fa6';
 import NavIcon from '../NavIcon.jsx';
+import { withBase } from '../../config/appBase.js';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { useLowStockProducts } from '../../hooks/useLowStockProducts.js';
 
 function formatQty(value) {
@@ -16,7 +18,7 @@ function statusBadge(status) {
 }
 
 export default function LowStockAlertsTable() {
-  const { loading, items, error } = useLowStockProducts();
+  const { loading, items, total, error } = useLowStockProducts();
 
   return (
     <div className="card h-100">
@@ -27,9 +29,9 @@ export default function LowStockAlertsTable() {
             Products at or below their alert quantity
           </p>
         </div>
-        {!loading && !error && items.length > 0 ? (
+        {!loading && !error && total > 0 ? (
           <span className="badge bg-gradient-danger">
-            {items.length} alert{items.length === 1 ? '' : 's'}
+            {total} alert{total === 1 ? '' : 's'}
           </span>
         ) : null}
       </div>
@@ -45,10 +47,13 @@ export default function LowStockAlertsTable() {
                   Code
                 </th>
                 <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
-                  Stock
+                  On hand
                 </th>
                 <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
                   Alert
+                </th>
+                <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
+                  Shortage
                 </th>
                 <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center pe-4">
                   Status
@@ -58,64 +63,86 @@ export default function LowStockAlertsTable() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-secondary text-sm">
+                  <td colSpan={6} className="text-center py-4 text-secondary text-sm">
                     Loading alerts…
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-danger text-sm">
+                  <td colSpan={6} className="text-center py-4 text-danger text-sm">
                     {error}
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-secondary text-sm">
+                  <td colSpan={6} className="text-center py-4 text-secondary text-sm">
                     No low stock alerts. All tracked products are above their alert levels.
                   </td>
                 </tr>
               ) : (
-                items.map((row) => (
-                  <tr key={row.id || row.name}>
-                    <td className="ps-4">
-                      <div className="d-flex align-items-center gap-2">
-                        <NavIcon
-                          icon={FaTriangleExclamation}
-                          className={row.status === 'out' ? 'text-danger' : 'text-warning'}
-                          size={14}
-                        />
-                        {row.id ? (
-                          <Link
-                            to={`/products/edit/${row.id}`}
-                            className="text-sm font-weight-bold mb-0 text-dark"
-                          >
-                            {row.name}
-                          </Link>
-                        ) : (
-                          <span className="text-sm font-weight-bold mb-0">{row.name}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="text-xs text-secondary font-monospace">
-                        {row.code || '—'}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <span
-                        className={`text-sm font-weight-bold ${
-                          row.status === 'out' ? 'text-danger' : 'text-warning'
-                        }`}
-                      >
-                        {formatQty(row.stock)}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <span className="text-sm text-secondary">{formatQty(row.alertQty)}</span>
-                    </td>
-                    <td className="text-center pe-4">{statusBadge(row.status)}</td>
-                  </tr>
-                ))
+                items.map((row) => {
+                  const imageUrl = row.image ? resolveCategoryMediaUrl(row.image) : '';
+
+                  return (
+                    <tr key={row.alertId || row.id || row.name}>
+                      <td className="ps-4">
+                        <div className="d-flex align-items-center gap-2">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={row.name}
+                              className="list-product-thumb"
+                              onError={(e) => {
+                                e.currentTarget.src = withBase('/assets/img/default.jpg');
+                              }}
+                            />
+                          ) : (
+                            <div className="list-product-thumb list-product-thumb--empty flex-shrink-0">
+                              <NavIcon
+                                icon={FaTriangleExclamation}
+                                className={row.status === 'out' ? 'text-danger' : 'text-warning'}
+                                size={14}
+                              />
+                            </div>
+                          )}
+                          {row.id ? (
+                            <Link
+                              to={`/products/edit/${row.id}`}
+                              className="text-sm font-weight-bold mb-0 text-dark"
+                            >
+                              {row.name}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-weight-bold mb-0">{row.name}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="text-xs text-secondary font-monospace">
+                          {row.code || row.sku || '—'}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <span
+                          className={`text-sm font-weight-bold ${
+                            row.status === 'out' ? 'text-danger' : 'text-warning'
+                          }`}
+                        >
+                          {formatQty(row.stock)}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <span className="text-sm text-secondary">{formatQty(row.alertQty)}</span>
+                      </td>
+                      <td className="text-center">
+                        <span className="text-sm font-weight-bold text-danger">
+                          {formatQty(row.shortage)}
+                        </span>
+                      </td>
+                      <td className="text-center pe-4">{statusBadge(row.status)}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
