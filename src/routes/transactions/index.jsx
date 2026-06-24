@@ -15,6 +15,7 @@ import {
   formatTransactionAmount,
   groupTransactionsIntoJournals,
   sumDebitCreditForLines,
+  enrichTransactionDescription,
 } from '../../features/transactions/transactionsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -181,7 +182,7 @@ const Transactions = () => {
     const descriptions = [
       ...new Set(
         lines
-          .map((r) => (r.description != null ? String(r.description).trim() : ''))
+          .map((r) => enrichTransactionDescription(r))
           .filter((d) => d && !d.includes('Mode of Payment'))
       ),
     ];
@@ -209,7 +210,7 @@ const Transactions = () => {
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
                       Double-entry journals (grouped lines). API:{' '}
-                      <code className="small">GET /transaction/get-all-active?populate=account_id</code>
+                      <code className="small">GET /transaction/get-all-active?populate=account_id,ref_id</code>
                     </p>
                   ) : null}
                 </div>
@@ -476,7 +477,9 @@ const Transactions = () => {
                               <td className="text-sm font-weight-normal text-end">{debit}</td>
                               <td className="text-sm font-weight-normal text-end">{credit}</td>
                               <td className="text-sm font-weight-normal">
-                                {renderTransactionDescriptionLinks(item.description || '—')}
+                                {renderTransactionDescriptionLinks(
+                                  enrichTransactionDescription(item) || '—'
+                                )}
                               </td>
                               <td className="text-sm font-weight-normal">
                                 {item.status ? (

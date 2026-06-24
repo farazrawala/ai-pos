@@ -82,12 +82,17 @@ const normalizeTransactionsPayload = (result) => {
 };
 
 /**
- * GET /transaction/get-all-active?populate=account_id&amount_gt=0&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
+ * GET /transaction/get-all-active?populate=account_id,ref_id&amount_gt=0&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
  * User ledger: `populate=account_id,ref_id,reference_user_id&reference_user_id=<userId>`
  */
+const DEFAULT_TRANSACTION_POPULATE = 'account_id,ref_id';
+
 export async function fetchTransactionsRequest(params = {}) {
   const queryParams = new URLSearchParams();
-  queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+  queryParams.set(
+    'populate',
+    params.populate != null ? String(params.populate) : DEFAULT_TRANSACTION_POPULATE
+  );
   queryParams.set('amount_gt', '0');
 
   if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
@@ -258,6 +263,75 @@ export const parseTransactionAmount = (value) => {
   if (value == null || value === '') return 0;
   const n = typeof value === 'number' ? value : parseFloat(String(value).replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
+};
+
+const DOCUMENT_REF_IN_TEXT_RE = /(?:POR|ORD|PO|PR|SR)-[A-Z0-9-]+/i;
+const GENERIC_DOC_LABEL_RE =
+  /^(Purchase Order|Sale Order|Sales Order|Sales Return|Purchase Return|Purchase Order Return)$/i;
+
+const pickRefNoFromObj = (refObj) => {
+  if (!refObj || typeof refObj !== 'object' || Array.isArray(refObj)) return '';
+  const candidates = [
+    refObj.purchase_order_no,
+    refObj.purchaseOrderNo,
+    refObj.po_no,
+    refObj.purchase_return_no,
+    refObj.purchaseReturnNo,
+    refObj.sales_return_no,
+    refObj.salesReturnNo,
+    refObj.sales_order_no,
+    refObj.salesOrderNo,
+    refObj.order_no,
+    refObj.orderNo,
+    refObj.ref_no,
+    refObj.refNo,
+    refObj.invoice_no,
+    refObj.invoiceNo,
+  ];
+  const found = candidates.find((v) => v != null && String(v).trim() !== '');
+  return found != null ? String(found).trim() : '';
+};
+
+/** Document number from populated `reference_id` / `ref_id` on a transaction line. */
+export const extractDocumentRefNo = (row) => {
+  if (!row || typeof row !== 'object') return '';
+
+  for (const key of ['ref_no', 'refNo', 'order_no', 'orderNo']) {
+    const direct = row[key];
+    if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+  }
+
+  const rid = row.reference_id ?? row.referenceId;
+  if (rid && typeof rid === 'object' && !Array.isArray(rid)) {
+    for (const key of ['ref_no', 'refNo', 'order_no', 'orderNo']) {
+      const v = rid[key];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+    const nested = pickRefNoFromObj(rid.ref_id ?? rid.refId);
+    if (nested) return nested;
+  }
+
+  const directRef = row.ref_id ?? row.refId;
+  const fromDirect = pickRefNoFromObj(directRef);
+  if (fromDirect) return fromDirect;
+
+  return '';
+};
+
+/** Append linked document no when API description is generic, e.g. "Purchase Order" → "Purchase Order (PO-0042)". */
+export const enrichTransactionDescription = (row) => {
+  const raw = row?.description != null ? String(row.description).trim() : '';
+  if (!raw || raw.includes('Mode of Payment')) return raw;
+  if (DOCUMENT_REF_IN_TEXT_RE.test(raw)) return raw;
+
+  const docNo = extractDocumentRefNo(row);
+  if (!docNo) return raw;
+
+  if (GENERIC_DOC_LABEL_RE.test(raw)) {
+    return `${raw} (${docNo})`;
+  }
+
+  return raw;
 };
 
 /**
