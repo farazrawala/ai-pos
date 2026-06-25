@@ -332,12 +332,6 @@ const recordToForm = (po) => ({
     const s = String(raw);
     return s.length >= 10 ? s.slice(0, 10) : s;
   })(),
-  discount: po?.discount != null && po?.discount !== '' ? String(po.discount) : '',
-  shipment: (() => {
-    const v = po?.shipment ?? po?.shipping;
-    if (v == null || v === '') return '';
-    return String(v);
-  })(),
   account_id: (() => {
     const raw = po?.account_id ?? po?.payment_method_accounts_id;
     if (raw == null || raw === '') return '';
@@ -632,13 +626,9 @@ const SalesReturnEdit = () => {
       const { amount } = computeLineDerived(row);
       subTotal += amount;
     });
-    const shipNum = parseFloat(String(form.shipment ?? '').replace(/,/g, ''));
-    const discNum = parseFloat(String(form.discount ?? '').replace(/,/g, ''));
-    const shipment = Number.isFinite(shipNum) ? shipNum : 0;
-    const discount = Number.isFinite(discNum) ? discNum : 0;
-    const total = Math.max(0, subTotal + shipment - discount);
-    return { subTotal, shipment, discount, total };
-  }, [lines, form.shipment, form.discount]);
+    const total = Math.max(0, subTotal);
+    return { subTotal, shipment: 0, discount: 0, total };
+  }, [lines]);
 
   useEffect(() => {
     if (amountPaidDirty) return;
@@ -859,8 +849,8 @@ const SalesReturnEdit = () => {
       sales_order_no: form.sales_order_no.trim(),
       notes: form.notes.trim(),
       order_status: form.order_status || 'placed',
-      discount: form.discount.trim(),
-      shipment: form.shipment.trim() || undefined,
+      discount: '0',
+      shipment: '0',
       account_id: accountStr === '' ? undefined : accountStr,
       payment_method_accounts_id: accountStr === '' ? undefined : accountStr,
       amount_received: form.amount_received,
@@ -1327,38 +1317,6 @@ const SalesReturnEdit = () => {
                       <div className="po-form-summary-panel">
                         <div className="po-form-section-title mb-3">Summary &amp; payment</div>
                         <div className="row g-2 mb-2">
-                          <div className="col-6">
-                            <label className="form-label" htmlFor="po-edit-shipment">
-                              Shipment
-                            </label>
-                            <input
-                              id="po-edit-shipment"
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="form-control form-control-sm text-end"
-                              placeholder="0.00"
-                              value={form.shipment}
-                              onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
-                              disabled={isSubmitting}
-                            />
-                          </div>
-                          <div className="col-6">
-                            <label className="form-label" htmlFor="po-edit-discount">
-                              Discount
-                            </label>
-                            <input
-                              id="po-edit-discount"
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="form-control form-control-sm text-end"
-                              placeholder="0.00"
-                              value={form.discount}
-                              onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-                              disabled={isSubmitting}
-                            />
-                          </div>
                           <div className="col-12">
                             <label className="form-label" htmlFor="po-edit-account">
                               Mode of payment <span className="text-danger">*</span>
@@ -1407,14 +1365,6 @@ const SalesReturnEdit = () => {
                           <div className="po-form-summary-row">
                             <span>Sub total</span>
                             <span>{fmt(summary.subTotal)}</span>
-                          </div>
-                          <div className="po-form-summary-row">
-                            <span>Shipment</span>
-                            <span>{fmt(summary.shipment)}</span>
-                          </div>
-                          <div className="po-form-summary-row">
-                            <span>Discount</span>
-                            <span>−{fmt(summary.discount)}</span>
                           </div>
                           <div className="po-form-summary-row po-form-summary-total">
                             <span>Total</span>
