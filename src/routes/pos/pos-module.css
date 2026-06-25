@@ -336,7 +336,10 @@
   border: 1px solid var(--pos-border);
   border-radius: 0.65rem;
   background: #fff;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
   cursor: pointer;
   min-height: 128px;
 }
@@ -349,7 +352,7 @@
 
 .pos-page .pos-product-img {
   height: 72px;
-  object-fit: contain;
+  object-fit: cover;
   background: #f8f9fa;
 }
 
