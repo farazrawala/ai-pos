@@ -154,8 +154,6 @@ const emptyForm = () => ({
   order_status: 'placed',
   notes: '',
   expected_delivery_date: localDateInputValue(),
-  shipment: '',
-  discount: '',
   account_id: '',
   amount_received: '',
 });
@@ -304,7 +302,6 @@ const PurchaseOrderReturnAdd = () => {
           sortBy: 'name',
           sortOrder: 'asc',
           account_type: accountFilters.account_type,
-          include_id: accountFilters.include_id,
           exclude_id: accountFilters.exclude_id,
         });
         const list = Array.isArray(result?.data) ? result.data : [];
@@ -470,13 +467,9 @@ const PurchaseOrderReturnAdd = () => {
       const { amount } = computeLineDerived(row);
       subTotal += amount;
     });
-    const shipNum = parseFloat(String(form.shipment ?? '').replace(/,/g, ''));
-    const discNum = parseFloat(String(form.discount ?? '').replace(/,/g, ''));
-    const shipment = Number.isFinite(shipNum) ? shipNum : 0;
-    const discount = Number.isFinite(discNum) ? discNum : 0;
-    const total = Math.max(0, subTotal + shipment - discount);
-    return { subTotal, shipment, discount, total };
-  }, [lines, form.shipment, form.discount]);
+    const total = Math.max(0, subTotal);
+    return { subTotal, shipment: 0, discount: 0, total };
+  }, [lines]);
 
   useEffect(() => {
     if (amountPaidDirty) return;
@@ -674,8 +667,6 @@ const PurchaseOrderReturnAdd = () => {
       })
       .filter((l) => l.product_id);
 
-    const shipmentStr = String(form.shipment ?? '').trim();
-    const discountStr = String(form.discount ?? '').trim();
     const accountStr = String(form.account_id ?? '').trim();
     const totalRounded = roundMoney2(summary.total);
     const paidRounded = roundMoney2(parseMoneyInput(form.amount_received));
@@ -686,8 +677,8 @@ const PurchaseOrderReturnAdd = () => {
       supplier_id: form.supplier_id.trim() || undefined,
       order_status: form.order_status || 'placed',
       notes: form.notes.trim() || undefined,
-      shipment: shipmentStr === '' ? '0' : shipmentStr,
-      discount: discountStr === '' ? '0' : discountStr,
+      shipment: '0',
+      discount: '0',
       account_id: accountStr === '' ? undefined : accountStr,
       payment_method_accounts_id: accountStr === '' ? undefined : accountStr,
       amount_received: form.amount_received ?? '',
@@ -1299,38 +1290,6 @@ const PurchaseOrderReturnAdd = () => {
             <div className="col-md-6">
               <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
               <div className="row g-2 mb-3">
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-shipment">
-                    Shipment
-                  </label>
-                  <input
-                    id="po-add-shipment"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.shipment}
-                    onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-discount">
-                    Discount
-                  </label>
-                  <input
-                    id="po-add-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.discount}
-                    onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
                 <div className="col-12">
                   <label className="form-label small text-muted mb-1" htmlFor="po-add-account">
                     Mode of payment <span className="text-danger">*</span>
@@ -1376,14 +1335,6 @@ const PurchaseOrderReturnAdd = () => {
                 <div className="po-add-summary-row">
                   <span className="text-muted">Sub total</span>
                   <span className="fw-semibold">{fmt(summary.subTotal)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Shipment</span>
-                  <span className="fw-semibold">{fmt(summary.shipment)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Discount</span>
-                  <span className="fw-semibold">−{fmt(summary.discount)}</span>
                 </div>
                 <div className="po-add-summary-row po-add-summary-total">
                   <span>Total</span>
