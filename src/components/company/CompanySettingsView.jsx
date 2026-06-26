@@ -298,328 +298,333 @@ export default function CompanySettingsView() {
 
   if (loading) {
     return (
-      <div className="card shadow-sm" style={{ maxWidth: '720px', margin: '0 auto' }}>
-        <div className="card-body text-center p-4">Loading company settings…</div>
+      <div className="company-card">
+        <div className="company-card-body text-center text-muted py-5">
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Loading…</span>
+          </div>
+          <div>Loading company settings…</div>
+        </div>
       </div>
     );
   }
 
+  const logoSrc = logoPreview || existingLogoUrl;
+
   return (
     <>
-      <div className="card shadow-sm" style={{ maxWidth: '720px', margin: '0 auto' }}>
-        <div className="card-header pb-3">
-          <h5 className="mb-1">Company details</h5>
-          <p className="text-sm text-muted mb-0">
-            Business profile fields saved on the company record.
-          </p>
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-id-card" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Company details</h5>
+            <p className="company-card-subtitle">
+              Business profile fields saved on the company record.
+            </p>
+          </div>
         </div>
-        <div className="card-body pt-0">
+        <div className="company-card-body">
           {loadError ? <div className="alert alert-warning py-2 text-sm">{loadError}</div> : null}
 
           <form onSubmit={handleCompanySubmit}>
-            <div className="mb-4">
-              <label className="form-label d-block text-center" htmlFor="company-logo">
-                Logo image <span className="text-muted">({COMPANY_LOGO_FIELD})</span>
-              </label>
-              <div className="text-center">
-                {logoPreview || existingLogoUrl ? (
-                  <img
-                    src={logoPreview || existingLogoUrl}
-                    alt="Company logo"
-                    className="border rounded mb-2 bg-white"
-                    style={{ width: '112px', height: '112px', objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div
-                    className="d-inline-flex align-items-center justify-content-center rounded border bg-light text-muted mb-2"
-                    style={{ width: '112px', height: '112px' }}
-                  >
-                    No logo
+            <div className="row g-4">
+              {/* Logo */}
+              <div className="col-lg-4">
+                <div className="company-logo-panel">
+                  <div className="company-logo-frame">
+                    {logoSrc ? (
+                      <img src={logoSrc} alt="Company logo" />
+                    ) : (
+                      <div className="company-logo-empty">
+                        <i className="fas fa-image" aria-hidden="true" />
+                        <span>No logo</span>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  <input
+                    ref={logoInputRef}
+                    id="company-logo"
+                    type="file"
+                    className="d-none"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    disabled={companySaving || !companyId}
+                  />
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary mb-0"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={companySaving || !companyId}
+                    >
+                      <i className="fas fa-upload me-1" aria-hidden="true" />
+                      {logoSrc ? 'Change logo' : 'Upload logo'}
+                    </button>
+                    {logoPreview ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary mb-0"
+                        onClick={clearLogoSelection}
+                        disabled={companySaving}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  {errors.company_logo ? (
+                    <div className="text-danger small mt-2">{errors.company_logo}</div>
+                  ) : null}
+                  <p className="company-logo-hint">
+                    Saved to <code className="text-xs">{COMPANY_LOGO_FIELD}</code>. Shown on invoices
+                    when “Show logo” is enabled in printer settings.
+                  </p>
+                </div>
               </div>
-              <div className="mx-auto" style={{ maxWidth: '360px' }}>
-                <input
-                  ref={logoInputRef}
-                  id="company-logo"
-                  type="file"
-                  className={`form-control form-control-sm ${errors.company_logo ? 'is-invalid' : ''}`}
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  disabled={companySaving || !companyId}
-                />
-                <small className="text-muted d-block mt-1">
-                  Upload image for <code className="text-xs">{COMPANY_LOGO_FIELD}</code>. Used on
-                  invoices when &quot;Show logo&quot; is enabled in printer settings.
-                </small>
-                {errors.company_logo ? (
-                  <div className="invalid-feedback d-block">{errors.company_logo}</div>
-                ) : null}
-                {logoPreview ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-secondary mt-2"
-                    onClick={clearLogoSelection}
-                    disabled={companySaving}
-                  >
-                    Remove new logo
-                  </button>
-                ) : null}
+
+              {/* Fields */}
+              <div className="col-lg-8">
+                <div className="mb-3">
+                  <label className="company-label d-block" htmlFor="company-name">
+                    Company name <span className="req">*</span>
+                  </label>
+                  <input
+                    id="company-name"
+                    className={`form-control company-control ${errors.company_name ? 'is-invalid' : ''}`}
+                    value={form.company_name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, company_name: e.target.value }))}
+                    disabled={companySaving || !companyId}
+                  />
+                  {errors.company_name ? (
+                    <div className="invalid-feedback">{errors.company_name}</div>
+                  ) : null}
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <label className="company-label d-block" htmlFor="company-phone">
+                      Phone
+                    </label>
+                    <input
+                      id="company-phone"
+                      type="tel"
+                      className="form-control company-control"
+                      value={form.company_phone}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, company_phone: e.target.value }))
+                      }
+                      disabled={companySaving || !companyId}
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="company-label d-block" htmlFor="company-email">
+                      Email
+                    </label>
+                    <input
+                      id="company-email"
+                      type="email"
+                      className={`form-control company-control ${errors.company_email ? 'is-invalid' : ''}`}
+                      value={form.company_email}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, company_email: e.target.value }))
+                      }
+                      disabled={companySaving || !companyId}
+                    />
+                    {errors.company_email ? (
+                      <div className="invalid-feedback">{errors.company_email}</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="company-label d-block" htmlFor="company-address">
+                    Address
+                  </label>
+                  <textarea
+                    id="company-address"
+                    className="form-control company-control"
+                    rows={3}
+                    value={form.company_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, company_address: e.target.value }))
+                    }
+                    disabled={companySaving || !companyId}
+                  />
+                </div>
               </div>
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" htmlFor="company-name">
-                Company name <span className="text-danger">*</span>
-              </label>
-              <input
-                id="company-name"
-                className={`form-control ${errors.company_name ? 'is-invalid' : ''}`}
-                value={form.company_name}
-                onChange={(e) => setForm((prev) => ({ ...prev, company_name: e.target.value }))}
-                disabled={companySaving || !companyId}
-              />
-              {errors.company_name ? (
-                <div className="invalid-feedback">{errors.company_name}</div>
-              ) : null}
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" htmlFor="company-phone">
-                Phone
-              </label>
-              <input
-                id="company-phone"
-                type="tel"
-                className="form-control"
-                value={form.company_phone}
-                onChange={(e) => setForm((prev) => ({ ...prev, company_phone: e.target.value }))}
-                disabled={companySaving || !companyId}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" htmlFor="company-email">
-                Email
-              </label>
-              <input
-                id="company-email"
-                type="email"
-                className={`form-control ${errors.company_email ? 'is-invalid' : ''}`}
-                value={form.company_email}
-                onChange={(e) => setForm((prev) => ({ ...prev, company_email: e.target.value }))}
-                disabled={companySaving || !companyId}
-              />
-              {errors.company_email ? (
-                <div className="invalid-feedback">{errors.company_email}</div>
-              ) : null}
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" htmlFor="company-address">
-                Address
-              </label>
-              <textarea
-                id="company-address"
-                className="form-control"
-                rows={3}
-                value={form.company_address}
-                onChange={(e) => setForm((prev) => ({ ...prev, company_address: e.target.value }))}
-                disabled={companySaving || !companyId}
-              />
             </div>
 
             {companySaveError ? (
-              <div className="alert alert-danger py-2">{companySaveError}</div>
+              <div className="alert alert-danger py-2 mt-3 mb-0">{companySaveError}</div>
             ) : null}
 
-            <div className="d-flex justify-content-end">
+            <div className="company-card-footer">
               <button
                 type="submit"
-                className="btn btn-primary"
+                className="btn btn-primary mb-0"
                 disabled={companySaving || !companyId}
               >
-                {companySaving ? 'Saving…' : 'Save company'}
+                {companySaving ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-save me-2" aria-hidden="true" />
+                    Save company
+                  </>
+                )}
               </button>
             </div>
           </form>
         </div>
       </div>
 
-      <div className="card shadow-sm mt-4 mb-4" style={{ maxWidth: '720px', margin: '0 auto' }}>
-        <div className="card-header pb-3">
-          <h5 className="mb-1">Printer settings</h5>
-          <p className="text-sm text-muted mb-0">
-            Toggle each option on or off — changes save immediately to{' '}
-            <code className="text-xs">printer_settings</code>.
-          </p>
-        </div>
-        <div className="card-body pt-0">
-          <div className="table-responsive">
-            <table className="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th className="text-uppercase text-secondary text-xxs font-weight-bolder">
-                    Option
-                  </th>
-                  <th
-                    className="text-uppercase text-secondary text-xxs font-weight-bolder text-end"
-                    style={{ width: '180px' }}
-                  >
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {PRINTER_SETTING_SECTIONS.map((section) => (
-                  <Fragment key={section.title}>
-                    <tr className="table-light">
-                      <td
-                        colSpan={2}
-                        className="text-xs text-uppercase text-secondary fw-bold py-2"
-                      >
-                        {section.title}
-                      </td>
-                    </tr>
-                    {section.keys.map((key) => {
-                      const { label, hint } = printerSettingByKey[key] || { label: key };
-                      const isOn = Boolean(printerSettings[key]);
-                      return (
-                        <tr key={key}>
-                          <td className="text-sm">
-                            <div className="fw-semibold">{label}</div>
-                            {hint ? <small className="text-muted">{hint}</small> : null}
-                          </td>
-                          <td className="text-end">
-                            <div className="d-inline-flex align-items-center justify-content-end gap-2">
-                              <label
-                                className="form-check form-switch mb-0"
-                                htmlFor={`printer-setting-${key}`}
-                                style={{
-                                  cursor:
-                                    togglingPrinterKey || !companyId ? 'not-allowed' : 'pointer',
-                                }}
-                              >
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  role="switch"
-                                  id={`printer-setting-${key}`}
-                                  checked={isOn}
-                                  onChange={() => handleTogglePrinterSetting(key)}
-                                  disabled={!!togglingPrinterKey || !companyId}
-                                  aria-label={`${label} ${isOn ? 'on' : 'off'}`}
-                                />
-                              </label>
-                              {togglingPrinterKey === key ? (
-                                <span
-                                  className="spinner-border spinner-border-sm text-primary"
-                                  role="status"
-                                  style={{ width: '1rem', height: '1rem' }}
-                                >
-                                  <span className="visually-hidden">Saving…</span>
-                                </span>
-                              ) : (
-                                <span className={`badge ${isOn ? 'bg-success' : 'bg-secondary'}`}>
-                                  {isOn ? 'On' : 'Off'}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-print" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Printer settings</h5>
+            <p className="company-card-subtitle">
+              Toggle each option — changes save immediately to{' '}
+              <code className="text-xs">printer_settings</code>.
+            </p>
           </div>
+        </div>
+        <div className="company-card-body">
+          {PRINTER_SETTING_SECTIONS.map((section) => (
+            <Fragment key={section.title}>
+              <div className="settings-section-label">{section.title}</div>
+              {section.keys.map((key) => {
+                const { label, hint } = printerSettingByKey[key] || { label: key };
+                const isOn = Boolean(printerSettings[key]);
+                const busy = togglingPrinterKey === key;
+                return (
+                  <div className="settings-row" key={key}>
+                    <div>
+                      <div className="settings-row-label">{label}</div>
+                      {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                    </div>
+                    <div className="settings-row-control">
+                      {busy ? (
+                        <span
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                          style={{ width: '1rem', height: '1rem' }}
+                        >
+                          <span className="visually-hidden">Saving…</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}
+                        >
+                          {isOn ? 'On' : 'Off'}
+                        </span>
+                      )}
+                      <label
+                        className="form-check form-switch settings-switch"
+                        htmlFor={`printer-setting-${key}`}
+                        style={{
+                          cursor: togglingPrinterKey || !companyId ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          role="switch"
+                          id={`printer-setting-${key}`}
+                          checked={isOn}
+                          onChange={() => handleTogglePrinterSetting(key)}
+                          disabled={!!togglingPrinterKey || !companyId}
+                          aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
 
           {printerSaveError ? (
-            <div className="alert alert-danger py-2 mt-3">{printerSaveError}</div>
+            <div className="alert alert-danger py-2 mt-3 mb-0">{printerSaveError}</div>
           ) : null}
         </div>
       </div>
 
-      <div className="card shadow-sm mt-4 mb-4" style={{ maxWidth: '720px', margin: '0 auto' }}>
-        <div className="card-header pb-3">
-          <h5 className="mb-1">Product settings</h5>
-          <p className="text-sm text-muted mb-0">
-            POS product behavior — changes save immediately to{' '}
-            <code className="text-xs">product_settings</code>.
-          </p>
-        </div>
-        <div className="card-body pt-0">
-          <div className="table-responsive">
-            <table className="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th className="text-uppercase text-secondary text-xxs font-weight-bolder">
-                    Option
-                  </th>
-                  <th
-                    className="text-uppercase text-secondary text-xxs font-weight-bolder text-end"
-                    style={{ width: '180px' }}
-                  >
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {PRODUCT_SETTING_DEFS.map(({ key }) => {
-                  const { label, hint } = productSettingByKey[key] || { label: key };
-                  const isOn = Boolean(productSettings[key]);
-                  return (
-                    <tr key={key}>
-                      <td className="text-sm">
-                        <div className="fw-semibold">{label}</div>
-                        {hint ? <small className="text-muted">{hint}</small> : null}
-                      </td>
-                      <td className="text-end">
-                        <div className="d-inline-flex align-items-center justify-content-end gap-2">
-                          <label
-                            className="form-check form-switch mb-0"
-                            htmlFor={`product-setting-${key}`}
-                            style={{
-                              cursor:
-                                togglingProductKey || !companyId ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              role="switch"
-                              id={`product-setting-${key}`}
-                              checked={isOn}
-                              onChange={() => handleToggleProductSetting(key)}
-                              disabled={!!togglingProductKey || !companyId}
-                              aria-label={`${label} ${isOn ? 'on' : 'off'}`}
-                            />
-                          </label>
-                          {togglingProductKey === key ? (
-                            <span
-                              className="spinner-border spinner-border-sm text-primary"
-                              role="status"
-                              style={{ width: '1rem', height: '1rem' }}
-                            >
-                              <span className="visually-hidden">Saving…</span>
-                            </span>
-                          ) : (
-                            <span className={`badge ${isOn ? 'bg-success' : 'bg-secondary'}`}>
-                              {isOn ? 'On' : 'Off'}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-box-open" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Product settings</h5>
+            <p className="company-card-subtitle">
+              POS product behavior — changes save immediately to{' '}
+              <code className="text-xs">product_settings</code>.
+            </p>
           </div>
+        </div>
+        <div className="company-card-body">
+          {PRODUCT_SETTING_DEFS.map(({ key }) => {
+            const { label, hint } = productSettingByKey[key] || { label: key };
+            const isOn = Boolean(productSettings[key]);
+            const busy = togglingProductKey === key;
+            return (
+              <div className="settings-row" key={key}>
+                <div>
+                  <div className="settings-row-label">{label}</div>
+                  {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                </div>
+                <div className="settings-row-control">
+                  {busy ? (
+                    <span
+                      className="spinner-border spinner-border-sm text-primary"
+                      role="status"
+                      style={{ width: '1rem', height: '1rem' }}
+                    >
+                      <span className="visually-hidden">Saving…</span>
+                    </span>
+                  ) : (
+                    <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                      {isOn ? 'On' : 'Off'}
+                    </span>
+                  )}
+                  <label
+                    className="form-check form-switch settings-switch"
+                    htmlFor={`product-setting-${key}`}
+                    style={{
+                      cursor: togglingProductKey || !companyId ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id={`product-setting-${key}`}
+                      checked={isOn}
+                      onChange={() => handleToggleProductSetting(key)}
+                      disabled={!!togglingProductKey || !companyId}
+                      aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                    />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
 
           {productSaveError ? (
-            <div className="alert alert-danger py-2 mt-3">{productSaveError}</div>
+            <div className="alert alert-danger py-2 mt-3 mb-0">{productSaveError}</div>
           ) : null}
         </div>
       </div>
