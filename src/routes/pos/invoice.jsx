@@ -717,9 +717,7 @@ const PosInvoice = () => {
         if (company && typeof company === 'object') {
           const merged = mergeCompanyRecordForSettings(company, authCompany);
           setInvoiceCompany(merged);
-          settings = mergePrinterSettings(
-            extractPrinterSettingsFromCompanyBody({ data: merged })
-          );
+          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
           brand = buildBrandFromCompany(merged);
         }
       } catch {
@@ -775,9 +773,7 @@ const PosInvoice = () => {
         if (company && typeof company === 'object') {
           const merged = mergeCompanyRecordForSettings(company, authCompany);
           setInvoiceCompany(merged);
-          settings = mergePrinterSettings(
-            extractPrinterSettingsFromCompanyBody({ data: merged })
-          );
+          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
           brand = buildBrandFromCompany(merged);
         }
       } catch {
@@ -859,7 +855,7 @@ const PosInvoice = () => {
 
   return (
     <div className="pos-invoice-page container-fluid py-4 px-0">
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm pos-invoice-card">
             <div className="card-header pb-3 pos-inv-no-print">
@@ -940,9 +936,15 @@ const PosInvoice = () => {
                     ) : null}
                     <div className="pos-inv-company-meta">
                       {[
-                        printerSettings.show_email && companyBrand.email ? companyBrand.email : null,
-                        printerSettings.show_phone && companyBrand.phone ? companyBrand.phone : null,
-                        printerSettings.show_address && companyBrand.address ? companyBrand.address : null,
+                        printerSettings.show_email && companyBrand.email
+                          ? companyBrand.email
+                          : null,
+                        printerSettings.show_phone && companyBrand.phone
+                          ? companyBrand.phone
+                          : null,
+                        printerSettings.show_address && companyBrand.address
+                          ? companyBrand.address
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(' · ') || 'Point of sale invoice'}
@@ -992,7 +994,9 @@ const PosInvoice = () => {
                             })}
                         </select>
                         {usersError ? (
-                          <div className="small text-danger mb-2 pos-inv-no-print">{usersError}</div>
+                          <div className="small text-danger mb-2 pos-inv-no-print">
+                            {usersError}
+                          </div>
                         ) : null}
                       </>
                     ) : null}
@@ -1119,7 +1123,10 @@ const PosInvoice = () => {
                           <th className="text-end pos-inv-col-num">Qty</th>
                           <th className="text-end pos-inv-col-num">Amount</th>
                           {canUpdateInvoice ? (
-                            <th className="text-center pos-inv-col-action pos-inv-no-print" aria-label="Remove row" />
+                            <th
+                              className="text-center pos-inv-col-action pos-inv-no-print"
+                              aria-label="Remove row"
+                            />
                           ) : null}
                         </tr>
                       </thead>
@@ -1178,7 +1185,9 @@ const PosInvoice = () => {
                                       }
                                     />
                                   </td>
-                                  <td className="text-end fw-semibold text-nowrap">{fmt(amount)}</td>
+                                  <td className="text-end fw-semibold text-nowrap">
+                                    {fmt(amount)}
+                                  </td>
                                   <td className="text-center pos-inv-no-print">
                                     <button
                                       type="button"
@@ -1228,7 +1237,9 @@ const PosInvoice = () => {
                           className="form-select form-select-sm"
                           value={invoicePosPayMethod}
                           onChange={(e) => setInvoicePosPayMethod(e.target.value)}
-                          disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
+                          disabled={
+                            paymentMethodsStatus === 'loading' || paymentMethods.length === 0
+                          }
                         >
                           <option value="">Select account</option>
                           {paymentMethods.map((method) => {
@@ -1262,116 +1273,117 @@ const PosInvoice = () => {
                     <div className="pos-inv-summary-panel">
                       <div className="pos-inv-section-title mb-3">Summary</div>
                       <div className="pos-inv-summary-box">
-              <div className="pos-inv-summary-row">
-                <span>Sub total</span>
-                <span>{fmt(summaryDisplay.subTotal)}</span>
-              </div>
-              <div className="pos-inv-summary-row">
-                <span>Tax</span>
-                <span>{fmt(summaryDisplay.tax)}</span>
-              </div>
-              {printerSettings.show_discount || canUpdateInvoice ? (
-                <div
-                  className={`pos-inv-summary-row align-items-center ${!printerSettings.show_discount ? 'pos-inv-no-print' : ''}`}
-                >
-                  <span className="text-muted">Discount</span>
-                  {canUpdateInvoice ? (
-                    <>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm text-end pos-inv-no-print"
-                        style={{ maxWidth: 140 }}
-                        inputMode="decimal"
-                        value={invoiceDiscountInput}
-                        onChange={(e) => setInvoiceDiscountInput(e.target.value)}
-                        aria-label="Discount amount"
-                      />
-                      <span className="d-none d-print-inline-block fw-semibold">
-                        {fmt(summaryDisplay.discount)}
-                      </span>
-                    </>
-                  ) : (
-                    <span>{fmt(summaryDisplay.discount)}</span>
-                  )}
-                </div>
-              ) : null}
-              {printerSettings.show_shipping || canUpdateInvoice ? (
-                <div
-                  className={`pos-inv-summary-row align-items-center ${!printerSettings.show_shipping ? 'pos-inv-no-print' : ''}`}
-                >
-                  <span className="text-muted">Shipping</span>
-                  {canUpdateInvoice ? (
-                    <>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm text-end pos-inv-no-print"
-                        style={{ maxWidth: 140 }}
-                        inputMode="decimal"
-                        value={invoiceShippingInput}
-                        onChange={(e) => setInvoiceShippingInput(e.target.value)}
-                        aria-label="Shipping amount"
-                      />
-                      <span className="d-none d-print-inline-block fw-semibold">
-                        {fmt(summaryDisplay.shipping)}
-                      </span>
-                    </>
-                  ) : (
-                    <span>{fmt(summaryDisplay.shipping)}</span>
-                  )}
-                </div>
-              ) : null}
-              <div className="pos-inv-summary-row pos-inv-summary-total">
-                <span>Total</span>
-                <span>{fmt(summaryDisplay.total)}</span>
-              </div>
-              {printerSettings.show_payment_made ? (
-                <div className="pos-inv-summary-row pos-inv-payment-made">
-                  <span>Payment Made</span>
-                  <span>(-) {fmt(summaryDisplay.paymentMade)}</span>
-                </div>
-              ) : null}
-              {printerSettings.show_balance_due ? (
-                <div className="pos-inv-summary-row fw-bold">
-                  <span>Balance Due</span>
-                  <span>{fmt(summaryDisplay.balanceDue)}</span>
-                </div>
-              ) : null}
-              {printerSettings.show_change_return && sourceOrder ? (
-                <>
-                  {sourceOrder.amount_received != null && sourceOrder.amount_received !== '' ? (
-                    <div className="pos-inv-summary-row">
-                      <span className="text-muted">Amount received</span>
-                      <span>{fmt(sourceOrder.amount_received)}</span>
-                    </div>
-                  ) : null}
-                  {sourceOrder.change_given != null && sourceOrder.change_given !== '' ? (
-                    <div className="pos-inv-summary-row">
-                      <span className="text-muted">Change return</span>
-                      <span>{fmt(sourceOrder.change_given)}</span>
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
+                        <div className="pos-inv-summary-row">
+                          <span>Sub total</span>
+                          <span>{fmt(summaryDisplay.subTotal)}</span>
+                        </div>
+                        <div className="pos-inv-summary-row">
+                          <span>Tax</span>
+                          <span>{fmt(summaryDisplay.tax)}</span>
+                        </div>
+                        {printerSettings.show_discount || canUpdateInvoice ? (
+                          <div
+                            className={`pos-inv-summary-row align-items-center ${!printerSettings.show_discount ? 'pos-inv-no-print' : ''}`}
+                          >
+                            <span className="text-muted">Discount</span>
+                            {canUpdateInvoice ? (
+                              <>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm text-end pos-inv-no-print"
+                                  style={{ maxWidth: 140 }}
+                                  inputMode="decimal"
+                                  value={invoiceDiscountInput}
+                                  onChange={(e) => setInvoiceDiscountInput(e.target.value)}
+                                  aria-label="Discount amount"
+                                />
+                                <span className="d-none d-print-inline-block fw-semibold">
+                                  {fmt(summaryDisplay.discount)}
+                                </span>
+                              </>
+                            ) : (
+                              <span>{fmt(summaryDisplay.discount)}</span>
+                            )}
+                          </div>
+                        ) : null}
+                        {printerSettings.show_shipping || canUpdateInvoice ? (
+                          <div
+                            className={`pos-inv-summary-row align-items-center ${!printerSettings.show_shipping ? 'pos-inv-no-print' : ''}`}
+                          >
+                            <span className="text-muted">Shipping</span>
+                            {canUpdateInvoice ? (
+                              <>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm text-end pos-inv-no-print"
+                                  style={{ maxWidth: 140 }}
+                                  inputMode="decimal"
+                                  value={invoiceShippingInput}
+                                  onChange={(e) => setInvoiceShippingInput(e.target.value)}
+                                  aria-label="Shipping amount"
+                                />
+                                <span className="d-none d-print-inline-block fw-semibold">
+                                  {fmt(summaryDisplay.shipping)}
+                                </span>
+                              </>
+                            ) : (
+                              <span>{fmt(summaryDisplay.shipping)}</span>
+                            )}
+                          </div>
+                        ) : null}
+                        <div className="pos-inv-summary-row pos-inv-summary-total">
+                          <span>Total</span>
+                          <span>{fmt(summaryDisplay.total)}</span>
+                        </div>
+                        {printerSettings.show_payment_made ? (
+                          <div className="pos-inv-summary-row pos-inv-payment-made">
+                            <span>Payment Made</span>
+                            <span>(-) {fmt(summaryDisplay.paymentMade)}</span>
+                          </div>
+                        ) : null}
+                        {printerSettings.show_balance_due ? (
+                          <div className="pos-inv-summary-row fw-bold">
+                            <span>Balance Due</span>
+                            <span>{fmt(summaryDisplay.balanceDue)}</span>
+                          </div>
+                        ) : null}
+                        {printerSettings.show_change_return && sourceOrder ? (
+                          <>
+                            {sourceOrder.amount_received != null &&
+                            sourceOrder.amount_received !== '' ? (
+                              <div className="pos-inv-summary-row">
+                                <span className="text-muted">Amount received</span>
+                                <span>{fmt(sourceOrder.amount_received)}</span>
+                              </div>
+                            ) : null}
+                            {sourceOrder.change_given != null && sourceOrder.change_given !== '' ? (
+                              <div className="pos-inv-summary-row">
+                                <span className="text-muted">Change return</span>
+                                <span>{fmt(sourceOrder.change_given)}</span>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="pos-inv-section pos-inv-footer-meta">
-          {printerSettings.show_qrcode ? (
-            <div className="mb-4 d-flex flex-column align-items-center text-center">
-              <InvoiceQrCode value={data.publicUrl} size={96} />
-              <small className="text-muted mt-2">Scan invoice QR code</small>
-            </div>
-          ) : null}
+                {printerSettings.show_qrcode ? (
+                  <div className="mb-4 d-flex flex-column align-items-center text-center">
+                    <InvoiceQrCode value={data.publicUrl} size={96} />
+                    <small className="text-muted mt-2">Scan invoice QR code</small>
+                  </div>
+                ) : null}
                 <div className="pos-inv-section-title">Terms &amp; conditions</div>
                 <ol className="pos-inv-terms-list">
-            {data.termsBody.map((t, i) => (
-              <li key={i} className="mb-1">
-                {t}
-              </li>
-            ))}
+                  {data.termsBody.map((t, i) => (
+                    <li key={i} className="mb-1">
+                      {t}
+                    </li>
+                  ))}
                 </ol>
                 {data.publicUrl ? (
                   <>
@@ -1394,7 +1406,9 @@ const PosInvoice = () => {
                     disabled={invoiceSaving || !invoiceHasSaveableLines}
                     onClick={handleUpdateInvoice}
                     title={
-                      !invoiceHasSaveableLines ? 'Add at least one product line' : 'Save invoice changes'
+                      !invoiceHasSaveableLines
+                        ? 'Add at least one product line'
+                        : 'Save invoice changes'
                     }
                   >
                     {invoiceSaving ? (

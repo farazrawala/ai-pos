@@ -391,7 +391,7 @@ const ProductAdd = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
             <div className="card-header pb-0">
@@ -574,9 +574,7 @@ const ProductAdd = () => {
                       value={form.tax_rate}
                       onChange={handleChange}
                     />
-                    {errors.tax_rate && (
-                      <div className="invalid-feedback">{errors.tax_rate}</div>
-                    )}
+                    {errors.tax_rate && <div className="invalid-feedback">{errors.tax_rate}</div>}
                   </div>
                   <div className="col-md-3 col-6 mb-3">
                     <label htmlFor="price" className="form-label">

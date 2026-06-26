@@ -9,10 +9,7 @@ import {
   clearUpdateStatus,
 } from '../../features/users/usersSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-import {
-  digitsOnlyFromPhone,
-  isUserUploadFilePart,
-} from '../../features/users/usersAPI.js';
+import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
 
@@ -45,12 +42,7 @@ const buildBulkPermissions = (allGranted) =>
 const pickUserProfileImageUrl = (user) => {
   if (!user || typeof user !== 'object') return '';
   const raw =
-    user.profile_image ??
-    user.profileImage ??
-    user.avatar ??
-    user.image ??
-    user.photo ??
-    '';
+    user.profile_image ?? user.profileImage ?? user.avatar ?? user.image ?? user.photo ?? '';
   return resolveCategoryMediaUrl(raw);
 };
 
@@ -152,7 +144,10 @@ const EditUser = () => {
       ),
       password: '',
       initial_balance:
-        currentUser.initial_balance ?? currentUser.initialBalance ?? currentUser.opening_balance ?? 0,
+        currentUser.initial_balance ??
+        currentUser.initialBalance ??
+        currentUser.opening_balance ??
+        0,
       status: currentUser.status || 'active',
       role: Array.isArray(currentUser.role)
         ? currentUser.role
@@ -232,7 +227,8 @@ const EditUser = () => {
     } else if (phoneDigits.length > 11) {
       nextErrors.phone = 'Phone number must be 11 digits or less';
     }
-    if (!Array.isArray(form.role) || form.role.length === 0) nextErrors.role = 'Select at least one role';
+    if (!Array.isArray(form.role) || form.role.length === 0)
+      nextErrors.role = 'Select at least one role';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -240,7 +236,9 @@ const EditUser = () => {
   const handleRoleToggle = (roleName) => {
     setForm((prev) => {
       const hasRole = prev.role.includes(roleName);
-      const nextRole = hasRole ? prev.role.filter((item) => item !== roleName) : [...prev.role, roleName];
+      const nextRole = hasRole
+        ? prev.role.filter((item) => item !== roleName)
+        : [...prev.role, roleName];
       return { ...prev, role: nextRole };
     });
   };
@@ -327,7 +325,7 @@ const EditUser = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
             <div className="card-header pb-0 d-flex justify-content-between align-items-center">
@@ -335,7 +333,10 @@ const EditUser = () => {
                 <h5 className="mb-0">Edit User</h5>
                 <p className="text-sm mb-0">Update role and permissions for this user.</p>
               </div>
-              <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/users')}>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => navigate('/users')}
+              >
                 Back to List
               </button>
             </div>
@@ -594,7 +595,12 @@ const EditUser = () => {
       </div>
 
       <div className="position-fixed bottom-1 end-1 z-index-2">
-        <div className="toast fade hide p-2 bg-white" role="alert" id="successToast" aria-atomic="true">
+        <div
+          className="toast fade hide p-2 bg-white"
+          role="alert"
+          id="successToast"
+          aria-atomic="true"
+        >
           <div className="toast-header border-0">
             <i className="ni ni-check-bold text-success me-2"></i>
             <span className="me-auto font-weight-bold">Success</span>
@@ -603,7 +609,12 @@ const EditUser = () => {
           <hr className="horizontal dark m-0" />
           <div className="toast-body">User updated successfully.</div>
         </div>
-        <div className="toast fade hide p-2 mt-2 bg-white" role="alert" id="dangerToast" aria-atomic="true">
+        <div
+          className="toast fade hide p-2 mt-2 bg-white"
+          role="alert"
+          id="dangerToast"
+          aria-atomic="true"
+        >
           <div className="toast-header border-0">
             <i className="ni ni-notification-70 text-danger me-2"></i>
             <span className="me-auto text-gradient text-danger font-weight-bold">Error</span>

@@ -106,7 +106,7 @@ const WarehouseInventoryListing = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
@@ -213,7 +213,9 @@ const WarehouseInventoryListing = () => {
                         return (
                           <tr key={key}>
                             <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                            <td className="text-sm font-weight-normal">{item.productName || '—'}</td>
+                            <td className="text-sm font-weight-normal">
+                              {item.productName || '—'}
+                            </td>
                             <td className="text-sm font-weight-normal">{item.barcode || '—'}</td>
                             <td className="text-sm font-weight-normal">{item.unit || '—'}</td>
                             <td className="text-sm font-weight-normal text-end">

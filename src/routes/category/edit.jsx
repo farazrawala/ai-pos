@@ -18,6 +18,7 @@ import {
 } from '../../utils/projectDevLog.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import './category-form.css';
 
 const parentIdFromCategory = (cat) => {
   if (!cat) return '';
@@ -326,17 +327,13 @@ const CategoryEdit = () => {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row mt-4">
-          <div className="col-12" style={{ padding: '20px' }}>
-            <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-              <div className="card-body text-center p-4">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-                <p className="mt-3">Loading category data...</p>
-              </div>
+      <div className="cat-form-page">
+        <div className="cat-form-card card">
+          <div className="card-body text-center p-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
             </div>
+            <p className="mt-3 mb-0 text-muted">Loading category data…</p>
           </div>
         </div>
       </div>
@@ -346,24 +343,19 @@ const CategoryEdit = () => {
   // Show error state
   if (fetchStatus === 'failed') {
     return (
-      <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row mt-4">
-          <div className="col-12" style={{ padding: '20px' }}>
-            <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-              <div className="card-body">
-                <div className="alert alert-danger" role="alert">
-                  <h5 className="alert-heading">Error Loading Category</h5>
-                  <p>{fetchError || 'Failed to load category data.'}</p>
-                  <hr />
-                  <button
-                    className="btn btn-outline-danger"
-                    onClick={() => navigate('/categories')}
-                  >
-                    <i className="fas fa-arrow-left me-1"></i>
-                    Back to List
-                  </button>
-                </div>
-              </div>
+      <div className="cat-form-page">
+        <div className="cat-form-card card">
+          <div className="card-body p-4">
+            <div className="alert alert-danger mb-0" role="alert">
+              <h6 className="alert-heading">Error loading category</h6>
+              <p className="mb-3">{fetchError || 'Failed to load category data.'}</p>
+              <button
+                className="btn btn-sm btn-outline-danger mb-0"
+                onClick={() => navigate('/categories')}
+              >
+                <i className="fas fa-arrow-left me-1"></i>
+                Back to list
+              </button>
             </div>
           </div>
         </div>
@@ -371,195 +363,247 @@ const CategoryEdit = () => {
     );
   }
 
+  const existingImage = categoryImageSrc(currentCategory);
+  const previewSrc = imagePreview || existingImage;
+
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header pb-0">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Edit Category</h5>
-                  <p className="text-sm mb-0">Update category information</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/categories')}
-                >
-                  <i className="fas fa-arrow-left me-1"></i>
-                  Back to List
-                </button>
-              </div>
+    <div className="cat-form-page">
+      <form onSubmit={handleSubmit}>
+        <div className="cat-form-card card">
+          <div className="cat-form-header">
+            <div>
+              <span className="cat-form-eyebrow">
+                <i className="fas fa-folder-tree" aria-hidden="true" />
+                Categories
+              </span>
+              <h5 className="cat-form-title">Edit category</h5>
+              <p className="cat-form-subtitle">
+                Update the details for{' '}
+                <strong>{form.name || currentCategory?.name || 'this category'}</strong>.
+              </p>
             </div>
-            <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
-                {/* Parent category */}
-                <div className="mb-3">
-                  <label htmlFor="parent_id" className="form-label">
-                    Parent category
-                  </label>
-                  <select
-                    className="form-select"
-                    id="parent_id"
-                    name="parent_id"
-                    value={form.parent_id}
-                    onChange={handleChange}
-                    disabled={isSubmitting || parentListStatus === 'loading'}
-                  >
-                    <option value="">None (top-level)</option>
-                    {parentCategories
-                      .filter((cat) => String(cat._id) !== String(id))
-                      .map((cat) => (
-                        <option key={cat._id} value={cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                  </select>
-                  {parentListStatus === 'failed' && (
-                    <small className="text-danger d-block mt-1">
-                      Could not load categories for this list.
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/categories')}
+            >
+              <i className="fas fa-arrow-left me-1"></i>
+              Back to list
+            </button>
+          </div>
+
+          <div className="cat-form-body">
+            <div className="row g-3">
+              {/* Details */}
+              <div className="col-lg-7">
+                <div className="cat-form-section">
+                  <div className="cat-form-section-title">
+                    <i className="fas fa-circle-info text-primary" aria-hidden="true" />
+                    Details
+                  </div>
+                  <p className="cat-form-section-hint">Basic information about the category.</p>
+
+                  <div className="mb-3">
+                    <label htmlFor="parent_id" className="cat-form-label d-block">
+                      Parent category
+                    </label>
+                    <select
+                      className="form-select cat-form-control"
+                      id="parent_id"
+                      name="parent_id"
+                      value={form.parent_id}
+                      onChange={handleChange}
+                      disabled={isSubmitting || parentListStatus === 'loading'}
+                    >
+                      <option value="">None (top-level)</option>
+                      {parentCategories
+                        .filter((cat) => String(cat._id) !== String(id))
+                        .map((cat) => (
+                          <option key={cat._id} value={cat._id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                    </select>
+                    {parentListStatus === 'failed' && (
+                      <small className="text-danger d-block mt-1">
+                        Could not load categories for this list.
+                      </small>
+                    )}
+                    <small className="cat-form-help">
+                      Optional. Choose a parent for a subcategory, or none for top-level.
                     </small>
-                  )}
-                  <small className="text-muted">
-                    Optional. Choose a parent for a subcategory, or none for top-level.
-                  </small>
-                </div>
+                  </div>
 
-                {/* Name Field */}
-                <div className="mb-3">
-                  <label htmlFor="name" className="form-label">
-                    Category Name <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                    id="name"
-                    name="name"
-                    placeholder="Enter category name"
-                    value={form.name}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting}
-                  />
-                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
-                  <small className="text-muted">
-                    The name will be used to identify this category.
-                  </small>
-                </div>
+                  <div className="mb-3">
+                    <label htmlFor="name" className="cat-form-label d-block">
+                      Category name <span className="req">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={`form-control cat-form-control ${errors.name ? 'is-invalid' : ''}`}
+                      id="name"
+                      name="name"
+                      placeholder="Enter category name"
+                      value={form.name}
+                      onChange={handleChange}
+                      required
+                      disabled={isSubmitting}
+                    />
+                    {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                    <small className="cat-form-help">
+                      The name will be used to identify this category.
+                    </small>
+                  </div>
 
-                {/* Slug Field */}
-                <div className="mb-3">
-                  <label htmlFor="slug" className="form-label">
-                    Slug <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.slug ? 'is-invalid' : ''}`}
-                    id="slug"
-                    name="slug"
-                    placeholder="category-slug"
-                    value={form.slug}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting}
-                  />
-                  {errors.slug && <div className="invalid-feedback">{errors.slug}</div>}
-                  <small className="text-muted">
-                    URL-friendly version of the name. Auto-generated from name, but you can edit it.
-                  </small>
-                </div>
+                  <div className="mb-3">
+                    <label htmlFor="slug" className="cat-form-label d-block">
+                      Slug <span className="req">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={`form-control cat-form-control ${errors.slug ? 'is-invalid' : ''}`}
+                      id="slug"
+                      name="slug"
+                      placeholder="category-slug"
+                      value={form.slug}
+                      onChange={handleChange}
+                      required
+                      disabled={isSubmitting}
+                    />
+                    {errors.slug && <div className="invalid-feedback">{errors.slug}</div>}
+                    <small className="cat-form-help">
+                      URL-friendly version of the name. Auto-generated, but you can edit it.
+                    </small>
+                  </div>
 
-                {/* Description Field */}
-                <div className="mb-4">
-                  <label htmlFor="description" className="form-label">
-                    Description
-                  </label>
-                  <textarea
-                    className="form-control"
-                    id="description"
-                    name="description"
-                    rows="4"
-                    placeholder="Enter category description (optional)"
-                    value={form.description}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                  <small className="text-muted">A brief description of this category.</small>
+                  <div className="mb-0">
+                    <label htmlFor="description" className="cat-form-label d-block">
+                      Description
+                    </label>
+                    <textarea
+                      className="form-control cat-form-control"
+                      id="description"
+                      name="description"
+                      rows="4"
+                      placeholder="Enter category description (optional)"
+                      value={form.description}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    <small className="cat-form-help">A brief description of this category.</small>
+                  </div>
                 </div>
+              </div>
 
-                {/* Category image */}
-                <div className="mb-4">
-                  <label htmlFor="category_image" className="form-label">
+              {/* Image */}
+              <div className="col-lg-5">
+                <div className="cat-form-section">
+                  <div className="cat-form-section-title">
+                    <i className="fas fa-image text-primary" aria-hidden="true" />
                     Image
-                  </label>
+                  </div>
+                  <p className="cat-form-section-hint">
+                    Optional. PNG, JPEG, GIF or WebP. Replaces the current image.
+                  </p>
+
                   <input
                     ref={imageInputRef}
                     type="file"
-                    className={`form-control ${errors.image ? 'is-invalid' : ''}`}
+                    className="d-none"
                     id="category_image"
                     accept="image/*"
                     onChange={handleImageChange}
                     disabled={isSubmitting}
                   />
-                  {errors.image && <div className="invalid-feedback d-block">{errors.image}</div>}
-                  <small className="text-muted d-block">
-                    Optional. Replace the current image — images only (PNG, JPEG, GIF, WebP, etc.).
-                  </small>
-                  {(imagePreview || categoryImageSrc(currentCategory)) && (
-                    <div className="mt-3 d-flex align-items-start gap-2">
-                      <img
-                        src={imagePreview || categoryImageSrc(currentCategory)}
-                        alt="Category"
-                        className="rounded border"
-                        style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
-                      />
-                      {imagePreview && (
+
+                  {previewSrc ? (
+                    <>
+                      <div className="cat-image-preview-wrap">
+                        <span className="cat-image-badge">
+                          {imagePreview ? 'New image' : 'Current'}
+                        </span>
+                        <img src={previewSrc} alt="Category" />
+                      </div>
+                      <div className="cat-image-preview-actions">
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={clearNewImage}
+                          className="btn btn-sm btn-outline-primary mb-0"
+                          onClick={() => imageInputRef.current?.click()}
                           disabled={isSubmitting}
                         >
-                          Discard new image
+                          <i className="fas fa-arrows-rotate me-1" aria-hidden="true" />
+                          Change
                         </button>
-                      )}
+                        {imagePreview && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary mb-0"
+                            onClick={clearNewImage}
+                            disabled={isSubmitting}
+                          >
+                            Discard new
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="cat-image-dropzone"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => imageInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          imageInputRef.current?.click();
+                        }
+                      }}
+                    >
+                      <div className="cat-image-dropzone-icon">
+                        <i className="fas fa-cloud-arrow-up" aria-hidden="true" />
+                      </div>
+                      <p className="cat-image-dropzone-text">Click to upload an image</p>
+                      <p className="cat-image-dropzone-sub">PNG, JPEG, GIF, WebP</p>
                     </div>
                   )}
+                  {errors.image && <div className="text-danger small mt-2">{errors.image}</div>}
                 </div>
-
-                {/* Form Actions */}
-                <div className="d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => navigate('/categories')}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save me-2"></i>
-                        Update Category
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
           </div>
+
+          <div className="cat-form-footer">
+            <span className="cat-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/categories')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save me-2"></i>
+                  Update category
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      </form>
 
       {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">

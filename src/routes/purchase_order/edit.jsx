@@ -30,7 +30,11 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
-import { PO_STATUS_OPTIONS, poStatusBadgeClass, sanitizeAmountPaidInput } from './poFormConstants.js';
+import {
+  PO_STATUS_OPTIONS,
+  poStatusBadgeClass,
+  sanitizeAmountPaidInput,
+} from './poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
 import './po-form-module.css';
@@ -138,7 +142,11 @@ function computeLineDerived(row) {
 }
 
 const parseMoneyInput = (raw) => {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? roundMoney2(n) : 0;
 };
 
@@ -175,10 +183,7 @@ const productPickerWholesalePrice = (p) => {
   if (!p || typeof p !== 'object') return null;
   const nested = p.product && typeof p.product === 'object' ? p.product : null;
   const wRaw =
-    p.wholesale_price ??
-    p.wholesalePrice ??
-    nested?.wholesale_price ??
-    nested?.wholesalePrice;
+    p.wholesale_price ?? p.wholesalePrice ?? nested?.wholesale_price ?? nested?.wholesalePrice;
   if (wRaw == null || wRaw === '') return null;
   const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
   return Number.isFinite(w) ? roundMoney2(w) : null;
@@ -213,9 +218,13 @@ const resolveProductId = (it) => {
 
 const linesFromPurchaseOrder = (po) => {
   if (!po || typeof po !== 'object') return [];
-  const raw = [po.items, po.purchase_order_items, po.purchaseOrderItems, po.lines, po.products].find(
-    Array.isArray
-  );
+  const raw = [
+    po.items,
+    po.purchase_order_items,
+    po.purchaseOrderItems,
+    po.lines,
+    po.products,
+  ].find(Array.isArray);
   if (!raw) return [];
   return raw
     .map((it) => {
@@ -270,8 +279,7 @@ const linesFromPurchaseOrder = (po) => {
         prodObj && Array.isArray(prodObj.warehouse_inventory) ? prodObj.warehouse_inventory : [];
       const wi = it.warehouse_inventory;
       const invFromLine = Array.isArray(wi) ? wi : wi && typeof wi === 'object' ? [wi] : [];
-      const warehouseInventoryRows =
-        invFromProduct.length > 0 ? invFromProduct : invFromLine;
+      const warehouseInventoryRows = invFromProduct.length > 0 ? invFromProduct : invFromLine;
       const presetWarehouseInventoryId = pickIdString(
         it.warehouse_inventory_id ?? it.warehouseInventoryId
       );
@@ -452,8 +460,7 @@ const PurchaseOrderEdit = () => {
 
   useEffect(() => {
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
     if (!companyId) return undefined;
 
     let cancelled = false;
@@ -529,7 +536,9 @@ const PurchaseOrderEdit = () => {
 
   const supplierIdInList =
     !form.supplier_id ||
-    supplierOptions.some((u) => String(getUserOptionValue(u)).trim() === String(form.supplier_id).trim());
+    supplierOptions.some(
+      (u) => String(getUserOptionValue(u)).trim() === String(form.supplier_id).trim()
+    );
 
   const accountOptions = useMemo(
     () =>
@@ -626,7 +635,10 @@ const PurchaseOrderEdit = () => {
     setForm((p) => (p.amount_received === next ? p : { ...p, amount_received: next }));
   }, [summary.total, amountPaidDirty]);
 
-  const amountPaidNum = useMemo(() => parseMoneyInput(form.amount_received), [form.amount_received]);
+  const amountPaidNum = useMemo(
+    () => parseMoneyInput(form.amount_received),
+    [form.amount_received]
+  );
   const paymentRemaining = useMemo(() => {
     const t = roundMoney2(summary.total);
     const p = roundMoney2(amountPaidNum);
@@ -691,8 +703,7 @@ const PurchaseOrderEdit = () => {
     let settings = printerSettings;
     let brand = companyBrand;
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
 
     if (companyId) {
       try {
@@ -700,9 +711,7 @@ const PurchaseOrderEdit = () => {
         const company = getCompanyFromApiBody(body);
         if (company && typeof company === 'object') {
           const merged = mergeCompanyRecordForSettings(company, authCompany);
-          settings = mergePrinterSettings(
-            extractPrinterSettingsFromCompanyBody({ data: merged })
-          );
+          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
           brand = {
             name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
             phone: String(merged?.company_phone || merged?.phone || '').trim(),
@@ -928,7 +937,7 @@ const PurchaseOrderEdit = () => {
 
   return (
     <div className="po-form-page container-fluid py-4 px-0">
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm po-form-card">
             <div className="card-header pb-3">
@@ -1088,8 +1097,8 @@ const PurchaseOrderEdit = () => {
                 <div className="po-form-section">
                   <div className="po-form-section-title">Line items</div>
                   <p className="po-form-section-hint">
-                    Search to add products, then set warehouse, rate, quantity, and optional shipping per
-                    line.
+                    Search to add products, then set warehouse, rate, quantity, and optional
+                    shipping per line.
                   </p>
                   <label className="form-label" htmlFor="po-edit-product-search">
                     Add product
@@ -1110,7 +1119,9 @@ const PurchaseOrderEdit = () => {
                         disabled={isSubmitting}
                       />
                     </div>
-                    {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
+                    {addProductLoading ? (
+                      <div className="small text-muted mt-1">Searching…</div>
+                    ) : null}
                     {addProductError ? (
                       <div className="text-danger small mt-1" role="alert">
                         {addProductError}
@@ -1156,7 +1167,10 @@ const PurchaseOrderEdit = () => {
                             <th className="text-end po-form-col-ship">Ship / unit</th>
                             <th className="text-end po-form-col-ship">Total ship</th>
                             <th className="text-end po-form-col-amt">Amount</th>
-                            <th className="text-center po-form-col-action" aria-label="Remove row" />
+                            <th
+                              className="text-center po-form-col-action"
+                              aria-label="Remove row"
+                            />
                           </tr>
                         </thead>
                         <tbody>
@@ -1196,7 +1210,9 @@ const PurchaseOrderEdit = () => {
                                         const wid = String(row.warehouseId ?? '').trim();
                                         if (
                                           wid &&
-                                          !warehouseOptions.some((w) => warehouseOptionValue(w) === wid)
+                                          !warehouseOptions.some(
+                                            (w) => warehouseOptionValue(w) === wid
+                                          )
                                         ) {
                                           return (
                                             <option value={wid} title={wid}>
@@ -1224,7 +1240,9 @@ const PurchaseOrderEdit = () => {
                                       className="form-control form-control-sm text-end"
                                       aria-label={`Rate for line ${i + 1}`}
                                       value={row.rate}
-                                      onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'rate', e.target.value)
+                                      }
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1236,7 +1254,9 @@ const PurchaseOrderEdit = () => {
                                       className="form-control form-control-sm text-end"
                                       aria-label={`Quantity for line ${i + 1}`}
                                       value={row.qty}
-                                      onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'qty', e.target.value)
+                                      }
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1264,7 +1284,9 @@ const PurchaseOrderEdit = () => {
                                       disabled={isSubmitting}
                                     />
                                   </td>
-                                  <td className="text-end fw-semibold text-nowrap">{fmt(amount)}</td>
+                                  <td className="text-end fw-semibold text-nowrap">
+                                    {fmt(amount)}
+                                  </td>
                                   <td className="text-center">
                                     <button
                                       type="button"
@@ -1358,7 +1380,8 @@ const PurchaseOrderEdit = () => {
                                 setErrors((prev) => {
                                   const next = { ...prev };
                                   delete next.account_id;
-                                  if (next.submit === 'Mode of payment is required.') delete next.submit;
+                                  if (next.submit === 'Mode of payment is required.')
+                                    delete next.submit;
                                   return next;
                                 });
                               }}
@@ -1367,7 +1390,9 @@ const PurchaseOrderEdit = () => {
                             >
                               <option value="">Select mode of payment</option>
                               {!accountIdInList && form.account_id ? (
-                                <option value={form.account_id}>Payment id: {form.account_id}</option>
+                                <option value={form.account_id}>
+                                  Payment id: {form.account_id}
+                                </option>
                               ) : null}
                               {accountOptions.map((a) => {
                                 const value = accountOptionValue(a);

@@ -19,10 +19,15 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
-import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './poFormConstants.js';
+import {
+  PO_STATUS_OPTIONS,
+  poStatusBadgeClass,
+  sanitizeAmountPaidInput,
+} from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
+import './po-form-module.css';
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -109,10 +114,7 @@ const productPickerWholesalePrice = (p) => {
   if (!p || typeof p !== 'object') return null;
   const nested = p.product && typeof p.product === 'object' ? p.product : null;
   const wRaw =
-    p.wholesale_price ??
-    p.wholesalePrice ??
-    nested?.wholesale_price ??
-    nested?.wholesalePrice;
+    p.wholesale_price ?? p.wholesalePrice ?? nested?.wholesale_price ?? nested?.wholesalePrice;
   if (wRaw == null || wRaw === '') return null;
   const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
   return Number.isFinite(w) ? roundMoney2(w) : null;
@@ -610,9 +612,7 @@ const PurchaseOrderAdd = () => {
 
   const openAddVendorModal = () => {
     const qDigits = digitsOnlyFromPhone(vendorFilter).slice(0, 11);
-    setAddVendorForm(
-      qDigits ? { ...ADD_VENDOR_INITIAL, phone: qDigits } : ADD_VENDOR_INITIAL
-    );
+    setAddVendorForm(qDigits ? { ...ADD_VENDOR_INITIAL, phone: qDigits } : ADD_VENDOR_INITIAL);
     setAddVendorErrors({});
     setCreateVendorError('');
     setVendorMenuOpen(false);
@@ -704,663 +704,606 @@ const PurchaseOrderAdd = () => {
   const supplierSelectDisabled = isSubmitting || usersStatus === 'loading';
   const accountSelectDisabled = isSubmitting || accountsStatus === 'loading';
 
-  return (
-    <div className="po-add-page container-fluid py-3 px-2 px-lg-4">
-      <style>{`
-        .po-add-page {
-          font-family: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
-          max-width: 1100px;
-          margin: 0 auto;
-        }
-        .po-add-paper {
-          background: #fff;
-          border: 1px solid #e9ecef;
-          border-radius: 0.5rem;
-          box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,.06);
-        }
-        .po-add-title {
-          font-size: 2rem;
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          color: #212529;
-        }
-        .po-add-supplier-name {
-          color: #11cdef;
-          font-weight: 700;
-        }
-        .po-add-table th {
-          background: #f8f9fa;
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-          color: #495057;
-          border-color: #dee2e6 !important;
-        }
-        .po-add-table td {
-          border-color: #dee2e6 !important;
-          vertical-align: middle;
-          font-size: 0.875rem;
-        }
-        .po-add-summary-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.25rem 0;
-          font-size: 0.9rem;
-        }
-        .po-add-summary-total {
-          font-weight: 700;
-          border-top: 1px solid #dee2e6;
-          margin-top: 0.35rem;
-          padding-top: 0.5rem;
-        }
-        .po-add-actions .btn {
-          border-radius: 0.5rem;
-          font-weight: 600;
-          font-size: 0.8rem;
-        }
-        .po-add-vendor-btn {
-          background: #11cdef;
-          border-color: #11cdef;
-          color: #fff;
-        }
-        .po-add-vendor-btn:hover {
-          background: #0ea5c6;
-          border-color: #0ea5c6;
-          color: #fff;
-        }
-      `}</style>
+  const poRefLabel = form.purchase_order_no.trim() || '—';
+  const statusLabel = form.order_status
+    ? form.order_status.charAt(0).toUpperCase() + form.order_status.slice(1)
+    : '—';
 
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary"
-          onClick={() => navigate('/purchase-orders')}
-        >
-          <i className="fas fa-arrow-left me-1" aria-hidden="true" />
-          Back to list
-        </button>
-        <div className="d-flex gap-2 po-add-actions">
-          <button
-            type="submit"
-            form="po-add-form"
-            className="btn btn-primary"
-            disabled={submitDisabled}
-            title={submitButtonTitle}
-          >
-            {isSubmitting ? (
-              <>
-                <span
-                  className="spinner-border spinner-border-sm me-1"
-                  role="status"
-                  aria-hidden="true"
-                />
-                Saving…
-              </>
-            ) : (
-              <>
-                <i className="fas fa-save me-1" aria-hidden="true" />
-                Create purchase order
-              </>
-            )}
-          </button>
+  return (
+    <div className="po-form-page container-fluid py-4 px-0">
+      <div className="row">
+        <div className="col-12" style={{ padding: '20px' }}>
+          <div className="card shadow-sm po-form-card">
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-6">
+                  <button
+                    type="button"
+                    className="po-form-back"
+                    onClick={() => navigate('/purchase-orders')}
+                  >
+                    <i className="fas fa-arrow-left" aria-hidden="true" />
+                    Back to list
+                  </button>
+                  <h5 className="po-form-header-title mb-0">Create purchase order</h5>
+                  <div className="po-form-meta mt-2">
+                    <span className="po-form-ref-badge">{poRefLabel}</span>
+                    <span className={`badge text-xxs ${poStatusBadgeClass(form.order_status)}`}>
+                      {statusLabel}
+                    </span>
+                    <span className="po-form-total-pill">Total {fmt(summary.total)}</span>
+                  </div>
+                </div>
+                <div className="col-lg-6">
+                  <div className="po-form-header-actions mt-2 mt-lg-0">
+                    <span className="small text-muted">New draft — number assigned when saved</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-body pt-3">
+              <form id="po-add-form" onSubmit={handleSubmit}>
+                {errors.submit ? (
+                  <div className="alert alert-danger py-2 mb-3" role="alert">
+                    {errors.submit}
+                  </div>
+                ) : null}
+
+                <div className="po-form-doc-strip">
+                  <div className="po-form-company">
+                    <div className="po-form-company-logo-fallback">
+                      {String(shopName || 'P')
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="po-form-company-name">{shopName}</div>
+                      <div className="po-form-company-meta">
+                        Order date: {formatDisplayDate(localDateInputValue())}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-md-end">
+                    <div className="text-uppercase text-muted small fw-bold mb-1">Order total</div>
+                    <div className="h5 mb-0 fw-bold text-dark">{fmt(summary.total)}</div>
+                  </div>
+                </div>
+
+                <div className="po-form-section">
+                  <div className="po-form-section-title">Order details</div>
+                  <div className="row g-3">
+                    <div className="col-lg-6">
+                      <label className="form-label" htmlFor="po-add-supplier">
+                        Vendor <span className="text-danger">*</span>
+                      </label>
+                      {usersStatus === 'failed' && usersError ? (
+                        <div className="alert alert-warning py-2 mb-2" role="alert">
+                          {usersError}
+                        </div>
+                      ) : null}
+                      <div className="d-flex gap-2 align-items-start">
+                        <div className="flex-grow-1 position-relative" ref={vendorPickerRef}>
+                          <div className="input-group input-group-sm">
+                            <span className="input-group-text bg-white border-end-0 text-muted">
+                              <SearchInputIcon />
+                            </span>
+                            <input
+                              id="po-add-supplier"
+                              type="search"
+                              className="form-control form-control-sm border-start-0"
+                              placeholder="Search name, phone, or email…"
+                              value={vendorFilter}
+                              onChange={(e) => {
+                                setVendorFilter(e.target.value);
+                                setVendorMenuOpen(true);
+                              }}
+                              onFocus={() => setVendorMenuOpen(true)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setVendorMenuOpen(false);
+                              }}
+                              disabled={supplierSelectDisabled}
+                              autoComplete="off"
+                              aria-label="Search vendors"
+                              aria-expanded={vendorMenuOpen}
+                              aria-controls="po-vendor-picker-list"
+                            />
+                          </div>
+                          {vendorMenuOpen && usersStatus !== 'loading' && (
+                            <div
+                              id="po-vendor-picker-list"
+                              className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white"
+                              style={{ zIndex: 1050, maxHeight: 240, overflowY: 'auto' }}
+                              role="listbox"
+                            >
+                              <button
+                                type="button"
+                                className={`list-group-item list-group-item-action py-2 px-3 border-0 rounded-0 text-start small ${
+                                  !form.supplier_id ? 'active' : ''
+                                }`}
+                                onClick={() => {
+                                  setForm((p) => ({ ...p, supplier_id: '' }));
+                                  setVendorFilter('');
+                                  setVendorMenuOpen(false);
+                                }}
+                              >
+                                No supplier
+                              </button>
+                              {filteredVendors.rows.map((u) => {
+                                const value = getUserOptionValue(u);
+                                const selected = String(form.supplier_id) === String(value);
+                                return (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    className={`list-group-item list-group-item-action py-2 px-3 border-0 border-top rounded-0 text-start small ${
+                                      selected ? 'active' : ''
+                                    }`}
+                                    onClick={() => {
+                                      setForm((p) => ({ ...p, supplier_id: value }));
+                                      setVendorFilter('');
+                                      setVendorMenuOpen(false);
+                                    }}
+                                  >
+                                    {formatUserOptionLabel(u)}
+                                  </button>
+                                );
+                              })}
+                              {filteredVendors.rows.length === 0 && (
+                                <div className="px-3 py-2 text-muted small">
+                                  No matching vendors
+                                </div>
+                              )}
+                              {filteredVendors.capped && (
+                                <div className="px-3 py-2 text-muted small border-top bg-light">
+                                  Showing first {filteredVendors.rows.length} — type to narrow
+                                  results
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary flex-shrink-0"
+                          title="Add new vendor"
+                          onClick={openAddVendorModal}
+                          disabled={isSubmitting}
+                        >
+                          <i className="fas fa-plus me-1" aria-hidden="true" />
+                          Add
+                        </button>
+                      </div>
+                      {hasVendor ? (
+                        <span className="d-block small text-muted mt-1">{supplierLabel}</span>
+                      ) : null}
+                    </div>
+                    <div className="col-md-6 col-lg-3">
+                      <label className="form-label" htmlFor="po-add-expected">
+                        Expected delivery
+                      </label>
+                      <input
+                        id="po-add-expected"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={form.expected_delivery_date}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
+                        }
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="col-md-6 col-lg-3">
+                      <label className="form-label" htmlFor="po-add-status">
+                        Order status
+                      </label>
+                      <select
+                        id="po-add-status"
+                        className="form-select form-select-sm"
+                        value={form.order_status}
+                        onChange={(e) => setForm((p) => ({ ...p, order_status: e.target.value }))}
+                        disabled={isSubmitting}
+                      >
+                        {PO_STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="po-form-section">
+                  <div className="po-form-section-title">Line items</div>
+                  <p className="po-form-section-hint">
+                    Search to add products, then set warehouse, rate, quantity, and optional
+                    shipping per line.
+                  </p>
+                  <label className="form-label" htmlFor="po-add-product-search">
+                    Add product
+                  </label>
+                  <div className="po-form-product-search mb-3">
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text">
+                        <SearchInputIcon />
+                      </span>
+                      <input
+                        id="po-add-product-search"
+                        type="search"
+                        className="form-control"
+                        placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                        value={addProductQuery}
+                        onChange={(e) => setAddProductQuery(e.target.value)}
+                        autoComplete="off"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    {addProductLoading ? (
+                      <div className="small text-muted mt-1">Searching…</div>
+                    ) : null}
+                    {addProductError ? (
+                      <div className="text-danger small mt-1" role="alert">
+                        {addProductError}
+                      </div>
+                    ) : null}
+                    {addProductResults.length > 0 ? (
+                      <ul
+                        className="list-group position-relative w-100 shadow-sm mt-1"
+                        style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                      >
+                        {addProductResults.map((p) => {
+                          const pk = String(p._id ?? p.id ?? '');
+                          return (
+                            <li key={pk} className="list-group-item p-0">
+                              <button
+                                type="button"
+                                className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
+                                onClick={() => appendProduct(p)}
+                              >
+                                <span className="fw-semibold">{productPickerLabel(p)}</span>
+                                <span className="text-muted ms-2">
+                                  Wholesale{' '}
+                                  {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+
+                  <div className="po-form-table-wrap">
+                    <div className="po-form-table-scroll">
+                      <table className="table po-form-table mb-0">
+                        <thead>
+                          <tr>
+                            <th className="text-center po-form-col-sno">#</th>
+                            <th className="po-form-col-desc">Description</th>
+                            <th className="po-form-col-wh">Warehouse</th>
+                            <th className="text-end po-form-col-num">Rate</th>
+                            <th className="text-end po-form-col-num">Qty</th>
+                            <th className="text-end po-form-col-ship">Ship / unit</th>
+                            <th className="text-end po-form-col-ship">Total ship</th>
+                            <th className="text-end po-form-col-amt">Amount</th>
+                            <th
+                              className="text-center po-form-col-action"
+                              aria-label="Remove row"
+                            />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="text-center text-muted py-4">
+                                No line items. Search above to add products.
+                              </td>
+                            </tr>
+                          ) : (
+                            lines.map((row, i) => {
+                              const derived = computeLineDerived(row);
+                              const { shippingPerUnit, amount, hasLineShipping } = derived;
+                              return (
+                                <tr key={row.key}>
+                                  <td className="text-center text-muted">{i + 1}</td>
+                                  <td>
+                                    <div className="po-form-line-desc" title={row.label}>
+                                      {row.label}
+                                    </div>
+                                    {!String(row.productId || '').trim() ? (
+                                      <div className="small text-warning">Missing product</div>
+                                    ) : null}
+                                  </td>
+                                  <td>
+                                    <select
+                                      className="form-select form-select-sm"
+                                      aria-label={`Warehouse for line ${i + 1}`}
+                                      value={String(row.warehouseId ?? '')}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'warehouseId', e.target.value)
+                                      }
+                                      disabled={isSubmitting || warehousesStatus === 'loading'}
+                                    >
+                                      <option value="">Select</option>
+                                      {warehouseOptions.map((w) => {
+                                        const value = warehouseOptionValue(w);
+                                        return (
+                                          <option key={value} value={value}>
+                                            {warehouseOptionLabel(w)}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Rate for line ${i + 1}`}
+                                      value={row.rate}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'rate', e.target.value)
+                                      }
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      aria-label={`Quantity for line ${i + 1}`}
+                                      value={row.qty}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'qty', e.target.value)
+                                      }
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end">
+                                    <div
+                                      className="po-form-readonly-cell"
+                                      title="Total shipping ÷ qty"
+                                      aria-label={`Shipping per unit for line ${i + 1}`}
+                                    >
+                                      {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                                    </div>
+                                  </td>
+                                  <td className="text-end">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control form-control-sm text-end"
+                                      placeholder="0"
+                                      aria-label={`Total shipping for line ${i + 1}`}
+                                      value={row.totalShipping ?? ''}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'totalShipping', e.target.value)
+                                      }
+                                      disabled={isSubmitting}
+                                    />
+                                  </td>
+                                  <td className="text-end fw-semibold text-nowrap">
+                                    {fmt(amount)}
+                                  </td>
+                                  <td className="text-center">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      aria-label={`Remove line ${i + 1}`}
+                                      onClick={() => removeLine(row.key)}
+                                      disabled={isSubmitting}
+                                    >
+                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="po-form-section">
+                  <div className="row g-4">
+                    <div className="col-lg-6">
+                      <div className="po-form-section-title">Notes</div>
+                      <label className="form-label visually-hidden" htmlFor="po-add-notes">
+                        Notes
+                      </label>
+                      <textarea
+                        id="po-add-notes"
+                        className="form-control form-control-sm"
+                        rows={5}
+                        value={form.notes}
+                        onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                        disabled={isSubmitting}
+                        placeholder="Internal notes…"
+                      />
+                    </div>
+                    <div className="col-lg-6">
+                      <div className="po-form-summary-panel">
+                        <div className="po-form-section-title mb-3">Summary &amp; payment</div>
+                        <div className="row g-2 mb-2">
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-add-shipment">
+                              Shipment
+                            </label>
+                            <input
+                              id="po-add-shipment"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="form-control form-control-sm text-end"
+                              placeholder="0.00"
+                              value={form.shipment}
+                              onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-add-discount">
+                              Discount
+                            </label>
+                            <input
+                              id="po-add-discount"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="form-control form-control-sm text-end"
+                              placeholder="0.00"
+                              value={form.discount}
+                              onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-12">
+                            <label className="form-label" htmlFor="po-add-account">
+                              Mode of payment <span className="text-danger">*</span>
+                            </label>
+                            {accountsStatus === 'failed' && accountsError ? (
+                              <div className="alert alert-warning py-2 mb-2" role="alert">
+                                {accountsError}
+                              </div>
+                            ) : null}
+                            <select
+                              id="po-add-account"
+                              className={`form-select form-select-sm ${errors.account_id ? 'is-invalid' : ''}`}
+                              value={form.account_id}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setForm((p) => ({ ...p, account_id: v }));
+                                setErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next.account_id;
+                                  if (next.submit === 'Mode of payment is required.')
+                                    delete next.submit;
+                                  return next;
+                                });
+                              }}
+                              required
+                              disabled={accountSelectDisabled}
+                            >
+                              <option value="">Select mode of payment</option>
+                              {accountOptions.map((a) => {
+                                const value = accountOptionValue(a);
+                                return (
+                                  <option key={value} value={value}>
+                                    {accountOptionLabel(a)}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            {errors.account_id ? (
+                              <div className="text-danger small mt-1">{errors.account_id}</div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="po-form-summary-box">
+                          <div className="po-form-summary-row">
+                            <span>Sub total</span>
+                            <span>{fmt(summary.subTotal)}</span>
+                          </div>
+                          <div className="po-form-summary-row">
+                            <span>Shipment</span>
+                            <span>{fmt(summary.shipment)}</span>
+                          </div>
+                          <div className="po-form-summary-row">
+                            <span>Discount</span>
+                            <span>−{fmt(summary.discount)}</span>
+                          </div>
+                          <div className="po-form-summary-row po-form-summary-total">
+                            <span>Total</span>
+                            <span>{fmt(summary.total)}</span>
+                          </div>
+                        </div>
+                        <div className="row g-2 mt-3">
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-add-received">
+                              Amount paid
+                            </label>
+                            <input
+                              id="po-add-received"
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              className="form-control form-control-sm"
+                              value={form.amount_received}
+                              onChange={(e) => {
+                                setAmountPaidDirty(true);
+                                setForm((p) => ({
+                                  ...p,
+                                  amount_received: sanitizeAmountPaidInput(e.target.value),
+                                }));
+                              }}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label" htmlFor="po-add-remaining">
+                              Remaining
+                            </label>
+                            <input
+                              id="po-add-remaining"
+                              type="text"
+                              readOnly
+                              tabIndex={-1}
+                              className="form-control form-control-sm bg-body-secondary"
+                              value={fmt(paymentRemaining)}
+                              aria-live="polite"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="po-form-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={isSubmitting}
+                    onClick={() => navigate('/purchase-orders')}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={submitDisabled}
+                    title={submitButtonTitle}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-1"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save me-1" aria-hidden="true" />
+                        Create purchase order
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
-
-      <form id="po-add-form" onSubmit={handleSubmit}>
-        {errors.submit ? (
-          <div className="alert alert-danger py-2 mb-3" role="alert">
-            {errors.submit}
-          </div>
-        ) : null}
-
-        <div className="po-add-paper p-4 p-md-5 mb-4">
-          <div className="row align-items-start mb-4 pb-3 border-bottom">
-            <div className="col-md-6 mb-3 mb-md-0">
-              <div className="d-flex align-items-center gap-3">
-                <div
-                  className="rounded border bg-light d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 72, height: 72 }}
-                >
-                  <span className="text-muted small text-center px-1">LOGO</span>
-                </div>
-                <div>
-                  <div
-                    className="fw-bold text-uppercase text-secondary"
-                    style={{ fontSize: '0.75rem' }}
-                  >
-                    {shopName}
-                  </div>
-                  <div className="h5 mb-0 fw-semibold">{shopName}</div>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-6 text-md-end">
-              <div className="po-add-title mb-2">PURCHASE ORDER</div>
-              <div className="mb-1">
-                <span className="text-muted">Reference / PO no. </span>
-                <span className="fw-bold">{form.purchase_order_no.trim() || '—'}</span>
-              </div>
-              <div className="small text-muted mb-2">
-                New draft — number assigned by system when saved
-              </div>
-              <div className="fw-semibold">Order total: {fmt(summary.total)}</div>
-            </div>
-          </div>
-
-          <div className="row mb-4">
-            <div className="col-md-6 mb-3 mb-md-0">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Supplier</div>
-              <div className="po-add-supplier-name mb-2">{supplierLabel}</div>
-              <label className="form-label small text-muted mb-1" htmlFor="po-add-supplier">
-                Vendor <span className="text-danger">*</span>
-              </label>
-              {usersStatus === 'failed' && usersError ? (
-                <div className="alert alert-warning py-2 mb-2" role="alert">
-                  {usersError}
-                </div>
-              ) : null}
-              <div className="d-flex gap-2 align-items-start">
-                <div className="flex-grow-1 position-relative" ref={vendorPickerRef}>
-                  <div className="input-group input-group-sm">
-                    <span className="input-group-text bg-white border-end-0 text-muted">
-                      <SearchInputIcon />
-                    </span>
-                    <input
-                      id="po-add-supplier"
-                      type="search"
-                      className="form-control form-control-sm border-start-0"
-                      placeholder="Search name, phone, or email…"
-                      value={vendorFilter}
-                      onChange={(e) => {
-                        setVendorFilter(e.target.value);
-                        setVendorMenuOpen(true);
-                      }}
-                      onFocus={() => setVendorMenuOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setVendorMenuOpen(false);
-                      }}
-                      disabled={supplierSelectDisabled}
-                      autoComplete="off"
-                      aria-label="Search vendors"
-                      aria-expanded={vendorMenuOpen}
-                      aria-controls="po-vendor-picker-list"
-                    />
-                  </div>
-                  {vendorMenuOpen && usersStatus !== 'loading' && (
-                    <div
-                      id="po-vendor-picker-list"
-                      className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white"
-                      style={{ zIndex: 1050, maxHeight: 240, overflowY: 'auto' }}
-                      role="listbox"
-                    >
-                      <button
-                        type="button"
-                        className={`list-group-item list-group-item-action py-2 px-3 border-0 rounded-0 text-start small ${
-                          !form.supplier_id ? 'active' : ''
-                        }`}
-                        onClick={() => {
-                          setForm((p) => ({ ...p, supplier_id: '' }));
-                          setVendorFilter('');
-                          setVendorMenuOpen(false);
-                        }}
-                      >
-                        No supplier
-                      </button>
-                      {filteredVendors.rows.map((u) => {
-                        const value = getUserOptionValue(u);
-                        const selected = String(form.supplier_id) === String(value);
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            className={`list-group-item list-group-item-action py-2 px-3 border-0 border-top rounded-0 text-start small ${
-                              selected ? 'active' : ''
-                            }`}
-                            onClick={() => {
-                              setForm((p) => ({ ...p, supplier_id: value }));
-                              setVendorFilter('');
-                              setVendorMenuOpen(false);
-                            }}
-                          >
-                            {formatUserOptionLabel(u)}
-                          </button>
-                        );
-                      })}
-                      {filteredVendors.rows.length === 0 && (
-                        <div className="px-3 py-2 text-muted small">No matching vendors</div>
-                      )}
-                      {filteredVendors.capped && (
-                        <div className="px-3 py-2 text-muted small border-top bg-light">
-                          Showing first {filteredVendors.rows.length} — type to narrow results
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm po-add-vendor-btn flex-shrink-0"
-                  title="Add new vendor"
-                  onClick={openAddVendorModal}
-                  disabled={isSubmitting}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-            <div className="col-md-6 text-md-end">
-              <div className="small mb-2">
-                <span className="text-muted me-2">Order date:</span>
-                <span className="fw-semibold">{formatDisplayDate(localDateInputValue())}</span>
-              </div>
-              <div className="small mb-2">
-                <span className="text-muted me-2">Expected delivery:</span>
-                <span className="fw-semibold">
-                  {formatDisplayDate(form.expected_delivery_date)}
-                </span>
-              </div>
-              <div className="row g-2 justify-content-md-end mt-2">
-                <div className="col-12 col-md-8 col-lg-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-expected">
-                    Expected delivery
-                  </label>
-                  <input
-                    id="po-add-expected"
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={form.expected_delivery_date}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12 col-md-8 col-lg-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-status">
-                    Status
-                  </label>
-                  <select
-                    id="po-add-status"
-                    className="form-select form-select-sm"
-                    value={form.order_status}
-                    onChange={(e) => setForm((p) => ({ ...p, order_status: e.target.value }))}
-                    disabled={isSubmitting}
-                  >
-                    {PO_STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small text-muted mb-1" htmlFor="po-add-product-search">
-              Add product
-            </label>
-            <input
-              id="po-add-product-search"
-              type="search"
-              className="form-control form-control-sm"
-              placeholder="Search name, SKU, or barcode (min. 2 characters)…"
-              value={addProductQuery}
-              onChange={(e) => setAddProductQuery(e.target.value)}
-              autoComplete="off"
-              disabled={isSubmitting}
-            />
-            {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
-            {addProductError ? (
-              <div className="text-danger small mt-1" role="alert">
-                {addProductError}
-              </div>
-            ) : null}
-            {addProductResults.length > 0 ? (
-              <ul
-                className="list-group position-relative w-100 shadow-sm mt-1"
-                style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
-              >
-                {addProductResults.map((p) => {
-                  const pk = String(p._id ?? p.id ?? '');
-                  return (
-                    <li key={pk} className="list-group-item p-0">
-                      <button
-                        type="button"
-                        className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
-                        onClick={() => appendProduct(p)}
-                      >
-                        <span className="fw-semibold">{productPickerLabel(p)}</span>
-                        <span className="text-muted ms-2">
-                          Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </div>
-
-          <p className="small text-muted mb-2">
-            Set <strong>Warehouse</strong>, <strong>Rate</strong> (wholesale price),{' '}
-            <strong>Qty</strong>, and optional <strong>Total Shipping</strong> per line.{' '}
-            <strong>Shipping per unit</strong> is calculated automatically; <strong>Amount</strong>{' '}
-            uses final rate (rate + shipping per unit) × qty. Remove rows you do not need.
-          </p>
-
-          <div className="table-responsive mb-4">
-            <table className="table table-bordered po-add-table mb-0">
-              <thead>
-                <tr>
-                  <th style={{ width: '48px' }}>#</th>
-                  <th>Description</th>
-                  <th style={{ minWidth: '180px' }}>Warehouse</th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Rate
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Qty
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Shipping / unit
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Total shipping
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Amount
-                  </th>
-                  <th className="text-center" style={{ width: '72px' }} aria-label="Remove row" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center text-muted py-4">
-                      No line items. Use <strong>Add product</strong> above to add rows.
-                    </td>
-                  </tr>
-                ) : (
-                  lines.map((row, i) => {
-                    const derived = computeLineDerived(row);
-                    const { shippingPerUnit, amount, hasLineShipping } = derived;
-                    return (
-                      <tr key={row.key}>
-                        <td className="text-center">{i + 1}</td>
-                        <td>
-                          <div>{row.label}</div>
-                          {!String(row.productId || '').trim() ? (
-                            <div className="small text-warning">
-                              Missing product — remove or pick again.
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="align-middle">
-                          <select
-                            className="form-select form-select-sm"
-                            aria-label={`Warehouse for line ${i + 1}`}
-                            value={String(row.warehouseId ?? '')}
-                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
-                            disabled={isSubmitting || warehousesStatus === 'loading'}
-                          >
-                            <option value="">Select warehouse</option>
-                            {warehouseOptions.map((w) => {
-                              const value = warehouseOptionValue(w);
-                              return (
-                                <option key={value} value={value}>
-                                  {warehouseOptionLabel(w)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Rate for line ${i + 1}`}
-                            value={row.rate}
-                            onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Quantity for line ${i + 1}`}
-                            value={row.qty}
-                            onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <div
-                            className="form-control form-control-sm text-end bg-light border mb-0 py-1"
-                            title="Total shipping ÷ qty (read-only)"
-                            aria-label={`Shipping per unit for line ${i + 1}`}
-                          >
-                            {hasLineShipping ? fmt(shippingPerUnit) : '—'}
-                          </div>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            placeholder="0.00"
-                            aria-label={`Total shipping for line ${i + 1}`}
-                            value={row.totalShipping ?? ''}
-                            onChange={(e) =>
-                              handleLineEdit(row.key, 'totalShipping', e.target.value)
-                            }
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
-                        <td className="text-center align-middle">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger py-0 px-2"
-                            aria-label={`Remove line ${i + 1}`}
-                            onClick={() => removeLine(row.key)}
-                            disabled={isSubmitting}
-                          >
-                            <i className="fas fa-trash-alt" aria-hidden="true" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="row mb-2">
-            <div className="col-md-6 mb-3 mb-md-0">
-              <label className="form-label small text-muted mb-1" htmlFor="po-add-notes">
-                Notes
-              </label>
-              <textarea
-                id="po-add-notes"
-                className="form-control form-control-sm"
-                rows={4}
-                value={form.notes}
-                onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                disabled={isSubmitting}
-                placeholder="Internal notes…"
-              />
-            </div>
-            <div className="col-md-6">
-              <div className="text-uppercase text-muted small fw-bold mb-2">Summary</div>
-              <div className="row g-2 mb-3">
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-shipment">
-                    Shipment
-                  </label>
-                  <input
-                    id="po-add-shipment"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.shipment}
-                    onChange={(e) => setForm((p) => ({ ...p, shipment: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12 col-sm-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-discount">
-                    Discount
-                  </label>
-                  <input
-                    id="po-add-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control form-control-sm text-end"
-                    placeholder="0.00"
-                    value={form.discount}
-                    onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-account">
-                    Mode of payment <span className="text-danger">*</span>
-                  </label>
-                  {accountsStatus === 'failed' && accountsError ? (
-                    <div className="alert alert-warning py-2 mb-2" role="alert">
-                      {accountsError}
-                    </div>
-                  ) : null}
-                  <select
-                    id="po-add-account"
-                    className={`form-select form-select-sm ${errors.account_id ? 'is-invalid' : ''}`}
-                    value={form.account_id}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((p) => ({ ...p, account_id: v }));
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.account_id;
-                        if (next.submit === 'Mode of payment is required.') delete next.submit;
-                        return next;
-                      });
-                    }}
-                    required
-                    disabled={accountSelectDisabled}
-                  >
-                    <option value="">Select mode of payment</option>
-                    {accountOptions.map((a) => {
-                      const value = accountOptionValue(a);
-                      return (
-                        <option key={value} value={value}>
-                          {accountOptionLabel(a)}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {errors.account_id ? (
-                    <div className="text-danger small mt-1">{errors.account_id}</div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="border rounded p-3 bg-light">
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Sub total</span>
-                  <span className="fw-semibold">{fmt(summary.subTotal)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Shipment</span>
-                  <span className="fw-semibold">{fmt(summary.shipment)}</span>
-                </div>
-                <div className="po-add-summary-row">
-                  <span className="text-muted">Discount</span>
-                  <span className="fw-semibold">−{fmt(summary.discount)}</span>
-                </div>
-                <div className="po-add-summary-row po-add-summary-total">
-                  <span>Total</span>
-                  <span>{fmt(summary.total)}</span>
-                </div>
-              </div>
-              <div className="text-uppercase text-muted small fw-bold mb-2 mt-3">Payment</div>
-              <div className="row g-2">
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-received">
-                    Amount paid
-                  </label>
-                  <input
-                    id="po-add-received"
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    className="form-control form-control-sm"
-                    value={form.amount_received}
-                    onChange={(e) => {
-                      setAmountPaidDirty(true);
-                      setForm((p) => ({
-                        ...p,
-                        amount_received: sanitizeAmountPaidInput(e.target.value),
-                      }));
-                    }}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1" htmlFor="po-add-remaining">
-                    Remaining
-                  </label>
-                  <input
-                    id="po-add-remaining"
-                    type="text"
-                    readOnly
-                    tabIndex={-1}
-                    className="form-control form-control-sm bg-body-secondary"
-                    value={fmt(paymentRemaining)}
-                    aria-live="polite"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="d-flex flex-wrap justify-content-end gap-2 pt-3 mt-3 border-top po-add-actions">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={submitDisabled}
-              title={submitButtonTitle}
-            >
-              {isSubmitting ? (
-                <>
-                  <span
-                    className="spinner-border spinner-border-sm me-1"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-save me-1" aria-hidden="true" />
-                  Create purchase order
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </form>
 
       <div
         className="modal fade"
@@ -1463,11 +1406,7 @@ const PurchaseOrderAdd = () => {
                 <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn po-add-vendor-btn"
-                  disabled={createVendorSubmitting}
-                >
+                <button type="submit" className="btn btn-primary" disabled={createVendorSubmitting}>
                   {createVendorSubmitting ? (
                     <>
                       <span

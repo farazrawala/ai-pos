@@ -213,9 +213,7 @@ const ProductEdit = () => {
               ? parseFloat(beforeRaw)
               : NaN;
           const rateNum =
-            rateRaw !== undefined && rateRaw !== null && rateRaw !== ''
-              ? parseFloat(rateRaw)
-              : NaN;
+            rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? parseFloat(rateRaw) : NaN;
 
           if (!Number.isNaN(beforeNum)) {
             const rateStr = !Number.isNaN(rateNum) ? String(rateRaw) : '';
@@ -972,7 +970,7 @@ const ProductEdit = () => {
   if (isLoading) {
     return (
       <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row mt-4">
+        <div className="row">
           <div className="col-12" style={{ padding: '20px' }}>
             <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
               <div className="card-body text-center p-4">
@@ -992,7 +990,7 @@ const ProductEdit = () => {
   if (fetchStatus === 'failed') {
     return (
       <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row mt-4">
+        <div className="row">
           <div className="col-12" style={{ padding: '20px' }}>
             <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
               <div className="card-body">
@@ -1015,7 +1013,7 @@ const ProductEdit = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
             <div className="card-header pb-0">
@@ -1158,9 +1156,7 @@ const ProductEdit = () => {
                       onChange={handleChange}
                       disabled={isSubmitting}
                     />
-                    {errors.tax_rate && (
-                      <div className="invalid-feedback">{errors.tax_rate}</div>
-                    )}
+                    {errors.tax_rate && <div className="invalid-feedback">{errors.tax_rate}</div>}
                   </div>
                   <div className="col-md-3 col-6 mb-3">
                     <label htmlFor="price" className="form-label">

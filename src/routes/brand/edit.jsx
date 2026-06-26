@@ -152,7 +152,7 @@ const BrandEdit = () => {
   if (isLoading) {
     return (
       <div className="container-fluid py-4 px-0">
-        <div className="row mt-4">
+        <div className="row">
           <div className="col-12" style={{ padding: '20px' }}>
             <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
               <div className="card-body text-center p-4">
@@ -171,7 +171,7 @@ const BrandEdit = () => {
   if (fetchStatus === 'failed') {
     return (
       <div className="container-fluid py-4 px-0">
-        <div className="row mt-4">
+        <div className="row">
           <div className="col-12" style={{ padding: '20px' }}>
             <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
               <div className="card-body">
@@ -195,7 +195,7 @@ const BrandEdit = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="card-header pb-0">

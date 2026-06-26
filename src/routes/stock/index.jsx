@@ -23,8 +23,15 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+
+const movementBadgeClass = (type) => {
+  if (type === 'in') return 'bg-gradient-success';
+  if (type === 'out') return 'bg-gradient-warning';
+  return 'bg-gradient-secondary';
+};
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -45,7 +52,6 @@ const StockListing = () => {
   const [showTransferForm, setShowTransferForm] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -70,10 +76,8 @@ const StockListing = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
-
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -96,35 +100,17 @@ const StockListing = () => {
     [dispatch]
   );
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
     }
-    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    sortClickTimeoutRef.current = setTimeout(() => {
-      dispatch(setSort({ sortBy }));
-      sortClickTimeoutRef.current = null;
-    }, 200);
+    dispatch(setSort({ sortBy: column }));
   };
 
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
-  };
-
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
 
   const refreshList = useCallback(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -138,22 +124,22 @@ const StockListing = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center gy-2">
-                <div className="col-md-6">
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-5 col-md-6">
                   <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <h5 className="mb-0">Stock</h5>
+                    <h5 className="mb-0">Stock movements</h5>
                     {canTransfer ? (
                       <button
                         type="button"
-                        className="btn btn-sm btn-primary mb-0 ml-4"
+                        className="btn btn-sm btn-primary mb-0"
                         onClick={() => setShowTransferForm(true)}
                       >
-                        <i className="fas fa-plus me-1" aria-hidden="true" />
-                        Move Stock
+                        <i className="fas fa-arrow-right-arrow-left me-1" aria-hidden="true" />
+                        Move stock
                       </button>
                     ) : null}
                   </div>
@@ -166,16 +152,16 @@ const StockListing = () => {
                     </p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
+                <div className="col-lg-7 col-md-6">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search…"
+                        placeholder="Search products, barcode, reference…"
                         value={localSearch}
                         onChange={handleSearchChange}
                         aria-label="Search stock"
@@ -187,6 +173,7 @@ const StockListing = () => {
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--stock"
                 loading={loading}
                 loadingLabel="Loading stock…"
                 error={error}
@@ -197,157 +184,129 @@ const StockListing = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th className="text-center list-col-sno">#</th>
+                      {sortableTh('product_id', 'Product', 'list-col-truncate')}
+                      <th className="list-col-truncate-sm">Barcode</th>
+                      <th className="list-col-truncate-sm">Warehouse</th>
+                      {sortableTh('movement_type', 'Movement')}
+                      {sortableTh('quantity', 'Qty', 'text-end')}
+                      {sortableTh('reference_type', 'Reference', 'list-col-truncate')}
+                      {sortableTh('status', 'Status')}
+                      <th className="list-col-truncate-sm">Moved by</th>
+                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th>S.No</th>
-                        <th>Product</th>
-                        <th>Barcode</th>
-                        <th>Warehouse</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('movement_type')}
-                          onDoubleClick={() => handleSort('movement_type', true)}
-                        >
-                          Movement
-                          {renderSortIcon('movement_type')}
-                        </th>
-                        <th
-                          className="text-end"
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('quantity')}
-                          onDoubleClick={() => handleSort('quantity', true)}
-                        >
-                          Qty
-                          {renderSortIcon('quantity')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('reference_type')}
-                          onDoubleClick={() => handleSort('reference_type', true)}
-                        >
-                          Reference
-                          {renderSortIcon('reference_type')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th>Moved by</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created
-                          {renderSortIcon('createdAt')}
-                        </th>
+                        <td colSpan={10} className="text-center py-5 text-muted">
+                          No stock movements found. Try adjusting your search.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan="11" className="text-center text-sm font-weight-normal p-4">
-                            No stock found
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const key = item._id || item.id || index;
-                          const movementType = getMovementType(item);
-                          const qty = getMovementQuantity(item);
-                          const refName = getReferenceName(item);
-                          const refType = getReferenceType(item);
-                          return (
-                            <tr key={key}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">
-                                {getProductLabel(item)}
-                              </td>
-                              <td className="text-sm font-weight-normal">{getProductSku(item)}</td>
-                              <td className="text-sm font-weight-normal">
-                                {getWarehouseLabel(item)}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {movementType ? (
-                                  <span
-                                    className={`badge ${
-                                      movementType === 'in'
-                                        ? 'bg-success'
-                                        : movementType === 'out'
-                                          ? 'bg-warning text-dark'
-                                          : 'bg-secondary'
-                                    }`}
-                                  >
-                                    {movementType.toUpperCase()}
-                                  </span>
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal text-end">
-                                {qty != null ? qty : '—'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {refName || refType ? (
-                                  <div className="d-flex flex-column gap-1">
-                                    {refName ? (
-                                      <span>{refName}</span>
-                                    ) : null}
-                                    {refType ? (
-                                      <span className="badge bg-light text-dark border align-self-start">
-                                        {refType
-                                          .replace(/_/g, ' ')
-                                          .replace(/\b\w/g, (c) => c.toUpperCase())}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.status ? (
-                                  <span
-                                    className={`badge ${
-                                      String(item.status).toLowerCase() === 'active'
-                                        ? 'bg-success'
-                                        : 'bg-secondary'
-                                    }`}
-                                  >
-                                    {item.status}
-                                  </span>
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {getCreatedByLabel(item)}
-                              </td>
-                              <td
-                                className="text-sm font-weight-normal"
-                                title={
-                                  item.createdAt || item.created_at
-                                    ? moment(item.createdAt || item.created_at).format(
-                                        'MM-DD-YYYY h:mm a'
-                                      )
-                                    : undefined
-                                }
-                              >
-                                {item.createdAt || item.created_at
-                                  ? moment(item.createdAt || item.created_at).fromNow()
-                                  : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const key = item._id || item.id || index;
+                        const movementType = getMovementType(item);
+                        const qty = getMovementQuantity(item);
+                        const refName = getReferenceName(item);
+                        const refType = getReferenceType(item);
+                        const productLabel = getProductLabel(item);
+                        const sku = getProductSku(item);
+                        const warehouse = getWarehouseLabel(item);
+                        const movedBy = getCreatedByLabel(item);
+                        const created = item.createdAt || item.created_at;
+                        const isActive = String(item.status || '').toLowerCase() === 'active';
+                        return (
+                          <tr key={key}>
+                            <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            <td
+                              className="text-sm font-weight-bold text-dark list-cell-truncate"
+                              title={productLabel}
+                            >
+                              {productLabel || '—'}
+                            </td>
+                            <td
+                              className="text-sm text-muted list-cell-truncate-sm"
+                              title={sku || undefined}
+                            >
+                              {sku || '—'}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate-sm"
+                              title={warehouse || undefined}
+                            >
+                              {warehouse || '—'}
+                            </td>
+                            <td className="text-sm">
+                              {movementType ? (
+                                <span
+                                  className={`badge text-xxs ${movementBadgeClass(movementType)}`}
+                                >
+                                  {movementType.toUpperCase()}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="text-sm text-end font-weight-bold">
+                              {qty != null ? qty : '—'}
+                            </td>
+                            <td className="text-sm list-cell-truncate">
+                              {refName || refType ? (
+                                <div className="d-flex flex-column gap-1">
+                                  {refName ? (
+                                    <span className="text-truncate" title={refName}>
+                                      {refName}
+                                    </span>
+                                  ) : null}
+                                  {refType ? (
+                                    <span className="badge text-xxs bg-light text-dark border align-self-start">
+                                      {refType
+                                        .replace(/_/g, ' ')
+                                        .replace(/\b\w/g, (c) => c.toUpperCase())}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="text-sm">
+                              {item.status ? (
+                                <span
+                                  className={`badge text-xxs ${
+                                    isActive ? 'bg-gradient-success' : 'bg-gradient-secondary'
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate-sm"
+                              title={movedBy || undefined}
+                            >
+                              {movedBy || '—'}
+                            </td>
+                            <td
+                              className="text-sm text-nowrap list-col-date"
+                              title={
+                                created ? moment(created).format('DD MMM YYYY h:mm a') : undefined
+                              }
+                            >
+                              {created ? moment(created).fromNow() : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>

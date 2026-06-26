@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaFilter } from 'react-icons/fa6';
 import {
   fetchPurchaseOrders,
   deletePurchaseOrder,
@@ -28,6 +29,7 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ListDateExportBar from '../../components/list/ListDateExportBar.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
@@ -112,8 +114,13 @@ const PurchaseOrders = () => {
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [exporting, setExporting] = useState(false);
+  const [showFilters, setShowFilters] = useState(
+    Boolean(filters.startDate || filters.endDate)
+  );
   const searchTimeoutRef = useRef(null);
   const filterTimeoutRef = useRef(null);
+
+  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
   useEffect(() => {
     const params = {
@@ -311,7 +318,7 @@ const PurchaseOrders = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
@@ -353,12 +360,33 @@ const PurchaseOrders = () => {
                       />
                     </div>
                     <AddNewButton to="/purchase-orders/add" label="Create purchase order" size="sm" />
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 position-relative ${
+                        showFilters || activeFilterCount > 0
+                          ? 'btn-primary'
+                          : 'btn-outline-primary'
+                      }`}
+                      onClick={() => setShowFilters((prev) => !prev)}
+                      aria-expanded={showFilters}
+                      aria-controls="purchase-orders-filter-panel"
+                      aria-label="Filters and export"
+                      title="Filters & export"
+                    >
+                      <NavIcon icon={FaFilter} size={14} />
+                      {activeFilterCount > 0 ? (
+                        <span className="badge bg-gradient-danger text-white rounded-pill position-absolute top-0 start-100 translate-middle">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
             <ListDateExportBar
               idPrefix="purchase-orders"
+              show={showFilters}
               localStartDate={localStartDate}
               localEndDate={localEndDate}
               onStartDateChange={setLocalStartDate}

@@ -17,6 +17,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import FetchCategoriesModal from '../../components/category/FetchCategoriesModal.jsx';
@@ -49,6 +50,9 @@ const isCategoryActive = (item) => {
   if (status === 'inactive') return false;
   return Boolean(item?.isActive);
 };
+
+const statusBadgeClass = (active) =>
+  active ? 'bg-gradient-success' : 'bg-gradient-secondary';
 
 const buildCategoryListParams = (pagination, searchTerm, sort) => {
   const params = {
@@ -131,42 +135,18 @@ const Category = () => {
     dispatch(setLimit(limit));
   };
 
-  // Handle sort change with double-click detection
-  const sortClickTimeoutRef = useRef(null);
-
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  // Handle sort change (double-click clears sort)
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      // Clear the single click timeout if double-clicked
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
-      // Clear sorting on double click
       dispatch(setSort({ sortBy: null, sortOrder: null }));
-    } else {
-      // Delay single click to allow for double-click detection
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-      }
-      sortClickTimeoutRef.current = setTimeout(() => {
-        // Toggle sort on single click
-        dispatch(setSort({ sortBy }));
-        sortClickTimeoutRef.current = null;
-      }, 200); // 200ms delay to detect double-click
+      return;
     }
+    dispatch(setSort({ sortBy: column }));
   };
 
-  // Render sort icon
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
-  };
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
 
   // Handle toggle status
   const handleToggleStatus = async (categoryId, isCurrentlyActive) => {
@@ -319,16 +299,8 @@ const Category = () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-      }
     };
   }, []);
-  const firstSegment = window.location.pathname.split('/')[1];
-
-  // Calculate pagination info
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
   const showToast = (elementId, bodyText) => {
     const toastElement = document.getElementById(elementId);
@@ -375,60 +347,60 @@ const Category = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
-              <div className="row align-items-center w-100">
-                <div className="col-md-6">
-                  <h5 className="mb-0">
-                    {firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1)}
-                  </h5>
+            <div className="card-header pb-3">
+              <div className="row align-items-center w-100 g-2">
+                <div className="col-lg-4 col-md-5">
+                  <h5 className="mb-1">Categories</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
+                    <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                <div className="col-lg-8 col-md-7">
+                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search categories..."
+                        placeholder="Search categories…"
                         value={localSearch}
                         onChange={handleSearchChange}
+                        aria-label="Search categories"
                       />
                     </div>
-                    {canCreate && (
+                    {canCreate ? (
                       <>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setFetchCategoriesModalOpen(true)}
                         >
-                          <i className="fas fa-cloud-download-alt me-1" />
-                          Fetch Categories
+                          <i className="fas fa-cloud-download-alt me-1" aria-hidden="true" />
+                          Fetch
                         </button>
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-md mb-0 text-sm"
+                          className="btn btn-sm btn-outline-primary mb-0"
                           onClick={() => setSyncCategoriesModalOpen(true)}
                         >
                           <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
-                          Sync Categories
+                          Sync
                         </button>
-                        <AddNewButton to="/categories/add" label="Add New Category" size="md" />
+                        <AddNewButton to="/categories/add" label="Add category" size="sm" />
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--categories"
                 loading={loading}
                 loadingLabel="Loading categories…"
                 error={error}
@@ -438,199 +410,142 @@ const Category = () => {
                 selectId="categories-table-page-size"
                 showPagination={!loading && !error && pagination.total > 0}
               >
-                <table className="table align-items-center mb-0" id="datatable-search">
+                <table className="table align-items-center mb-0">
                     <thead>
                       <tr>
-                        <th>S.No</th>
-                        <th className="text-center" style={{ width: '72px' }}>
-                          Image
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
-                        </th>
-                        <th>Parent Category</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('slug')}
-                          onDoubleClick={() => handleSort('slug', true)}
-                        >
-                          Slug
-                          {renderSortIcon('slug')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
-                        </th>
-                        <th>Actions</th>
+                        <th className="text-center list-col-sno">#</th>
+                        <th className="list-col-product-img">Image</th>
+                        {sortableTh('name', 'Name', 'list-col-truncate')}
+                        <th className="list-col-truncate-sm">Parent</th>
+                        {sortableTh('slug', 'Slug', 'list-col-truncate-sm')}
+                        {sortableTh('status', 'Status')}
+                        {sortableTh('createdAt', 'Created', 'list-col-date')}
+                        <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
-                            No categories found
+                          <td colSpan={8} className="text-center py-5 text-muted">
+                            No categories found. Try adjusting your search.
                           </td>
                         </tr>
                       ) : (
                         data.map((item, index) => {
-                          // Calculate series number accounting for pagination
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                          const categoryId = categoryIdFromRecord(item);
                           const imageSrc = categoryImageSrc(item);
                           const displayName = item.name || item.category_name || 'Category';
+                          const parentName = parentCategoryName(item);
+                          const slug = item.slug || '—';
+                          const active = isCategoryActive(item);
+                          const isToggling = togglingCategoryId === categoryId;
+                          const created = item.createdAt ?? item.created_at;
+                          const updated = item.updatedAt ?? item.updated_at;
                           return (
-                            <tr key={item._id || index}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal align-middle text-center">
+                            <tr key={categoryId || index}>
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                              <td>
                                 {imageSrc ? (
                                   <img
                                     src={imageSrc}
                                     alt={displayName}
-                                    className="rounded border"
-                                    style={{
-                                      width: '40px',
-                                      height: '40px',
-                                      objectFit: 'cover',
-                                      verticalAlign: 'middle',
-                                    }}
+                                    className="list-product-thumb"
                                   />
                                 ) : (
-                                  <span className="text-muted">—</span>
+                                  <div className="list-product-thumb list-product-thumb--empty">
+                                    <i className="fas fa-image text-muted" aria-hidden="true" />
+                                  </div>
                                 )}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.name || item.category_name || '-'}
+                              <td
+                                className="text-sm font-weight-bold text-dark list-cell-truncate"
+                                title={displayName}
+                              >
+                                {displayName}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {parentCategoryName(item)}
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={parentName !== '-' ? parentName : undefined}
+                              >
+                                {parentName === '-' ? '—' : parentName}
                               </td>
-                              <td className="text-sm font-weight-normal">{item.slug || '-'}</td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex align-items-center gap-2">
-                                  <div className="form-check form-switch mb-0">
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      role="switch"
-                                      id={`toggle-${item._id || item.id || item.category_id || index}`}
-                                      checked={isCategoryActive(item)}
-                                      onChange={() =>
-                                        handleToggleStatus(
-                                          item._id || item.id || item.category_id,
-                                          isCategoryActive(item)
-                                        )
-                                      }
-                                      disabled={
-                                        togglingCategoryId ===
-                                        (item._id || item.id || item.category_id)
-                                      }
-                                      style={{
-                                        width: '2.5rem',
-                                        height: '1.25rem',
-                                        cursor:
-                                          togglingCategoryId ===
-                                          (item._id || item.id || item.category_id)
-                                            ? 'not-allowed'
-                                            : 'pointer',
-                                      }}
-                                    />
-                                  </div>
-
-                                  {togglingCategoryId ===
-                                  (item._id || item.id || item.category_id) ? (
-                                    <span
-                                      className="spinner-border spinner-border-sm text-primary"
-                                      role="status"
-                                      style={{ width: '1rem', height: '1rem' }}
-                                    >
-                                      <span className="visually-hidden">Loading...</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`badge ${isCategoryActive(item) ? 'bg-success' : 'bg-secondary'}`}
-                                    >
-                                      {isCategoryActive(item) ? 'Active' : 'Inactive'}
-                                    </span>
-                                  )}
+                              <td
+                                className="text-sm list-cell-truncate-sm text-muted"
+                                title={slug !== '—' ? slug : undefined}
+                              >
+                                {slug}
+                              </td>
+                              <td className="text-sm">
+                                <div className="d-flex align-items-center gap-2 flex-wrap">
+                                  <span className={`badge text-xxs ${statusBadgeClass(active)}`}>
+                                    {active ? 'Active' : 'Inactive'}
+                                  </span>
+                                  {canEdit ? (
+                                    <div className="form-check form-switch mb-0 list-status-switch">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id={`toggle-${categoryId || index}`}
+                                        checked={active}
+                                        onChange={() => handleToggleStatus(categoryId, active)}
+                                        disabled={isToggling}
+                                        aria-label={`Toggle ${displayName} status`}
+                                      />
+                                      {isToggling ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-primary ms-1"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
+                              <td
+                                className="text-sm text-nowrap list-col-date"
+                                title={
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    : undefined
+                                }
+                              >
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                               </td>
-                              <td className="text-sm font-weight-normal">
-                                {moment(item.updatedAt).fromNow()}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex flex-wrap gap-1">
+                              <td className="text-end">
+                                <div className="list-table-actions">
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-info mb-0 px-2 py-1"
-                                    title="View Sync"
-                                    aria-label="View Sync"
+                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                    title="View sync"
+                                    aria-label="View sync"
                                     onClick={() =>
-                                      setViewSyncCategory({
-                                        id: categoryIdFromRecord(item),
-                                        name: item.name || item.category_name || 'Category',
-                                      })
+                                      setViewSyncCategory({ id: categoryId, name: displayName })
                                     }
                                   >
                                     <NavIcon icon={FaArrowsRotate} size={14} />
                                   </button>
-                                  {canEdit && (
+                                  {canEdit ? (
                                     <button
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() =>
-                                        navigate(
-                                          `/categories/edit/${item._id || item.id || item.category_id}`
-                                        )
-                                      }
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      onClick={() => navigate(`/categories/edit/${categoryId}`)}
                                     >
                                       Edit
                                     </button>
-                                  )}
-                                  {canDelete && (
+                                  ) : null}
+                                  {canDelete ? (
                                     <button
-                                      className="btn btn-sm btn-danger"
-                                      onClick={() =>
-                                        handleDelete(
-                                          item._id || item.id || item.category_id,
-                                          item.name || item.category_name
-                                        )
-                                      }
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
+                                      onClick={() => handleDelete(categoryId, displayName)}
                                       disabled={deleteStatus === 'loading'}
                                     >
-                                      {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
+                                      {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}
                                     </button>
-                                  )}
-                                  {!canEdit && !canDelete && (
-                                    <span className="text-muted text-sm">No edit/delete access</span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </td>
                             </tr>
