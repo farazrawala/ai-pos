@@ -37,6 +37,7 @@ import {
   FaUser,
   FaCircleUser,
   FaWarehouse,
+  FaXmark,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
@@ -189,6 +190,14 @@ const Sidebar = () => {
         id="sidenav-main"
       >
         <div className="sidenav-header">
+          <button
+            type="button"
+            className="sidenav-close-btn btn btn-link text-secondary d-xl-none"
+            aria-label="Close menu"
+            onClick={closeSidenav}
+          >
+            <NavIcon icon={FaXmark} size={20} />
+          </button>
           <NavLink
             className="navbar-brand m-0 sidebar-brand-with-menu"
             rel="noopener noreferrer"
