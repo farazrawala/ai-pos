@@ -1462,6 +1462,9 @@ export async function createPosOrderRequest(payload = {}) {
   if (payload.change_given != null) {
     form.append('change_given', String(payload.change_given));
   }
+  if (payload.remaining_amount != null) {
+    form.append('remaining_amount', String(payload.remaining_amount));
+  }
   if (payload.posPayMethod != null) {
     form.append('posPayMethod', String(payload.posPayMethod));
   }
@@ -1556,6 +1559,9 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
     'change_given',
     payload.change_given != null && payload.change_given !== '' ? String(payload.change_given) : ''
   );
+  if (payload.remaining_amount != null) {
+    form.append('remaining_amount', String(payload.remaining_amount));
+  }
   if (payload.posPayMethod != null) {
     form.append('posPayMethod', String(payload.posPayMethod));
   }

@@ -893,6 +893,7 @@ const Pos = () => {
         order_status: 'active',
         amount_received: payment?.paid ?? 0,
         change_given: payment?.change ?? 0,
+        remaining_amount: payment?.balanceDue ?? 0,
         posPayMethod: payment?.paymentMethodId || undefined,
         payment_method_id: payment?.paymentMethodId || undefined,
         customer_id: selectedCustomerId || undefined,
