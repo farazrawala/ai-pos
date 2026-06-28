@@ -37,7 +37,7 @@ import {
   FaUser,
   FaCircleUser,
   FaWarehouse,
-  FaBars,
+  FaXmark,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
@@ -107,7 +107,7 @@ const navItems = [
 
 const Sidebar = () => {
   const dispatch = useDispatch();
-  const { toggle: toggleSidenav, close: closeSidenav, pinned, mobileMenuOpen } = useSidenav();
+  const { close: closeSidenav, mobileMenuOpen } = useSidenav();
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
@@ -169,12 +169,6 @@ const Sidebar = () => {
     });
   }, [canView, isAdmin]);
 
-  const handleMenuToggle = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleSidenav();
-  };
-
   const handleNavClick = () => {
     if (window.innerWidth < 1200) {
       closeSidenav();
@@ -191,32 +185,19 @@ const Sidebar = () => {
           onClick={closeSidenav}
         />
       ) : null}
-      {!pinned ? (
-        <button
-          type="button"
-          className="sidebar-mobile-toggle btn btn-link text-dark p-2 position-fixed d-xl-none d-inline-flex align-items-center justify-content-center border-0 bg-white border-radius-xl shadow-sm"
-          style={{ top: '0.85rem', left: '0.75rem', zIndex: 1036, width: '2.75rem', height: '2.75rem' }}
-          aria-label="Open menu"
-          onClick={handleMenuToggle}
-        >
-          <NavIcon icon={FaBars} size={18} />
-        </button>
-      ) : null}
       <aside
         className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
         id="sidenav-main"
       >
         <div className="sidenav-header">
-          <div className="sidebar-header-toolbar">
-            <button
-              type="button"
-              className="sidebar-menu-btn btn btn-link text-secondary border-0 bg-transparent"
-              aria-label="Toggle menu"
-              onClick={handleMenuToggle}
-            >
-              <NavIcon icon={FaBars} size={18} />
-            </button>
-          </div>
+          <button
+            type="button"
+            className="sidenav-close-btn btn btn-link text-secondary d-xl-none"
+            aria-label="Close menu"
+            onClick={closeSidenav}
+          >
+            <NavIcon icon={FaXmark} size={20} />
+          </button>
           <NavLink
             className="navbar-brand m-0 sidebar-brand-with-menu"
             rel="noopener noreferrer"
@@ -226,16 +207,16 @@ const Sidebar = () => {
               {brandLogoUrl ? (
                 <img
                   src={brandLogoUrl}
-                  width={32}
-                  height={32}
+                  width={64}
+                  height={64}
                   className="navbar-brand-img"
                   alt={`${brandLabel} logo`}
                   style={{ objectFit: 'contain' }}
                 />
               ) : (
                 <span
-                  className="navbar-brand-img d-inline-flex align-items-center justify-content-center rounded bg-gradient-primary text-white text-xxs fw-bold"
-                  style={{ width: 32, height: 32, flexShrink: 0 }}
+                  className="navbar-brand-img d-inline-flex align-items-center justify-content-center rounded bg-gradient-primary text-white fw-bold"
+                  style={{ width: 64, height: 64, flexShrink: 0, fontSize: '1.25rem' }}
                   aria-hidden
                 >
                   {brandLabel.charAt(0).toUpperCase()}

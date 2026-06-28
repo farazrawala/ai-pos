@@ -163,7 +163,9 @@ const Transactions = () => {
   };
 
   const debitCreditCells = (row) => {
-    const t = String(row.type || '').toLowerCase().trim();
+    const t = String(row.type || '')
+      .toLowerCase()
+      .trim();
     const amount = formatTransactionAmount(row.amount);
     const isDebit = t === 'debit';
     const isCredit = t === 'credit';
@@ -202,7 +204,7 @@ const Transactions = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card w-100" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
@@ -212,7 +214,9 @@ const Transactions = () => {
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
                       Double-entry journals (grouped lines). API:{' '}
-                      <code className="small">GET /transaction/get-all-active?populate=account_id,ref_id</code>
+                      <code className="small">
+                        GET /transaction/get-all-active?populate=account_id,ref_id
+                      </code>
                     </p>
                   ) : null}
                 </div>
@@ -276,10 +280,18 @@ const Transactions = () => {
                   />
                 </div>
                 <div className="col-md-6 d-flex flex-wrap gap-2">
-                  <button type="button" className="btn btn-primary btn-sm mb-0" onClick={applyDateFilters}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm mb-0"
+                    onClick={applyDateFilters}
+                  >
                     Apply date filters
                   </button>
-                  <button type="button" className="btn btn-outline-secondary btn-sm mb-0" onClick={resetDateFilters}>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm mb-0"
+                    onClick={resetDateFilters}
+                  >
                     Clear
                   </button>
                 </div>
@@ -305,10 +317,7 @@ const Transactions = () => {
                       const linkMap = buildDocumentRefLinkMap(lines);
                       const sortedLines = sortJournalLinesDebitFirst(lines);
                       const sums = sumDebitCreditForLines(lines);
-                      const jKey =
-                        lines[0]?._id ||
-                        lines[0]?.id ||
-                        `${pagination.page}-${jIndex}`;
+                      const jKey = lines[0]?._id || lines[0]?.id || `${pagination.page}-${jIndex}`;
                       return (
                         <div key={jKey} className="card shadow-none border mb-0 w-100">
                           <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-start gap-2 bg-gray-100">
@@ -318,9 +327,7 @@ const Transactions = () => {
                               </span>
                               <strong className="text-sm">Ref. {meta.ref}</strong>
                               <span className="text-sm text-muted ms-2">
-                                {meta.createdAt
-                                  ? meta.createdAt.format('MM-DD-YYYY h:mm a')
-                                  : '—'}
+                                {meta.createdAt ? meta.createdAt.format('MM-DD-YYYY h:mm a') : '—'}
                               </span>
                             </div>
                             <div className="text-end">
@@ -395,123 +402,126 @@ const Transactions = () => {
               {!loading && !error && viewMode === 'lines' && (
                 <div className="list-data-table mx-3 mb-3">
                   <div className="list-data-table-scroll">
-                  <table className="table align-items-center mb-0 w-100">
-                    <thead>
-                      <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('transaction_number')}
-                          onDoubleClick={() => handleSort('transaction_number', true)}
-                        >
-                          No.
-                          {renderSortIcon('transaction_number')}
-                        </th>
-                        <th>Account</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('type')}
-                          onDoubleClick={() => handleSort('type', true)}
-                        >
-                          Type
-                          {renderSortIcon('type')}
-                        </th>
-                        <th className="text-end">Debit</th>
-                        <th className="text-end">Credit</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('description')}
-                          onDoubleClick={() => handleSort('description', true)}
-                        >
-                          Description
-                          {renderSortIcon('description')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created
-                          {renderSortIcon('createdAt')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
+                    <table className="table align-items-center mb-0 w-100">
+                      <thead>
                         <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
-                            No transactions found
-                          </td>
+                          <th>S.No</th>
+                          <th
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => handleSort('transaction_number')}
+                            onDoubleClick={() => handleSort('transaction_number', true)}
+                          >
+                            No.
+                            {renderSortIcon('transaction_number')}
+                          </th>
+                          <th>Account</th>
+                          <th
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => handleSort('type')}
+                            onDoubleClick={() => handleSort('type', true)}
+                          >
+                            Type
+                            {renderSortIcon('type')}
+                          </th>
+                          <th className="text-end">Debit</th>
+                          <th className="text-end">Credit</th>
+                          <th
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => handleSort('description')}
+                            onDoubleClick={() => handleSort('description', true)}
+                          >
+                            Description
+                            {renderSortIcon('description')}
+                          </th>
+                          <th
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => handleSort('status')}
+                            onDoubleClick={() => handleSort('status', true)}
+                          >
+                            Status
+                            {renderSortIcon('status')}
+                          </th>
+                          <th
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => handleSort('createdAt')}
+                            onDoubleClick={() => handleSort('createdAt', true)}
+                          >
+                            Created
+                            {renderSortIcon('createdAt')}
+                          </th>
                         </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const key = item._id || item.id || index;
-                          const { debit, credit } = debitCreditCells(item);
-                          const typeLabel = String(item.type || '—').trim() || '—';
-                          const typeLower = typeLabel.toLowerCase();
-                          return (
-                            <tr key={key}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">
-                                {item.transaction_number ?? item.transactionNumber ?? '—'}
-                              </td>
-                              <td className="text-sm font-weight-normal">{getAccountName(item)}</td>
-                              <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${
-                                    typeLower === 'debit'
-                                      ? 'bg-danger'
-                                      : typeLower === 'credit'
-                                        ? 'bg-success'
-                                        : 'bg-secondary'
-                                  }`}
-                                >
-                                  {typeLabel}
-                                </span>
-                              </td>
-                              <td className="text-sm font-weight-normal text-end">{debit}</td>
-                              <td className="text-sm font-weight-normal text-end">{credit}</td>
-                              <td className="text-sm font-weight-normal">
-                                {renderTransactionDescriptionLinks(
-                                  enrichTransactionDescription(item) || '—',
-                                  buildDocumentRefLinkMap([item])
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.status ? (
+                      </thead>
+                      <tbody>
+                        {data.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                              No transactions found
+                            </td>
+                          </tr>
+                        ) : (
+                          data.map((item, index) => {
+                            const seriesNumber =
+                              (pagination.page - 1) * pagination.limit + index + 1;
+                            const key = item._id || item.id || index;
+                            const { debit, credit } = debitCreditCells(item);
+                            const typeLabel = String(item.type || '—').trim() || '—';
+                            const typeLower = typeLabel.toLowerCase();
+                            return (
+                              <tr key={key}>
+                                <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                                <td className="text-sm font-weight-normal">
+                                  {item.transaction_number ?? item.transactionNumber ?? '—'}
+                                </td>
+                                <td className="text-sm font-weight-normal">
+                                  {getAccountName(item)}
+                                </td>
+                                <td className="text-sm font-weight-normal">
                                   <span
                                     className={`badge ${
-                                      String(item.status).toLowerCase() === 'active'
-                                        ? 'bg-success'
-                                        : 'bg-secondary'
+                                      typeLower === 'debit'
+                                        ? 'bg-danger'
+                                        : typeLower === 'credit'
+                                          ? 'bg-success'
+                                          : 'bg-secondary'
                                     }`}
                                   >
-                                    {item.status}
+                                    {typeLabel}
                                   </span>
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                </td>
+                                <td className="text-sm font-weight-normal text-end">{debit}</td>
+                                <td className="text-sm font-weight-normal text-end">{credit}</td>
+                                <td className="text-sm font-weight-normal">
+                                  {renderTransactionDescriptionLinks(
+                                    enrichTransactionDescription(item) || '—',
+                                    buildDocumentRefLinkMap([item])
+                                  )}
+                                </td>
+                                <td className="text-sm font-weight-normal">
+                                  {item.status ? (
+                                    <span
+                                      className={`badge ${
+                                        String(item.status).toLowerCase() === 'active'
+                                          ? 'bg-success'
+                                          : 'bg-secondary'
+                                      }`}
+                                    >
+                                      {item.status}
+                                    </span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                                <td className="text-sm font-weight-normal">
+                                  {item.createdAt
+                                    ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                    : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                   <TablePagination
                     className="list-table-toolbar--footer"

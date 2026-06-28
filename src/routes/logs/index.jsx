@@ -236,7 +236,7 @@ const Logs = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">

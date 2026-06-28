@@ -86,11 +86,7 @@ const poTotalAmount = (row) => {
 
 const poTransactionNumber = (row) => {
   const v =
-    row?.transaction_number ??
-    row?.transactionNumber ??
-    row?.txn_no ??
-    row?.transaction_no ??
-    '';
+    row?.transaction_number ?? row?.transactionNumber ?? row?.txn_no ?? row?.transaction_no ?? '';
   return v !== '' && v != null ? String(v) : '—';
 };
 
@@ -164,7 +160,10 @@ const PurchaseOrderReturns = () => {
 
   useEffect(() => {
     if (error) {
-      console.error('[Purchase order return module] Failed to fetch purchase order return list', error);
+      console.error(
+        '[Purchase order return module] Failed to fetch purchase order return list',
+        error
+      );
     }
   }, [error]);
 
@@ -256,7 +255,13 @@ const PurchaseOrderReturns = () => {
   };
 
   const sortableTh = (column, label, className = '') => (
-    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+    <ListSortableTh
+      column={column}
+      label={label}
+      sort={sort}
+      onSort={handleSort}
+      className={className}
+    />
   );
 
   const statusBadgeClass = (status) => {
@@ -274,8 +279,7 @@ const PurchaseOrderReturns = () => {
   }, []);
 
   const handleDelete = async (purchaseOrderReturnId, returnLabel) => {
-    const label =
-      returnLabel && returnLabel !== '—' ? returnLabel : 'this purchase order return';
+    const label = returnLabel && returnLabel !== '—' ? returnLabel : 'this purchase order return';
     if (!window.confirm(`Delete "${label}"? This action cannot be undone.`)) {
       return;
     }
@@ -290,7 +294,7 @@ const PurchaseOrderReturns = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
@@ -316,7 +320,11 @@ const PurchaseOrderReturns = () => {
                         aria-label="Search purchase order returns"
                       />
                     </div>
-                    <AddNewButton to="/purchase-order-returns/add" label="Create return" size="sm" />
+                    <AddNewButton
+                      to="/purchase-order-returns/add"
+                      label="Create return"
+                      size="sm"
+                    />
                   </div>
                 </div>
               </div>
@@ -345,97 +353,110 @@ const PurchaseOrderReturns = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th className="text-center list-col-sno">#</th>
+                      {sortableTh('purchase_return_no', 'Return no')}
+                      {sortableTh('transaction_number', 'Transaction', 'list-col-truncate')}
+                      {sortableTh('return_status', 'Status')}
+                      {sortableTh('supplier_name', 'Supplier')}
+                      <th className="list-col-truncate-sm">Trace ID</th>
+                      {sortableTh('total_amount', 'Amount', 'text-end list-col-amount')}
+                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      <th className="text-end list-col-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th className="text-center list-col-sno">#</th>
-                        {sortableTh('purchase_return_no', 'Return no')}
-                        {sortableTh('transaction_number', 'Transaction', 'list-col-truncate')}
-                        {sortableTh('return_status', 'Status')}
-                        {sortableTh('supplier_name', 'Supplier')}
-                        <th className="list-col-truncate-sm">Trace ID</th>
-                        {sortableTh('total_amount', 'Amount', 'text-end list-col-amount')}
-                        {sortableTh('createdAt', 'Created', 'list-col-date')}
-                        <th className="text-end list-col-actions">Actions</th>
+                        <td colSpan={9} className="text-center py-5 text-muted">
+                          <p className="mb-3">
+                            No purchase order returns found. Try adjusting search or date range.
+                          </p>
+                          <AddNewButton
+                            to="/purchase-order-returns/add"
+                            label="Create purchase order return"
+                          />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan={9} className="text-center py-5 text-muted">
-                            <p className="mb-3">No purchase order returns found. Try adjusting search or date range.</p>
-                            <AddNewButton to="/purchase-order-returns/add" label="Create purchase order return" />
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const id = poTraceId(item);
-                          const created = poCreated(item);
-                          const txn = poTransactionNumber(item);
-                          const statusVal = poStatus(item);
-                          const supplier = poSupplier(item);
-                          return (
-                            <tr key={id || index}>
-                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                              <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
-                              <td className="text-sm list-cell-truncate" title={txn !== '—' ? txn : undefined}>
-                                {txn}
-                              </td>
-                              <td className="text-sm">
-                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                  {String(statusVal)}
-                                </span>
-                              </td>
-                              <td className="text-sm list-cell-truncate" title={supplier}>
-                                {supplier}
-                              </td>
-                              <td className="text-sm text-muted list-cell-truncate-sm font-monospace" title={id || undefined}>
-                                {id ? `${id.slice(0, 8)}…` : '—'}
-                              </td>
-                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                                {poTotalAmount(item)}
-                              </td>
-                              <td className="text-sm text-nowrap list-col-date">
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                              </td>
-                              <td className="text-end">
-                                {id ? (
-                                  <div className="list-table-actions">
-                                    {canView ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-primary mb-0"
-                                        onClick={() =>
-                                          navigate(`/purchase-order-returns/edit/${encodeURIComponent(id)}`)
-                                        }
-                                      >
-                                        View
-                                      </button>
-                                    ) : null}
-                                    {canDelete ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-danger mb-0"
-                                        onClick={() => handleDelete(id, poRef(item))}
-                                        disabled={deleteStatus === 'loading'}
-                                      >
-                                        Delete
-                                      </button>
-                                    ) : null}
-                                    {!canView && !canDelete ? (
-                                      <span className="text-muted">—</span>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const id = poTraceId(item);
+                        const created = poCreated(item);
+                        const txn = poTransactionNumber(item);
+                        const statusVal = poStatus(item);
+                        const supplier = poSupplier(item);
+                        return (
+                          <tr key={id || index}>
+                            <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
+                            <td
+                              className="text-sm list-cell-truncate"
+                              title={txn !== '—' ? txn : undefined}
+                            >
+                              {txn}
+                            </td>
+                            <td className="text-sm">
+                              <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                {String(statusVal)}
+                              </span>
+                            </td>
+                            <td className="text-sm list-cell-truncate" title={supplier}>
+                              {supplier}
+                            </td>
+                            <td
+                              className="text-sm text-muted list-cell-truncate-sm font-monospace"
+                              title={id || undefined}
+                            >
+                              {id ? `${id.slice(0, 8)}…` : '—'}
+                            </td>
+                            <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                              {poTotalAmount(item)}
+                            </td>
+                            <td className="text-sm text-nowrap list-col-date">
+                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                            </td>
+                            <td className="text-end">
+                              {id ? (
+                                <div className="list-table-actions">
+                                  {canView ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      onClick={() =>
+                                        navigate(
+                                          `/purchase-order-returns/edit/${encodeURIComponent(id)}`
+                                        )
+                                      }
+                                    >
+                                      View
+                                    </button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
+                                      onClick={() => handleDelete(id, poRef(item))}
+                                      disabled={deleteStatus === 'loading'}
+                                    >
+                                      Delete
+                                    </button>
+                                  ) : null}
+                                  {!canView && !canDelete ? (
+                                    <span className="text-muted">—</span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>

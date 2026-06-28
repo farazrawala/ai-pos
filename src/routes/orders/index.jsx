@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaCloudArrowUp } from 'react-icons/fa6';
+import { FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
 import {
   fetchOrders,
   deleteOrder,
@@ -46,11 +46,7 @@ const getOrderStatusDisplay = (row) => {
 
 const getOrderItemsTotalDisplay = (row) => {
   if (!row || typeof row !== 'object') return '—';
-  const raw =
-    row.order_items_total ??
-    row.orderItemsTotal ??
-    row.items_total ??
-    row.itemsTotal;
+  const raw = row.order_items_total ?? row.orderItemsTotal ?? row.items_total ?? row.itemsTotal;
   if (raw == null || raw === '') return '—';
   const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
   if (!Number.isFinite(n)) return String(raw);
@@ -98,7 +94,10 @@ const Orders = () => {
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
   const searchTimeoutRef = useRef(null);
+
+  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -135,7 +134,6 @@ const Orders = () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
-
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -237,7 +235,13 @@ const Orders = () => {
   };
 
   const sortableTh = (column, label, className = '') => (
-    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+    <ListSortableTh
+      column={column}
+      label={label}
+      sort={sort}
+      onSort={handleSort}
+      className={className}
+    />
   );
 
   const handleOpenInvoice = async (row) => {
@@ -268,9 +272,7 @@ const Orders = () => {
       return;
     }
     const orderNo = row.order_no || row.orderNo || orderId;
-    if (
-      !window.confirm(`Delete order "${orderNo}"? This action cannot be undone.`)
-    ) {
+    if (!window.confirm(`Delete order "${orderNo}"? This action cannot be undone.`)) {
       return;
     }
     const result = await dispatch(deleteOrder(orderId));
@@ -306,7 +308,7 @@ const Orders = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
@@ -352,80 +354,118 @@ const Orders = () => {
                         </button>
                       </>
                     ) : null}
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 position-relative ${
+                        showFilters || activeFilterCount > 0 ? 'btn-primary' : 'btn-outline-primary'
+                      }`}
+                      onClick={() => setShowFilters((prev) => !prev)}
+                      aria-expanded={showFilters}
+                      aria-controls="orders-filter-panel"
+                      aria-label="Filters and export"
+                      title="Filters & export"
+                    >
+                      <NavIcon icon={FaFilter} size={14} />
+                      {activeFilterCount > 0 ? (
+                        <span className="badge bg-gradient-danger text-white rounded-pill position-absolute top-0 start-100 translate-middle">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="card-body pt-0 px-3 pb-0">
-              <div className="row g-2 align-items-end mb-3">
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label mb-1 text-sm" htmlFor="orders-from-date">
-                    From date
-                  </label>
-                  <input
-                    id="orders-from-date"
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={localStartDate}
-                    onChange={(e) => setLocalStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label mb-1 text-sm" htmlFor="orders-to-date">
-                    To date
-                  </label>
-                  <input
-                    id="orders-to-date"
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={localEndDate}
-                    onChange={(e) => setLocalEndDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-6 d-flex flex-wrap align-items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm mb-0"
-                    onClick={applyDateFilters}
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary btn-sm mb-0"
-                    onClick={resetDateFilters}
-                  >
-                    Clear
-                  </button>
-                  <span className="text-muted text-sm mx-1 d-none d-md-inline">|</span>
-                  <span className="text-sm text-muted d-none d-md-inline">Download all:</span>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success btn-sm mb-0"
-                    disabled={exporting}
-                    onClick={() => handleExport('csv')}
-                  >
-                    {exporting ? 'Exporting…' : 'CSV'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success btn-sm mb-0"
-                    disabled={exporting}
-                    onClick={() => handleExport('excel')}
-                  >
-                    Excel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success btn-sm mb-0"
-                    disabled={exporting}
-                    onClick={() => handleExport('pdf')}
-                  >
-                    PDF
-                  </button>
+            {showFilters ? (
+              <div className="card-body pt-0 px-3 pb-0">
+                <div className="orders-filter-panel" id="orders-filter-panel">
+                  <div className="row g-3 align-items-end">
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="orders-from-date"
+                      >
+                        From date
+                      </label>
+                      <input
+                        id="orders-from-date"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={localStartDate}
+                        onChange={(e) => setLocalStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="orders-to-date"
+                      >
+                        To date
+                      </label>
+                      <input
+                        id="orders-to-date"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={localEndDate}
+                        onChange={(e) => setLocalEndDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-xl-6 col-md-4 d-flex flex-wrap align-items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm mb-0"
+                        onClick={applyDateFilters}
+                      >
+                        <i className="fas fa-check me-1" aria-hidden="true" />
+                        Apply
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm mb-0"
+                        onClick={resetDateFilters}
+                      >
+                        <i className="fas fa-rotate-left me-1" aria-hidden="true" />
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <hr className="my-3 opacity-50" />
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    <span className="text-xs text-uppercase fw-bold text-muted me-1">
+                      <i className="fas fa-download me-1" aria-hidden="true" />
+                      Download all
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline-success btn-sm mb-0"
+                      disabled={exporting}
+                      onClick={() => handleExport('csv')}
+                    >
+                      <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                      {exporting ? 'Exporting…' : 'CSV'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-success btn-sm mb-0"
+                      disabled={exporting}
+                      onClick={() => handleExport('excel')}
+                    >
+                      <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                      Excel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-danger btn-sm mb-0"
+                      disabled={exporting}
+                      onClick={() => handleExport('pdf')}
+                    >
+                      <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                      PDF
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 className="list-data-table--orders"
@@ -439,104 +479,110 @@ const Orders = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th className="text-center list-col-sno">#</th>
+                      {sortableTh('order_no', 'Order no')}
+                      {sortableTh('name', 'Customer', 'list-col-truncate')}
+                      {sortableTh('email', 'Email', 'list-col-truncate')}
+                      {sortableTh('phone', 'Phone', 'list-col-truncate-sm')}
+                      {sortableTh('no_of_items', 'Items', 'text-center')}
+                      {sortableTh('order_items_total', 'Total', 'text-end list-col-amount')}
+                      {sortableTh('order_status', 'Status')}
+                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      <th className="text-end list-col-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th className="text-center list-col-sno">#</th>
-                        {sortableTh('order_no', 'Order no')}
-                        {sortableTh('name', 'Customer', 'list-col-truncate')}
-                        {sortableTh('email', 'Email', 'list-col-truncate')}
-                        {sortableTh('phone', 'Phone', 'list-col-truncate-sm')}
-                        {sortableTh('no_of_items', 'Items', 'text-center')}
-                        {sortableTh('order_items_total', 'Total', 'text-end list-col-amount')}
-                        {sortableTh('order_status', 'Status')}
-                        {sortableTh('createdAt', 'Created', 'list-col-date')}
-                        <th className="text-end list-col-actions">Actions</th>
+                        <td colSpan={10} className="text-center py-5 text-muted">
+                          No orders found. Try adjusting your search or date range.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan={10} className="text-center py-5 text-muted">
-                            No orders found. Try adjusting your search or date range.
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const key = item._id || item.id || index;
-                          const orderNo = item.order_no || item.orderNo || '—';
-                          const statusVal = orderDisplayStatus(item);
-                          const rowKey = String(item._id || item.id || index);
-                          const isRowLoading = editLoadingId === rowKey;
-                          const created = item.createdAt ?? item.created_at;
-                          const updated = item.updatedAt ?? item.updated_at;
-                          const customerName = item.name || '—';
-                          const email = item.email || '—';
-                          const phone = item.phone || '—';
-                          const total = getOrderItemsTotalDisplay(item);
-                          return (
-                            <tr key={key}>
-                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                              <td className="text-sm font-weight-bold text-dark">{orderNo}</td>
-                              <td className="text-sm list-cell-truncate" title={customerName !== '—' ? customerName : undefined}>
-                                {customerName}
-                              </td>
-                              <td className="text-sm list-cell-truncate" title={email !== '—' ? email : undefined}>
-                                {email}
-                              </td>
-                              <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
-                              <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
-                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                                {total !== '—' ? `PKR ${total}` : total}
-                              </td>
-                              <td className="text-sm">
-                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                  {String(statusVal)}
-                                </span>
-                              </td>
-                              <td
-                                className="text-sm text-nowrap list-col-date"
-                                title={
-                                  updated
-                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                    : undefined
-                                }
-                              >
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                              </td>
-                              <td className="text-end">
-                                <div className="list-table-actions">
-                                  {canEdit ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-primary mb-0"
-                                      disabled={isRowLoading}
-                                      onClick={() => handleOpenInvoice(item)}
-                                    >
-                                      {isRowLoading ? 'Opening…' : 'View'}
-                                    </button>
-                                  ) : null}
-                                  {canDelete ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger mb-0"
-                                      onClick={() => handleDelete(item)}
-                                      disabled={deleteStatus === 'loading'}
-                                    >
-                                      Delete
-                                    </button>
-                                  ) : null}
-                                  {!canEdit && !canDelete ? (
-                                    <span className="text-muted">—</span>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const key = item._id || item.id || index;
+                        const orderNo = item.order_no || item.orderNo || '—';
+                        const statusVal = orderDisplayStatus(item);
+                        const rowKey = String(item._id || item.id || index);
+                        const isRowLoading = editLoadingId === rowKey;
+                        const created = item.createdAt ?? item.created_at;
+                        const updated = item.updatedAt ?? item.updated_at;
+                        const customerName = item.name || '—';
+                        const email = item.email || '—';
+                        const phone = item.phone || '—';
+                        const total = getOrderItemsTotalDisplay(item);
+                        return (
+                          <tr key={key}>
+                            <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            <td className="text-sm font-weight-bold text-dark">{orderNo}</td>
+                            <td
+                              className="text-sm list-cell-truncate"
+                              title={customerName !== '—' ? customerName : undefined}
+                            >
+                              {customerName}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate"
+                              title={email !== '—' ? email : undefined}
+                            >
+                              {email}
+                            </td>
+                            <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
+                            <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
+                            <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                              {total !== '—' ? `PKR ${total}` : total}
+                            </td>
+                            <td className="text-sm">
+                              <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                {String(statusVal)}
+                              </span>
+                            </td>
+                            <td
+                              className="text-sm text-nowrap list-col-date"
+                              title={
+                                updated
+                                  ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                  : undefined
+                              }
+                            >
+                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                            </td>
+                            <td className="text-end">
+                              <div className="list-table-actions">
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary mb-0"
+                                    disabled={isRowLoading}
+                                    onClick={() => handleOpenInvoice(item)}
+                                  >
+                                    {isRowLoading ? 'Opening…' : 'View'}
+                                  </button>
+                                ) : null}
+                                {canDelete ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger mb-0"
+                                    onClick={() => handleDelete(item)}
+                                    disabled={deleteStatus === 'loading'}
+                                  >
+                                    Delete
+                                  </button>
+                                ) : null}
+                                {!canEdit && !canDelete ? (
+                                  <span className="text-muted">—</span>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>

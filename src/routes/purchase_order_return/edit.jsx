@@ -139,7 +139,11 @@ function computeLineDerived(row) {
 }
 
 const parseMoneyInput = (raw) => {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? roundMoney2(n) : 0;
 };
 
@@ -176,10 +180,7 @@ const productPickerWholesalePrice = (p) => {
   if (!p || typeof p !== 'object') return null;
   const nested = p.product && typeof p.product === 'object' ? p.product : null;
   const wRaw =
-    p.wholesale_price ??
-    p.wholesalePrice ??
-    nested?.wholesale_price ??
-    nested?.wholesalePrice;
+    p.wholesale_price ?? p.wholesalePrice ?? nested?.wholesale_price ?? nested?.wholesalePrice;
   if (wRaw == null || wRaw === '') return null;
   const w = typeof wRaw === 'number' ? wRaw : parseFloat(String(wRaw).replace(/,/g, ''));
   return Number.isFinite(w) ? roundMoney2(w) : null;
@@ -277,8 +278,7 @@ const linesFromPurchaseOrder = (po) => {
         prodObj && Array.isArray(prodObj.warehouse_inventory) ? prodObj.warehouse_inventory : [];
       const wi = it.warehouse_inventory;
       const invFromLine = Array.isArray(wi) ? wi : wi && typeof wi === 'object' ? [wi] : [];
-      const warehouseInventoryRows =
-        invFromProduct.length > 0 ? invFromProduct : invFromLine;
+      const warehouseInventoryRows = invFromProduct.length > 0 ? invFromProduct : invFromLine;
       const presetWarehouseInventoryId = pickIdString(
         it.warehouse_inventory_id ?? it.warehouseInventoryId
       );
@@ -348,9 +348,8 @@ const PurchaseOrderReturnEdit = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { id } = useParams();
-  const { currentPurchaseOrderReturn, fetchStatus, fetchError, updateStatus, updateError } = useSelector(
-    (state) => state.purchaseOrderReturns
-  );
+  const { currentPurchaseOrderReturn, fetchStatus, fetchError, updateStatus, updateError } =
+    useSelector((state) => state.purchaseOrderReturns);
   const authUser = useSelector((state) => state.user.user);
   const authCompany = useSelector((state) => state.user.company);
   const [form, setForm] = useState(recordToForm(null));
@@ -385,7 +384,10 @@ const PurchaseOrderReturnEdit = () => {
           setUsersStatus('succeeded');
         }
       } catch (err) {
-        console.error('[Purchase order return edit] Failed to load users for supplier dropdown', err);
+        console.error(
+          '[Purchase order return edit] Failed to load users for supplier dropdown',
+          err
+        );
         if (!cancelled) {
           setUsers([]);
           setUsersError(err?.message || 'Could not load users');
@@ -465,8 +467,7 @@ const PurchaseOrderReturnEdit = () => {
 
   useEffect(() => {
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
     if (!companyId) return undefined;
 
     let cancelled = false;
@@ -542,7 +543,9 @@ const PurchaseOrderReturnEdit = () => {
 
   const supplierIdInList =
     !form.supplier_id ||
-    supplierOptions.some((u) => String(getUserOptionValue(u)).trim() === String(form.supplier_id).trim());
+    supplierOptions.some(
+      (u) => String(getUserOptionValue(u)).trim() === String(form.supplier_id).trim()
+    );
 
   const accountOptions = useMemo(
     () =>
@@ -635,7 +638,10 @@ const PurchaseOrderReturnEdit = () => {
     setForm((p) => (p.amount_received === next ? p : { ...p, amount_received: next }));
   }, [summary.total, amountPaidDirty]);
 
-  const amountPaidNum = useMemo(() => parseMoneyInput(form.amount_received), [form.amount_received]);
+  const amountPaidNum = useMemo(
+    () => parseMoneyInput(form.amount_received),
+    [form.amount_received]
+  );
   const paymentRemaining = useMemo(() => {
     const t = roundMoney2(summary.total);
     const p = roundMoney2(amountPaidNum);
@@ -700,8 +706,7 @@ const PurchaseOrderReturnEdit = () => {
     let settings = printerSettings;
     let brand = companyBrand;
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
 
     if (companyId) {
       try {
@@ -709,9 +714,7 @@ const PurchaseOrderReturnEdit = () => {
         const company = getCompanyFromApiBody(body);
         if (company && typeof company === 'object') {
           const merged = mergeCompanyRecordForSettings(company, authCompany);
-          settings = mergePrinterSettings(
-            extractPrinterSettingsFromCompanyBody({ data: merged })
-          );
+          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
           brand = {
             name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
             phone: String(merged?.company_phone || merged?.phone || '').trim(),
@@ -880,7 +883,10 @@ const PurchaseOrderReturnEdit = () => {
     setErrors({});
     try {
       await dispatch(
-        updatePurchaseOrderReturn({ purchaseOrderReturnId: id, purchaseOrderReturnData: buildPayload() })
+        updatePurchaseOrderReturn({
+          purchaseOrderReturnId: id,
+          purchaseOrderReturnData: buildPayload(),
+        })
       ).unwrap();
       navigate('/purchase-order-returns');
     } catch (err) {
@@ -904,7 +910,9 @@ const PurchaseOrderReturnEdit = () => {
     return (
       <div className="po-form-page container-fluid py-4">
         <div className="card shadow-sm po-form-card mx-auto" style={{ maxWidth: 1200 }}>
-          <div className="card-body py-5 text-center text-muted">Loading purchase order return…</div>
+          <div className="card-body py-5 text-center text-muted">
+            Loading purchase order return…
+          </div>
         </div>
       </div>
     );
@@ -937,7 +945,7 @@ const PurchaseOrderReturnEdit = () => {
 
   return (
     <div className="po-form-page container-fluid py-4 px-0">
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm po-form-card">
             <div className="card-header pb-3">
@@ -1097,8 +1105,8 @@ const PurchaseOrderReturnEdit = () => {
                 <div className="po-form-section">
                   <div className="po-form-section-title">Line items</div>
                   <p className="po-form-section-hint">
-                    Search to add products, then set warehouse, rate, quantity, and optional shipping per
-                    line.
+                    Search to add products, then set warehouse, rate, quantity, and optional
+                    shipping per line.
                   </p>
                   <label className="form-label" htmlFor="po-edit-product-search">
                     Add product
@@ -1119,7 +1127,9 @@ const PurchaseOrderReturnEdit = () => {
                         disabled={isSubmitting}
                       />
                     </div>
-                    {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
+                    {addProductLoading ? (
+                      <div className="small text-muted mt-1">Searching…</div>
+                    ) : null}
                     {addProductError ? (
                       <div className="text-danger small mt-1" role="alert">
                         {addProductError}
@@ -1165,7 +1175,10 @@ const PurchaseOrderReturnEdit = () => {
                             <th className="text-end po-form-col-ship">Ship / unit</th>
                             <th className="text-end po-form-col-ship">Total ship</th>
                             <th className="text-end po-form-col-amt">Amount</th>
-                            <th className="text-center po-form-col-action" aria-label="Remove row" />
+                            <th
+                              className="text-center po-form-col-action"
+                              aria-label="Remove row"
+                            />
                           </tr>
                         </thead>
                         <tbody>
@@ -1205,7 +1218,9 @@ const PurchaseOrderReturnEdit = () => {
                                         const wid = String(row.warehouseId ?? '').trim();
                                         if (
                                           wid &&
-                                          !warehouseOptions.some((w) => warehouseOptionValue(w) === wid)
+                                          !warehouseOptions.some(
+                                            (w) => warehouseOptionValue(w) === wid
+                                          )
                                         ) {
                                           return (
                                             <option value={wid} title={wid}>
@@ -1233,7 +1248,9 @@ const PurchaseOrderReturnEdit = () => {
                                       className="form-control form-control-sm text-end"
                                       aria-label={`Rate for line ${i + 1}`}
                                       value={row.rate}
-                                      onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'rate', e.target.value)
+                                      }
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1245,7 +1262,9 @@ const PurchaseOrderReturnEdit = () => {
                                       className="form-control form-control-sm text-end"
                                       aria-label={`Quantity for line ${i + 1}`}
                                       value={row.qty}
-                                      onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
+                                      onChange={(e) =>
+                                        handleLineEdit(row.key, 'qty', e.target.value)
+                                      }
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1273,7 +1292,9 @@ const PurchaseOrderReturnEdit = () => {
                                       disabled={isSubmitting}
                                     />
                                   </td>
-                                  <td className="text-end fw-semibold text-nowrap">{fmt(amount)}</td>
+                                  <td className="text-end fw-semibold text-nowrap">
+                                    {fmt(amount)}
+                                  </td>
                                   <td className="text-center">
                                     <button
                                       type="button"
@@ -1335,7 +1356,8 @@ const PurchaseOrderReturnEdit = () => {
                                 setErrors((prev) => {
                                   const next = { ...prev };
                                   delete next.account_id;
-                                  if (next.submit === 'Mode of payment is required.') delete next.submit;
+                                  if (next.submit === 'Mode of payment is required.')
+                                    delete next.submit;
                                   return next;
                                 });
                               }}
@@ -1344,7 +1366,9 @@ const PurchaseOrderReturnEdit = () => {
                             >
                               <option value="">Select mode of payment</option>
                               {!accountIdInList && form.account_id ? (
-                                <option value={form.account_id}>Payment id: {form.account_id}</option>
+                                <option value={form.account_id}>
+                                  Payment id: {form.account_id}
+                                </option>
                               ) : null}
                               {accountOptions.map((a) => {
                                 const value = accountOptionValue(a);

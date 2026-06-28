@@ -2,6 +2,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { withBase } from '../config/appBase.js';
 import {
+  FaBars,
   FaBell,
   FaBox,
   FaChevronDown,
@@ -14,6 +15,7 @@ import {
 import NavIcon from './NavIcon.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 import { clearOfflineDb } from '../offline/db.js';
+import { useSidenav } from '../context/SidenavContext.jsx';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -21,6 +23,7 @@ const Header = () => {
   const location = useLocation();
   const { name, user } = useSelector((state) => state.user);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const { toggle: toggleSidenav } = useSidenav();
 
   const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
   const firstSegment = pathSegment
@@ -38,11 +41,22 @@ const Header = () => {
 
   return (
     <nav
-      className="navbar navbar-main navbar-expand-lg px-0 mx-4 shadow-none border-radius-xl z-index-sticky"
+      className="navbar navbar-main navbar-expand-lg px-0 mx-3 shadow-none border-radius-xl z-index-sticky"
       id="navbarBlur"
       data-scroll="false"
     >
-      <div className="container-fluid py-1 px-3">
+      <div className="container-fluid py-1 px-0 d-flex align-items-center">
+        <button
+          type="button"
+          className="navbar-sidenav-toggle btn btn-link text-white p-0 me-3 mb-0 d-inline-flex align-items-center justify-content-center border-0"
+          aria-label="Toggle menu"
+          onClick={(e) => {
+            e.preventDefault();
+            toggleSidenav();
+          }}
+        >
+          <NavIcon icon={FaBars} className="text-white" size={18} />
+        </button>
         <nav aria-label="breadcrumb">
           <ol className="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-sm-6 me-5">
             <li className="breadcrumb-item text-sm">

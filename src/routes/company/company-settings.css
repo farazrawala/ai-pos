@@ -1,0 +1,245 @@
+/* Company settings — professional layout */
+.company-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 1.5rem;
+}
+
+.company-shell {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.company-page-header {
+  background: linear-gradient(120deg, #1f2a44 0%, #33415c 100%);
+  color: #fff;
+  border-radius: 1rem;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 28px rgba(20, 31, 51, 0.18);
+}
+
+.company-page-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.4rem;
+}
+
+.company-page-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+}
+
+.company-page-subtitle {
+  font-size: 0.88rem;
+  margin: 0.3rem 0 0;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.company-card {
+  border: 1px solid #e9ecf1;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(20, 31, 51, 0.05);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.company-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.company-card-head-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 0.7rem;
+  background: #eef3ff;
+  color: #3b6fd4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.company-card-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #1f2a44;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.company-card-subtitle {
+  font-size: 0.8rem;
+  color: #8a93a5;
+  margin: 0.15rem 0 0;
+}
+
+.company-card-body {
+  padding: 1.5rem;
+}
+
+/* Logo uploader */
+.company-logo-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.25rem;
+  border: 1px solid #edf0f5;
+  border-radius: 0.85rem;
+  background: #fafbfe;
+  height: 100%;
+}
+
+.company-logo-frame {
+  width: 130px;
+  height: 130px;
+  border-radius: 1rem;
+  border: 1px solid #e6eaf2;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.company-logo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.company-logo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: #aeb6c4;
+  font-size: 0.78rem;
+}
+
+.company-logo-empty i {
+  font-size: 1.6rem;
+}
+
+.company-logo-hint {
+  font-size: 0.72rem;
+  color: #9aa4b6;
+  margin-top: 0.6rem;
+  line-height: 1.4;
+}
+
+/* Form fields */
+.company-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #41506b;
+  margin-bottom: 0.35rem;
+}
+
+.company-label .req {
+  color: #e5484d;
+  margin-left: 0.15rem;
+}
+
+.company-control {
+  border-radius: 0.6rem;
+  border: 1px solid #d8dee9;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.company-control:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18);
+}
+
+.company-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 1.1rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid #f0f2f7;
+}
+
+/* Settings list rows */
+.settings-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #98a2b3;
+  padding: 0.85rem 0 0.35rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0.25rem;
+  border-top: 1px solid #f1f3f8;
+}
+
+.settings-row:first-of-type {
+  border-top: none;
+}
+
+.settings-row-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #2a3654;
+}
+
+.settings-row-hint {
+  font-size: 0.76rem;
+  color: #98a2b3;
+  margin-top: 0.1rem;
+}
+
+.settings-row-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+}
+
+.settings-switch {
+  padding-left: 2.6rem;
+  margin: 0;
+  min-height: auto;
+}
+
+.settings-switch .form-check-input {
+  width: 2.1rem;
+  height: 1.1rem;
+  margin-left: -2.6rem;
+  cursor: pointer;
+}
+
+.settings-state {
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 2.2rem;
+  text-align: left;
+}

@@ -123,10 +123,9 @@ const PaymentReceiptsList = () => {
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
 
-
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-0">
@@ -134,7 +133,9 @@ const PaymentReceiptsList = () => {
                 <div className="col-md-6">
                   <h5 className="mb-0">Payment receipts</h5>
                   {DEBUG ? (
-                    <p className="text-sm mb-0">Active receipts from the server (paginated list).</p>
+                    <p className="text-sm mb-0">
+                      Active receipts from the server (paginated list).
+                    </p>
                   ) : null}
                 </div>
                 <div className="col-md-6">
@@ -171,141 +172,140 @@ const PaymentReceiptsList = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0" id="datatable-payment-receipts">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th>S.No</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('transaction_number')}
+                        onDoubleClick={() => handleSort('transaction_number', true)}
+                      >
+                        Transaction #{renderSortIcon('transaction_number')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('amount')}
+                        onDoubleClick={() => handleSort('amount', true)}
+                      >
+                        Amount
+                        {renderSortIcon('amount')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('payment_type')}
+                        onDoubleClick={() => handleSort('payment_type', true)}
+                      >
+                        Type
+                        {renderSortIcon('payment_type')}
+                      </th>
+                      <th>Payment mode</th>
+                      <th>User</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('status')}
+                        onDoubleClick={() => handleSort('status', true)}
+                      >
+                        Status
+                        {renderSortIcon('status')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('createdAt')}
+                        onDoubleClick={() => handleSort('createdAt', true)}
+                      >
+                        Created
+                        {renderSortIcon('createdAt')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('updatedAt')}
+                        onDoubleClick={() => handleSort('updatedAt', true)}
+                      >
+                        Last Updated At
+                        {renderSortIcon('updatedAt')}
+                      </th>
+                      <th className="text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('transaction_number')}
-                          onDoubleClick={() => handleSort('transaction_number', true)}
-                        >
-                          Transaction #
-                          {renderSortIcon('transaction_number')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('amount')}
-                          onDoubleClick={() => handleSort('amount', true)}
-                        >
-                          Amount
-                          {renderSortIcon('amount')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('payment_type')}
-                          onDoubleClick={() => handleSort('payment_type', true)}
-                        >
-                          Type
-                          {renderSortIcon('payment_type')}
-                        </th>
-                        <th>Payment mode</th>
-                        <th>User</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
-                        </th>
-                        <th className="text-end">Actions</th>
+                        <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
+                          No payment receipts found
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
-                            No payment receipts found
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          return (
-                            <tr key={item._id || index}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal font-monospace">
-                                {item.transaction_number || '—'}
-                              </td>
-                              <td className="text-sm font-weight-normal">{formatPKR(item.amount)}</td>
-                              <td className="text-sm font-weight-normal">
-                                <span className="badge bg-gradient-info">{item.payment_type || '—'}</span>
-                              </td>
-                              <td className="text-sm font-weight-normal text-break">
-                                {formatTransactionCreatedByLabel(item.payment_mode)}
-                              </td>
-                              <td className="text-sm font-weight-normal text-break">
-                                {formatTransactionCreatedByLabel(
-                                  item.user ?? item.user_id
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <span
-                                  className={`badge ${
-                                    item.status === 'active' ? 'bg-success' : 'bg-secondary'
-                                  }`}
-                                >
-                                  {item.status || '—'}
-                                </span>
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
-                                  : '—'}
-                              </td>
-                              <td
-                                className="text-sm font-weight-normal"
-                                title={
-                                  item.updatedAt || item.updated_at
-                                    ? moment(item.updatedAt || item.updated_at).format(
-                                        'MM-DD-YYYY h:mm a'
-                                      )
-                                    : undefined
-                                }
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        return (
+                          <tr key={item._id || index}>
+                            <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                            <td className="text-sm font-weight-normal font-monospace">
+                              {item.transaction_number || '—'}
+                            </td>
+                            <td className="text-sm font-weight-normal">{formatPKR(item.amount)}</td>
+                            <td className="text-sm font-weight-normal">
+                              <span className="badge bg-gradient-info">
+                                {item.payment_type || '—'}
+                              </span>
+                            </td>
+                            <td className="text-sm font-weight-normal text-break">
+                              {formatTransactionCreatedByLabel(item.payment_mode)}
+                            </td>
+                            <td className="text-sm font-weight-normal text-break">
+                              {formatTransactionCreatedByLabel(item.user ?? item.user_id)}
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              <span
+                                className={`badge ${
+                                  item.status === 'active' ? 'bg-success' : 'bg-secondary'
+                                }`}
                               >
-                                {item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).fromNow()
-                                  : '—'}
-                              </td>
-                              <td className="text-sm font-weight-normal text-end">
-                                {canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    onClick={() =>
-                                      navigate(`/payment-receipts/edit/${item._id}`, {
-                                        state: { receipt: item },
-                                      })
-                                    }
-                                  >
-                                    Edit
-                                  </button>
-                                ) : (
-                                  <span className="text-muted text-xs">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                {item.status || '—'}
+                              </span>
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              {item.createdAt
+                                ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
+                                : '—'}
+                            </td>
+                            <td
+                              className="text-sm font-weight-normal"
+                              title={
+                                item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).format(
+                                      'MM-DD-YYYY h:mm a'
+                                    )
+                                  : undefined
+                              }
+                            >
+                              {item.updatedAt || item.updated_at
+                                ? moment(item.updatedAt || item.updated_at).fromNow()
+                                : '—'}
+                            </td>
+                            <td className="text-sm font-weight-normal text-end">
+                              {canEdit ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() =>
+                                    navigate(`/payment-receipts/edit/${item._id}`, {
+                                      state: { receipt: item },
+                                    })
+                                  }
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span className="text-muted text-xs">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>

@@ -54,7 +54,7 @@ const WarehouseAdd = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row mt-4">
+      <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="card-header pb-0">
@@ -63,7 +63,10 @@ const WarehouseAdd = () => {
                   <h5 className="mb-0">Add Warehouse</h5>
                   <p className="text-sm mb-0">Create a new warehouse.</p>
                 </div>
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/warehouse')}>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => navigate('/warehouse')}
+                >
                   Back to List
                 </button>
               </div>
