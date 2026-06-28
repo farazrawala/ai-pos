@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setLoginSession } from '../features/user/userSlice.js';
+import { extractCompanyFromUser } from '../features/company/companyAPI.js';
+import { triggerMasterSyncAfterLogin } from '../offline/masterSync.js';
+import { useOnlineStatus } from '../hooks/useOnlineStatus.js';
+import { hasCachedAuthSession, OFFLINE_SIGN_IN_MESSAGE } from '../utils/offlineAuth.js';
 import apiClient from '../api/apiClient.js';
 import { API_BASE_URL } from '../config/apiConfig.js';
 import { APP_NAME } from '../config/env.js';
@@ -15,6 +19,9 @@ const initialForm = {
 const SignIn = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const isOnline = useOnlineStatus();
+  const hasCachedSession = hasCachedAuthSession();
+  const offlineSignInBlocked = !isOnline && !hasCachedSession;
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('idle');
@@ -30,6 +37,10 @@ const SignIn = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (offlineSignInBlocked) {
+      setError(OFFLINE_SIGN_IN_MESSAGE);
+      return;
+    }
     if (!form.email || !form.password) {
       setError('Please fill in both email and password.');
       return;
@@ -58,12 +69,14 @@ const SignIn = () => {
           userData.token = data.token || data.access_token || data.accessToken || userData.token;
         }
         dispatch(setLoginSession({ ...data, user: userData }));
+        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
       } else if (data?._id || data?.email) {
         const userData = { ...data };
         if (!userData.token) {
           userData.token = data.token || data.access_token || data.accessToken;
         }
         dispatch(setLoginSession({ success: true, user: userData }));
+        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
       } else {
         const displayName =
           data?.name ||
@@ -72,12 +85,14 @@ const SignIn = () => {
           form.email.split('@')[0] ||
           'User';
         const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
+        const userData = { name: displayName, email: form.email, token };
         dispatch(
           setLoginSession({
             success: true,
-            user: { name: displayName, email: form.email, token },
+            user: userData,
           })
         );
+        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
       }
 
       setForm(initialForm);
@@ -108,6 +123,22 @@ const SignIn = () => {
           <div className="signin-divider">
             <span>Credentials</span>
           </div>
+
+          {offlineSignInBlocked && (
+            <div className="alert alert-warning py-2 small mb-3" role="alert">
+              {OFFLINE_SIGN_IN_MESSAGE}
+            </div>
+          )}
+
+          {hasCachedSession && !isOnline && (
+            <div className="alert alert-info py-2 small mb-3" role="status">
+              You are offline. Open{' '}
+              <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={() => navigate('/pos')}>
+                POS
+              </button>{' '}
+              to continue with cached data.
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <label htmlFor="email">Email</label>
@@ -144,7 +175,7 @@ const SignIn = () => {
 
             {error && <p className="error">{error}</p>}
 
-            <button type="submit" className="cta-btn" disabled={status === 'pending'}>
+            <button type="submit" className="cta-btn" disabled={status === 'pending' || offlineSignInBlocked}>
               {status === 'pending' ? 'Signing In...' : 'Sign In'}
             </button>
             <button type="button" className="ghost-btn" onClick={() => navigate('/signup')}>

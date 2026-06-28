@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#5e72e4" />
+    <link rel="apple-touch-icon" href="%BASE_URL%pwa-icon.svg" />
     <title>AI POS</title>
+    <script>
+      (function () {
+        var base = '%BASE_URL%';
+        if (!base || base === '/') return;
+        var basePath = base.endsWith('/') ? base.slice(0, -1) : base;
+        var path = window.location.pathname || '/';
+        if (path === basePath || path.startsWith(basePath + '/')) return;
+        var nextPath = path.replace(/^\//, '');
+        window.location.replace(base + nextPath + window.location.search + window.location.hash);
+      })();
+    </script>
     <!-- Fonts and icons -->
     <link
       href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700"

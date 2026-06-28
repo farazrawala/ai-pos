@@ -109,7 +109,9 @@ const AddUser = () => {
   const handleRoleToggle = (roleName) => {
     setForm((prev) => {
       const hasRole = prev.role.includes(roleName);
-      const nextRole = hasRole ? prev.role.filter((item) => item !== roleName) : [...prev.role, roleName];
+      const nextRole = hasRole
+        ? prev.role.filter((item) => item !== roleName)
+        : [...prev.role, roleName];
       return { ...prev, role: nextRole };
     });
     if (errors.role) {

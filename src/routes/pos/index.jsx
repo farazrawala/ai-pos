@@ -40,6 +40,16 @@ import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
+import OfflineStatusBadge from '../../components/OfflineStatusBadge.jsx';
+import OfflineSyncPanel, { openOfflineSyncPanel } from '../../components/OfflineSyncPanel.jsx';
+import { processSyncQueue } from '../../offline/syncOrders.js';
+import { refreshSyncStatusCounts } from '../../offline/syncStatus.js';
+import { isMasterSyncStale, runMasterSync } from '../../offline/masterSync.js';
+import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
+import { saveOfflineOrder, buildOfflineSaveResult } from '../../offline/saveOfflineOrder.js';
+import { getAllCategories, countCategories } from '../../offline/repositories/categoriesRepo.js';
+import { getAllCustomers, countCustomers } from '../../offline/repositories/customersRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
@@ -314,8 +324,26 @@ function showStockErrorToast(message, opts = {}) {
   toast.error(boldQuotedNamesInMessage(message), { ...opts, html: true });
 }
 
+function isLikelyNetworkError(err) {
+  if (!err) return false;
+  if (err.name === 'TypeError') return true;
+  const msg = String(err.message || '').toLowerCase();
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('network') ||
+    msg.includes('load failed') ||
+    msg.includes('networkerror')
+  );
+}
+
+const OFFLINE_RECEIPT_FOOTER = 'Offline invoice — will sync when online';
+
+/** Auto-retry delay for failed data loads (e.g. backend/DB outage like a Mongoose buffering timeout). */
+const POS_RETRY_DELAY_MS = 60_000;
+
 const Pos = () => {
   useRequireModuleAccess('pos');
+  const isOnline = useOnlineStatus();
   const dispatch = useDispatch();
   const authUser = useSelector((state) => state.user.user);
   const authCompany = useSelector((state) => state.user.company);
@@ -330,6 +358,7 @@ const Pos = () => {
 
   const authCompanyRef = useRef(authCompany);
   authCompanyRef.current = authCompany;
+  const prevCompanyIdRef = useRef(companyId);
 
   useEffect(() => {
     if (!companyId) return undefined;
@@ -391,6 +420,101 @@ const Pos = () => {
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
+  const [masterSyncRunning, setMasterSyncRunning] = useState(false);
+  const [masterSyncProgress, setMasterSyncProgress] = useState(null);
+
+  const runPosMasterSync = useCallback(
+    async ({ force = false, showSuccessToast = false } = {}) => {
+      if (!isOnline) {
+        toast.error('Connect to the internet to download catalog');
+        return null;
+      }
+      if (!companyId) return null;
+
+      setMasterSyncRunning(true);
+      try {
+        const summary = await runMasterSync({
+          companyId,
+          warehouseId: defaultWarehouseId,
+          companyRecord: authCompany,
+          force,
+          onProgress: setMasterSyncProgress,
+        });
+        if (showSuccessToast) {
+          toast.success('Catalog downloaded for offline use');
+        }
+        return summary;
+      } catch (err) {
+        console.error('[POS] Master sync failed', err);
+        toast.error(err?.message || 'Catalog download failed');
+        return null;
+      } finally {
+        setMasterSyncRunning(false);
+        setMasterSyncProgress(null);
+      }
+    },
+    [isOnline, companyId, defaultWarehouseId, authCompany]
+  );
+
+  const handleRefreshCatalog = useCallback(() => {
+    runPosMasterSync({ force: true, showSuccessToast: true });
+  }, [runPosMasterSync]);
+
+  useEffect(() => {
+    if (!isOnline || !companyId) return undefined;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stale = await isMasterSyncStale();
+        if (!stale || cancelled) return;
+        setMasterSyncRunning(true);
+        await runMasterSync({
+          companyId,
+          warehouseId: defaultWarehouseId,
+          companyRecord: authCompany,
+          onProgress: (progress) => {
+            if (!cancelled) setMasterSyncProgress(progress);
+          },
+        });
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[POS] Background master sync failed', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setMasterSyncRunning(false);
+          setMasterSyncProgress(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnline, companyId, defaultWarehouseId, authCompany]);
+
+  useEffect(() => {
+    if (!isOnline || !companyId) return undefined;
+    refreshSyncStatusCounts().catch(() => {});
+    processSyncQueue().catch((err) => {
+      console.warn('[POS] Order sync on mount failed', err);
+    });
+    return undefined;
+  }, [isOnline, companyId]);
+
+  useEffect(() => {
+    if (!companyId || !isOnline) {
+      prevCompanyIdRef.current = companyId;
+      return undefined;
+    }
+    if (prevCompanyIdRef.current && prevCompanyIdRef.current !== companyId) {
+      runPosMasterSync({ force: true });
+    }
+    prevCompanyIdRef.current = companyId;
+    return undefined;
+  }, [companyId, isOnline, runPosMasterSync]);
 
   const showToast = (toastId, body) => {
     const toastElement = document.getElementById(toastId);
@@ -409,55 +533,106 @@ const Pos = () => {
     }
   };
 
-  const loadUsers = useCallback(async (selectAfter) => {
-    setUsersStatus('loading');
-    setUsersError(null);
-    try {
-      const list = await fetchUsersListRequest({
-        limit: 2000,
-        skip: 0,
-        role: 'CUSTOMER',
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
-      });
-      const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
-      setUsers(arr);
-      setUsersStatus('succeeded');
-      if (selectAfter?.preferId) {
-        setSelectedCustomerId(String(selectAfter.preferId));
-      } else if (selectAfter?.fallbackEmail) {
-        const em = selectAfter.fallbackEmail.trim().toLowerCase();
-        const match = arr.find((u) => (u.email || '').toLowerCase() === em);
-        if (match) {
-          setSelectedCustomerId(getUserOptionValue(match));
-        }
-      } else {
-        const defaultId = getDefaultPosCustomerUserId(arr);
-        if (defaultId) setSelectedCustomerId(defaultId);
+  const applyCustomerList = useCallback((arr, selectAfter) => {
+    setUsers(arr);
+    setUsersStatus('succeeded');
+    if (selectAfter?.preferId) {
+      setSelectedCustomerId(String(selectAfter.preferId));
+    } else if (selectAfter?.fallbackEmail) {
+      const em = selectAfter.fallbackEmail.trim().toLowerCase();
+      const match = arr.find((u) => (u.email || '').toLowerCase() === em);
+      if (match) {
+        setSelectedCustomerId(getUserOptionValue(match));
       }
-    } catch (err) {
-      console.error('[POS] Failed to load users for customer dropdown', err);
-      setUsers([]);
-      setUsersError(err?.message || 'Could not load users');
-      setUsersStatus('failed');
+    } else {
+      const defaultId = getDefaultPosCustomerUserId(arr);
+      if (defaultId) setSelectedCustomerId(defaultId);
     }
   }, []);
+
+  const loadUsers = useCallback(
+    async (selectAfter) => {
+      setUsersStatus('loading');
+      setUsersError(null);
+
+      const loadUsersFromCache = async () => {
+        const cached = await getAllCustomers();
+        const arr = cached.filter((u) => getUserOptionValue(u));
+        if ((await countCustomers()) === 0) {
+          setUsers([]);
+          setUsersError(OFFLINE_CATALOG_EMPTY_MESSAGE);
+          setUsersStatus('failed');
+          return false;
+        }
+        applyCustomerList(arr, selectAfter);
+        return true;
+      };
+
+      if (!isOnline) {
+        await loadUsersFromCache();
+        return;
+      }
+
+      try {
+        const list = await fetchUsersListRequest({
+          limit: 2000,
+          skip: 0,
+          role: 'CUSTOMER',
+          sortBy: 'createdAt',
+          sortOrder: 'asc',
+        });
+        const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
+        applyCustomerList(arr, selectAfter);
+      } catch (err) {
+        console.warn('[POS] Failed to load users from API, trying offline cache', err);
+        const usedCache = await loadUsersFromCache();
+        if (!usedCache) {
+          setUsers([]);
+          setUsersError(err?.message || 'Could not load users');
+          setUsersStatus('failed');
+        }
+      }
+    },
+    [isOnline, applyCustomerList]
+  );
 
   const loadCategories = useCallback(async () => {
     setCategoriesStatus('loading');
     setCategoriesError(null);
+
+    const loadCategoriesFromCache = async () => {
+      const cached = await getAllCategories();
+      if ((await countCategories()) === 0) {
+        setCategories([]);
+        setCategoriesError(OFFLINE_CATALOG_EMPTY_MESSAGE);
+        setCategoriesStatus('failed');
+        return false;
+      }
+      setCategories(cached);
+      setCategoriesStatus('succeeded');
+      return true;
+    };
+
+    if (!isOnline) {
+      await loadCategoriesFromCache();
+      return;
+    }
+
     try {
       const result = await fetchCategoriesRequest({ page: 1, limit: 2000 });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setCategories(arr);
       setCategoriesStatus('succeeded');
     } catch (err) {
-      console.error('[POS] Failed to load categories', err);
-      setCategories([]);
-      setCategoriesError(err?.message || 'Could not load categories');
-      setCategoriesStatus('failed');
+      console.warn('[POS] Failed to load categories from API, trying offline cache', err);
+      const usedCache = await loadCategoriesFromCache();
+      if (!usedCache) {
+        setCategories([]);
+        setCategoriesError(err?.message || 'Could not load categories');
+        setCategoriesStatus('failed');
+      }
     }
-  }, []);
+  }, [isOnline]);
 
   useEffect(() => {
     loadUsers();
@@ -466,6 +641,21 @@ const Pos = () => {
   useEffect(() => {
     loadCategories();
   }, [loadCategories]);
+
+  // If loading customers/categories fails (e.g. backend or MongoDB is down),
+  // automatically retry once a minute until it succeeds. Only while online —
+  // offline failures mean an empty local catalog, which a retry can't fix.
+  useEffect(() => {
+    if (!isOnline) return undefined;
+    if (usersStatus !== 'failed' && categoriesStatus !== 'failed') return undefined;
+
+    const timer = setTimeout(() => {
+      if (usersStatus === 'failed') loadUsers();
+      if (categoriesStatus === 'failed') loadCategories();
+    }, POS_RETRY_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [isOnline, usersStatus, categoriesStatus, loadUsers, loadCategories]);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -517,19 +707,11 @@ const Pos = () => {
         warehouseId: defaultWarehouseId,
       });
 
-      let stockMsg = null;
+      // Quantity above available stock is always allowed into the cart.
       setCartLines((prev) => {
         const i = prev.findIndex((l) => l.productId === productId);
-        const nextQty = i >= 0 ? parsePosQty(prev[i].quantity) + 1 : 1;
-        stockMsg = posStockBlocksQty({
-          allowWhenInsufficient: allowAddWhenStockInsufficient,
-          availableStock: i >= 0 ? (prev[i].availableStock ?? availableStock) : availableStock,
-          requestedQty: nextQty,
-          productName: name,
-        });
-        if (stockMsg) return prev;
-
         if (i >= 0) {
+          const nextQty = parsePosQty(prev[i].quantity) + 1;
           const next = [...prev];
           next[i] = {
             ...next[i],
@@ -540,88 +722,42 @@ const Pos = () => {
         }
         return [...prev, { productId, name, unitPrice, quantity: '1', availableStock }];
       });
-      if (stockMsg) showStockErrorToast(stockMsg);
     },
-    [allowAddWhenStockInsufficient, defaultWarehouseId]
+    [defaultWarehouseId]
   );
 
-  const bumpCartQty = useCallback(
-    (productId, delta) => {
-      let stockMsg = null;
-      setCartLines((prev) =>
-        prev.flatMap((l) => {
-          if (l.productId !== productId) return [l];
-          const next = roundPosQty(parsePosQty(l.quantity) + delta);
-          if (next < POS_QTY_MIN) return [];
-          if (delta > 0) {
-            stockMsg = posStockBlocksQty({
-              allowWhenInsufficient: allowAddWhenStockInsufficient,
-              availableStock: l.availableStock,
-              requestedQty: next,
-              productName: l.name,
-            });
-            if (stockMsg) return [l];
-          }
-          return [{ ...l, quantity: formatPosQtyLabel(next) }];
-        })
-      );
-      if (stockMsg) showStockErrorToast(stockMsg);
-    },
-    [allowAddWhenStockInsufficient]
-  );
+  const bumpCartQty = useCallback((productId, delta) => {
+    setCartLines((prev) =>
+      prev.flatMap((l) => {
+        if (l.productId !== productId) return [l];
+        const next = roundPosQty(parsePosQty(l.quantity) + delta);
+        if (next < POS_QTY_MIN) return [];
+        return [{ ...l, quantity: formatPosQtyLabel(next) }];
+      })
+    );
+  }, []);
 
   const removeCartLine = useCallback((productId) => {
     setCartLines((prev) => prev.filter((l) => l.productId !== productId));
   }, []);
 
-  const setCartQty = useCallback(
-    (productId, raw) => {
-      const sanitized = sanitizePosQtyInput(raw);
-      let stockMsg = null;
-      setCartLines((prev) =>
-        prev.flatMap((l) => {
-          if (l.productId !== productId) return [l];
-          if (sanitized === '' || isPartialPosQtyInput(sanitized)) {
-            return [{ ...l, quantity: sanitized }];
-          }
-          const next = parsePosQty(sanitized);
-          stockMsg = posStockBlocksQty({
-            allowWhenInsufficient: allowAddWhenStockInsufficient,
-            availableStock: l.availableStock,
-            requestedQty: next,
-            productName: l.name,
-          });
-          if (stockMsg) return [l];
-          return [{ ...l, quantity: sanitized }];
-        })
-      );
-      if (stockMsg) showStockErrorToast(stockMsg);
-    },
-    [allowAddWhenStockInsufficient]
-  );
+  const setCartQty = useCallback((productId, raw) => {
+    const sanitized = sanitizePosQtyInput(raw);
+    setCartLines((prev) =>
+      prev.map((l) => (l.productId === productId ? { ...l, quantity: sanitized } : l))
+    );
+  }, []);
 
-  const commitCartQty = useCallback(
-    (productId) => {
-      let stockMsg = null;
-      setCartLines((prev) =>
-        prev.flatMap((l) => {
-          if (l.productId !== productId) return [l];
-          const q = parsePosQty(l.quantity);
-          if (q < POS_QTY_MIN) return [];
-          stockMsg = posStockBlocksQty({
-            allowWhenInsufficient: allowAddWhenStockInsufficient,
-            availableStock: l.availableStock,
-            requestedQty: q,
-            productName: l.name,
-          });
-          if (stockMsg) return [l];
-          return [{ ...l, quantity: formatPosQtyLabel(q) }];
-        })
-      );
-      if (stockMsg) showStockErrorToast(stockMsg);
-    },
-    [allowAddWhenStockInsufficient]
-  );
+  const commitCartQty = useCallback((productId) => {
+    setCartLines((prev) =>
+      prev.flatMap((l) => {
+        if (l.productId !== productId) return [l];
+        const q = parsePosQty(l.quantity);
+        if (q < POS_QTY_MIN) return [];
+        return [{ ...l, quantity: formatPosQtyLabel(q) }];
+      })
+    );
+  }, []);
 
   const setCartUnitPrice = useCallback((productId, raw) => {
     const n = parseFloat(String(raw).replace(/,/g, ''));
@@ -708,17 +844,23 @@ const Pos = () => {
       }
 
       let linesForSave = normalized.lines;
-      try {
-        linesForSave = await refreshCartLineStock(linesForSave, defaultWarehouseId);
-        setCartLines(linesForSave);
-      } catch (err) {
-        console.warn('[POS] Could not refresh stock before saving order', err);
-      }
+      if (isOnline) {
+        try {
+          linesForSave = await refreshCartLineStock(linesForSave, defaultWarehouseId);
+          setCartLines(linesForSave);
+        } catch (err) {
+          console.warn('[POS] Could not refresh stock before saving order', err);
+        }
 
-      const stockIssues = collectCartStockIssues(linesForSave);
-      if (stockIssues.length) {
-        showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 5000 });
-        return null;
+        // When "Add to cart when stock is insufficient" is OFF, stock was already
+        // enforced at add-to-cart time, so saving does not re-check quantity.
+        if (allowAddWhenStockInsufficient) {
+          const stockIssues = collectCartStockIssues(linesForSave);
+          if (stockIssues.length) {
+            showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 5000 });
+            return null;
+          }
+        }
       }
 
       const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
@@ -739,7 +881,7 @@ const Pos = () => {
         return null;
       }
 
-      const result = await createPosOrderRequest({
+      const orderPayload = {
         name,
         email,
         phone,
@@ -754,17 +896,59 @@ const Pos = () => {
         posPayMethod: payment?.paymentMethodId || undefined,
         payment_method_id: payment?.paymentMethodId || undefined,
         customer_id: selectedCustomerId || undefined,
-      });
-
-      return {
-        result,
-        customerName: name,
-        customerEmail: email,
-        customerPhone: phone,
-        cartSnapshot: linesForSave.map((line) => ({ ...line })),
       };
+
+      const cartSnapshot = linesForSave.map((line) => ({ ...line }));
+      const customerInfo = { name, email, phone };
+
+      if (!isOnline) {
+        const offlineResult = await saveOfflineOrder({
+          payload: orderPayload,
+          cartSnapshot,
+          warehouseId: defaultWarehouseId,
+        });
+        return buildOfflineSaveResult(offlineResult, {
+          ...customerInfo,
+          cartSnapshot,
+        });
+      }
+
+      try {
+        const result = await createPosOrderRequest(orderPayload);
+        return {
+          result,
+          offline: false,
+          customerName: name,
+          customerEmail: email,
+          customerPhone: phone,
+          cartSnapshot,
+        };
+      } catch (err) {
+        if (isLikelyNetworkError(err)) {
+          console.warn('[POS] Online save failed, saving offline instead', err);
+          const offlineResult = await saveOfflineOrder({
+            payload: orderPayload,
+            cartSnapshot,
+            warehouseId: defaultWarehouseId,
+          });
+          return buildOfflineSaveResult(offlineResult, {
+            ...customerInfo,
+            cartSnapshot,
+          });
+        }
+        throw err;
+      }
     },
-    [cartLines, users, selectedCustomerId, shippingNum, extraDiscountNum, defaultWarehouseId]
+    [
+      cartLines,
+      users,
+      selectedCustomerId,
+      shippingNum,
+      extraDiscountNum,
+      defaultWarehouseId,
+      isOnline,
+      allowAddWhenStockInsufficient,
+    ]
   );
 
   const handlePaymentClick = useCallback(async () => {
@@ -777,21 +961,27 @@ const Pos = () => {
     let linesForPayment = normalized.lines;
     setCartLines(normalized.lines);
 
-    try {
-      linesForPayment = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
-      setCartLines(linesForPayment);
-    } catch (err) {
-      console.warn('[POS] Could not refresh stock before payment', err);
-    }
+    if (isOnline) {
+      try {
+        linesForPayment = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+        setCartLines(linesForPayment);
+      } catch (err) {
+        console.warn('[POS] Could not refresh stock before payment', err);
+      }
 
-    const stockIssues = collectCartStockIssues(linesForPayment);
-    if (stockIssues.length) {
-      showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
-      return;
+      // When "Add to cart when stock is insufficient" is OFF, stock was already
+      // enforced at add-to-cart time, so the payment step does not re-check quantity.
+      if (allowAddWhenStockInsufficient) {
+        const stockIssues = collectCartStockIssues(linesForPayment);
+        if (stockIssues.length) {
+          showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+          return;
+        }
+      }
     }
 
     openPosPaymentModal();
-  }, [cartLines, defaultWarehouseId]);
+  }, [cartLines, defaultWarehouseId, isOnline, allowAddWhenStockInsufficient]);
 
   const clearCartAfterSale = useCallback(() => {
     setCartLines([]);
@@ -807,7 +997,11 @@ const Pos = () => {
       try {
         const saved = await savePosOrder(payment);
         if (!saved) return;
-        showToast('successToast', 'Order saved successfully.');
+        if (saved.offline) {
+          toast.success('Sale saved offline — will sync when online', { delay: 6000 });
+        } else {
+          showToast('successToast', 'Order saved successfully.');
+        }
         clearCartAfterSale();
       } catch (e) {
         console.error('[POS] Failed to save order', e);
@@ -833,29 +1027,32 @@ const Pos = () => {
         const saved = await savePosOrder(payment);
         if (!saved) return;
 
-        const invoiceNo =
-          pickOrderInvoiceNoFromSaveResponse(saved.result) || moment().format('YYYYMMDDHHmmss');
-        const savedOrder = pickOrderFromSaveResult(saved.result);
-        const publicUrl = buildPublicInvoiceUrl(pickPublicInvoiceToken(savedOrder));
+        const invoiceNo = saved.offline
+          ? saved.localInvoiceNo || saved.result?.local_invoice_no
+          : pickOrderInvoiceNoFromSaveResponse(saved.result) || moment().format('YYYYMMDDHHmmss');
+        const savedOrder = saved.offline ? null : pickOrderFromSaveResult(saved.result);
+        const publicUrl = saved.offline ? '' : buildPublicInvoiceUrl(pickPublicInvoiceToken(savedOrder));
 
         let settings = printerSettings;
         let brand = companyBrand;
-        const companyId =
-          getCompanyIdFromUser(authUser) ||
-          String(authCompany?._id ?? authCompany?.id ?? '').trim();
-        if (companyId) {
-          try {
-            const body = await fetchCompanyById(companyId);
-            const company = getCompanyFromApiBody(body);
-            if (company && typeof company === 'object') {
-              const merged = mergeCompanyRecordForSettings(company, authCompany);
-              settings = mergePrinterSettings(
-                extractPrinterSettingsFromCompanyBody({ data: merged })
-              );
-              brand = buildCompanyBrandFromRecord(merged);
+        if (isOnline) {
+          const companyId =
+            getCompanyIdFromUser(authUser) ||
+            String(authCompany?._id ?? authCompany?.id ?? '').trim();
+          if (companyId) {
+            try {
+              const body = await fetchCompanyById(companyId);
+              const company = getCompanyFromApiBody(body);
+              if (company && typeof company === 'object') {
+                const merged = mergeCompanyRecordForSettings(company, authCompany);
+                settings = mergePrinterSettings(
+                  extractPrinterSettingsFromCompanyBody({ data: merged })
+                );
+                brand = buildCompanyBrandFromRecord(merged);
+              }
+            } catch {
+              // print with last known settings
             }
-          } catch {
-            // print with last known settings
           }
         }
 
@@ -873,12 +1070,16 @@ const Pos = () => {
           publicUrl,
           companyName: brand.name,
         });
+        if (saved.offline) {
+          receipt.terms = OFFLINE_RECEIPT_FOOTER;
+        }
 
         const printed = await openThermalReceiptPrint(receipt, {
           documentTitlePrefix: 'Receipt',
-          invoiceNumberPrefix: 'POS#',
+          invoiceNumberPrefix: saved.offline ? 'OFF#' : 'POS#',
           printerSettings: settings,
           companyBrand: brand,
+          footerThankYou: saved.offline ? OFFLINE_RECEIPT_FOOTER : undefined,
           sourceOrder: {
             amount_received: payment?.paid ?? 0,
             change_given: payment?.change ?? 0,
@@ -888,7 +1089,11 @@ const Pos = () => {
           toast.error('Allow pop-ups to print the thermal receipt.', { delay: 6000 });
         }
 
-        showToast('successToast', 'Order saved and sent to printer.');
+        if (saved.offline) {
+          toast.success('Sale saved offline — will sync when online', { delay: 6000 });
+        } else {
+          showToast('successToast', 'Order saved and sent to printer.');
+        }
         clearCartAfterSale();
       } catch (e) {
         console.error('[POS] Failed to save order for print', e);
@@ -916,6 +1121,7 @@ const Pos = () => {
       companyBrand,
       authUser,
       authCompany,
+      isOnline,
     ]
   );
 
@@ -1012,6 +1218,44 @@ const Pos = () => {
 
   return (
     <div className="pos-page container-fluid py-4 px-3 px-lg-4">
+      <OfflineSyncPanel />
+      <div className="pos-page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div className="pos-master-sync-status text-sm text-muted">
+          {masterSyncProgress?.message ? (
+            <span role="status" aria-live="polite">
+              {masterSyncRunning && (
+                <span
+                  className="spinner-border spinner-border-sm me-2"
+                  role="status"
+                  aria-hidden="true"
+                />
+              )}
+              {masterSyncProgress.message}
+            </span>
+          ) : (
+            <span className="text-muted">Offline catalog sync</span>
+          )}
+        </div>
+        <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-primary"
+            onClick={() => openOfflineSyncPanel()}
+          >
+            Pending sync
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary pos-refresh-catalog-btn"
+            onClick={handleRefreshCatalog}
+            disabled={masterSyncRunning || !isOnline}
+            title={isOnline ? 'Download latest catalog for offline use' : 'Go online to refresh catalog'}
+          >
+            {masterSyncRunning ? 'Downloading…' : 'Refresh catalog'}
+          </button>
+          <OfflineStatusBadge />
+        </div>
+      </div>
       <div className="row g-4">
         {/* Left: checkout */}
         <div className="col-lg-6 col-xl-5">
@@ -1119,7 +1363,10 @@ const Pos = () => {
               )}
               {usersError && (
                 <p className="text-xs text-warning mb-2" role="alert">
-                  {usersError}. Check API route in <code className="text-xs">usersAPI.js</code>.
+                  {usersError}.{' '}
+                  {isOnline && usersStatus === 'failed'
+                    ? 'Retrying automatically every minute…'
+                    : <>Check API route in <code className="text-xs">usersAPI.js</code>.</>}
                 </p>
               )}
               <div className="pos-customer-selected mb-3">

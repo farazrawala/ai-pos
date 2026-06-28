@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
+import {
+  countPaymentMethods,
+  getAllPaymentMethods,
+} from '../../offline/repositories/paymentMethodsRepo.js';
+import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 
 const MODAL_ID = 'posPaymentModal';
 
@@ -26,6 +32,7 @@ const closePosPaymentModal = () => {
  * “Make Payment” dialog — amount, method, balance, change, account, pay actions.
  */
 const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
+  const isOnline = useOnlineStatus();
   const [amount, setAmount] = useState('0.00');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('sales-123456');
@@ -41,9 +48,40 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
     [paymentMethods, paymentMethod]
   );
 
+  const applyPaymentMethodList = useCallback((list) => {
+    setPaymentMethods(list);
+    setPaymentMethodsStatus('succeeded');
+    setPaymentMethod((prev) => {
+      if (prev && list.some((item) => String(item._id ?? item.id ?? '') === String(prev))) {
+        return prev;
+      }
+      const firstId = list[0]?._id ?? list[0]?.id ?? '';
+      return firstId ? String(firstId) : '';
+    });
+  }, []);
+
   const loadPaymentMethods = useCallback(async () => {
     setPaymentMethodsStatus('loading');
     setPaymentMethodsError('');
+
+    const loadPaymentMethodsFromCache = async () => {
+      const cached = await getAllPaymentMethods();
+      if ((await countPaymentMethods()) === 0) {
+        setPaymentMethods([]);
+        setPaymentMethodsError(OFFLINE_CATALOG_EMPTY_MESSAGE);
+        setPaymentMethodsStatus('failed');
+        setPaymentMethod('');
+        return false;
+      }
+      applyPaymentMethodList(cached);
+      return true;
+    };
+
+    if (!isOnline) {
+      await loadPaymentMethodsFromCache();
+      return;
+    }
+
     try {
       const result = await fetchAccountsRequest({
         limit: 2000,
@@ -53,23 +91,18 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
         sortOrder: 'asc',
       });
       const list = Array.isArray(result?.data) ? result.data : [];
-      setPaymentMethods(list);
-      setPaymentMethodsStatus('succeeded');
-      setPaymentMethod((prev) => {
-        if (prev && list.some((item) => String(item._id ?? item.id ?? '') === String(prev))) {
-          return prev;
-        }
-        const firstId = list[0]?._id ?? list[0]?.id ?? '';
-        return firstId ? String(firstId) : '';
-      });
+      applyPaymentMethodList(list);
     } catch (error) {
-      console.error('[POS] Failed to load payment methods', error);
-      setPaymentMethods([]);
-      setPaymentMethodsError(error?.message || 'Could not load payment methods');
-      setPaymentMethodsStatus('failed');
-      setPaymentMethod('');
+      console.warn('[POS] Failed to load payment methods from API, trying offline cache', error);
+      const usedCache = await loadPaymentMethodsFromCache();
+      if (!usedCache) {
+        setPaymentMethods([]);
+        setPaymentMethodsError(error?.message || 'Could not load payment methods');
+        setPaymentMethodsStatus('failed');
+        setPaymentMethod('');
+      }
     }
-  }, []);
+  }, [isOnline, applyPaymentMethodList]);
 
   const syncAmountFromTotal = useCallback(() => {
     setAmount(total.toFixed(2));

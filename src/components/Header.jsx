@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
+import { clearOfflineDb } from '../offline/db.js';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -28,6 +29,9 @@ const Header = () => {
 
   const handleSignOut = (e) => {
     e.preventDefault();
+    clearOfflineDb().catch((err) => {
+      console.warn('[POS] Failed to clear offline data on logout', err);
+    });
     dispatch(clearUser());
     navigate('/signin');
   };

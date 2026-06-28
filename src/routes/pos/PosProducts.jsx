@@ -14,7 +14,17 @@ import {
   isProductStockBelowMinimum,
 } from '../../utils/productStock.js';
 import { toast } from '../../utils/toast.js';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
+import {
+  countProducts,
+  lookupProductsForScan,
+  searchProducts,
+} from '../../offline/repositories/productsRepo.js';
+import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
+
+/** Auto-retry delay for a failed product load (e.g. backend/DB outage). */
+const POS_PRODUCTS_RETRY_DELAY_MS = 60_000;
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
 
@@ -79,6 +89,7 @@ const PosProducts = ({
   onPaymentComplete,
   onPaymentCompletePrint,
 }) => {
+  const isOnline = useOnlineStatus();
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
   const [productsError, setProductsError] = useState(null);
@@ -91,11 +102,33 @@ const PosProducts = ({
     return () => clearTimeout(t);
   }, [productQuery]);
 
+  const loadProductsFromCache = useCallback(async () => {
+    const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+    const cached = await searchProducts({ query: debouncedQuery, categoryId });
+    const totalCached = await countProducts();
+    if (totalCached === 0) {
+      setProducts([]);
+      setProductsError(OFFLINE_CATALOG_EMPTY_MESSAGE);
+      setProductsStatus('failed');
+      return false;
+    }
+    setProducts(cached);
+    setProductsError(null);
+    setProductsStatus('succeeded');
+    return true;
+  }, [debouncedQuery, categoryFilter]);
+
   const loadProducts = useCallback(async () => {
     setProductsStatus('loading');
     setProductsError(null);
+    const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+
+    if (!isOnline) {
+      await loadProductsFromCache();
+      return;
+    }
+
     try {
-      const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
       const result = debouncedQuery
         ? await fetchProductActiveRequest({
             search: debouncedQuery,
@@ -113,16 +146,30 @@ const PosProducts = ({
       setProducts(arr);
       setProductsStatus('succeeded');
     } catch (err) {
-      console.error('[POS] Failed to load products', err);
-      setProducts([]);
-      setProductsError(err?.message || 'Could not load products');
-      setProductsStatus('failed');
+      console.warn('[POS] Failed to load products from API, trying offline cache', err);
+      const usedCache = await loadProductsFromCache();
+      if (!usedCache) {
+        setProducts([]);
+        setProductsError(err?.message || 'Could not load products');
+        setProductsStatus('failed');
+      }
     }
-  }, [debouncedQuery, categoryFilter]);
+  }, [debouncedQuery, categoryFilter, isOnline, loadProductsFromCache]);
 
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  // If the product load fails (e.g. backend or MongoDB is down), retry once a
+  // minute until it succeeds. Only while online — an offline failure means the
+  // local catalog is empty, which retrying can't resolve.
+  useEffect(() => {
+    if (!isOnline || productsStatus !== 'failed') return undefined;
+    const timer = setTimeout(() => {
+      loadProducts();
+    }, POS_PRODUCTS_RETRY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isOnline, productsStatus, loadProducts]);
 
   const visibleProducts = useMemo(() => {
     if (!hideLowStock) return products;
@@ -159,26 +206,47 @@ const PosProducts = ({
         return tryAdd(fromList);
       }
 
+      if (isOnline) {
+        try {
+          const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+          const result = await fetchProductActiveRequest({
+            search: q,
+            searchFields: POS_PRODUCT_SEARCH_FIELDS,
+            page: 1,
+            limit: 50,
+            ...(categoryId ? { categoryId } : {}),
+          });
+          const arr = Array.isArray(result?.data) ? result.data : [];
+          const picked = pickScannedProduct(arr, q);
+          if (picked) {
+            return tryAdd(picked);
+          }
+        } catch (err) {
+          console.warn('[POS] Barcode lookup failed, trying offline cache', err);
+        }
+      }
+
       try {
         const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
-        const result = await fetchProductActiveRequest({
-          search: q,
-          searchFields: POS_PRODUCT_SEARCH_FIELDS,
-          page: 1,
-          limit: 50,
-          ...(categoryId ? { categoryId } : {}),
-        });
-        const arr = Array.isArray(result?.data) ? result.data : [];
-        const picked = pickScannedProduct(arr, q);
+        const cached = await lookupProductsForScan(q, categoryId);
+        const picked = pickScannedProduct(cached, q);
         if (picked) {
           return tryAdd(picked);
         }
       } catch (err) {
-        console.error('[POS] Barcode lookup failed', err);
+        console.error('[POS] Offline barcode lookup failed', err);
       }
       return false;
     },
-    [products, categoryFilter, onAddToCart, clearSearchAndRefocus, hideLowStock, warehouseId]
+    [
+      products,
+      categoryFilter,
+      onAddToCart,
+      clearSearchAndRefocus,
+      hideLowStock,
+      warehouseId,
+      isOnline,
+    ]
   );
 
   const handleSearchKeyDown = useCallback(
@@ -276,6 +344,9 @@ const PosProducts = ({
             {productsStatus !== 'loading' && productsError && (
               <div className="alert alert-warning py-2 small mb-2" role="alert">
                 {productsError}
+                {isOnline && productsStatus === 'failed' && (
+                  <div className="text-muted mt-1">Retrying automatically every minute…</div>
+                )}
               </div>
             )}
             {productsStatus !== 'loading' && !productsError && visibleProducts.length === 0 && (

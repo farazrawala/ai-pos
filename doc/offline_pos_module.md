@@ -66,14 +66,14 @@ App knows online/offline state. Cashier sees a clear badge on POS.
 
 ### Tasks
 
-- [ ] Create `src/hooks/useOnlineStatus.js`
+- [x] Create `src/hooks/useOnlineStatus.js`
   - Read `navigator.onLine`
   - Listen to `window` `online` / `offline` events
-- [ ] Create `src/components/OfflineStatusBadge.jsx`
+- [x] Create `src/components/OfflineStatusBadge.jsx`
   - **Online** — green
   - **Offline** — amber
   - **Syncing…** — blue (wire in Step 8)
-- [ ] Mount badge in `src/routes/pos/index.jsx` header
+- [x] Mount badge in `src/routes/pos/index.jsx` header
 
 ### Files
 
@@ -100,18 +100,18 @@ Persistent local database with all stores defined. Data survives page refresh.
 
 ### Tasks
 
-- [ ] `npm install dexie uuid`
-- [ ] Create `src/offline/db.js` — Dexie schema (see [IndexedDB schema](#indexeddb-schema-reference))
-- [ ] Create repositories:
-  - [ ] `src/offline/repositories/metaRepo.js`
-  - [ ] `src/offline/repositories/productsRepo.js`
-  - [ ] `src/offline/repositories/categoriesRepo.js`
-  - [ ] `src/offline/repositories/customersRepo.js`
-  - [ ] `src/offline/repositories/paymentMethodsRepo.js`
-  - [ ] `src/offline/repositories/ordersRepo.js`
-- [ ] Export helpers:
-  - [ ] `isOfflineDbReady()`
-  - [ ] `clearOfflineDb()` — for logout / company switch
+- [x] `npm install dexie uuid`
+- [x] Create `src/offline/db.js` — Dexie schema (see [IndexedDB schema](#indexeddb-schema-reference))
+- [x] Create repositories:
+  - [x] `src/offline/repositories/metaRepo.js`
+  - [x] `src/offline/repositories/productsRepo.js`
+  - [x] `src/offline/repositories/categoriesRepo.js`
+  - [x] `src/offline/repositories/customersRepo.js`
+  - [x] `src/offline/repositories/paymentMethodsRepo.js`
+  - [x] `src/offline/repositories/ordersRepo.js`
+- [x] Export helpers:
+  - [x] `isOfflineDbReady()`
+  - [x] `clearOfflineDb()` — for logout / company switch
 
 ### Files
 
@@ -147,15 +147,15 @@ While **online**, download everything POS needs and store in IndexedDB.
 
 ### Tasks
 
-- [ ] Create `src/offline/masterSync.js`
-  - [ ] Paginate products until all pages fetched
-  - [ ] Upsert all records into IndexedDB
-  - [ ] Set `meta.last_master_sync_at`, `company_id`, `warehouse_id`
-- [ ] Trigger master sync when:
-  - [ ] User logs in successfully (POS module enabled)
-  - [ ] POS opens and last sync &gt; 4 hours ago (configurable)
-  - [ ] User clicks **Refresh catalog**
-- [ ] Show progress UI: `Downloading products… 450/1200`
+- [x] Create `src/offline/masterSync.js`
+  - [x] Paginate products until all pages fetched
+  - [x] Upsert all records into IndexedDB
+  - [x] Set `meta.last_master_sync_at`, `company_id`, `warehouse_id`
+- [x] Trigger master sync when:
+  - [x] User logs in successfully (POS module enabled)
+  - [x] POS opens and last sync &gt; 4 hours ago (configurable)
+  - [x] User clicks **Refresh catalog**
+- [x] Show progress UI: `Downloading products… 450/1200`
 
 ### Files
 
@@ -181,11 +181,11 @@ POS loads catalog from IndexedDB when offline (or when API fails).
 
 ### Tasks
 
-- [ ] `PosProducts.jsx` — if offline → read from `productsRepo`; else API with fallback to cache
-- [ ] `pos/index.jsx` — categories + customers from IndexedDB when offline
-- [ ] `PosPaymentModal.jsx` — payment methods from IndexedDB when offline
-- [ ] If offline and no cache → show: *"Connect to internet once to download catalog"*
-- [ ] Barcode / search works on cached products (use Dexie indexes)
+- [x] `PosProducts.jsx` — if offline → read from `productsRepo`; else API with fallback to cache
+- [x] `pos/index.jsx` — categories + customers from IndexedDB when offline
+- [x] `PosPaymentModal.jsx` — payment methods from IndexedDB when offline
+- [x] If offline and no cache → show: *"Connect to internet once to download catalog"*
+- [x] Barcode / search works on cached products (use Dexie indexes)
 
 ### Files
 
@@ -214,11 +214,11 @@ POS app HTML/JS/CSS loads without network after first visit.
 
 ### Tasks
 
-- [ ] `npm install vite-plugin-pwa -D`
-- [ ] Configure `vite.config.js` — precache JS, CSS, HTML
-- [ ] Add `manifest.json` — app name, icons, `display: standalone`
-- [ ] Register service worker in `src/main.jsx`
-- [ ] Optional: runtime cache product images from `/uploads`
+- [x] `npm install vite-plugin-pwa -D`
+- [x] Configure `vite.config.js` — precache JS, CSS, HTML
+- [x] Add `manifest.json` — app name, icons, `display: standalone`
+- [x] Register service worker in `src/index.js` (app entry)
+- [x] Optional: runtime cache product images from `/uploads`
 
 ### Files
 
@@ -245,14 +245,14 @@ Complete a sale without API. Print receipt immediately. Queue order locally.
 
 ### Tasks
 
-- [ ] Create `src/offline/localInvoiceNo.js` — format `OFF-YYYYMMDD-NNN`
-- [ ] Create `src/offline/saveOfflineOrder.js`:
-  - [ ] Generate `client_order_id` (UUID v4)
-  - [ ] Build payload (same shape as `createPosOrderRequest`)
-  - [ ] Save to `pending_orders` with `status: pending`
-  - [ ] Decrement local stock cache
-  - [ ] Store `cart_snapshot` for reprint
-- [ ] Edit `src/routes/pos/index.jsx` checkout handler:
+- [x] Create `src/offline/localInvoiceNo.js` — format `OFF-YYYYMMDD-NNN`
+- [x] Create `src/offline/saveOfflineOrder.js`:
+  - [x] Generate `client_order_id` (UUID v4)
+  - [x] Build payload (same shape as `createPosOrderRequest`)
+  - [x] Save to `pending_orders` with `status: pending`
+  - [x] Decrement local stock cache
+  - [x] Store `cart_snapshot` for reprint
+- [x] Edit `src/routes/pos/index.jsx` checkout handler:
 
   ```
   if (online) → try createPosOrderRequest
@@ -260,10 +260,10 @@ Complete a sale without API. Print receipt immediately. Queue order locally.
   if (offline) → saveOfflineOrder
   ```
 
-- [ ] Thermal receipt uses `local_invoice_no` via existing `openThermalReceiptPrint`
-- [ ] Receipt footer: *"Offline invoice — will sync when online"*
-- [ ] Toast: *"Sale saved offline — will sync when online"*
-- [ ] Clear cart after successful offline save
+- [x] Thermal receipt uses `local_invoice_no` via existing `openThermalReceiptPrint`
+- [x] Receipt footer: *"Offline invoice — will sync when online"*
+- [x] Toast: *"Sale saved offline — will sync when online"*
+- [x] Clear cart after successful offline save
 
 ### Files
 
@@ -297,9 +297,12 @@ Retrying the same offline order must **not** create duplicate orders in MongoDB.
   - [ ] Else → create order as today
 - [ ] Optional: `GET /api/order/sync-status?client_order_id=` for timeout recovery
 
+See **`doc/offline_pos_backend_step7.md`** for backend handoff spec.
+
 ### Frontend prep (can do before backend is live)
 
-- [ ] Edit `src/features/orders/ordersAPI.js` — append `client_order_id` to FormData when present
+- [x] Edit `src/features/orders/ordersAPI.js` — append `client_order_id` to FormData when present
+- [x] `readOrderSaveFailure` attaches HTTP `status` on errors (auth / retry handling in sync queue)
 
 ### Done when
 
@@ -330,20 +333,20 @@ POST /api/order/order_save + client_order_id
 
 ### Tasks
 
-- [ ] Create `src/offline/syncOrders.js`:
-  - [ ] `processSyncQueue()` — one order at a time
-  - [ ] Call `createPosOrderRequest` with `client_order_id`
-  - [ ] On success: use `pickOrderFromSaveResult` / `pickOrderInvoiceNoFromSaveResponse`
-  - [ ] On failure: set `error_message`, increment `retry_count`
-  - [ ] Backoff: 5s → 30s → 2m → 10m (cap)
-- [ ] Create `src/offline/syncStatus.js` — `{ pending, failed, syncing }`
-- [ ] Wire triggers:
-  - [ ] `window` `online` event
-  - [ ] POS mount when `navigator.onLine`
-  - [ ] Manual **Sync now** (Step 9)
-  - [ ] Optional: poll every 60s while online and queue non-empty
-- [ ] After all orders synced → optional background master sync (refresh stock)
-- [ ] Update `OfflineStatusBadge` → **Syncing…** while queue runs
+- [x] Create `src/offline/syncOrders.js`:
+  - [x] `processSyncQueue()` — one order at a time
+  - [x] Call `createPosOrderRequest` with `client_order_id`
+  - [x] On success: use `extractOrderFromSaveResponse` / `pickOrderInvoiceNoFromSaveResponse`
+  - [x] On failure: set `error_message`, increment `retry_count`
+  - [x] Backoff: 5s → 30s → 2m → 10m (cap)
+- [x] Create `src/offline/syncStatus.js` — `{ pending, failed, syncing }`
+- [x] Wire triggers:
+  - [x] `window` `online` event
+  - [x] POS mount when `navigator.onLine`
+  - [x] Manual **Sync now** (Step 9)
+  - [x] Optional: poll every 60s while online and queue non-empty
+- [x] After all orders synced → optional background master sync (refresh stock)
+- [x] Update `OfflineStatusBadge` → **Syncing…** while queue runs
 
 ### Sync rules
 
@@ -380,14 +383,14 @@ Cashier/manager can see and manage pending/failed syncs without DevTools.
 
 ### Tasks
 
-- [ ] POS drawer or modal: **Pending sync** list
-  - [ ] Columns: local invoice #, time, amount, status, error
-- [ ] Actions:
-  - [ ] **Sync now**
-  - [ ] **Retry failed**
-  - [ ] Copy error message
-- [ ] Badge on POS header: pending count (e.g. `3 pending`)
-- [ ] Failed orders highlighted; do not auto-delete
+- [x] POS drawer or modal: **Pending sync** list
+  - [x] Columns: local invoice #, time, amount, status, error
+- [x] Actions:
+  - [x] **Sync now**
+  - [x] **Retry failed**
+  - [x] Copy error message
+- [x] Badge on POS header: pending count (e.g. `3 pending`)
+- [x] Failed orders highlighted; do not auto-delete
 
 ### Files
 
@@ -413,11 +416,11 @@ POS works offline after **one successful online login**.
 
 ### Tasks
 
-- [ ] Keep existing `localStorage` auth (`authToken`, `userData`, `companyData`)
-- [ ] On login success → run master sync (Step 3)
-- [ ] If user opens app offline with no cached auth → block with: *"Connect to internet to sign in"*
-- [ ] On logout → call `clearOfflineDb()` (or wipe company-scoped data)
-- [ ] On company switch → full master sync for new company
+- [x] Keep existing `localStorage` auth (`authToken`, `userData`, `companyData`)
+- [x] On login success → run master sync (Step 3)
+- [x] If user opens app offline with no cached auth → block with: *"Connect to internet to sign in"*
+- [x] On logout → call `clearOfflineDb()` (or wipe company-scoped data)
+- [x] On company switch → full master sync for new company
 - [ ] Optional (backend): longer token TTL for dedicated POS devices
 
 ### Files
@@ -443,12 +446,14 @@ Production-ready offline POS with documented limits.
 
 ### QA checklist
 
+Run manually before go-live — see **`doc/offline_pos_qa_checklist.md`**.
+
 - [ ] Master sync completes for 1000+ products
 - [ ] POS fully functional with DevTools offline
 - [ ] Checkout saves to `pending_orders`
 - [ ] Thermal receipt prints with local invoice number
 - [ ] Going online auto-syncs pending orders
-- [ ] Duplicate retry does not create duplicate server orders
+- [ ] Duplicate retry does not create duplicate server orders *(requires Step 7 backend)*
 - [ ] Insufficient stock on server → order marked `failed` (not silent drop)
 - [ ] Expired token → clear error message
 - [ ] PWA: reload app offline after first online visit
@@ -457,6 +462,8 @@ Production-ready offline POS with documented limits.
 - [ ] Same UI at `/pos` — no URL or layout change
 
 ### Document limits (v1)
+
+Documented below — no code change required.
 
 | Topic | v1 rule |
 |-------|---------|
@@ -468,9 +475,11 @@ Production-ready offline POS with documented limits.
 
 ### User training
 
-- [ ] Explain Online / Offline / Syncing badge
-- [ ] Explain pending sync count
-- [ ] Explain what to do when sync fails (retry, call manager)
+Training notes for cashiers/managers:
+
+- [x] Explain Online / Offline / Syncing badge
+- [x] Explain pending sync count
+- [x] Explain what to do when sync fails (retry, call manager)
 
 ---
 

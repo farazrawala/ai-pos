@@ -55,6 +55,12 @@ async function readOrderSaveFailure(response) {
   const trimmed = text.trim();
   let json = null;
 
+  const throwWithStatus = (message, payload = json) => {
+    const err = createOrderSaveError(message, payload);
+    err.status = status;
+    throw err;
+  };
+
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       json = JSON.parse(trimmed);
@@ -65,38 +71,38 @@ async function readOrderSaveFailure(response) {
 
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     if (typeof json.message === 'string' && json.message) {
-      throw createOrderSaveError(json.message, json);
+      throwWithStatus(json.message, json);
     }
     if (
       json.error &&
       typeof json.error === 'object' &&
       typeof json.error.message === 'string'
     ) {
-      throw createOrderSaveError(json.error.message, json);
+      throwWithStatus(json.error.message, json);
     }
     if (typeof json.error === 'string' && json.error) {
-      throw createOrderSaveError(json.error, json);
+      throwWithStatus(json.error, json);
     }
     if (typeof json.msg === 'string' && json.msg) {
-      throw createOrderSaveError(json.msg, json);
+      throwWithStatus(json.msg, json);
     }
     if (typeof json.detail === 'string' && json.detail) {
-      throw createOrderSaveError(json.detail, json);
+      throwWithStatus(json.detail, json);
     }
     if (typeof json.details === 'string' && json.details.trim()) {
-      throw createOrderSaveError(json.details.trim(), json);
+      throwWithStatus(json.details.trim(), json);
     }
     if (json.data && typeof json.data === 'object' && typeof json.data.message === 'string') {
-      throw createOrderSaveError(json.data.message, json);
+      throwWithStatus(json.data.message, json);
     }
     const fromErrors = stringifyValidationErrors(json.errors);
     if (fromErrors) {
-      throw createOrderSaveError(fromErrors, json);
+      throwWithStatus(fromErrors, json);
     }
   }
 
   if (trimmed.startsWith('<')) {
-    throw createOrderSaveError(`HTTP ${status} (HTML response — server error; check API logs).`, json);
+    throwWithStatus(`HTTP ${status} (HTML response — server error; check API logs).`, json);
   }
 
   const oneLine = trimmed.replace(/\s+/g, ' ');
@@ -108,7 +114,7 @@ async function readOrderSaveFailure(response) {
       ? 'HTTP 500 — server returned an empty body (check API logs / Laravel storage/logs).'
       : `HTTP ${status}`;
 
-  throw createOrderSaveError(message, json);
+  throwWithStatus(message, json);
 }
 
 /**
@@ -1381,7 +1387,7 @@ export function pickOrderInvoiceNoFromSaveResponse(result) {
   return '';
 }
 
-function extractOrderFromSaveResponse(result) {
+export function extractOrderFromSaveResponse(result) {
   if (!result || typeof result !== 'object') return null;
   const data = result.data;
   if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -1464,6 +1470,9 @@ export async function createPosOrderRequest(payload = {}) {
   }
   if (payload.customer_id != null) {
     form.append('customer_id', String(payload.customer_id));
+  }
+  if (payload.client_order_id != null && String(payload.client_order_id).trim() !== '') {
+    form.append('client_order_id', String(payload.client_order_id).trim());
   }
 
   const response = await fetch(`${BASE_URL}order/order_save`, {

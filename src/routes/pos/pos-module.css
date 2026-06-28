@@ -8,7 +8,94 @@
   --pos-ink: #344767;
   --pos-success: #2dce89;
   --pos-warning: #fb6340;
+  --pos-offline-amber: #f5a623;
   max-width: 100%;
+}
+
+.pos-page .pos-page-header {
+  min-height: 1.75rem;
+}
+
+.pos-page .pos-master-sync-status {
+  min-height: 1.25rem;
+  color: var(--pos-muted);
+}
+
+.pos-page .pos-offline-status-badge--failed {
+  color: #9a3412;
+  background: rgba(251, 99, 64, 0.14);
+  border-color: rgba(251, 99, 64, 0.35);
+}
+
+.pos-page .pos-offline-status-badge--failed .pos-offline-status-badge__dot {
+  background: var(--pos-warning);
+}
+
+.pos-page .pos-refresh-catalog-btn {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pos-page .pos-offline-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.pos-page .pos-offline-status-badge__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pos-page .pos-offline-status-badge--online {
+  color: #1a7f55;
+  background: rgba(45, 206, 137, 0.12);
+  border-color: rgba(45, 206, 137, 0.35);
+}
+
+.pos-page .pos-offline-status-badge--online .pos-offline-status-badge__dot {
+  background: var(--pos-success);
+}
+
+.pos-page .pos-offline-status-badge--offline {
+  color: #9a6700;
+  background: rgba(245, 166, 35, 0.14);
+  border-color: rgba(245, 166, 35, 0.4);
+}
+
+.pos-page .pos-offline-status-badge--offline .pos-offline-status-badge__dot {
+  background: var(--pos-offline-amber);
+}
+
+.pos-page .pos-offline-status-badge--syncing {
+  color: #3d4ea8;
+  background: rgba(94, 114, 228, 0.12);
+  border-color: rgba(94, 114, 228, 0.35);
+}
+
+.pos-page .pos-offline-status-badge--syncing .pos-offline-status-badge__dot {
+  background: var(--pos-primary);
+  animation: pos-offline-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pos-offline-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .pos-page .pos-panel-card {
