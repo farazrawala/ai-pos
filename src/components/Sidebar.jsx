@@ -1,47 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { NavLink } from 'react-router-dom';
-import {
-  FaBasketShopping,
-  FaBox,
-  FaBoxArchive,
-  FaBoxesStacked,
-  FaBuilding,
-  FaGlobe,
-  FaLandmark,
-  FaListUl,
-  FaCartShopping,
-  FaChartBar,
-  FaChartLine,
-  FaChartPie,
-  FaClipboardList,
-  FaCoins,
-  FaDatabase,
-  FaCreditCard,
-  FaFileInvoice,
-  FaFlask,
-  FaFolder,
-  FaTrademark,
-  FaLaptop,
-  FaLayerGroup,
-  FaMoneyBillTransfer,
-  FaPaperPlane,
-  FaArrowsRotate,
-  FaQrcode,
-  FaReceipt,
-  FaScaleBalanced,
-  FaSliders,
-  FaTags,
-  FaTruck,
-  FaArrowRotateLeft,
-  FaUser,
-  FaCircleUser,
-  FaWarehouse,
-  FaXmark,
-} from 'react-icons/fa6';
+import { FaXmark } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
 import { DEBUG, APP_NAME } from '../config/env.js';
+import { filterNavItems } from '../config/navItems.js';
 import {
   pickCompanyLogoUrl,
   extractCompanyFromUser,
@@ -53,57 +17,6 @@ import { selectCompany, selectCompanyId, setCompany } from '../features/user/use
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
-
-const navItems = [
-  { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
-  { to: '/pos', label: 'POS', icon: FaLaptop },
-  { to: '/products', label: 'Products', icon: FaBox },
-  { to: '/orders', label: 'Orders', icon: FaCartShopping },
-  { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
-  { to: '/purchase-order-returns', label: 'Purchase order returns', icon: FaArrowRotateLeft },
-  { to: '/sales-returns', label: 'Sales returns', icon: FaArrowRotateLeft },
-  { to: '/categories', label: 'Categories', icon: FaFolder },
-  { to: '/brands', label: 'Brands', icon: FaTrademark },
-  { to: '/integration', label: 'Integrations', icon: FaGlobe },
-  { to: '/processes', label: 'Processes', icon: FaArrowsRotate },
-  // { to: '/warehouse', label: 'Warehouse', icon: FaWarehouse },
-  { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
-  { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
-  { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
-  { to: '/company', label: 'Company', icon: FaLandmark },
-  { to: '/barcode-print', label: 'Barcode print', icon: FaQrcode },
-  { to: '/attributes', label: 'Attributes', icon: FaTags },
-  { to: '/users', label: 'Users', icon: FaUser },
-  { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
-  // { to: '/branch', label: 'Branch', icon: FaBuilding },
-  { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
-  { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
-  { to: '/advance-balance-sheet', label: 'Advance balance sheet', icon: FaScaleBalanced },
-  { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
-  { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
-  { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
-  { to: '/payments', label: 'Payments', icon: FaBasketShopping },
-  { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
-  { to: '/expenses', label: 'Expenses', icon: FaCoins },
-  { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
-  { to: '/logs', label: 'Logs', icon: FaClipboardList },
-  {
-    to: '/api-workflow',
-    label: 'API workflow',
-    icon: FaPaperPlane,
-    // adminOnly: true,
-    // debugOnly: true,
-  },
-  {
-    to: '/test-case',
-    label: 'Test case runner',
-    icon: FaFlask,
-    // adminOnly: true,
-    // debugOnly: true,
-  },
-  { to: '/company-cache', label: 'Company cache', icon: FaDatabase },
-  { to: '/company-queues', label: 'Company queues', icon: FaListUl },
-];
 
 const Sidebar = () => {
   const dispatch = useDispatch();
@@ -158,16 +71,16 @@ const Sidebar = () => {
 
   const brandLogoUrl = useMemo(() => pickCompanyLogoUrl(mergedCompany), [mergedCompany]);
 
-  const visibleNavItems = useMemo(() => {
-    return navItems.filter(({ to, adminOnly, debugOnly }) => {
-      if (debugOnly && !DEBUG) return false;
-      if (adminOnly) return isAdmin;
-      const moduleKey = ROUTE_PERMISSION_MODULE[to];
-      if (moduleKey == null) return true;
-      if (isAdmin) return true;
-      return canView(moduleKey);
-    });
-  }, [canView, isAdmin]);
+  const visibleNavItems = useMemo(
+    () =>
+      filterNavItems({
+        isAdmin,
+        canView,
+        routePermissionModule: ROUTE_PERMISSION_MODULE,
+        debug: DEBUG,
+      }),
+    [canView, isAdmin]
+  );
 
   const handleNavClick = () => {
     if (window.innerWidth < 1200) {

@@ -1067,3 +1067,69 @@ body {
   background: #f8fafc;
   flex-shrink: 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Column show/hide menu                                                */
+/* ------------------------------------------------------------------ */
+.column-visibility-panel {
+  width: 14rem;
+  max-width: calc(100vw - 2rem);
+  border: 0;
+  box-shadow: 0 0.5rem 1.5rem rgba(20, 20, 43, 0.18);
+  border-radius: 0.75rem;
+}
+
+.column-visibility-options {
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.column-visibility-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.8125rem;
+  color: #344767;
+  cursor: pointer;
+}
+
+.column-visibility-option:hover {
+  background: #f0f2f5;
+}
+
+.column-visibility-option.is-checked {
+  color: #5e72e4;
+  font-weight: 600;
+}
+
+.column-visibility-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  border-radius: 0.35rem;
+  border: 1px solid #cbd3e1;
+  color: #fff;
+  background: #fff;
+}
+
+.column-visibility-option.is-checked .column-visibility-check {
+  background: #5e72e4;
+  border-color: #5e72e4;
+}
+
+.column-visibility-label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

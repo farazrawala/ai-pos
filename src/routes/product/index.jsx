@@ -18,6 +18,8 @@ import { withBase } from '../../config/appBase.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
@@ -110,6 +112,23 @@ const getProductStockDisplay = (item) => {
   return { total: getProductStock(item), lines: [] };
 };
 
+/** Products table columns. `sno`, `name`, `actions` are always visible. */
+const PRODUCT_COLUMNS = [
+  { key: 'sno', label: '#', alwaysVisible: true },
+  { key: 'image', label: 'Image' },
+  { key: 'name', label: 'Name', alwaysVisible: true },
+  { key: 'stock', label: 'Stock' },
+  { key: 'wholesale', label: 'Wholesale' },
+  { key: 'price', label: 'Price' },
+  { key: 'tax', label: 'Tax' },
+  { key: 'alert', label: 'Alert' },
+  { key: 'barcode', label: 'Barcode' },
+  { key: 'type', label: 'Type' },
+  { key: 'status', label: 'Status' },
+  { key: 'created', label: 'Created' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
+
 const productIdFromRecord = (item) => item?._id || item?.id || item?.product_id || '';
 
 const statusBadgeClass = (active) => (active ? 'bg-gradient-success' : 'bg-gradient-secondary');
@@ -141,6 +160,12 @@ const Product = () => {
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
   useRequireModuleAccess('products');
+
+  // Show/hide table columns (persisted in cache).
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
+    'products',
+    PRODUCT_COLUMNS
+  );
 
   // Fetch data from API using Redux with pagination, search, and sort
   useEffect(() => {
@@ -453,6 +478,12 @@ const Product = () => {
                         aria-label="Search products"
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={PRODUCT_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                    />
                     {canCreate ? (
                       <>
                         <button
@@ -494,24 +525,40 @@ const Product = () => {
                   <thead>
                     <tr>
                       <th className="text-center list-col-sno">#</th>
-                      <th className="list-col-product-img">Image</th>
+                      {isVisible('image') ? <th className="list-col-product-img">Image</th> : null}
                       {sortableTh('name', 'Name', 'list-col-truncate')}
-                      {sortableTh('stock', 'Stock', 'text-end list-col-stock')}
-                      {sortableTh('wholesale_price', 'Wholesale', 'text-end list-col-amount')}
-                      {sortableTh('price', 'Price', 'text-end list-col-amount')}
-                      {sortableTh('tax_rate', 'Tax', 'text-center list-col-tax')}
-                      {sortableTh('alert_qty', 'Alert', 'text-center list-col-qty')}
-                      {sortableTh('barcode', 'Barcode', 'list-col-truncate-sm font-monospace')}
-                      {sortableTh('product_type', 'Type', 'list-col-truncate-sm')}
-                      {sortableTh('status', 'Status')}
-                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      {isVisible('stock')
+                        ? sortableTh('stock', 'Stock', 'text-end list-col-stock')
+                        : null}
+                      {isVisible('wholesale')
+                        ? sortableTh('wholesale_price', 'Wholesale', 'text-end list-col-amount')
+                        : null}
+                      {isVisible('price')
+                        ? sortableTh('price', 'Price', 'text-end list-col-amount')
+                        : null}
+                      {isVisible('tax')
+                        ? sortableTh('tax_rate', 'Tax', 'text-center list-col-tax')
+                        : null}
+                      {isVisible('alert')
+                        ? sortableTh('alert_qty', 'Alert', 'text-center list-col-qty')
+                        : null}
+                      {isVisible('barcode')
+                        ? sortableTh('barcode', 'Barcode', 'list-col-truncate-sm font-monospace')
+                        : null}
+                      {isVisible('type')
+                        ? sortableTh('product_type', 'Type', 'list-col-truncate-sm')
+                        : null}
+                      {isVisible('status') ? sortableTh('status', 'Status') : null}
+                      {isVisible('created')
+                        ? sortableTh('createdAt', 'Created', 'list-col-date')
+                        : null}
                       <th className="text-end list-col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="text-center py-5 text-muted">
+                        <td colSpan={visibleCount} className="text-center py-5 text-muted">
                           No products found. Try adjusting your search.
                         </td>
                       </tr>
@@ -547,131 +594,151 @@ const Product = () => {
                         return (
                           <tr key={productId || index}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                            <td>
-                              {mainImage ? (
-                                <img
-                                  src={mainImage}
-                                  alt={productName}
-                                  className="list-product-thumb"
-                                  onError={(e) => {
-                                    e.target.src = withBase('/assets/img/default.jpg');
-                                  }}
-                                />
-                              ) : (
-                                <div className="list-product-thumb list-product-thumb--empty">
-                                  <i className="fas fa-image text-muted" aria-hidden="true" />
-                                </div>
-                              )}
-                            </td>
+                            {isVisible('image') ? (
+                              <td>
+                                {mainImage ? (
+                                  <img
+                                    src={mainImage}
+                                    alt={productName}
+                                    className="list-product-thumb"
+                                    onError={(e) => {
+                                      e.target.src = withBase('/assets/img/default.jpg');
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="list-product-thumb list-product-thumb--empty">
+                                    <i className="fas fa-image text-muted" aria-hidden="true" />
+                                  </div>
+                                )}
+                              </td>
+                            ) : null}
                             <td
                               className="text-sm font-weight-bold text-dark list-cell-truncate"
                               title={productName !== 'Product' ? productName : undefined}
                             >
                               {productName}
                             </td>
-                            <td className="text-sm text-end list-col-stock">
-                              <button
-                                type="button"
-                                className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none list-stock-total"
-                                title="View stock by warehouse"
-                                onClick={() => openWarehouseStock(item)}
-                              >
-                                {formatProductStock(stockTotal)}
-                              </button>
-                              {warehouseLines.length > 0 ? (
-                                <div className="list-stock-warehouses">
-                                  {warehouseLines.slice(0, 2).map((line) => (
-                                    <button
-                                      key={line.key}
-                                      type="button"
-                                      className="btn btn-link btn-sm p-0 mb-0 text-muted text-xxs text-decoration-none list-cell-truncate-sm d-block w-100 text-end"
-                                      title={`${line.name}: ${formatProductStock(line.qty)}`}
-                                      onClick={() => openWarehouseStock(item)}
-                                    >
-                                      {line.name}: {formatProductStock(line.qty)}
-                                    </button>
-                                  ))}
-                                  {warehouseLines.length > 2 ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-link btn-sm p-0 mb-0 text-primary text-xxs text-decoration-none"
-                                      onClick={() => openWarehouseStock(item)}
-                                    >
-                                      +{warehouseLines.length - 2} more
-                                    </button>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="text-sm text-end text-nowrap list-col-amount">
-                              {item.wholesale_price != null && item.wholesale_price !== ''
-                                ? formatMoney(item.wholesale_price)
-                                : '—'}
-                            </td>
-                            <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                              {item.price || item.product_price
-                                ? formatMoney(item.price || item.product_price || 0)
-                                : '—'}
-                            </td>
-                            <td className="text-sm text-center">
-                              {taxRate == null || taxRate === ''
-                                ? '—'
-                                : (() => {
-                                    const n = parseFloat(taxRate);
-                                    return Number.isFinite(n) ? `${n}%` : String(taxRate);
-                                  })()}
-                            </td>
-                            <td className="text-sm text-center">{alertQty}</td>
-                            <td
-                              className="text-sm font-monospace list-cell-truncate-sm"
-                              title={barcode !== '—' ? barcode : undefined}
-                            >
-                              {barcode}
-                            </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm text-capitalize"
-                              title={productType !== '—' ? productType : undefined}
-                            >
-                              {productType}
-                            </td>
-                            <td className="text-sm">
-                              <div className="d-flex align-items-center gap-2 flex-wrap">
-                                <span className={`badge text-xxs ${statusBadgeClass(isActive)}`}>
-                                  {isActive ? 'Active' : 'Inactive'}
-                                </span>
-                                {canEdit ? (
-                                  <div className="form-check form-switch mb-0 list-status-switch">
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      role="switch"
-                                      id={`toggle-${productId || index}`}
-                                      checked={isActive}
-                                      onChange={() => handleToggleStatus(productId, isActive)}
-                                      disabled={isToggling}
-                                      aria-label={`Toggle ${productName} status`}
-                                    />
-                                    {isToggling ? (
-                                      <span
-                                        className="spinner-border spinner-border-sm text-primary ms-1"
-                                        role="status"
-                                        aria-hidden="true"
-                                      />
+                            {isVisible('stock') ? (
+                              <td className="text-sm text-end list-col-stock">
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none list-stock-total"
+                                  title="View stock by warehouse"
+                                  onClick={() => openWarehouseStock(item)}
+                                >
+                                  {formatProductStock(stockTotal)}
+                                </button>
+                                {warehouseLines.length > 0 ? (
+                                  <div className="list-stock-warehouses">
+                                    {warehouseLines.slice(0, 2).map((line) => (
+                                      <button
+                                        key={line.key}
+                                        type="button"
+                                        className="btn btn-link btn-sm p-0 mb-0 text-muted text-xxs text-decoration-none list-cell-truncate-sm d-block w-100 text-end"
+                                        title={`${line.name}: ${formatProductStock(line.qty)}`}
+                                        onClick={() => openWarehouseStock(item)}
+                                      >
+                                        {line.name}: {formatProductStock(line.qty)}
+                                      </button>
+                                    ))}
+                                    {warehouseLines.length > 2 ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-link btn-sm p-0 mb-0 text-primary text-xxs text-decoration-none"
+                                        onClick={() => openWarehouseStock(item)}
+                                      >
+                                        +{warehouseLines.length - 2} more
+                                      </button>
                                     ) : null}
                                   </div>
                                 ) : null}
-                              </div>
-                            </td>
-                            <td
-                              className="text-sm text-nowrap list-col-date"
-                              title={
-                                updated
-                                  ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                  : undefined
-                              }
-                            >
-                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                            </td>
+                              </td>
+                            ) : null}
+                            {isVisible('wholesale') ? (
+                              <td className="text-sm text-end text-nowrap list-col-amount">
+                                {item.wholesale_price != null && item.wholesale_price !== ''
+                                  ? formatMoney(item.wholesale_price)
+                                  : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('price') ? (
+                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                                {item.price || item.product_price
+                                  ? formatMoney(item.price || item.product_price || 0)
+                                  : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('tax') ? (
+                              <td className="text-sm text-center">
+                                {taxRate == null || taxRate === ''
+                                  ? '—'
+                                  : (() => {
+                                      const n = parseFloat(taxRate);
+                                      return Number.isFinite(n) ? `${n}%` : String(taxRate);
+                                    })()}
+                              </td>
+                            ) : null}
+                            {isVisible('alert') ? (
+                              <td className="text-sm text-center">{alertQty}</td>
+                            ) : null}
+                            {isVisible('barcode') ? (
+                              <td
+                                className="text-sm font-monospace list-cell-truncate-sm"
+                                title={barcode !== '—' ? barcode : undefined}
+                              >
+                                {barcode}
+                              </td>
+                            ) : null}
+                            {isVisible('type') ? (
+                              <td
+                                className="text-sm list-cell-truncate-sm text-capitalize"
+                                title={productType !== '—' ? productType : undefined}
+                              >
+                                {productType}
+                              </td>
+                            ) : null}
+                            {isVisible('status') ? (
+                              <td className="text-sm">
+                                <div className="d-flex align-items-center gap-2 flex-wrap">
+                                  <span className={`badge text-xxs ${statusBadgeClass(isActive)}`}>
+                                    {isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                  {canEdit ? (
+                                    <div className="form-check form-switch mb-0 list-status-switch">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id={`toggle-${productId || index}`}
+                                        checked={isActive}
+                                        onChange={() => handleToggleStatus(productId, isActive)}
+                                        disabled={isToggling}
+                                        aria-label={`Toggle ${productName} status`}
+                                      />
+                                      {isToggling ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-primary ms-1"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </td>
+                            ) : null}
+                            {isVisible('created') ? (
+                              <td
+                                className="text-sm text-nowrap list-col-date"
+                                title={
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    : undefined
+                                }
+                              >
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              </td>
+                            ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
                                 <button
