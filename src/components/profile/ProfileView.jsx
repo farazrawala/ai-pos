@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { setUser, selectAuthUser } from '../../features/user/userSlice.js';
+import { setUser, selectAuthUser, selectUserRoles } from '../../features/user/userSlice.js';
 import {
   digitsOnlyFromPhone,
   fetchUserByIdRequest,
@@ -11,10 +11,33 @@ import {
   updateProfileRequest,
 } from '../../features/users/usersAPI.js';
 
+/** Normalize a `role` field (array or string) into a trimmed, non-empty array. */
+function toRoleArray(role) {
+  const list = Array.isArray(role) ? role : role ? [role] : [];
+  return list.map((r) => String(r).trim()).filter(Boolean);
+}
+
+/** Union of role lists, de-duplicated case-insensitively, preserving order. */
+function unionRoles(...lists) {
+  const seen = new Set();
+  const out = [];
+  lists.forEach((list) => {
+    toRoleArray(list).forEach((r) => {
+      const key = r.toUpperCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(r);
+      }
+    });
+  });
+  return out;
+}
+
 export default function ProfileView() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const authUser = useSelector(selectAuthUser);
+  const sessionRoles = useSelector(selectUserRoles);
   const sessionToken = useSelector((state) => state.user.token);
 
   const userId = authUser?._id || authUser?.id || '';
@@ -32,7 +55,7 @@ export default function ProfileView() {
     confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
-  const [userRole, setUserRole] = useState('');
+  const [fetchedRoles, setFetchedRoles] = useState([]);
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
   const [existingProfileImageUrl, setExistingProfileImageUrl] = useState('');
@@ -55,8 +78,7 @@ export default function ProfileView() {
       password: '',
       confirmPassword: '',
     });
-    const roleList = Array.isArray(user.role) ? user.role : user.role ? [user.role] : [];
-    setUserRole(roleList.map((r) => String(r)).join(', '));
+    setFetchedRoles(toRoleArray(user.role));
     setExistingProfileImageUrl(pickUserProfileImageUrl(user));
     setProfileImageFile(null);
     setProfileImagePreview((prev) => {
@@ -365,7 +387,7 @@ export default function ProfileView() {
                 <div className="mb-3">
                   <label className="form-label">Role</label>
                   <p className="form-control-static mb-0 fw-semibold">
-                    {userRole || '—'}
+                    {unionRoles(fetchedRoles, authUser?.role, sessionRoles).join(', ') || '—'}
                   </p>
                   <small className="text-muted d-block mt-1">
                     Your role is assigned by an administrator and cannot be changed here.
