@@ -15,11 +15,12 @@ const normalizeRoles = (role) => {
 };
 
 export const isAdmin = (state) => {
-  const user = state?.user?.user;
-  if (!user) return false;
-
-  const roles = normalizeRoles(user.role);
-  return roles.includes('ADMIN');
+  // Check both the stored user document role and the session role list, so a
+  // mismatch between the two never silently drops admin/edit rights.
+  const fromUser = normalizeRoles(state?.user?.user?.role);
+  if (fromUser.includes('ADMIN')) return true;
+  const fromSession = normalizeRoles(state?.user?.roles);
+  return fromSession.includes('ADMIN');
 };
 
 /**
