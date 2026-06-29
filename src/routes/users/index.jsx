@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaSort, FaSortDown, FaSortUp, FaEllipsisVertical } from 'react-icons/fa6';
+import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
 import {
   fetchUsers,
   setSearch,
@@ -315,6 +315,7 @@ const Users = () => {
                       {sortableTh('status', 'Status')}
                       {sortableTh('createdAt', 'Created')}
                       {sortableTh('updatedAt', 'Last Updated At')}
+                      <th className="text-end list-col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -341,82 +342,8 @@ const Users = () => {
                         const isMarking = markingDefaultUserId === String(userId);
                         return (
                           <tr key={key}>
-                            <td className="text-center" onClick={(e) => e.stopPropagation()}>
-                              <div className="d-flex align-items-center justify-content-center gap-1">
-                                <span className="text-muted text-sm">{seriesNumber}</span>
-                                {showActionsMenu ? (
-                                  <div className="dropdown">
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary mb-0 px-2 py-1"
-                                      data-bs-toggle="dropdown"
-                                      aria-expanded="false"
-                                      aria-label={`Actions for ${item.name || 'user'}`}
-                                      disabled={isMarking || deleteStatus === 'loading'}
-                                    >
-                                      <NavIcon icon={FaEllipsisVertical} size={14} />
-                                    </button>
-                                    <ul className="dropdown-menu dropdown-menu-start text-sm shadow-sm">
-                                      {canEdit ? (
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item"
-                                            onClick={() => navigate(`/users/edit/${userId}`)}
-                                          >
-                                            Edit
-                                          </button>
-                                        </li>
-                                      ) : null}
-                                      {canEdit && isCustomer ? (
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item"
-                                            onClick={() => handleMarkDefaultCustomer(item)}
-                                            disabled={isDefaultCustomer || isMarking}
-                                          >
-                                            {isDefaultCustomer
-                                              ? 'Default customer'
-                                              : 'Make default customer'}
-                                          </button>
-                                        </li>
-                                      ) : null}
-                                      {canEdit && isVendor ? (
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item"
-                                            onClick={() => handleMarkDefaultVendor(item)}
-                                            disabled={isDefaultVendor || isMarking}
-                                          >
-                                            {isDefaultVendor
-                                              ? 'Default vendor'
-                                              : 'Make default vendor'}
-                                          </button>
-                                        </li>
-                                      ) : null}
-                                      {canEdit && (isCustomer || isVendor) && canDelete ? (
-                                        <li>
-                                          <hr className="dropdown-divider" />
-                                        </li>
-                                      ) : null}
-                                      {canDelete ? (
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item text-danger"
-                                            onClick={() => handleDelete(userId, item.name)}
-                                            disabled={deleteStatus === 'loading'}
-                                          >
-                                            Delete
-                                          </button>
-                                        </li>
-                                      ) : null}
-                                    </ul>
-                                  </div>
-                                ) : null}
-                              </div>
+                            <td className="text-center">
+                              <span className="text-muted text-sm">{seriesNumber}</span>
                             </td>
                             <td className="text-center">
                               {profileUrl ? (
@@ -495,6 +422,54 @@ const Users = () => {
                               {item.updatedAt || item.updated_at
                                 ? moment(item.updatedAt || item.updated_at).fromNow()
                                 : '—'}
+                            </td>
+                            <td className="text-end">
+                              <div
+                                className="list-table-actions"
+                                style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}
+                              >
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary mb-0"
+                                    onClick={() => navigate(`/users/edit/${userId}`)}
+                                    disabled={isMarking || deleteStatus === 'loading'}
+                                  >
+                                    Edit
+                                  </button>
+                                ) : null}
+                                {canEdit && isCustomer ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary mb-0"
+                                    onClick={() => handleMarkDefaultCustomer(item)}
+                                    disabled={isDefaultCustomer || isMarking}
+                                  >
+                                    {isDefaultCustomer ? 'Default customer' : 'Make default customer'}
+                                  </button>
+                                ) : null}
+                                {canEdit && isVendor ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary mb-0"
+                                    onClick={() => handleMarkDefaultVendor(item)}
+                                    disabled={isDefaultVendor || isMarking}
+                                  >
+                                    {isDefaultVendor ? 'Default vendor' : 'Make default vendor'}
+                                  </button>
+                                ) : null}
+                                {canDelete ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger mb-0"
+                                    onClick={() => handleDelete(userId, item.name)}
+                                    disabled={deleteStatus === 'loading'}
+                                  >
+                                    Delete
+                                  </button>
+                                ) : null}
+                                {!showActionsMenu ? <span className="text-muted">—</span> : null}
+                              </div>
                             </td>
                           </tr>
                         );
