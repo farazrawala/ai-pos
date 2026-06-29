@@ -208,6 +208,39 @@ export const SIMPLE_PURCHASE_SELL_RETURN_CASES = [
   },
 ];
 
+/**
+ * WAC (weighted average cost) demo for a single product.
+ * Purchases arrive at different unit costs so the running weighted average cost —
+ * and the resulting inventory value (qty × WAC) — changes after each step.
+ * Includes a purchase that is edited (qty modification, #2) and oversells so the
+ * stock and inventory value go negative (#5 and #9).
+ *
+ * Running qty / WAC / inventory value (computed automatically in the qty ledger).
+ * A purchase edit removes units at the purchase cost (recalculates WAC), sales
+ * keep WAC unchanged, and returns use the current WAC:
+ *   1.  Purchase 10 @ 100              → qty  10 · WAC 100.00 · value  1,000.00
+ *   2.  Purchase 30 @ 140              → qty  40 · WAC 130.00 · value  5,200.00
+ *   2b. Edit PO → 20 (remove 10 @ 140) → qty  30 · WAC 126.67 · value  3,800.00   (purchase edit)
+ *   3.  Sale 15                        → qty  15 · WAC 126.67 · value  1,900.00
+ *   4.  Purchase 25 @ 180              → qty  40 · WAC 160.00 · value  6,400.00
+ *   5.  Sale 50 (oversell)             → qty -10 · WAC 160.00 · value -1,600.00   (negative stock)
+ *   6.  Purchase 20 @ 200              → qty  10 · WAC 240.00 · value  2,400.00
+ *   7.  Purchase Return 5 @ 200        → qty   5 · WAC 240.00 · value  1,200.00
+ *   8.  Sales Return 10                → qty  15 · WAC 240.00 · value  3,600.00
+ *   9.  Sale 30 (oversell)             → qty -15 · WAC 240.00 · value -3,600.00   (negative stock)
+ */
+export const WAC_SINGLE_PRODUCT_CASES = [
+  { n: 1, type: 'purchase', label: 'Purchase 10 @ 100', qty: 10, price: 100, expected: 10, skipEdit: true },
+  { n: 2, type: 'purchase', label: 'Purchase 30 @ 140 (edit qty 30 → 20)', qty: 30, price: 140, editQty: 20, expected: 30 },
+  { n: 3, type: 'sale', label: 'Sale 15', qty: 15, expected: 15, skipEdit: true },
+  { n: 4, type: 'purchase', label: 'Purchase 25 @ 180', qty: 25, price: 180, expected: 40, skipEdit: true },
+  { n: 5, type: 'sale', label: 'Sale 50 (oversell → negative stock)', qty: 50, expected: -10, skipEdit: true },
+  { n: 6, type: 'purchase', label: 'Purchase 20 @ 200', qty: 20, price: 200, expected: 10, skipEdit: true },
+  { n: 7, type: 'purchase_return', label: 'Purchase Return 5 @ 200', qty: 5, price: 200, expected: 5 },
+  { n: 8, type: 'sales_return', label: 'Sales Return 10 (from #5)', qty: 10, expected: 15 },
+  { n: 9, type: 'sale', label: 'Sale 30 (oversell → negative stock)', qty: 30, expected: -15, skipEdit: true },
+];
+
 /** Selectable test-case suites for the inventory runner. */
 export const TEST_CASE_SUITES = [
   {
@@ -222,6 +255,22 @@ export const TEST_CASE_SUITES = [
         requiresAuth: true,
         method: 'GET',
         url: '{{url}}api/transaction/get-all-active?populate=account_id,ref_id,reference_user_id&reference_user_id={{bulk_user_id}}&limit=100&amount_gt=0',
+        body: {},
+      },
+    ],
+  },
+  {
+    id: 'wac-single-product',
+    label: 'WAC single product (copy of full suite)',
+    description:
+      'Weighted average cost for one product: purchases at different costs, a purchase edited with a qty modification (#2), and oversells that push stock negative (#5, #9). The qty ledger shows the running WAC and the actual inventory value (qty × WAC, including negative) after each transaction.',
+    getTransactionCases: () => [...WAC_SINGLE_PRODUCT_CASES],
+    postTransactionSteps: () => [
+      {
+        name: 'Verify: Final product (WAC + stock)',
+        requiresAuth: true,
+        method: 'GET',
+        url: '{{url}}api/product/get-all-active-pos?search=Inventory test product&limit=5',
         body: {},
       },
     ],
@@ -260,6 +309,10 @@ function buildBulkUserSaleCases() {
 }
 
 function editedQty(tc) {
+  // Explicit edit target (qty modification) wins; otherwise the suite edits down by 1.
+  if (tc.editQty != null && Number.isFinite(Number(tc.editQty))) {
+    return Number(tc.editQty);
+  }
   const q = Number(tc.qty) || 0;
   return q > 1 ? q - 1 : q;
 }

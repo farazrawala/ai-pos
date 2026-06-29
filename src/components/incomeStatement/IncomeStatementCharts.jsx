@@ -186,8 +186,6 @@ const REVENUE_COLORS = {
 
 const COGS_COLORS = {
   'Cost of Goods Sold': '#fb6340',
-  Purchases: '#ffd600',
-  'Purchase returns': '#2dce89',
 };
 
 /**
@@ -225,12 +223,12 @@ export default function IncomeStatementCharts({ report }) {
         <div className="card h-100 shadow-sm">
           <div className="card-header pb-0 bg-transparent">
             <h6 className="mb-0">Cost of goods sold</h6>
-            <p className="text-sm text-muted mb-0">COGS, purchases & returns</p>
+            <p className="text-sm text-muted mb-0">Inventory sold (qty × WAC)</p>
           </div>
           <div className="card-body pt-2">
             <BreakdownBarChartSvg
               items={cogsItems}
-              ariaLabel="COGS breakdown from order item COGS and purchase APIs"
+              ariaLabel="COGS from inventory issued through sales (qty times weighted average cost)"
             />
           </div>
         </div>

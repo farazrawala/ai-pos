@@ -8,15 +8,18 @@ const BASE_URL = `${API_BASE_URL}/`;
 const REPORT_PATH = 'reports/income-statement';
 const ORDER_SALES_PATH = 'order/sales';
 const SALES_RETURN_SALES_PATH = 'sales_return/sales';
-const PURCHASE_ORDER_PURCHASES_PATH = 'purchase_order/purchases';
-const PURCHASE_RETURN_PURCHASES_PATH = 'purchase_return/purchases';
 const COGS_BY_ORDER_ITEM_PATH = 'order_item/cost-of-goods-sold-by-order-item';
 
 const SALES_LABEL = 'Sales';
 const SALES_RETURN_LABEL = 'Sales returns';
 const COGS_LABEL = 'Cost of Goods Sold';
-const PURCHASES_LABEL = 'Purchases';
-const PURCHASE_RETURNS_LABEL = 'Purchase returns';
+
+// NOTE: Purchases and Purchase Returns are intentionally NOT part of the income
+// statement. Under perpetual (Weighted Average Cost) inventory accounting, a
+// purchase is a Balance Sheet event (Inventory asset ↑, Accounts Payable/Cash),
+// not an expense. Cost is only recognised as COGS when inventory is sold. The
+// COGS line below already comes from inventory issued through sales (qty × WAC),
+// so adding Purchases/Purchase Returns here would double-count inventory cost.
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -265,18 +268,6 @@ export async function fetchIncomeStatementRequest(params = {}) {
       run: () => fetchSalesReturnTotalsRequest(params),
     },
     {
-      key: 'purchases',
-      label: 'Purchases',
-      url: buildPurchaseOrderPurchasesUrl(params),
-      run: () => fetchPurchaseOrderTotalsRequest(params),
-    },
-    {
-      key: 'purchaseReturns',
-      label: 'Purchase returns',
-      url: buildPurchaseReturnPurchasesUrl(params),
-      run: () => fetchPurchaseReturnTotalsRequest(params),
-    },
-    {
       key: 'cogs',
       label: 'COGS',
       url: buildCostOfGoodsSoldUrl(params),
@@ -305,8 +296,6 @@ export async function fetchIncomeStatementRequest(params = {}) {
   let { report, demo } = reportOutcome.value;
   const salesOutcome = outcomeByKey.sales;
   const salesReturnOutcome = outcomeByKey.salesReturns;
-  const purchaseOutcome = outcomeByKey.purchases;
-  const purchaseReturnOutcome = outcomeByKey.purchaseReturns;
   const cogsOutcome = outcomeByKey.cogs;
   const opexOutcome = outcomeByKey.opex;
 
@@ -338,26 +327,7 @@ export async function fetchIncomeStatementRequest(params = {}) {
       '[Income statement module] Could not load cost of goods',
       cogsOutcome.reason
     );
-    if (!Array.isArray(report.costOfGoodsSold) || report.costOfGoodsSold.length === 0) {
-      report = mergeCostOfGoodsIntoReport(report, { costOfGoodsSold: 0 });
-    }
-  }
-
-  if (purchaseOutcome.status === 'fulfilled') {
-    report = mergePurchasesIntoReport(report, purchaseOutcome.value);
-  } else {
-    console.warn('[Income statement module] Could not load purchases', purchaseOutcome.reason);
-    report = mergePurchasesIntoReport(report, { totalAmount: 0 });
-  }
-
-  if (purchaseReturnOutcome.status === 'fulfilled') {
-    report = mergePurchaseReturnsIntoReport(report, purchaseReturnOutcome.value);
-  } else {
-    console.warn(
-      '[Income statement module] Could not load purchase returns',
-      purchaseReturnOutcome.reason
-    );
-    report = mergePurchaseReturnsIntoReport(report, { totalAmount: 0 });
+    report = mergeCostOfGoodsIntoReport(report, { costOfGoodsSold: 0 });
   }
 
   if (opexOutcome.status === 'fulfilled') {
@@ -395,20 +365,6 @@ export function buildSalesReturnSalesUrl(params = {}) {
   return `${BASE_URL}${SALES_RETURN_SALES_PATH}${qs ? `?${qs}` : ''}`;
 }
 
-export function buildPurchaseOrderPurchasesUrl(params = {}) {
-  const query = new URLSearchParams();
-  appendReportDateParams(query, params);
-  const qs = query.toString();
-  return `${BASE_URL}${PURCHASE_ORDER_PURCHASES_PATH}${qs ? `?${qs}` : ''}`;
-}
-
-export function buildPurchaseReturnPurchasesUrl(params = {}) {
-  const query = new URLSearchParams();
-  appendReportDateParams(query, params);
-  const qs = query.toString();
-  return `${BASE_URL}${PURCHASE_RETURN_PURCHASES_PATH}${qs ? `?${qs}` : ''}`;
-}
-
 /**
  * GET `order/sales` — `{ success, total_amount, order_count, order_ids }`.
  * @param {{ startDate?: string; endDate?: string }} [params]
@@ -420,16 +376,6 @@ export async function fetchOrderSalesRequest(params = {}) {
 /** GET `sales_return/sales` — period total of sales return headers. */
 export async function fetchSalesReturnTotalsRequest(params = {}) {
   return fetchHeaderTotalRequest(SALES_RETURN_SALES_PATH, params);
-}
-
-/** GET `purchase_order/purchases` — period total of purchase orders. */
-export async function fetchPurchaseOrderTotalsRequest(params = {}) {
-  return fetchHeaderTotalRequest(PURCHASE_ORDER_PURCHASES_PATH, params);
-}
-
-/** GET `purchase_return/purchases` — period total of purchase returns. */
-export async function fetchPurchaseReturnTotalsRequest(params = {}) {
-  return fetchHeaderTotalRequest(PURCHASE_RETURN_PURCHASES_PATH, params);
 }
 
 /** Inject or update the Sales line from `order/sales`. */
@@ -520,36 +466,28 @@ export async function fetchCostOfGoodsSoldByOrderItemRequest(params = {}) {
   };
 }
 
-/** Inject COGS from `order_item/cost-of-goods-sold-by-order-item`. */
+/** True for labels that represent inventory purchases (must not be on the income statement). */
+function isPurchaseRelatedLabel(label) {
+  const l = String(label || '').trim().toLowerCase();
+  return l.includes('purchase'); // "Purchases", "Purchase returns", etc.
+}
+
+/**
+ * Set the single Cost of Goods Sold line from `order_item/cost-of-goods-sold-by-order-item`.
+ * COGS reflects only inventory issued through sales (qty × WAC). Any legacy
+ * Purchases / Purchase Returns lines coming from the base report are stripped so
+ * inventory cost is never double-counted (perpetual inventory accounting).
+ */
 export function mergeCostOfGoodsIntoReport(report, cogs) {
   const base = report && typeof report === 'object' ? report : emptyReport();
   const amount = Number(cogs?.costOfGoodsSold);
   const resolved = Number.isFinite(amount) ? amount : 0;
+  const existing = Array.isArray(base.costOfGoodsSold)
+    ? base.costOfGoodsSold.filter((row) => !isPurchaseRelatedLabel(row?.label))
+    : [];
   return {
     ...base,
-    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, COGS_LABEL, resolved),
-  };
-}
-
-/** Purchases (inventory received) shown under COGS section. */
-export function mergePurchasesIntoReport(report, purchases) {
-  const base = report && typeof report === 'object' ? report : emptyReport();
-  const raw = Number(purchases?.totalAmount);
-  const amount = Number.isFinite(raw) ? Math.abs(raw) : 0;
-  return {
-    ...base,
-    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, PURCHASES_LABEL, amount),
-  };
-}
-
-/** Purchase returns reduce COGS (stored as negative amount). */
-export function mergePurchaseReturnsIntoReport(report, purchaseReturn) {
-  const base = report && typeof report === 'object' ? report : emptyReport();
-  const raw = Number(purchaseReturn?.totalAmount);
-  const amount = Number.isFinite(raw) ? -Math.abs(raw) : 0;
-  return {
-    ...base,
-    costOfGoodsSold: upsertReportLine(base.costOfGoodsSold, PURCHASE_RETURNS_LABEL, amount),
+    costOfGoodsSold: upsertReportLine(existing, COGS_LABEL, resolved),
   };
 }
 

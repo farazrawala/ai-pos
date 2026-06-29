@@ -108,6 +108,7 @@ export function buildQtyLedgerFromSteps(steps) {
       qty,
       expectedQty: step.expectedQty,
       avgCost: costState.avgCost,
+      value: costState.value,
       detail,
     });
   });

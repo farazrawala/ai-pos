@@ -11,7 +11,6 @@ import {
 } from '../../features/stockMovement/stockMovementSlice.js';
 import {
   getProductLabel,
-  getProductSku,
   getWarehouseLabel,
   getMovementQuantity,
   getMovementType,
@@ -188,7 +187,6 @@ const StockListing = () => {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('product_id', 'Product', 'list-col-truncate')}
-                      <th className="list-col-truncate-sm">Barcode</th>
                       <th className="list-col-truncate-sm">Warehouse</th>
                       {sortableTh('movement_type', 'Movement')}
                       {sortableTh('quantity', 'Qty', 'text-end')}
@@ -201,7 +199,7 @@ const StockListing = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-5 text-muted">
+                        <td colSpan={9} className="text-center py-5 text-muted">
                           No stock movements found. Try adjusting your search.
                         </td>
                       </tr>
@@ -214,7 +212,6 @@ const StockListing = () => {
                         const refName = getReferenceName(item);
                         const refType = getReferenceType(item);
                         const productLabel = getProductLabel(item);
-                        const sku = getProductSku(item);
                         const warehouse = getWarehouseLabel(item);
                         const movedBy = getCreatedByLabel(item);
                         const created = item.createdAt || item.created_at;
@@ -227,12 +224,6 @@ const StockListing = () => {
                               title={productLabel}
                             >
                               {productLabel || '—'}
-                            </td>
-                            <td
-                              className="text-sm text-muted list-cell-truncate-sm"
-                              title={sku || undefined}
-                            >
-                              {sku || '—'}
                             </td>
                             <td
                               className="text-sm list-cell-truncate-sm"

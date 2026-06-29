@@ -6,8 +6,18 @@ import MaximizedPanelOverlay from './MaximizedPanelOverlay.jsx';
 function formatAvgCost(avgCost, qty) {
   const avg = Number(avgCost);
   const q = Number(qty);
-  if (!Number.isFinite(avg) || avg <= 0 || !Number.isFinite(q) || q <= 0) return '—';
+  // WAC is meaningful whenever stock is non-zero (including negative / oversold).
+  if (!Number.isFinite(avg) || avg <= 0 || !Number.isFinite(q) || q === 0) return '—';
   return `Rs. ${formatLedgerMoney(avg)}`;
+}
+
+/** Inventory value after the step = qty × WAC (the "actual value after transaction"). */
+function formatInventoryValue(value, qty) {
+  const q = Number(qty);
+  if (!Number.isFinite(q) || q === 0) return 'Rs. 0.00';
+  const v = Number(value);
+  if (!Number.isFinite(v)) return '—';
+  return `Rs. ${formatLedgerMoney(v)}`;
 }
 
 /** Step change: running qty after this step minus running qty before. */
@@ -48,7 +58,8 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
             <th className="py-2 pr-2 text-end font-semibold">Running</th>
             <th className="py-2 pr-2 text-end font-semibold">Expected</th>
             <th className="py-2 pr-2 text-end font-semibold">Difference</th>
-            <th className="py-2 text-end font-semibold">Avg cost</th>
+            <th className="py-2 pr-2 text-end font-semibold">Avg cost</th>
+            <th className="py-2 text-end font-semibold">Inventory value</th>
           </tr>
         </thead>
         <tbody>
@@ -96,11 +107,19 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
                 </td>
                 <td
                   className={[
-                    'py-2 text-end font-mono font-semibold',
+                    'py-2 pr-2 text-end font-mono font-semibold',
                     isPurchase ? 'text-indigo-700' : 'text-slate-600',
                   ].join(' ')}
                 >
                   {formatAvgCost(row.avgCost, row.qty)}
+                </td>
+                <td
+                  className={[
+                    'py-2 text-end font-mono font-semibold',
+                    Number(row.value) < 0 ? 'text-rose-700' : 'text-slate-800',
+                  ].join(' ')}
+                >
+                  {formatInventoryValue(row.value, row.qty)}
                 </td>
               </tr>
             );
@@ -123,8 +142,16 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
               >
                 {formatDifference(finalStepChange)}
               </td>
-              <td className="py-2 text-end font-mono text-indigo-700">
+              <td className="py-2 pr-2 text-end font-mono text-indigo-700">
                 {formatAvgCost(last.avgCost, last.qty)}
+              </td>
+              <td
+                className={[
+                  'py-2 text-end font-mono',
+                  Number(last.value) < 0 ? 'text-rose-700' : 'text-slate-900',
+                ].join(' ')}
+              >
+                {formatInventoryValue(last.value, last.qty)}
               </td>
             </tr>
           </tfoot>

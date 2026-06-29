@@ -37,16 +37,16 @@ https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 
 
 //remainings:
-add/edit variant product. 
+Add/edit variant product. 
 QUANTITY SHOULD GO IN MINUS ALSO. 
+recheck WAC
 mark_as_default_customer, mark_as_default_vendor functionality
 in user add multiple accounts to be include and not to be include.
+ - ecommerce
+sync products.
+fetch orders.
+sync orders
 
-
-
-
-- shipping should plus in sales.
-- a/c is not coming in transaction.
 
 
 //balance due

@@ -19,15 +19,40 @@ export function applyPurchase(state, qty, unitCost) {
   return {
     qty: newQty,
     value: newValue,
-    avgCost: newQty > 0 ? roundMoney2(newValue / newQty) : 0,
+    // Keep WAC at full precision internally; round only for display.
+    avgCost: newQty !== 0 ? newValue / newQty : 0,
   };
 }
 
-/** @param {InventoryState} state @param {number} qty */
+/**
+ * Reduce stock by removing units at a specific unit cost (used when a purchase
+ * order is edited/reduced). This recalculates the WAC from the remaining value,
+ * unlike a sale which leaves the WAC unchanged.
+ * @param {InventoryState} state @param {number} qty @param {number} [unitCost]
+ */
+export function applyReduceAtCost(state, qty, unitCost) {
+  const q = Number(qty);
+  if (!Number.isFinite(q) || q <= 0) return state;
+  const c = Number(unitCost);
+  const cost = Number.isFinite(c) ? c : state.avgCost;
+  const newQty = state.qty - q;
+  const newValue = roundMoney2(state.value - q * cost);
+  return {
+    qty: newQty,
+    value: newValue,
+    avgCost: newQty !== 0 ? newValue / newQty : 0,
+  };
+}
+
+/**
+ * @param {InventoryState} state @param {number} qty
+ * Qty is allowed to go negative (oversell) so the ledger can show negative
+ * stock and negative inventory value (qty × WAC) instead of clamping at 0.
+ */
 export function applySale(state, qty) {
   const q = Number(qty);
   if (!Number.isFinite(q) || q <= 0) return state;
-  const newQty = Math.max(0, state.qty - q);
+  const newQty = state.qty - q;
   const avg = state.avgCost;
   return {
     qty: newQty,
@@ -46,10 +71,14 @@ export function applyQtyLedgerCost(state, lg) {
   switch (lg.type) {
     case 'purchase':
       return applyPurchase(state, q, lg.unitCost);
-    case 'sale':
+    // Editing/deleting a purchase removes those units at the purchase cost,
+    // which recalculates the WAC from the remaining inventory value.
     case 'edit_purchase':
-    case 'purchase_return':
     case 'delete_purchase':
+      return applyReduceAtCost(state, q, lg.unitCost ?? lg.unitPrice);
+    // Sales and purchase returns leave the WAC unchanged (remove at current WAC).
+    case 'sale':
+    case 'purchase_return':
     case 'delete_sales_return':
       return applySale(state, q);
     case 'edit_sale':
