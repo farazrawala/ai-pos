@@ -37,8 +37,8 @@ https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 
 
 //remainings:
+QUANTITY SHOULD GO IN MINUS ALSO (done)
 Add/edit variant product. 
-QUANTITY SHOULD GO IN MINUS ALSO. 
 recheck WAC
 mark_as_default_customer, mark_as_default_vendor functionality
 in user add multiple accounts to be include and not to be include.

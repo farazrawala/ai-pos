@@ -32,6 +32,7 @@ export default function ProfileView() {
     confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
+  const [userRole, setUserRole] = useState('');
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
   const [existingProfileImageUrl, setExistingProfileImageUrl] = useState('');
@@ -54,6 +55,8 @@ export default function ProfileView() {
       password: '',
       confirmPassword: '',
     });
+    const roleList = Array.isArray(user.role) ? user.role : user.role ? [user.role] : [];
+    setUserRole(roleList.map((r) => String(r)).join(', '));
     setExistingProfileImageUrl(pickUserProfileImageUrl(user));
     setProfileImageFile(null);
     setProfileImagePreview((prev) => {
@@ -357,6 +360,16 @@ export default function ProfileView() {
                     disabled={saving}
                   />
                   {errors.phone ? <div className="invalid-feedback">{errors.phone}</div> : null}
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Role</label>
+                  <p className="form-control-static mb-0 fw-semibold">
+                    {userRole || '—'}
+                  </p>
+                  <small className="text-muted d-block mt-1">
+                    Your role is assigned by an administrator and cannot be changed here.
+                  </small>
                 </div>
 
                 <hr className="horizontal dark my-4" />
