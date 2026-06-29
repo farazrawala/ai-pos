@@ -227,6 +227,10 @@ export default function ProfileView() {
       const merged = {
         ...authUser,
         ...updated,
+        // Never let a profile save drop roles/permissions (and lose edit rights).
+        role: unionRoles(authUser?.role, updated?.role, fetchedRoles),
+        permissions: updated?.permissions ?? authUser?.permissions,
+        company_id: authUser?.company_id ?? updated?.company_id,
         token: sessionToken || authUser?.token,
       };
       dispatch(setUser(merged));

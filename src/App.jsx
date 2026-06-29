@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { APP_NAME } from './config/env.js';
+import { fetchUserByIdRequest } from './features/users/usersAPI.js';
 import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
 import Profile from './routes/Profile.jsx';
@@ -82,12 +83,33 @@ import Integration from './routes/integration/index.jsx';
 import IntegrationAdd from './routes/integration/add.jsx';
 import IntegrationEdit from './routes/integration/edit.jsx';
 import ProcessIndex from './routes/process/index.jsx';
-import { selectIsAuthenticated } from './features/user/userSlice.js';
+import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
+
+/** Union of role lists, de-duplicated case-insensitively, preserving order. */
+function unionRoles(...lists) {
+  const seen = new Set();
+  const out = [];
+  lists.forEach((role) => {
+    const arr = Array.isArray(role) ? role : role ? [role] : [];
+    arr.forEach((r) => {
+      const value = String(r).trim();
+      const key = value.toUpperCase();
+      if (value && !seen.has(key)) {
+        seen.add(key);
+        out.push(value);
+      }
+    });
+  });
+  return out;
+}
 
 const App = () => {
   const location = useLocation();
+  const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const authUser = useSelector(selectAuthUser);
+  const authUserId = authUser?._id || authUser?.id || '';
   const isPublicInvoiceRoute = location.pathname.startsWith('/invoice/view/');
   const hideHeader =
     location.pathname === '/signin' ||
@@ -98,6 +120,33 @@ const App = () => {
   useEffect(() => {
     document.title = APP_NAME;
   }, []);
+
+  // Refresh roles/permissions from the live record so admin/edit rights reflect
+  // the database even when the stored login session is stale (e.g. ADMIN role
+  // added after login). Company/token/etc. from the current session are kept.
+  useEffect(() => {
+    if (!isAuthenticated || !authUserId) return undefined;
+    let cancelled = false;
+    fetchUserByIdRequest(authUserId)
+      .then((fresh) => {
+        if (cancelled || !fresh) return;
+        dispatch(
+          setUser({
+            ...authUser,
+            ...fresh,
+            company_id: authUser?.company_id ?? fresh.company_id,
+            role: unionRoles(authUser?.role, fresh.role),
+            permissions: fresh.permissions ?? authUser?.permissions,
+            token: authUser?.token,
+          })
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, authUserId, dispatch]);
 
   // Don't show sidebar/header on signin/signup, or on API workflow when logged out (public tool).
   if (hideHeader) {
