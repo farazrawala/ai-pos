@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createUser, clearCreateStatus } from '../../features/users/usersSlice.js';
-import { digitsOnlyFromPhone } from '../../features/users/usersAPI.js';
+import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import './user-form.css';
 
 /** Backend accepts multiple `role[]` values on create user. */
 const USER_ROLE_OPTIONS = ['USER', 'ADMIN', 'VENDOR', 'CUSTOMER'];
@@ -46,6 +47,17 @@ const AddUser = () => {
     permissions: buildInitialPermissions(),
   });
   const [errors, setErrors] = useState({});
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const profileImageInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
+    };
+  }, [profileImagePreview]);
 
   const allPermissionsGranted = useMemo(
     () =>
@@ -139,6 +151,38 @@ const AddUser = () => {
     }));
   };
 
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setProfileImageFile(null);
+      setProfileImagePreview((prev) => {
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, profile_image: 'Please choose an image file' }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, profile_image: '' }));
+    setProfileImageFile(file);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearProfileImage = () => {
+    setProfileImageFile(null);
+    setProfileImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setErrors((prev) => ({ ...prev, profile_image: '' }));
+    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -156,6 +200,7 @@ const AddUser = () => {
           role: form.role,
           permissions: form.permissions,
           status: form.status,
+          profile_image: isUserUploadFilePart(profileImageFile) ? profileImageFile : undefined,
         })
       ).unwrap();
 
@@ -169,223 +214,339 @@ const AddUser = () => {
   };
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <div className="card-header pb-0 d-flex justify-content-between align-items-center">
-              <div>
-                <h5 className="mb-0">Add User</h5>
-                <p className="text-sm mb-0">Create a user with roles and module permissions.</p>
-              </div>
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => navigate('/users')}
-              >
-                Back to List
-              </button>
+    <div className="user-form-page">
+      <form onSubmit={handleSubmit}>
+        <div className="user-form-card card">
+          <div className="user-form-header">
+            <div>
+              <span className="user-form-eyebrow">
+                <i className="fas fa-users" aria-hidden="true" />
+                Users
+              </span>
+              <h5 className="user-form-title">Add user</h5>
+              <p className="user-form-subtitle">
+                Create a new account with roles and module permissions.
+              </p>
             </div>
-            <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
-                <div className="row">
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label">
-                      Name <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                      value={form.name}
-                      onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                      disabled={isSubmitting}
-                    />
-                    {errors.name && <div className="invalid-feedback">{errors.name}</div>}
-                  </div>
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label">Email</label>
-                    <input
-                      type="email"
-                      className={`form-control ${errors.email ? 'is-invalid' : ''}`}
-                      value={form.email}
-                      onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                      disabled={isSubmitting}
-                    />
-                    {errors.email && <div className="invalid-feedback">{errors.email}</div>}
-                  </div>
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label" htmlFor="user-add-phone">
-                      Phone <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      id="user-add-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      maxLength={11}
-                      className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
-                      value={form.phone}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          phone: digitsOnlyFromPhone(e.target.value).slice(0, 11),
-                        }))
-                      }
-                      placeholder="Digits only"
-                      autoComplete="tel"
-                      disabled={isSubmitting}
-                    />
-                    {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
-                  </div>
-                </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/users')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
 
-                <div className="row">
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label">
-                      Password <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      className={`form-control ${errors.password ? 'is-invalid' : ''}`}
-                      value={form.password}
-                      onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                      disabled={isSubmitting}
-                    />
-                    {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+          <div className="user-form-body">
+            <div className="row g-3">
+              <div className="col-lg-4">
+                <div className="user-photo-panel">
+                  <div className="user-photo-frame">
+                    {profileImagePreview ? (
+                      <img src={profileImagePreview} alt="Profile preview" />
+                    ) : (
+                      <div className="user-photo-empty">
+                        <i className="fas fa-user" aria-hidden="true" />
+                        <span>No photo</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label">Initial balance</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      step="0.01"
-                      value={form.initial_balance}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, initial_balance: e.target.value }))
-                      }
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="col-md-4 mb-3">
-                    <label className="form-label">Status</label>
-                    <select
-                      className="form-select"
-                      value={form.status}
-                      onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                  <input
+                    ref={profileImageInputRef}
+                    id="user-add-profile-image"
+                    type="file"
+                    className="d-none"
+                    accept="image/*"
+                    onChange={handleProfileImageChange}
+                    disabled={isSubmitting}
+                  />
+                  <div className="d-flex gap-2 flex-wrap justify-content-center">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary mb-0"
+                      onClick={() => profileImageInputRef.current?.click()}
                       disabled={isSubmitting}
                     >
-                      <option value="active">active</option>
-                      <option value="inactive">inactive</option>
-                    </select>
+                      <i className="fas fa-upload me-1" aria-hidden="true" />
+                      {profileImagePreview ? 'Change photo' : 'Upload photo'}
+                    </button>
+                    {profileImagePreview ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary mb-0"
+                        onClick={clearProfileImage}
+                        disabled={isSubmitting}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
                   </div>
+                  {errors.profile_image ? (
+                    <div className="text-danger small mt-2">{errors.profile_image}</div>
+                  ) : null}
+                  <p className="user-photo-hint">
+                    Optional. Saved as <code className="text-xs">profile_image</code>.
+                  </p>
                 </div>
+              </div>
 
-                <div className="mb-3">
-                  <label className="form-label">
-                    Roles <span className="text-danger">*</span>
-                  </label>
-                  <div className={`d-flex flex-wrap gap-3 ${errors.role ? 'is-invalid' : ''}`}>
-                    {USER_ROLE_OPTIONS.map((roleName) => (
-                      <div className="form-check" key={roleName}>
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          checked={form.role.includes(roleName)}
-                          onChange={() => handleRoleToggle(roleName)}
-                          id={`add-role-${roleName}`}
-                          disabled={isSubmitting}
-                        />
-                        <label className="form-check-label" htmlFor={`add-role-${roleName}`}>
-                          {roleName}
-                        </label>
-                      </div>
-                    ))}
+              <div className="col-lg-8">
+                <div className="user-form-section mb-0 h-100">
+                  <div className="user-form-section-title">
+                    <i className="fas fa-id-card text-primary" aria-hidden="true" />
+                    Account details
                   </div>
-                  {errors.role && <div className="invalid-feedback d-block">{errors.role}</div>}
-                </div>
+                  <p className="user-form-section-hint">Basic profile and login information.</p>
 
-                <div className="mb-4">
-                  <label className="form-label">Permissions</label>
-                  <div className="d-flex flex-wrap gap-4 mb-3">
-                    <div className="form-check">
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-name">
+                        Name <span className="req">*</span>
+                      </label>
                       <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="add-check-all-rights"
-                        checked={allPermissionsGranted}
-                        onChange={(e) => setAllPermissions(e.target.checked)}
+                        id="user-add-name"
+                        className={`form-control user-form-control ${errors.name ? 'is-invalid' : ''}`}
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                         disabled={isSubmitting}
                       />
-                      <label className="form-check-label" htmlFor="add-check-all-rights">
-                        Check all rights
-                      </label>
+                      {errors.name ? <div className="invalid-feedback">{errors.name}</div> : null}
                     </div>
-                    <div className="form-check">
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-email">
+                        Email
+                      </label>
                       <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="add-remove-all-rights"
-                        checked={noPermissionsGranted}
-                        onChange={(e) => {
-                          if (e.target.checked) setAllPermissions(false);
-                        }}
+                        id="user-add-email"
+                        type="email"
+                        className={`form-control user-form-control ${errors.email ? 'is-invalid' : ''}`}
+                        value={form.email}
+                        onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                         disabled={isSubmitting}
                       />
-                      <label className="form-check-label" htmlFor="add-remove-all-rights">
-                        Remove all rights
+                      {errors.email ? <div className="invalid-feedback">{errors.email}</div> : null}
+                    </div>
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-phone">
+                        Phone <span className="req">*</span>
                       </label>
+                      <input
+                        id="user-add-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={11}
+                        className={`form-control user-form-control ${errors.phone ? 'is-invalid' : ''}`}
+                        value={form.phone}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            phone: digitsOnlyFromPhone(e.target.value).slice(0, 11),
+                          }))
+                        }
+                        placeholder="Digits only"
+                        autoComplete="tel"
+                        disabled={isSubmitting}
+                      />
+                      {errors.phone ? <div className="invalid-feedback">{errors.phone}</div> : null}
+                    </div>
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-password">
+                        Password <span className="req">*</span>
+                      </label>
+                      <input
+                        id="user-add-password"
+                        type="password"
+                        className={`form-control user-form-control ${errors.password ? 'is-invalid' : ''}`}
+                        value={form.password}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, password: e.target.value }))
+                        }
+                        autoComplete="new-password"
+                        disabled={isSubmitting}
+                      />
+                      {errors.password ? (
+                        <div className="invalid-feedback">{errors.password}</div>
+                      ) : null}
+                    </div>
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-balance">
+                        Initial balance
+                      </label>
+                      <input
+                        id="user-add-balance"
+                        type="number"
+                        className="form-control user-form-control"
+                        step="0.01"
+                        value={form.initial_balance}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, initial_balance: e.target.value }))
+                        }
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="user-form-label d-block" htmlFor="user-add-status">
+                        Status
+                      </label>
+                      <select
+                        id="user-add-status"
+                        className="form-select user-form-control"
+                        value={form.status}
+                        onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                        disabled={isSubmitting}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
                     </div>
                   </div>
-                  <div className="table-responsive">
-                    <table className="table table-sm align-middle">
-                      <thead>
-                        <tr>
-                          <th>Module</th>
-                          {PERMISSION_ACTIONS.map((action) => (
-                            <th key={action} className="text-uppercase text-xs">
-                              {action}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {PERMISSION_MODULE_KEYS.map((moduleName) => (
-                          <tr key={moduleName}>
-                            <td className="text-uppercase text-xs fw-bold">{moduleName}</td>
-                            {PERMISSION_ACTIONS.map((action) => (
-                              <td key={`${moduleName}-${action}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(form.permissions[moduleName]?.[action])}
-                                  onChange={() => handlePermissionToggle(moduleName, action)}
-                                  disabled={isSubmitting}
-                                />
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
-
-                {createError && <div className="alert alert-danger py-2">{createError}</div>}
-
-                <div className="d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => navigate('/users')}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                    {isSubmitting ? 'Creating...' : 'Create User'}
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
+
+            <div className="user-form-section mt-3">
+              <div className="user-form-section-title">
+                <i className="fas fa-user-tag text-primary" aria-hidden="true" />
+                Roles
+              </div>
+              <p className="user-form-section-hint">Select one or more roles for this user.</p>
+              <div className="user-role-chips">
+                {USER_ROLE_OPTIONS.map((roleName) => {
+                  const active = form.role.includes(roleName);
+                  return (
+                    <label
+                      key={roleName}
+                      className={`user-role-chip ${active ? 'is-active' : ''}`}
+                      htmlFor={`add-role-${roleName}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => handleRoleToggle(roleName)}
+                        id={`add-role-${roleName}`}
+                        disabled={isSubmitting}
+                      />
+                      {roleName}
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.role ? <small className="text-danger d-block mt-2">{errors.role}</small> : null}
+            </div>
+
+            <div className="user-form-section">
+              <div className="user-form-section-title">
+                <i className="fas fa-shield-halved text-primary" aria-hidden="true" />
+                Permissions
+              </div>
+              <p className="user-form-section-hint">
+                Grant module access. V = view, A = add, E = edit, D = delete.
+              </p>
+
+              <div className="user-perm-toolbar">
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="add-check-all-rights"
+                    checked={allPermissionsGranted}
+                    onChange={(e) => setAllPermissions(e.target.checked)}
+                    disabled={isSubmitting}
+                  />
+                  <label className="form-check-label text-sm" htmlFor="add-check-all-rights">
+                    Grant all permissions
+                  </label>
+                </div>
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="add-remove-all-rights"
+                    checked={noPermissionsGranted}
+                    onChange={(e) => {
+                      if (e.target.checked) setAllPermissions(false);
+                    }}
+                    disabled={isSubmitting}
+                  />
+                  <label className="form-check-label text-sm" htmlFor="add-remove-all-rights">
+                    Remove all permissions
+                  </label>
+                </div>
+              </div>
+
+              <div className="user-perm-table-wrap">
+                <table className="table user-perm-table mb-0">
+                  <thead>
+                    <tr>
+                      <th>Module</th>
+                      {PERMISSION_ACTIONS.map((action) => (
+                        <th key={action}>{action}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {PERMISSION_MODULE_KEYS.map((moduleName) => (
+                      <tr key={moduleName}>
+                        <td>
+                          <span className="user-perm-module">{moduleName}</span>
+                        </td>
+                        {PERMISSION_ACTIONS.map((action) => (
+                          <td key={`${moduleName}-${action}`}>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={Boolean(form.permissions[moduleName]?.[action])}
+                              onChange={() => handlePermissionToggle(moduleName, action)}
+                              disabled={isSubmitting}
+                              aria-label={`${moduleName} ${action}`}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {createError ? (
+              <div className="alert alert-danger py-2 mt-3 mb-0">{createError}</div>
+            ) : null}
+          </div>
+
+          <div className="user-form-footer">
+            <span className="user-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/users')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-user-plus me-2" aria-hidden="true" />
+                  Create user
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div>
+      </form>
 
       <div className="position-fixed bottom-1 end-1 z-index-2">
         <div

@@ -101,7 +101,7 @@ const Users = () => {
     dispatch(setLimit(limit));
   };
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
@@ -135,7 +135,7 @@ const Users = () => {
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
+      <div className="row mt-4">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
@@ -216,6 +216,12 @@ const Users = () => {
                         const userId = item._id || item.id;
                         const isDefaultCustomer = isDefaultCustomerUser(item);
                         const isDefaultVendor = isDefaultVendorUser(item);
+                        const displayName =
+                          item.name || item.fullName || item.username || '—';
+                        const email = String(item.email || '').trim() || '—';
+                        const phone = userPhoneDisplay(item);
+                        const created = item.createdAt ?? item.created_at ?? item.created;
+                        const updated = item.updatedAt ?? item.updated_at ?? item.updated;
                         return (
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
@@ -297,17 +303,19 @@ const Users = () => {
                               {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                             </td>
                             <td className="text-end">
-                              {canEdit ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-primary mb-0"
-                                  onClick={() => navigate(`/users/edit/${userId}`)}
-                                >
-                                  Edit
-                                </button>
-                              ) : (
-                                <span className="text-muted">—</span>
-                              )}
+                              <div className="list-table-actions">
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary mb-0"
+                                    onClick={() => navigate(`/users/edit/${userId}`)}
+                                  >
+                                    Edit
+                                  </button>
+                                ) : (
+                                  <span className="text-muted text-sm">—</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
