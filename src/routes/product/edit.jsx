@@ -1016,7 +1016,7 @@ const ProductEdit = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Edit Product</h5>

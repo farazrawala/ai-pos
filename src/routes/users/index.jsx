@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaSort, FaSortDown, FaSortUp } from 'react-icons/fa6';
 import {
   fetchUsers,
   setSearch,
@@ -25,8 +24,8 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
-import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
@@ -69,7 +68,6 @@ const Users = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [markingDefaultUserId, setMarkingDefaultUserId] = useState('');
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
     const params = {
@@ -91,7 +89,6 @@ const Users = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
 
@@ -195,60 +192,31 @@ const Users = () => {
     }
   }, [deleteStatus, dispatch]);
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) {
-        clearTimeout(sortClickTimeoutRef.current);
-        sortClickTimeoutRef.current = null;
-      }
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
     }
-
-    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    sortClickTimeoutRef.current = setTimeout(() => {
-      dispatch(setSort({ sortBy }));
-      sortClickTimeoutRef.current = null;
-    }, 200);
+    dispatch(setSort({ sortBy: column }));
   };
 
-  const renderSortIcon = (columnName) => {
-    if (sort.sortBy !== columnName) {
-      return <NavIcon icon={FaSort} className="text-muted ms-1 opacity-6" size={12} />;
-    }
-    return sort.sortOrder === 'asc' ? (
-      <NavIcon icon={FaSortUp} className="text-primary ms-1" size={12} />
-    ) : (
-      <NavIcon icon={FaSortDown} className="text-primary ms-1" size={12} />
-    );
-  };
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
+  );
 
   const renderRoleCell = (role) => {
     const roles = Array.isArray(role) ? role : role ? [role] : [];
-    if (roles.length === 0) return <span className="text-muted">—</span>;
+    if (roles.length === 0) return <span className="text-muted text-sm">—</span>;
     return (
       <div className="d-flex flex-wrap gap-1">
         {roles.map((item) => (
-          <span key={item} className="badge bg-gradient-info mb-0">
+          <span key={item} className="badge text-xxs bg-gradient-info mb-0">
             {item}
           </span>
         ))}
       </div>
     );
   };
-
-  const sortableTh = (column, label) => (
-    <th
-      className="list-data-table-sortable"
-      onClick={() => handleSort(column)}
-      onDoubleClick={() => handleSort(column, true)}
-    >
-      <span className="d-inline-flex align-items-center">
-        {label}
-        {renderSortIcon(column)}
-      </span>
-    </th>
-  );
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -257,7 +225,7 @@ const Users = () => {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
-                <div className="col-md-6">
+                <div className="col-lg-4 col-md-5">
                   <h5 className="mb-1">Users</h5>
                   {DEBUG ? (
                     <p className="text-sm text-muted mb-0">
@@ -265,21 +233,24 @@ const Users = () => {
                     </p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                <div className="col-lg-8 col-md-7">
+                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search users..."
+                        placeholder="Search users…"
                         value={localSearch}
                         onChange={handleSearchChange}
+                        aria-label="Search users"
                       />
                     </div>
-                    {canCreate && <AddNewButton to="/users/add" label="Add User" />}
+                    {canCreate ? (
+                      <AddNewButton to="/users/add" label="Add user" size="sm" />
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -287,6 +258,7 @@ const Users = () => {
 
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
+                className="list-data-table--users"
                 loading={loading}
                 loadingLabel="Loading users…"
                 error={error}
@@ -300,29 +272,24 @@ const Users = () => {
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
-                      <th className="text-center" style={{ width: '72px' }}>
-                        #
-                      </th>
-                      <th className="text-center" style={{ width: '72px' }}>
-                        profile_image
-                      </th>
-                      {sortableTh('name', 'Name')}
-                      {sortableTh('email', 'Email')}
-                      <th>Phone</th>
-                      <th>Role</th>
-                      {sortableTh('initial_balance', 'Opening balance')}
-                      <th className="col-permissions">Permissions</th>
+                      <th className="text-center list-col-sno">#</th>
+                      <th className="list-col-user-photo">Photo</th>
+                      {sortableTh('name', 'Name', 'list-col-truncate')}
+                      {sortableTh('email', 'Email', 'list-col-truncate')}
+                      <th className="list-col-truncate-sm">Phone</th>
+                      <th className="list-col-user-roles">Role</th>
+                      {sortableTh('initial_balance', 'Balance', 'text-end list-col-amount')}
+                      <th className="list-col-permissions">Permissions</th>
                       {sortableTh('status', 'Status')}
-                      {sortableTh('createdAt', 'Created')}
-                      {sortableTh('updatedAt', 'Last Updated At')}
-                      <th className="text-end list-col-actions">Actions</th>
+                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      <th className="text-end list-col-actions list-col-actions--users">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="text-center py-5 text-muted">
-                          No users found
+                        <td colSpan={11} className="text-center py-5 text-muted">
+                          No users found. Try adjusting your search.
                         </td>
                       </tr>
                     ) : (
@@ -334,100 +301,103 @@ const Users = () => {
                         const openingBalance = userOpeningBalance(item);
                         const profileUrl = userProfileImageUrl(item);
                         const userId = item._id || item.id;
+                        const displayName = item.name || '—';
+                        const email = item.email || '—';
+                        const phone = userPhoneDisplay(item);
                         const isCustomer = userHasRole(item, 'CUSTOMER');
                         const isVendor = userHasRole(item, 'VENDOR');
                         const isDefaultCustomer = isDefaultCustomerUser(item);
                         const isDefaultVendor = isDefaultVendorUser(item);
-                        const showActionsMenu = canEdit || canDelete;
                         const isMarking = markingDefaultUserId === String(userId);
+                        const created = item.createdAt ?? item.created_at;
+                        const updated = item.updatedAt ?? item.updated_at;
+                        const dropdownId = `user-actions-${userId || index}`;
+                        const hasExtraActions =
+                          (canEdit && isCustomer && !isDefaultCustomer) ||
+                          (canEdit && isVendor && !isDefaultVendor) ||
+                          canDelete;
                         return (
                           <tr key={key}>
-                            <td className="text-center">
-                              <span className="text-muted text-sm">{seriesNumber}</span>
-                            </td>
-                            <td className="text-center">
+                            <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            <td>
                               {profileUrl ? (
                                 <img
                                   src={profileUrl}
-                                  alt={item.name ? `${item.name} profile` : 'Profile'}
-                                  className="rounded-circle border"
-                                  style={{
-                                    width: '40px',
-                                    height: '40px',
-                                    objectFit: 'cover',
-                                  }}
+                                  alt={displayName !== '—' ? `${displayName} profile` : 'Profile'}
+                                  className="list-user-avatar"
                                 />
                               ) : (
-                                <span
-                                  className="d-inline-flex align-items-center justify-content-center rounded-circle border bg-light text-muted text-xs"
-                                  style={{ width: '40px', height: '40px' }}
-                                  title="No photo"
-                                >
-                                  —
-                                </span>
+                                <div className="list-user-avatar list-user-avatar--empty">
+                                  <i className="fas fa-user text-muted" aria-hidden="true" />
+                                </div>
                               )}
                             </td>
-                            <td>
-                              <span className="font-weight-bold text-dark text-sm">
-                                {item.name || '—'}
-                              </span>
-                              {isDefaultCustomer ? (
-                                <span className="badge bg-gradient-primary ms-1 mb-0 text-xxs">
-                                  Default customer
-                                </span>
-                              ) : null}
-                              {isDefaultVendor ? (
-                                <span className="badge bg-gradient-dark ms-1 mb-0 text-xxs">
-                                  Default vendor
-                                </span>
+                            <td className="list-cell-truncate">
+                              <div
+                                className="text-sm font-weight-bold text-dark text-truncate"
+                                title={displayName !== '—' ? displayName : undefined}
+                              >
+                                {displayName}
+                              </div>
+                              {isDefaultCustomer || isDefaultVendor ? (
+                                <div className="d-flex flex-wrap gap-1 mt-1">
+                                  {isDefaultCustomer ? (
+                                    <span className="badge text-xxs bg-gradient-primary mb-0">
+                                      Default customer
+                                    </span>
+                                  ) : null}
+                                  {isDefaultVendor ? (
+                                    <span className="badge text-xxs bg-gradient-dark mb-0">
+                                      Default vendor
+                                    </span>
+                                  ) : null}
+                                </div>
                               ) : null}
                             </td>
-                            <td className="text-sm">{item.email || '—'}</td>
-                            <td className="text-sm">{userPhoneDisplay(item)}</td>
+                            <td
+                              className="text-sm text-muted list-cell-truncate"
+                              title={email !== '—' ? email : undefined}
+                            >
+                              {email}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate-sm"
+                              title={phone !== '—' ? phone : undefined}
+                            >
+                              {phone}
+                            </td>
                             <td>{renderRoleCell(item.role)}</td>
                             <td
-                              className={`text-sm text-end font-weight-bold ${balanceTextClass(
+                              className={`text-sm text-end font-weight-bold list-col-amount ${balanceTextClass(
                                 openingBalance
                               )}`}
                             >
                               {fmtMoney(openingBalance)}
                             </td>
-                            <td className="col-permissions">
+                            <td className="list-col-permissions">
                               <UsersPermissionsCell permissions={item.permissions} />
                             </td>
-                            <td>
+                            <td className="text-sm">
                               <span
-                                className={`badge mb-0 ${
+                                className={`badge text-xxs mb-0 ${
                                   isActive ? 'bg-gradient-success' : 'bg-gradient-secondary'
                                 }`}
                               >
                                 {statusVal}
                               </span>
                             </td>
-                            <td className="text-sm text-muted">
-                              {item.createdAt
-                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                : '—'}
-                            </td>
                             <td
-                              className="text-sm text-muted"
+                              className="text-sm text-nowrap list-col-date"
                               title={
-                                item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).format(
-                                      'MM-DD-YYYY h:mm a'
-                                    )
+                                updated
+                                  ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
                                   : undefined
                               }
                             >
-                              {item.updatedAt || item.updated_at
-                                ? moment(item.updatedAt || item.updated_at).fromNow()
-                                : '—'}
+                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                             </td>
                             <td className="text-end">
-                              <div
-                                className="list-table-actions"
-                                style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}
-                              >
+                              <div className="list-table-actions">
                                 {canEdit ? (
                                   <button
                                     type="button"
@@ -438,37 +408,64 @@ const Users = () => {
                                     Edit
                                   </button>
                                 ) : null}
-                                {canEdit && isCustomer ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0"
-                                    onClick={() => handleMarkDefaultCustomer(item)}
-                                    disabled={isDefaultCustomer || isMarking}
-                                  >
-                                    {isDefaultCustomer ? 'Default customer' : 'Make default customer'}
-                                  </button>
+                                {hasExtraActions ? (
+                                  <div className="dropdown">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary mb-0 dropdown-toggle"
+                                      id={dropdownId}
+                                      data-bs-toggle="dropdown"
+                                      aria-expanded="false"
+                                      disabled={isMarking || deleteStatus === 'loading'}
+                                    >
+                                      More
+                                    </button>
+                                    <ul
+                                      className="dropdown-menu dropdown-menu-end"
+                                      aria-labelledby={dropdownId}
+                                    >
+                                      {canEdit && isCustomer && !isDefaultCustomer ? (
+                                        <li>
+                                          <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={() => handleMarkDefaultCustomer(item)}
+                                            disabled={isMarking}
+                                          >
+                                            Set as default customer
+                                          </button>
+                                        </li>
+                                      ) : null}
+                                      {canEdit && isVendor && !isDefaultVendor ? (
+                                        <li>
+                                          <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={() => handleMarkDefaultVendor(item)}
+                                            disabled={isMarking}
+                                          >
+                                            Set as default vendor
+                                          </button>
+                                        </li>
+                                      ) : null}
+                                      {canDelete ? (
+                                        <li>
+                                          <button
+                                            type="button"
+                                            className="dropdown-item text-danger"
+                                            onClick={() => handleDelete(userId, item.name)}
+                                            disabled={deleteStatus === 'loading'}
+                                          >
+                                            Delete
+                                          </button>
+                                        </li>
+                                      ) : null}
+                                    </ul>
+                                  </div>
                                 ) : null}
-                                {canEdit && isVendor ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0"
-                                    onClick={() => handleMarkDefaultVendor(item)}
-                                    disabled={isDefaultVendor || isMarking}
-                                  >
-                                    {isDefaultVendor ? 'Default vendor' : 'Make default vendor'}
-                                  </button>
+                                {!canEdit && !canDelete ? (
+                                  <span className="text-muted text-sm">—</span>
                                 ) : null}
-                                {canDelete ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-danger mb-0"
-                                    onClick={() => handleDelete(userId, item.name)}
-                                    disabled={deleteStatus === 'loading'}
-                                  >
-                                    Delete
-                                  </button>
-                                ) : null}
-                                {!showActionsMenu ? <span className="text-muted">—</span> : null}
                               </div>
                             </td>
                           </tr>

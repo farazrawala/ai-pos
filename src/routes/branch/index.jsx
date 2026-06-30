@@ -48,7 +48,6 @@ const Branch = () => {
     dispatch(fetchBranches(params));
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
 
-
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       dispatch(setPage(newPage));
@@ -116,7 +115,7 @@ const Branch = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card">
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Branch</h5>
@@ -155,102 +154,102 @@ const Branch = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th>S.No</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('name')}
+                        onDoubleClick={() => handleSort('name', true)}
+                      >
+                        Name
+                        {renderSortIcon('name')}
+                      </th>
+                      <th>Code</th>
+                      <th>City</th>
+                      <th>State</th>
+                      <th>Phone</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('status')}
+                        onDoubleClick={() => handleSort('status', true)}
+                      >
+                        Status
+                        {renderSortIcon('status')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('createdAt')}
+                        onDoubleClick={() => handleSort('createdAt', true)}
+                      >
+                        Created At
+                        {renderSortIcon('createdAt')}
+                      </th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
-                        </th>
-                        <th>Code</th>
-                        <th>City</th>
-                        <th>State</th>
-                        <th>Phone</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th>Actions</th>
+                        <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                          No branches found
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
-                            No branches found
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const id = item._id || item.id || item.branch_id;
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          return (
-                            <tr key={id || index}>
-                              <td>{seriesNumber}</td>
-                              <td>{item.name || '-'}</td>
-                              <td>{item.code || item.branch_code || '-'}</td>
-                              <td>{item.city || '-'}</td>
-                              <td>{item.state || '-'}</td>
-                              <td>{item.phone || '-'}</td>
-                              <td>
-                                <span
-                                  className={`badge ${
-                                    String(item.status || '').toLowerCase() === 'active'
-                                      ? 'bg-success'
-                                      : 'bg-secondary'
-                                  }`}
-                                >
-                                  {item.status || 'inactive'}
-                                </span>
-                              </td>
-                              <td>
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
-                              </td>
-                              <td>
-                                <div className="d-flex gap-1">
-                                  {canEdit && (
-                                    <button
-                                      className="btn btn-sm btn-primary mb-0"
-                                      onClick={() => navigate(`/branch/edit/${id}`)}
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                  {canDelete && (
-                                    <button
-                                      className="btn btn-sm btn-danger mb-0"
-                                      onClick={() => handleDelete(id, item.name)}
-                                      disabled={deleteStatus === 'loading'}
-                                    >
-                                      Delete
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                    ) : (
+                      data.map((item, index) => {
+                        const id = item._id || item.id || item.branch_id;
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        return (
+                          <tr key={id || index}>
+                            <td>{seriesNumber}</td>
+                            <td>{item.name || '-'}</td>
+                            <td>{item.code || item.branch_code || '-'}</td>
+                            <td>{item.city || '-'}</td>
+                            <td>{item.state || '-'}</td>
+                            <td>{item.phone || '-'}</td>
+                            <td>
+                              <span
+                                className={`badge ${
+                                  String(item.status || '').toLowerCase() === 'active'
+                                    ? 'bg-success'
+                                    : 'bg-secondary'
+                                }`}
+                              >
+                                {item.status || 'inactive'}
+                              </span>
+                            </td>
+                            <td>
+                              {item.createdAt
+                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                : '-'}
+                            </td>
+                            <td>
+                              <div className="d-flex gap-1">
+                                {canEdit && (
+                                  <button
+                                    className="btn btn-sm btn-primary mb-0"
+                                    onClick={() => navigate(`/branch/edit/${id}`)}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    className="btn btn-sm btn-danger mb-0"
+                                    onClick={() => handleDelete(id, item.name)}
+                                    disabled={deleteStatus === 'loading'}
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
               {deleteError && (
                 <div className="alert alert-danger mx-3 mb-3" role="alert">

@@ -229,9 +229,9 @@ const Brand = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center w-100">
-                <div className="col-md-6">
+                <div className="col-lg-3">
                   <h5 className="mb-0">
                     {firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1)}
                   </h5>
@@ -239,7 +239,7 @@ const Brand = () => {
                     <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
+                <div className="col-lg-9">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">

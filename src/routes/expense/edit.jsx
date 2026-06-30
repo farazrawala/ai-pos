@@ -337,7 +337,11 @@ const ExpenseEdit = () => {
     return (
       <div className="container-fluid py-4">
         <div className="alert alert-danger">{fetchError || 'Failed to load expense.'}</div>
-        <button type="button" className="btn btn-outline-secondary" onClick={() => navigate('/expenses')}>
+        <button
+          type="button"
+          className="btn btn-outline-secondary"
+          onClick={() => navigate('/expenses')}
+        >
           Back to list
         </button>
       </div>
@@ -349,7 +353,7 @@ const ExpenseEdit = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Edit expense</h5>
@@ -483,9 +487,10 @@ const ExpenseEdit = () => {
                         {paymentAccountFilterUrl}
                       </code>
                       <span className="d-block">
-                        Uses <code className="text-xs">default_account_payable_account</code> (include)
-                        and <code className="text-xs">default_account_receivable_account</code> (exclude)
-                        from company settings.
+                        Uses <code className="text-xs">default_account_payable_account</code>{' '}
+                        (include) and{' '}
+                        <code className="text-xs">default_account_receivable_account</code>{' '}
+                        (exclude) from company settings.
                       </span>
                     </small>
                   )}

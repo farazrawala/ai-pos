@@ -19,9 +19,11 @@ import {
   enrichTransactionDescription,
   buildDocumentRefLinkMap,
 } from '../../features/transactions/transactionsAPI.js';
+import { FaFilter } from 'react-icons/fa6';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import TablePagination from '../../components/TablePagination.jsx';
 import { renderTransactionDescriptionLinks } from '../../components/transactions/TransactionDescriptionLinks.jsx';
 import { DEBUG } from '../../config/env.js';
@@ -44,10 +46,13 @@ const Transactions = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
+  const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
   /** 'journal' = double-entry grouped view; 'lines' = flat ledger list */
   const [viewMode, setViewMode] = useState('journal');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+
+  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
   const journals = useMemo(() => groupTransactionsIntoJournals(data), [data]);
 
@@ -207,7 +212,7 @@ const Transactions = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card w-100" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
                   <h5 className="mb-0">Transactions</h5>
@@ -255,47 +260,83 @@ const Transactions = () => {
                         aria-label="Search transactions"
                       />
                     </div>
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 position-relative ${
+                        showFilters || activeFilterCount > 0 ? 'btn-primary' : 'btn-outline-primary'
+                      }`}
+                      onClick={() => setShowFilters((prev) => !prev)}
+                      aria-expanded={showFilters}
+                      aria-controls="transactions-filter-panel"
+                      aria-label="Date filters"
+                      title="Date filters"
+                    >
+                      <NavIcon icon={FaFilter} size={14} />
+                      {activeFilterCount > 0 ? (
+                        <span className="badge bg-gradient-danger text-white rounded-pill position-absolute top-0 start-100 translate-middle">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
             <div className="card-body pt-0">
-              <div className="row g-2 align-items-end mb-3">
-                <div className="col-md-3">
-                  <label className="form-label mb-1">Start date</label>
-                  <input
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={localStartDate}
-                    onChange={(e) => setLocalStartDate(e.target.value)}
-                  />
+              {showFilters ? (
+                <div className="list-filter-panel mb-3" id="transactions-filter-panel">
+                  <div className="row g-2 align-items-end">
+                    <div className="col-md-3">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="transactions-from-date"
+                      >
+                        From date
+                      </label>
+                      <input
+                        id="transactions-from-date"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={localStartDate}
+                        onChange={(e) => setLocalStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-3">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="transactions-to-date"
+                      >
+                        To date
+                      </label>
+                      <input
+                        id="transactions-to-date"
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={localEndDate}
+                        onChange={(e) => setLocalEndDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-6 d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm mb-0"
+                        onClick={applyDateFilters}
+                      >
+                        <i className="fas fa-check me-1" aria-hidden="true" />
+                        Apply
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm mb-0"
+                        onClick={resetDateFilters}
+                      >
+                        <i className="fas fa-rotate-left me-1" aria-hidden="true" />
+                        Clear
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label mb-1">End date</label>
-                  <input
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={localEndDate}
-                    onChange={(e) => setLocalEndDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-6 d-flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm mb-0"
-                    onClick={applyDateFilters}
-                  >
-                    Apply date filters
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary btn-sm mb-0"
-                    onClick={resetDateFilters}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
+              ) : null}
 
               {loading && (
                 <div className="text-center p-4">

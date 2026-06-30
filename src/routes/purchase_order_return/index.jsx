@@ -18,12 +18,14 @@ import {
   PURCHASE_ORDER_RETURN_EXPORT_COLUMNS,
   mapPurchaseOrderReturnsToExportRows,
 } from '../../features/purchaseOrderReturns/purchaseOrderReturnExportMapper.js';
+import { FaFilter } from 'react-icons/fa6';
 import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ListDateExportBar from '../../components/list/ListDateExportBar.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
@@ -111,7 +113,12 @@ const PurchaseOrderReturns = () => {
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [exporting, setExporting] = useState(false);
+  const [showFilters, setShowFilters] = useState(
+    Boolean(filters.startDate || filters.endDate)
+  );
   const searchTimeoutRef = useRef(null);
+
+  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
   useEffect(() => {
     const params = {
@@ -325,12 +332,33 @@ const PurchaseOrderReturns = () => {
                       label="Create return"
                       size="sm"
                     />
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 position-relative ${
+                        showFilters || activeFilterCount > 0
+                          ? 'btn-primary'
+                          : 'btn-outline-primary'
+                      }`}
+                      onClick={() => setShowFilters((prev) => !prev)}
+                      aria-expanded={showFilters}
+                      aria-controls="purchase-order-returns-filter-panel"
+                      aria-label="Filters and export"
+                      title="Filters & export"
+                    >
+                      <NavIcon icon={FaFilter} size={14} />
+                      {activeFilterCount > 0 ? (
+                        <span className="badge bg-gradient-danger text-white rounded-pill position-absolute top-0 start-100 translate-middle">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
             <ListDateExportBar
               idPrefix="purchase-order-returns"
+              show={showFilters}
               localStartDate={localStartDate}
               localEndDate={localEndDate}
               onStartDateChange={setLocalStartDate}

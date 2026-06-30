@@ -296,7 +296,7 @@ const Attribute = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">
@@ -337,197 +337,191 @@ const Attribute = () => {
                 showPagination={!loading && !error && pagination.total > 0}
               >
                 <table className="table align-items-center mb-0" id="datatable-search">
-                    <thead>
+                  <thead>
+                    <tr>
+                      <th>S.No</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('name')}
+                        onDoubleClick={() => handleSort('name', true)}
+                      >
+                        Name
+                        {renderSortIcon('name')}
+                      </th>
+                      <th>Attribute Values</th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('status')}
+                        onDoubleClick={() => handleSort('status', true)}
+                      >
+                        Status
+                        {renderSortIcon('status')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('createdAt')}
+                        onDoubleClick={() => handleSort('createdAt', true)}
+                      >
+                        Created At
+                        {renderSortIcon('createdAt')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('updatedAt')}
+                        onDoubleClick={() => handleSort('updatedAt', true)}
+                      >
+                        Last Updated At
+                        {renderSortIcon('updatedAt')}
+                      </th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length === 0 ? (
                       <tr>
-                        <th>S.No</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('name')}
-                          onDoubleClick={() => handleSort('name', true)}
-                        >
-                          Name
-                          {renderSortIcon('name')}
-                        </th>
-                        <th>Attribute Values</th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('status')}
-                          onDoubleClick={() => handleSort('status', true)}
-                        >
-                          Status
-                          {renderSortIcon('status')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('createdAt')}
-                          onDoubleClick={() => handleSort('createdAt', true)}
-                        >
-                          Created At
-                          {renderSortIcon('createdAt')}
-                        </th>
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
-                        </th>
-                        <th>Actions</th>
+                        <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
+                          No attributes found
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
-                            No attributes found
-                          </td>
-                        </tr>
-                      ) : (
-                        data.map((item, index) => {
-                          const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                          const attributeValues = item.attribute_values || [];
-                          return (
-                            <tr key={item._id || index}>
-                              <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                              <td className="text-sm font-weight-normal">{item.name || '-'}</td>
-                              <td className="text-sm font-weight-normal">
-                                {attributeValues.length > 0 ? (
-                                  <div className="d-flex flex-wrap gap-1">
-                                    {attributeValues.slice(0, 3).map((value, idx) => (
-                                      <span
-                                        key={idx}
-                                        className="badge bg-info text-dark"
-                                        style={{ fontSize: '0.75rem' }}
-                                      >
-                                        {value.name || value}
-                                      </span>
-                                    ))}
-                                    {attributeValues.length > 3 && (
-                                      <span
-                                        className="badge bg-secondary"
-                                        style={{ fontSize: '0.75rem' }}
-                                      >
-                                        +{attributeValues.length - 3} more
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted">No values</span>
-                                )}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex align-items-center gap-2">
-                                  <div className="form-check form-switch mb-0">
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      role="switch"
-                                      id={`toggle-${item._id || item.id || item.attribute_id || index}`}
-                                      checked={
+                    ) : (
+                      data.map((item, index) => {
+                        const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const attributeValues = item.attribute_values || [];
+                        return (
+                          <tr key={item._id || index}>
+                            <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                            <td className="text-sm font-weight-normal">{item.name || '-'}</td>
+                            <td className="text-sm font-weight-normal">
+                              {attributeValues.length > 0 ? (
+                                <div className="d-flex flex-wrap gap-1">
+                                  {attributeValues.slice(0, 3).map((value, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="badge bg-info text-dark"
+                                      style={{ fontSize: '0.75rem' }}
+                                    >
+                                      {value.name || value}
+                                    </span>
+                                  ))}
+                                  {attributeValues.length > 3 && (
+                                    <span
+                                      className="badge bg-secondary"
+                                      style={{ fontSize: '0.75rem' }}
+                                    >
+                                      +{attributeValues.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted">No values</span>
+                              )}
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              <div className="d-flex align-items-center gap-2">
+                                <div className="form-check form-switch mb-0">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id={`toggle-${item._id || item.id || item.attribute_id || index}`}
+                                    checked={
+                                      item.status === 'active' || item.isActive || item.status === 1
+                                    }
+                                    onChange={() =>
+                                      handleToggleStatus(
+                                        item._id || item.id || item.attribute_id,
                                         item.status === 'active' ||
-                                        item.isActive ||
-                                        item.status === 1
-                                      }
-                                      onChange={() =>
-                                        handleToggleStatus(
-                                          item._id || item.id || item.attribute_id,
-                                          item.status === 'active' ||
-                                            item.isActive ||
-                                            item.status === 1
-                                        )
-                                      }
-                                      disabled={
+                                          item.isActive ||
+                                          item.status === 1
+                                      )
+                                    }
+                                    disabled={
+                                      togglingAttributeId ===
+                                      (item._id || item.id || item.attribute_id)
+                                    }
+                                    style={{
+                                      width: '2.5rem',
+                                      height: '1.25rem',
+                                      cursor:
                                         togglingAttributeId ===
                                         (item._id || item.id || item.attribute_id)
-                                      }
-                                      style={{
-                                        width: '2.5rem',
-                                        height: '1.25rem',
-                                        cursor:
-                                          togglingAttributeId ===
-                                          (item._id || item.id || item.attribute_id)
-                                            ? 'not-allowed'
-                                            : 'pointer',
-                                      }}
-                                    />
-                                  </div>
+                                          ? 'not-allowed'
+                                          : 'pointer',
+                                    }}
+                                  />
+                                </div>
 
-                                  {togglingAttributeId ===
-                                  (item._id || item.id || item.attribute_id) ? (
-                                    <span
-                                      className="spinner-border spinner-border-sm text-primary"
-                                      role="status"
-                                      style={{ width: '1rem', height: '1rem' }}
-                                    >
-                                      <span className="visually-hidden">Loading...</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`badge ${
-                                        item.status === 'active' ||
-                                        item.isActive ||
-                                        item.status === 1
-                                          ? 'bg-success'
-                                          : 'bg-secondary'
-                                      }`}
-                                    >
-                                      {item.status === 'active' ||
-                                      item.isActive ||
-                                      item.status === 1
-                                        ? 'Active'
-                                        : 'Inactive'}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                {item.updatedAt ? moment(item.updatedAt).fromNow() : '-'}
-                              </td>
-                              <td className="text-sm font-weight-normal">
-                                <div className="d-flex gap-1">
-                                  {canEdit && (
-                                    <button
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() =>
-                                        navigate(
-                                          `/attributes/edit/${item._id || item.id || item.attribute_id}`
-                                        )
-                                      }
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                  {canDelete && (
-                                    <button
-                                      className="btn btn-sm btn-danger"
-                                      onClick={() =>
-                                        handleDelete(
-                                          item._id || item.id || item.attribute_id,
-                                          item.name
-                                        )
-                                      }
-                                      disabled={deleteStatus === 'loading'}
-                                    >
-                                      {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
-                                    </button>
-                                  )}
-                                  {!canEdit && !canDelete && (
-                                    <span className="text-muted text-sm">No actions available</span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                {togglingAttributeId ===
+                                (item._id || item.id || item.attribute_id) ? (
+                                  <span
+                                    className="spinner-border spinner-border-sm text-primary"
+                                    role="status"
+                                    style={{ width: '1rem', height: '1rem' }}
+                                  >
+                                    <span className="visually-hidden">Loading...</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`badge ${
+                                      item.status === 'active' || item.isActive || item.status === 1
+                                        ? 'bg-success'
+                                        : 'bg-secondary'
+                                    }`}
+                                  >
+                                    {item.status === 'active' || item.isActive || item.status === 1
+                                      ? 'Active'
+                                      : 'Inactive'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              {item.createdAt
+                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                : '-'}
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              {item.updatedAt ? moment(item.updatedAt).fromNow() : '-'}
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              <div className="d-flex gap-1">
+                                {canEdit && (
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    onClick={() =>
+                                      navigate(
+                                        `/attributes/edit/${item._id || item.id || item.attribute_id}`
+                                      )
+                                    }
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() =>
+                                      handleDelete(
+                                        item._id || item.id || item.attribute_id,
+                                        item.name
+                                      )
+                                    }
+                                    disabled={deleteStatus === 'loading'}
+                                  >
+                                    {deleteStatus === 'loading' ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                )}
+                                {!canEdit && !canDelete && (
+                                  <span className="text-muted text-sm">No actions available</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </ListDataTable>
             </div>
           </div>

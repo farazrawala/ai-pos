@@ -28,7 +28,9 @@ function accountNetBalance(a) {
 }
 
 function parseAmountToNumber(raw) {
-  const cleaned = String(raw ?? '').replace(/[^\d.,-]/g, '').replace(/,/g, '');
+  const cleaned = String(raw ?? '')
+    .replace(/[^\d.,-]/g, '')
+    .replace(/,/g, '');
   const n = parseFloat(cleaned);
   return Number.isFinite(n) ? n : 0;
 }
@@ -274,7 +276,9 @@ export default function PaymentManagementPage() {
 
       setIsSubmitting(true);
       try {
-        const user = users.find((u) => String(u._id ?? u.id ?? u.userId ?? '') === String(form.userId));
+        const user = users.find(
+          (u) => String(u._id ?? u.id ?? u.userId ?? '') === String(form.userId)
+        );
         const amountNum = parseAmountToNumber(form.amount);
         const payAcc = assetAccounts.find(
           (a) => String(a._id ?? a.id ?? '') === String(form.paymentMode)
@@ -394,7 +398,9 @@ export default function PaymentManagementPage() {
   if (!isAdmin && canView === false) {
     return (
       <div className="container-fluid py-4">
-        <div className="alert alert-warning mb-0">You do not have access to Payment Management.</div>
+        <div className="alert alert-warning mb-0">
+          You do not have access to Payment Management.
+        </div>
       </div>
     );
   }
@@ -434,9 +440,7 @@ export default function PaymentManagementPage() {
             <form id="payment-form" onSubmit={handleSubmit}>
               <div className="row g-3">
                 <div className="col-lg-6 col-md-12 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">
-                    Select User
-                  </label>
+                  <label className="form-label text-sm font-weight-bold mb-1">Select User</label>
                   <SearchableSelect
                     options={userOptions}
                     value={form.userId}
@@ -448,9 +452,7 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">
-                    Payment Mode
-                  </label>
+                  <label className="form-label text-sm font-weight-bold mb-1">Payment Mode</label>
                   <SearchableSelect
                     options={paymentModeOptions}
                     value={form.paymentMode}
@@ -475,15 +477,15 @@ export default function PaymentManagementPage() {
                     <div className="text-xs text-muted mt-1">Loading accounts…</div>
                   ) : null}
                   {!accountsLoading && assetAccounts.length === 0 ? (
-                    <div className="text-xs text-warning mt-1">No current-asset accounts found.</div>
+                    <div className="text-xs text-warning mt-1">
+                      No current-asset accounts found.
+                    </div>
                   ) : null}
                   <FieldError error={errors.paymentMode} />
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">
-                    Payment Type
-                  </label>
+                  <label className="form-label text-sm font-weight-bold mb-1">Payment Type</label>
                   <select
                     className="form-select"
                     disabled={isSubmitting}
@@ -500,9 +502,7 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">
-                    Amount
-                  </label>
+                  <label className="form-label text-sm font-weight-bold mb-1">Amount</label>
                   <CurrencyPrefixInput
                     value={form.amount}
                     disabled={isSubmitting}
@@ -512,9 +512,7 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">
-                    Date
-                  </label>
+                  <label className="form-label text-sm font-weight-bold mb-1">Date</label>
                   <div className="input-group">
                     <span className="input-group-text bg-transparent text-body">
                       <i className="ni ni-calendar-grid-58 text-primary me-1" />
@@ -591,7 +589,7 @@ export default function PaymentManagementPage() {
         </div>
 
         <div className="card border-0 shadow-sm rounded-3">
-          <div className="card-header pb-0">
+          <div className="card-header">
             <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
                 <h6 className="mb-0">Recent transactions</h6>
@@ -671,4 +669,3 @@ export default function PaymentManagementPage() {
     </div>
   );
 }
-

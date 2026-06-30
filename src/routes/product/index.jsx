@@ -457,13 +457,13 @@ const Product = () => {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
-                <div className="col-lg-4 col-md-5">
+                <div className="col-lg-3 col-md-4">
                   <h5 className="mb-1">Products</h5>
                   {DEBUG ? (
                     <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-lg-8 col-md-7">
+                <div className="col-lg-9 col-md-8">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
