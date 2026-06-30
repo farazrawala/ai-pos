@@ -117,7 +117,7 @@ const CompanyCachePage = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Company cache</h5>
@@ -194,11 +194,15 @@ const CompanyCachePage = () => {
                   <div className="border border-radius-md p-3 h-100">
                     <p className="text-xs text-muted mb-1">Redis status</p>
                     <p className="text-sm mb-0">
-                      {meta.redis_enabled ?
-                        meta.redis_connected ?
+                      {meta.redis_enabled ? (
+                        meta.redis_connected ? (
                           <span className="badge bg-success">Connected</span>
-                        : <span className="badge bg-secondary">Not connected</span>
-                      : <span className="badge bg-secondary">Disabled</span>}
+                        ) : (
+                          <span className="badge bg-secondary">Not connected</span>
+                        )
+                      ) : (
+                        <span className="badge bg-secondary">Disabled</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -220,78 +224,85 @@ const CompanyCachePage = () => {
                 <ListDataTable
                   loading={loading}
                   loadingLabel="Loading cache entries…"
-                  pagination={{ total: entries.length, page: 1, limit: entries.length || 1, totalPages: 1 }}
+                  pagination={{
+                    total: entries.length,
+                    page: 1,
+                    limit: entries.length || 1,
+                    totalPages: 1,
+                  }}
                   showPagination={false}
                 >
-                <table className="table align-items-center mb-0">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Module</th>
-                      <th>Action</th>
-                      <th>Backend</th>
-                      <th>Time left</th>
-                      <th>Status</th>
-                      <th>Cache key</th>
-                      {includeValues ? <th>Value summary</th> : null}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.length === 0 ? (
+                  <table className="table align-items-center mb-0">
+                    <thead>
                       <tr>
-                        <td
-                          colSpan={includeValues ? 8 : 7}
-                          className="text-center text-sm font-weight-normal p-4"
-                        >
-                          No cache entries for this company
-                        </td>
+                        <th>#</th>
+                        <th>Module</th>
+                        <th>Action</th>
+                        <th>Backend</th>
+                        <th>Time left</th>
+                        <th>Status</th>
+                        <th>Cache key</th>
+                        {includeValues ? <th>Value summary</th> : null}
                       </tr>
-                    ) : (
-                      entries.map((row, index) => (
-                        <tr key={row.key || index}>
-                          <td className="text-sm font-weight-normal">{index + 1}</td>
-                          <td className="text-sm font-weight-normal">{row.module || '—'}</td>
-                          <td className="text-sm font-weight-normal">{row.action || '—'}</td>
-                          <td className="text-sm font-weight-normal">
-                            <span
-                              className={`badge ${row.backend === 'redis' ? 'bg-gradient-info' : 'bg-gradient-secondary'}`}
-                            >
-                              {row.backend || '—'}
-                            </span>
-                          </td>
+                    </thead>
+                    <tbody>
+                      {entries.length === 0 ? (
+                        <tr>
                           <td
-                            className="text-sm font-weight-normal"
-                            title={
-                              row.ttl_seconds_remaining != null ?
-                                `${row.ttl_seconds_remaining} sec`
-                              : undefined
-                            }
+                            colSpan={includeValues ? 8 : 7}
+                            className="text-center text-sm font-weight-normal p-4"
                           >
-                            {formatTtlRemaining(row.ttl_seconds_remaining, {
-                              expired: row.expired,
-                            })}
+                            No cache entries for this company
                           </td>
-                          <td className="text-sm font-weight-normal">
-                            {row.expired ?
-                              <span className="badge bg-secondary">Expired</span>
-                            : <span className="badge bg-success">Active</span>}
-                          </td>
-                          <td className="text-sm font-weight-normal text-break">
-                            <code className="text-xs" title={row.key}>
-                              {row.key != null && row.key !== '' ? String(row.key) : '—'}
-                            </code>
-                          </td>
-                          {includeValues ? (
-                            <td className="text-sm font-weight-normal text-break">
-                              {formatValueSummary(row.value_summary)}
-                            </td>
-                          ) : null}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </ListDataTable>
+                      ) : (
+                        entries.map((row, index) => (
+                          <tr key={row.key || index}>
+                            <td className="text-sm font-weight-normal">{index + 1}</td>
+                            <td className="text-sm font-weight-normal">{row.module || '—'}</td>
+                            <td className="text-sm font-weight-normal">{row.action || '—'}</td>
+                            <td className="text-sm font-weight-normal">
+                              <span
+                                className={`badge ${row.backend === 'redis' ? 'bg-gradient-info' : 'bg-gradient-secondary'}`}
+                              >
+                                {row.backend || '—'}
+                              </span>
+                            </td>
+                            <td
+                              className="text-sm font-weight-normal"
+                              title={
+                                row.ttl_seconds_remaining != null
+                                  ? `${row.ttl_seconds_remaining} sec`
+                                  : undefined
+                              }
+                            >
+                              {formatTtlRemaining(row.ttl_seconds_remaining, {
+                                expired: row.expired,
+                              })}
+                            </td>
+                            <td className="text-sm font-weight-normal">
+                              {row.expired ? (
+                                <span className="badge bg-secondary">Expired</span>
+                              ) : (
+                                <span className="badge bg-success">Active</span>
+                              )}
+                            </td>
+                            <td className="text-sm font-weight-normal text-break">
+                              <code className="text-xs" title={row.key}>
+                                {row.key != null && row.key !== '' ? String(row.key) : '—'}
+                              </code>
+                            </td>
+                            {includeValues ? (
+                              <td className="text-sm font-weight-normal text-break">
+                                {formatValueSummary(row.value_summary)}
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </ListDataTable>
               ) : null}
             </div>
           </div>

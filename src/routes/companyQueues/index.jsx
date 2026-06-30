@@ -36,47 +36,48 @@ const CompanyQueuesPage = () => {
   const [meta, setMeta] = useState({ ...EMPTY_META });
   const [pending, setPending] = useState([]);
 
-  const loadQueue = useCallback(async (selectedModule = module) => {
-    const mod = String(selectedModule || DEFAULT_MODULE).trim() || DEFAULT_MODULE;
-    setLoading(true);
-    setError(null);
-    setMessage('');
+  const loadQueue = useCallback(
+    async (selectedModule = module) => {
+      const mod = String(selectedModule || DEFAULT_MODULE).trim() || DEFAULT_MODULE;
+      setLoading(true);
+      setError(null);
+      setMessage('');
 
-    try {
-      let overview = null;
       try {
-        overview = await fetchCompanyQueues();
-        const mods = (overview.queues || [])
-          .map((q) => q.module)
-          .filter(Boolean);
-        const nextOptions = [...new Set([DEFAULT_MODULE, ...mods])].sort();
-        setModuleOptions(nextOptions);
-      } catch {
-        setModuleOptions([DEFAULT_MODULE, mod]);
-      }
+        let overview = null;
+        try {
+          overview = await fetchCompanyQueues();
+          const mods = (overview.queues || []).map((q) => q.module).filter(Boolean);
+          const nextOptions = [...new Set([DEFAULT_MODULE, ...mods])].sort();
+          setModuleOptions(nextOptions);
+        } catch {
+          setModuleOptions([DEFAULT_MODULE, mod]);
+        }
 
-      const data = await fetchCompanyQueueModule(mod);
-      setMeta({
-        company_id: data.company_id ?? overview?.company_id ?? null,
-        module: data.module ?? mod,
-        queue_key: data.queue_key ?? null,
-        length: data.length ?? 0,
-        queue_enabled: Boolean(data.queue_enabled ?? overview?.queue_enabled),
-        memory_fallback: Boolean(overview?.memory_fallback),
-      });
-      setPending(Array.isArray(data.pending) ? data.pending : []);
-      if (typeof data.message === 'string') setMessage(data.message);
-      else if (typeof overview?.message === 'string') setMessage(overview.message);
-    } catch (err) {
-      const exactError = err?.message || String(err) || 'Failed to load queue';
-      const statusSuffix = err?.status ? ` (HTTP ${err.status})` : '';
-      setError(`${exactError}${statusSuffix}`);
-      setPending([]);
-      setMeta({ ...EMPTY_META, module: mod });
-    } finally {
-      setLoading(false);
-    }
-  }, [module]);
+        const data = await fetchCompanyQueueModule(mod);
+        setMeta({
+          company_id: data.company_id ?? overview?.company_id ?? null,
+          module: data.module ?? mod,
+          queue_key: data.queue_key ?? null,
+          length: data.length ?? 0,
+          queue_enabled: Boolean(data.queue_enabled ?? overview?.queue_enabled),
+          memory_fallback: Boolean(overview?.memory_fallback),
+        });
+        setPending(Array.isArray(data.pending) ? data.pending : []);
+        if (typeof data.message === 'string') setMessage(data.message);
+        else if (typeof overview?.message === 'string') setMessage(overview.message);
+      } catch (err) {
+        const exactError = err?.message || String(err) || 'Failed to load queue';
+        const statusSuffix = err?.status ? ` (HTTP ${err.status})` : '';
+        setError(`${exactError}${statusSuffix}`);
+        setPending([]);
+        setMeta({ ...EMPTY_META, module: mod });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [module]
+  );
 
   useEffect(() => {
     loadQueue(module);
@@ -147,7 +148,7 @@ const CompanyQueuesPage = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Company queues</h5>
@@ -204,9 +205,11 @@ const CompanyQueuesPage = () => {
                   <div className="border border-radius-md p-3 h-100">
                     <p className="text-xs text-muted mb-1">Queue enabled</p>
                     <p className="text-sm mb-0">
-                      {meta.queue_enabled ?
+                      {meta.queue_enabled ? (
                         <span className="badge bg-success">Yes</span>
-                      : <span className="badge bg-secondary">No</span>}
+                      ) : (
+                        <span className="badge bg-secondary">No</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -214,9 +217,11 @@ const CompanyQueuesPage = () => {
                   <div className="border border-radius-md p-3 h-100">
                     <p className="text-xs text-muted mb-1">Memory fallback</p>
                     <p className="text-sm mb-0">
-                      {meta.memory_fallback ?
+                      {meta.memory_fallback ? (
                         <span className="badge bg-info">Active</span>
-                      : <span className="badge bg-secondary">Off</span>}
+                      ) : (
+                        <span className="badge bg-secondary">Off</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -276,13 +281,17 @@ const CompanyQueuesPage = () => {
                           <tr key={row.jobId || index}>
                             <td className="text-sm font-weight-normal">{row.rank ?? index + 1}</td>
                             <td className="text-sm font-weight-normal text-break">
-                              {row.jobId ?
-                                showExecute ?
+                              {row.jobId ? (
+                                showExecute ? (
                                   <Link to="/processes" className="text-dark" title={row.jobId}>
                                     <code className="text-xs">{row.jobId}</code>
                                   </Link>
-                                : <code className="text-xs">{row.jobId}</code>
-                              : '—'}
+                                ) : (
+                                  <code className="text-xs">{row.jobId}</code>
+                                )
+                              ) : (
+                                '—'
+                              )}
                             </td>
                             <td className="text-sm font-weight-normal">{formatScore(row.score)}</td>
                             {showExecute ? (

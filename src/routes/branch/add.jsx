@@ -56,13 +56,16 @@ const BranchAdd = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header pb-0">
+            <div className="card-header">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add Branch</h5>
                   <p className="text-sm mb-0">Create a new branch.</p>
                 </div>
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/branch')}>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => navigate('/branch')}
+                >
                   Back to List
                 </button>
               </div>
