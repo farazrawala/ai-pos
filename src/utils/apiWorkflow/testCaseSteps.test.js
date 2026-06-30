@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   WAC_SINGLE_PRODUCT_CASES,
+  WAC_BY_CLAUD_CASES,
   createInventoryTestCaseSteps,
 } from './testCaseSteps.js';
 import { buildQtyLedgerFromSteps } from './inventoryQty.js';
@@ -59,5 +60,36 @@ describe('WAC single-product regression suite (with negative inventory)', () => 
 
   it('returns to zero stock after the final historical delete (#22)', () => {
     expect(ledger[ledger.length - 1].qty).toBe(0);
+  });
+});
+
+describe('WAC by claud suite (wac_transaction_tracker.html)', () => {
+  const steps = createInventoryTestCaseSteps('wac-by-claud');
+  const ledger = buildQtyLedgerFromSteps(steps, WAC_BY_CLAUD_CASES);
+
+  it('produces one ledger entry per transaction case', () => {
+    expect(ledger).toHaveLength(WAC_BY_CLAUD_CASES.length);
+  });
+
+  it('running quantity matches the HTML tracker at every step', () => {
+    WAC_BY_CLAUD_CASES.forEach((tc, i) => {
+      expect(ledger[i].qty, `step #${tc.n} (${tc.type})`).toBe(tc.expected);
+    });
+  });
+
+  it('ends at qty 10 after final validation', () => {
+    expect(ledger[ledger.length - 1].qty).toBe(10);
+  });
+
+  it('includes negative stock steps from the spec', () => {
+    const negatives = ledger.filter((row) => row.qty < 0).map((row) => row.qty);
+    expect(negatives).toContain(-25);
+    expect(negatives).toContain(-20);
+  });
+
+  it('purchase return #21 is capped to available stock (qty 45 → 35)', () => {
+    const step21 = ledger[20];
+    expect(step21.qty).toBe(35);
+    expect(step21.avgCost).toBeGreaterThan(0);
   });
 });

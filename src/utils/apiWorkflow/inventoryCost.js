@@ -53,6 +53,9 @@ export function applySale(state, qty) {
   const q = Number(qty);
   if (!Number.isFinite(q) || q <= 0) return state;
   const newQty = state.qty - q;
+  if (newQty === 0) {
+    return { qty: 0, value: 0, avgCost: 0 };
+  }
   const avg = state.avgCost;
   return {
     qty: newQty,
@@ -86,6 +89,17 @@ export function applyQtyLedgerCost(state, lg) {
     case 'delete_sale':
     case 'delete_purchase_return':
       return applyPurchase(state, q, state.avgCost);
+    case 'edit_purchase_price': {
+      const oldC = Number(lg.unitCost ?? lg.unitPrice);
+      const newC = Number(lg.newUnitCost ?? lg.editPrice);
+      if (!Number.isFinite(oldC) || !Number.isFinite(newC)) return state;
+      const newValue = roundMoney2(state.value + q * (newC - oldC));
+      return {
+        qty: state.qty,
+        value: newValue,
+        avgCost: state.qty !== 0 ? newValue / state.qty : 0,
+      };
+    }
     default:
       return state;
   }

@@ -38,22 +38,14 @@ https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 
 //remainings:
 QUANTITY SHOULD GO IN MINUS ALSO (done)
-Add/edit variant product. 
-recheck WAC
-mark_as_default_customer, mark_as_default_vendor functionality
+recheck WAC 
+Add/edit variant product 
+
+mark_as_default_customer, mark_as_default_vendor functionality (testing remaining)
 in user add multiple accounts to be include and not to be include.
+
  - ecommerce
-sync products.
-fetch orders.
+fetch orders
 sync orders
+sync products
 
-
-
-//balance due
-TXN-240626-012249-4210503
-TXN-230626-045012-5092476
-
-
-//suspicious 
-TXN-230626-085621-7634937
-TXN-230626-075518-1804450

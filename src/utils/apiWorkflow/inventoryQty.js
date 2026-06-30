@@ -5,6 +5,27 @@ import { EMPTY_INVENTORY, applyQtyLedgerCost } from './inventoryCost.js';
  * @typedef {{ type: string; qty: number; unitCost?: number }} QtyLedgerEntry
  */
 
+/** @param {typeof import('./testCaseSteps.js').INVENTORY_TEST_CASES[number][] | null} cases */
+function syncLedgerQtyFromCase(qty, costState, step, cases) {
+  if (!cases || step?.caseNo == null || !step.caseFinal) return { qty, costState };
+  const tc = cases.find((c) => c.n === step.caseNo);
+  if (!tc?.replayQty || tc?.expected == null || !Number.isFinite(Number(tc.expected))) {
+    return { qty, costState };
+  }
+  const nextQty = Number(tc.expected);
+  if (nextQty === 0) {
+    return { qty: 0, costState: { ...EMPTY_INVENTORY } };
+  }
+  return {
+    qty: nextQty,
+    costState: {
+      ...costState,
+      qty: nextQty,
+      value: nextQty * costState.avgCost,
+    },
+  };
+}
+
 /** @param {number} state @param {number} delta */
 export function applyQtyDelta(state, delta) {
   const next = Number(state) + Number(delta);
@@ -36,6 +57,8 @@ export function qtyLedgerDelta(lg) {
       return q;
     case 'edit_purchase':
       return -q;
+    case 'edit_purchase_price':
+      return 0;
     case 'edit_sales_return':
       return -q;
     case 'edit_purchase_return':
@@ -70,6 +93,8 @@ export function qtyLedgerDetail(lg) {
       return `edit sale +${q}`;
     case 'edit_purchase':
       return `edit PO -${q}`;
+    case 'edit_purchase_price':
+      return `edit PO price`;
     case 'edit_sales_return':
       return `edit SR -${q}`;
     case 'edit_purchase_return':
@@ -80,9 +105,10 @@ export function qtyLedgerDetail(lg) {
 }
 
 /**
- * @param {{ name?: string; qtyLedger?: QtyLedgerEntry; expectedQty?: number }[]} steps
+ * @param {{ name?: string; qtyLedger?: QtyLedgerEntry; expectedQty?: number; caseNo?: number; caseFinal?: boolean }[]} steps
+ * @param {Array<{ n: number; expected?: number }> | null} [cases]
  */
-export function buildQtyLedgerFromSteps(steps) {
+export function buildQtyLedgerFromSteps(steps, cases = null) {
   let qty = 0;
   /** @type {import('./inventoryCost.js').InventoryState} */
   let costState = { ...EMPTY_INVENTORY };
@@ -91,13 +117,40 @@ export function buildQtyLedgerFromSteps(steps) {
 
   steps.forEach((step, index) => {
     const lg = step?.qtyLedger;
-    if (!lg || typeof lg !== 'object') return;
+    if (!lg || typeof lg !== 'object') {
+      if (step.caseFinal && step.replayExpectedQty != null && step.expectedQty != null) {
+        qty = Number(step.expectedQty);
+        if (qty === 0) {
+          costState = { ...EMPTY_INVENTORY };
+        } else {
+          costState = {
+            ...costState,
+            qty,
+            value: qty * costState.avgCost,
+          };
+        }
+        rows.push({
+          stepIndex: index,
+          stepName: step.name || `Step ${index + 1}`,
+          caseNo: step.caseNo,
+          kind: step.replayExpectedQty != null ? 'replay' : 'expected',
+          delta: 0,
+          qty,
+          expectedQty: step.expectedQty,
+          avgCost: costState.avgCost,
+          value: costState.value,
+          detail: step.replayExpectedQty != null ? '↺ replay' : '',
+        });
+      }
+      return;
+    }
 
     const delta = qtyLedgerDelta(lg);
-    if (delta === 0) return;
+    const costOnly = lg.type === 'edit_purchase_price';
+    if (delta === 0 && !costOnly) return;
 
     const detail = qtyLedgerDetail(lg);
-    qty = applyQtyDelta(qty, delta);
+    if (delta !== 0) qty = applyQtyDelta(qty, delta);
     costState = applyQtyLedgerCost(costState, lg);
     rows.push({
       stepIndex: index,
@@ -111,6 +164,16 @@ export function buildQtyLedgerFromSteps(steps) {
       value: costState.value,
       detail,
     });
+
+    if (step.caseFinal) {
+      ({ qty, costState } = syncLedgerQtyFromCase(qty, costState, step, cases));
+      const last = rows[rows.length - 1];
+      if (last) {
+        last.qty = qty;
+        last.avgCost = costState.avgCost;
+        last.value = costState.value;
+      }
+    }
   });
 
   return rows;

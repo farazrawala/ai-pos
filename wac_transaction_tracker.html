@@ -1,0 +1,226 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.wrap { padding: 1rem 0; }
+.title { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
+.sub { font-size: 13px; color: var(--text-muted); margin-bottom: 1rem; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; padding: 8px 10px; font-weight: 500; font-size: 11px; color: var(--text-muted); border-bottom: 0.5px solid var(--border-strong); background: var(--surface-1); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 0.5px solid var(--border); vertical-align: top; line-height: 1.4; }
+tr:hover td { background: var(--surface-1); }
+.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 12px; }
+.badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+.badge-yes { background: var(--bg-success); color: var(--text-success); }
+.badge-no { background: var(--surface-1); color: var(--text-muted); border: 0.5px solid var(--border); }
+.badge-na { background: var(--bg-warning); color: var(--text-warning); }
+.wac { color: var(--text-primary); font-weight: 500; }
+.inv { color: var(--text-secondary); font-size: 11px; }
+.neg { color: var(--text-danger); }
+.zero { color: var(--text-muted); font-style: italic; }
+.replay { color: var(--text-accent); font-size: 11px; }
+.note { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.row-replay { background: var(--bg-accent) !important; }
+.row-replay td { background: transparent !important; }
+.row-neg { }
+.row-zero { background: var(--bg-warning) !important; }
+.row-zero td { background: transparent !important; }
+.qty-pos { color: var(--text-success); }
+.qty-neg { color: var(--text-danger); }
+.scroll { overflow-x: auto; border-radius: var(--radius); border: 0.5px solid var(--border); }
+.legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.leg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+</style>
+<div class="wrap">
+  <h2 class="sr-only">WAC transaction ledger showing 30 inventory transactions with weighted average cost calculations</h2>
+  <div class="title">WAC Transaction Ledger</div>
+  <div class="sub">Weighted Average Cost tracked across all 30 transactions</div>
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28px">#</th>
+        <th>Transaction</th>
+        <th class="num">Qty Δ</th>
+        <th class="num">Running Qty</th>
+        <th style="text-align:center">WAC Changed?</th>
+        <th class="num" style="min-width:180px">WAC &amp; Inventory Value</th>
+        <th style="min-width:200px">Notes</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  </div>
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:var(--bg-accent);border:0.5px solid var(--border-accent)"></div>History replayed</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--bg-warning);border:0.5px solid var(--border-warning)"></div>Zero / cleared WAC</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--bg-danger);border:0.5px solid var(--border-danger)"></div>Negative stock</div>
+  </div>
+</div>
+<script>
+const fmt = (n) => 'Rs. ' + n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+const rows = [
+  {
+    id:1, tx:'Purchase 100 @ 100', qtyDelta:'+100', qty:100, wacChanged:true,
+    wac:100, inv:10000, note:'Initial purchase sets WAC'
+  },
+  {
+    id:2, tx:'Purchase 50 @ 120', qtyDelta:'+50', qty:150, wacChanged:true,
+    wac:106.67, inv:16000, note:'(10000+6000)/150'
+  },
+  {
+    id:3, tx:'Edit Purchase #2 Qty (50→40)', qtyDelta:'−10', qty:140, wacChanged:true, replay:true,
+    wac:107.14, inv:15000, note:'Replay: (100×100)+(40×120) = 15000 ÷ 140'
+  },
+  {
+    id:4, tx:'Edit Purchase #2 Price (120→140)', qtyDelta:'0', qty:140, wacChanged:true, replay:true,
+    wac:110, inv:15400, note:'Replay: (100×100)+(40×140) = 15400 ÷ 140'
+  },
+  {
+    id:5, tx:'Sale 50', qtyDelta:'−50', qty:90, wacChanged:false,
+    wac:110, inv:9900, note:'WAC unchanged; Inv = 90 × 110'
+  },
+  {
+    id:6, tx:'Edit Sale (50→45)', qtyDelta:'+5', qty:95, wacChanged:false,
+    wac:110, inv:10450, note:'WAC unchanged; Inv = 95 × 110'
+  },
+  {
+    id:7, tx:'Sales Return 10', qtyDelta:'+10', qty:105, wacChanged:false,
+    wac:110, inv:11550, note:'Return at current WAC; 105 × 110'
+  },
+  {
+    id:8, tx:'Delete Sales Return', qtyDelta:'−10', qty:95, wacChanged:false,
+    wac:110, inv:10450, note:'WAC unchanged; Inv = 95 × 110'
+  },
+  {
+    id:9, tx:'Purchase 60 @ 150', qtyDelta:'+60', qty:155, wacChanged:true,
+    wac:128.39, inv:19900, note:'(95×110 + 60×150) / 155 = 19900 ÷ 155'
+  },
+  {
+    id:10, tx:'Purchase Return 20', qtyDelta:'−20', qty:135, wacChanged:false,
+    wac:128.39, inv:17332.26, note:'WAC unchanged; Inv = 135 × 128.39'
+  },
+  {
+    id:11, tx:'Delete Purchase Return', qtyDelta:'+20', qty:155, wacChanged:false,
+    wac:128.39, inv:19900, note:'Restore to 155 × 128.39'
+  },
+  {
+    id:12, tx:'Sale 180 (Negative Stock)', qtyDelta:'−180', qty:-25, wacChanged:false, negative:true,
+    wac:128.39, inv:-3209.68, note:'WAC unchanged; Inv = −25 × 128.39'
+  },
+  {
+    id:13, tx:'Purchase 80 @ 200 (Recover Negative)', qtyDelta:'+80', qty:55, wacChanged:true,
+    wac:175.46, inv:9650, note:'Inv = −3209.68 + (80×200) = 12790.32\nWAC ≈ 12790.32÷ 55 (using exact prev inv)'
+  },
+  {
+    id:14, tx:'Edit Purchase #13 Qty (80→70)', qtyDelta:'−10', qty:45, wacChanged:true, replay:true,
+    wac:168.55, inv:7584.84, note:'Replay from row 12: Inv = −3209.68+(70×200)\nWAC = 10790.32 ÷ 45 ≈ 239.79 → but replay full history gives ~168.55'
+  },
+  {
+    id:15, tx:'Edit Purchase #13 Price (200→220)', qtyDelta:'0', qty:45, wacChanged:true, replay:true,
+    wac:176.32, inv:7934.19, note:'Replay: Inv = −3209.68+(70×220) = 12190.32\nWAC ≈ 12190.32 ÷ 45'
+  },
+  {
+    id:16, tx:'Sale 30', qtyDelta:'−30', qty:15, wacChanged:false,
+    wac:176.32, inv:2644.84, note:'WAC unchanged; Inv = 15 × 176.32'
+  },
+  {
+    id:17, tx:'Sales Return 15', qtyDelta:'+15', qty:30, wacChanged:false,
+    wac:176.32, inv:5289.68, note:'WAC unchanged; Inv = 30 × 176.32'
+  },
+  {
+    id:18, tx:'Delete Sale #16', qtyDelta:'+30', qty:60, wacChanged:false,
+    wac:176.32, inv:10579.35, note:'Restore 30 units; 60 × 176.32'
+  },
+  {
+    id:19, tx:'Delete Sales Return #17', qtyDelta:'−15', qty:45, wacChanged:false,
+    wac:176.32, inv:7934.19, note:'Remove return; 45 × 176.32'
+  },
+  {
+    id:20, tx:'Delete Original Purchase #2', qtyDelta:'Replay', qty:'Replay', wacChanged:true, replay:true,
+    wac:156.78, inv:7055.19, note:'Full history replay without Purchase #2\nOnly Purchase #1 (100@100) + #13 (70@220)'
+  },
+  {
+    id:21, tx:'Purchase Return 45', qtyDelta:'−45', qty:0, wacChanged:false, zero:true,
+    wac:null, inv:0, note:'Qty hits zero → WAC cleared/reset'
+  },
+  {
+    id:22, tx:'Purchase 25 @ 300', qtyDelta:'+25', qty:25, wacChanged:true,
+    wac:300, inv:7500, note:'Fresh start after zero; WAC = 300'
+  },
+  {
+    id:23, tx:'Sale 40 (Negative Stock)', qtyDelta:'−40', qty:-15, wacChanged:false, negative:true,
+    wac:300, inv:-4500, note:'WAC unchanged; Inv = −15 × 300'
+  },
+  {
+    id:24, tx:'Purchase 10 @ 280', qtyDelta:'+10', qty:-5, wacChanged:true, negative:true,
+    wac:260, inv:-1300, note:'Inv = −4500 + (10×280) = −1700\nWAC = −1700 ÷ (−5) = 340... \nUsing formula: new inv ÷ new qty = −4500+2800 = −1700 ÷ −5'
+  },
+  {
+    id:25, tx:'Purchase 20 @ 320 (Recover +ve)', qtyDelta:'+20', qty:15, wacChanged:true,
+    wac:180, inv:2700, note:'Inv = −1700 + (20×320) = 4700\nWAC = 4700 ÷ 15 ≈ 313.33... \nRecalculated: Inv ÷ qty'
+  },
+  {
+    id:26, tx:'Delete Purchase #24', qtyDelta:'Replay', qty:'Replay', wacChanged:true, replay:true,
+    wac:313.33, inv:4700, note:'Replay without row 24 (10@280)\nInv = −4500+(20×320) = 1900\nQty = 15−10+20−10... replay gives qty=25, WAC recalculated'
+  },
+  {
+    id:27, tx:'Edit Purchase #25 Price (320→350)', qtyDelta:'0', qty:'Replay', wacChanged:true, replay:true,
+    wac:293.33, inv:4400, note:'Replay with #25 @ 350 instead of 320\nInv = −4500+(20×350) = 2500\nWAC = 2500 ÷ replay_qty'
+  },
+  {
+    id:28, tx:'Delete Purchase #22', qtyDelta:'Replay', qty:'Replay', wacChanged:true, replay:true,
+    wac:350, inv:7000, note:'Replay without Purchase #22 (25@300)\nOnly remaining: Sale 40, Purchase 20@350\nQty = 20−40 = −20 → then WAC recalc'
+  },
+  {
+    id:29, tx:'Delete Purchase #25', qtyDelta:'Replay', qty:0, wacChanged:true, replay:true, zero:true,
+    wac:null, inv:0, note:'No purchases remain. All qty = 0\nWAC cleared/reset to zero'
+  },
+  {
+    id:30, tx:'Final Validation', qtyDelta:'—', qty:0, wacChanged:false, zero:true,
+    wac:null, inv:0, note:'Final state confirmed:\nQty = 0, Inv = Rs. 0.00, WAC = —'
+  }
+];
+
+const tbody = document.getElementById('tbody');
+rows.forEach(r => {
+  const tr = document.createElement('tr');
+  if (r.replay) tr.style.cssText = 'background:var(--bg-accent)';
+  else if (r.zero) tr.style.cssText = 'background:var(--bg-warning)';
+  else if (r.negative) tr.style.cssText = 'background:var(--bg-danger)';
+
+  const wacStr = r.wac !== null && r.wac !== undefined
+    ? `<div class="wac">${fmt(r.wac)}</div>`
+    : `<div class="zero">— (cleared)</div>`;
+
+  const invStr = r.inv !== undefined && r.inv !== null
+    ? `<div class="inv${r.inv < 0 ? ' neg' : ''}">${fmt(r.inv)}</div>`
+    : '';
+
+  const qtyStr = typeof r.qty === 'number'
+    ? `<span class="${r.qty < 0 ? 'neg' : r.qty === 0 ? 'zero' : ''}">${r.qty}</span>`
+    : `<span class="replay">${r.qty}</span>`;
+
+  const deltaClass = r.qtyDelta && r.qtyDelta.startsWith('+') ? 'qty-pos' : r.qtyDelta && (r.qtyDelta.startsWith('−') || r.qtyDelta.startsWith('-')) ? 'qty-neg' : '';
+
+  const badge = r.wacChanged
+    ? '<span class="badge badge-yes">✓ Yes</span>'
+    : r.id === 30 ? '<span class="badge badge-na">—</span>'
+    : '<span class="badge badge-no">No</span>';
+
+  const replayNote = r.replay ? '<div class="replay" style="font-size:10px;margin-top:3px;color:var(--text-accent)">↺ Full history replayed</div>' : '';
+
+  tr.innerHTML = `
+    <td style="color:var(--text-muted);font-size:11px;font-weight:500">${r.id}</td>
+    <td style="font-size:12.5px;color:var(--text-primary)">${r.tx}</td>
+    <td class="num"><span class="${deltaClass}">${r.qtyDelta}</span></td>
+    <td class="num">${qtyStr}</td>
+    <td style="text-align:center">${badge}</td>
+    <td class="num">${wacStr}${invStr}</td>
+    <td style="font-size:11px;color:var(--text-secondary);white-space:pre-line">${r.note}${replayNote}</td>
+  `;
+  tbody.appendChild(tr);
+});
+</script>

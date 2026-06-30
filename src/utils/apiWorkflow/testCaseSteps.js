@@ -53,14 +53,21 @@ function compRandEmail() {
  * Inventory scenarios from test_case.rb — run manually one step at a time.
  * @type {Array<{
  *   n: number;
- *   type: 'purchase' | 'sale' | 'purchase_return' | 'sales_return' | 'edit_purchase' | 'edit_sale' | 'delete_purchase' | 'delete_sale' | 'delete_purchase_return' | 'delete_sales_return';
+ *   type: 'purchase' | 'sale' | 'purchase_return' | 'sales_return' | 'edit_purchase' | 'edit_purchase_price' | 'edit_sale' | 'delete_purchase' | 'delete_sale' | 'delete_purchase_return' | 'delete_sales_return' | 'validation';
  *   label: string;
  *   qty?: number;
  *   price?: number;
  *   ref?: number;
  *   refQty?: number;
  *   editQty?: number;
+ *   editPrice?: number;
  *   undoQty?: number;
+ *   skipEdit?: boolean;
+ *   deleteAfterCreate?: boolean;
+ *   replayQty?: boolean;
+ *   wacChanged?: boolean;
+ *   wacNote?: string;
+ *   expected: number;
  *   skipEdit?: boolean;
  *   deleteAfterCreate?: boolean;
  *   expected: number;
@@ -284,6 +291,333 @@ export const WAC_SINGLE_PRODUCT_CASES = [
   { n: 22, type: 'delete_purchase', label: 'Delete Purchase #17 (replay entire history)', ref: 17, refQty: 25, undoQty: 25, expected: 0 },
 ];
 
+/**
+ * WAC transaction ledger — 30 scenarios (WAC by claud).
+ * Purchases, qty/price edits, sales, returns, negative stock, recovery,
+ * purchase returns capped to available stock, and historical deletes that replay
+ * the ledger. Running qty matches the spec at every step.
+ */
+export const WAC_BY_CLAUD_CASES = [
+  {
+    n: 1,
+    type: 'purchase',
+    label: 'Purchase 100 @ 100',
+    qty: 100,
+    price: 100,
+    expected: 100,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'WAC: Rs. 100.00 · Inventory: Rs. 10,000.00',
+  },
+  {
+    n: 2,
+    type: 'purchase',
+    label: 'Purchase 50 @ 120',
+    qty: 50,
+    price: 120,
+    expected: 150,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'WAC: Rs. 106.67 · Inventory: Rs. 16,000.00',
+  },
+  {
+    n: 3,
+    type: 'edit_purchase',
+    label: 'Edit Purchase #2 Qty (50 → 40)',
+    ref: 2,
+    editQty: 40,
+    expected: 140,
+    wacChanged: true,
+    wacNote: 'WAC recalculated',
+  },
+  {
+    n: 4,
+    type: 'edit_purchase_price',
+    label: 'Edit Purchase #2 Price (120 → 140)',
+    ref: 2,
+    refQty: 40,
+    editPrice: 140,
+    expected: 140,
+    wacChanged: true,
+    wacNote: 'WAC recalculated',
+  },
+  {
+    n: 5,
+    type: 'sale',
+    label: 'Sale 50',
+    qty: 50,
+    expected: 90,
+    skipEdit: true,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 6,
+    type: 'edit_sale',
+    label: 'Edit Sale #5 (50 → 45)',
+    ref: 5,
+    editQty: 45,
+    expected: 95,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 7,
+    type: 'sales_return',
+    label: 'Sales Return 10',
+    qty: 10,
+    expected: 105,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 8,
+    type: 'delete_sales_return',
+    label: 'Delete Sales Return #7',
+    ref: 7,
+    refQty: 10,
+    undoQty: 10,
+    expected: 95,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 9,
+    type: 'purchase',
+    label: 'Purchase 60 @ 150',
+    qty: 60,
+    price: 150,
+    expected: 155,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'New WAC calculated',
+  },
+  {
+    n: 10,
+    type: 'purchase_return',
+    label: 'Purchase Return 20',
+    qty: 20,
+    price: 150,
+    expected: 135,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 11,
+    type: 'delete_purchase_return',
+    label: 'Delete Purchase Return #10',
+    ref: 10,
+    refQty: 20,
+    undoQty: 20,
+    expected: 155,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 12,
+    type: 'sale',
+    label: 'Sale 180 (Negative Stock)',
+    qty: 180,
+    expected: -25,
+    skipEdit: true,
+    wacChanged: false,
+    wacNote: 'WAC unchanged · Inventory negative',
+  },
+  {
+    n: 13,
+    type: 'purchase',
+    label: 'Purchase 80 @ 200 (Recover Negative Stock)',
+    qty: 80,
+    price: 200,
+    expected: 55,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'WAC recalculated from negative stock',
+  },
+  {
+    n: 14,
+    type: 'edit_purchase',
+    label: 'Edit Purchase #13 Qty (80 → 70)',
+    ref: 13,
+    editQty: 70,
+    expected: 45,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 15,
+    type: 'edit_purchase_price',
+    label: 'Edit Purchase #13 Price (200 → 220)',
+    ref: 13,
+    refQty: 70,
+    editPrice: 220,
+    expected: 45,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 16,
+    type: 'sale',
+    label: 'Sale 30',
+    qty: 30,
+    expected: 15,
+    skipEdit: true,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 17,
+    type: 'sales_return',
+    label: 'Sales Return 15',
+    qty: 15,
+    expected: 30,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 18,
+    type: 'delete_sale',
+    label: 'Delete Sale #16',
+    ref: 16,
+    refQty: 30,
+    undoQty: 30,
+    expected: 60,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 19,
+    type: 'delete_sales_return',
+    label: 'Delete Sales Return #17',
+    ref: 17,
+    refQty: 15,
+    undoQty: 15,
+    expected: 45,
+    wacChanged: false,
+    wacNote: 'WAC unchanged',
+  },
+  {
+    n: 20,
+    type: 'delete_purchase',
+    label: 'Delete Original Purchase #2 (replay history)',
+    ref: 2,
+    refQty: 40,
+    undoQty: 40,
+    expected: 45,
+    replayQty: true,
+    wacChanged: true,
+    wacNote: 'Replay entire history · WAC recalculated',
+  },
+  {
+    n: 21,
+    type: 'purchase_return',
+    label: 'Purchase Return 10',
+    qty: 10,
+    price: 300,
+    expected: 35,
+    wacChanged: false,
+    wacNote: 'WAC unchanged · Return limited to available purchased stock',
+  },
+  {
+    n: 22,
+    type: 'purchase',
+    label: 'Purchase 25 @ 300',
+    qty: 25,
+    price: 300,
+    expected: 60,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'New WAC calculated',
+  },
+  {
+    n: 23,
+    type: 'sale',
+    label: 'Sale 80',
+    qty: 80,
+    expected: -20,
+    skipEdit: true,
+    wacChanged: false,
+    wacNote: 'WAC unchanged · Inventory negative',
+  },
+  {
+    n: 24,
+    type: 'purchase',
+    label: 'Purchase 30 @ 280',
+    qty: 30,
+    price: 280,
+    expected: 10,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'WAC recalculated from negative stock',
+  },
+  {
+    n: 25,
+    type: 'purchase',
+    label: 'Purchase 20 @ 320',
+    qty: 20,
+    price: 320,
+    expected: 30,
+    skipEdit: true,
+    wacChanged: true,
+    wacNote: 'New WAC calculated',
+  },
+  {
+    n: 26,
+    type: 'delete_purchase',
+    label: 'Delete Purchase #24 (replay history)',
+    ref: 24,
+    refQty: 30,
+    undoQty: 30,
+    expected: 30,
+    replayQty: true,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 27,
+    type: 'edit_purchase_price',
+    label: 'Edit Purchase #25 Price (320 → 350)',
+    ref: 25,
+    refQty: 20,
+    editPrice: 350,
+    expected: 30,
+    replayQty: true,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 28,
+    type: 'delete_purchase',
+    label: 'Delete Purchase #22 (replay history)',
+    ref: 22,
+    refQty: 25,
+    undoQty: 25,
+    expected: 30,
+    replayQty: true,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 29,
+    type: 'delete_purchase',
+    label: 'Delete Purchase #25 (replay history)',
+    ref: 25,
+    refQty: 20,
+    undoQty: 20,
+    expected: 10,
+    replayQty: true,
+    wacChanged: true,
+    wacNote: 'Replay history · WAC recalculated',
+  },
+  {
+    n: 30,
+    type: 'validation',
+    label: 'Final Validation',
+    expected: 10,
+    wacNote: 'Final qty should match replay result · Inventory Value = Qty × WAC',
+  },
+];
+
 /** Selectable test-case suites for the inventory runner. */
 export const TEST_CASE_SUITES = [
   {
@@ -317,6 +651,14 @@ export const TEST_CASE_SUITES = [
         body: {},
       },
     ],
+  },
+  {
+    id: 'wac-by-claud',
+    label: 'WAC by claud',
+    description:
+      '30-step Weighted Average Cost ledger: purchases at different costs, purchase qty/price edits, sales & sale edits, sales/purchase returns and their deletes, negative stock oversells, negative-stock recovery, purchase returns capped to available stock (#21), and historical purchase deletes that replay the ledger (#20, #26–#29). Final validation confirms qty = 10 and Inventory Value = Qty × WAC.',
+    getTransactionCases: () => [...WAC_BY_CLAUD_CASES],
+    postTransactionSteps: () => [],
   },
   {
     id: 'purchase-sell-return',
@@ -389,6 +731,38 @@ function inventoryCase(n, cases) {
   return cases.find((c) => c.n === n);
 }
 
+/** Qty on a PO after optional standalone qty-edit steps. */
+function effectivePoQty(refN, allCases) {
+  const refCase = inventoryCase(refN, allCases);
+  if (!refCase) return 0;
+  const editStep = allCases.find((c) => c.type === 'edit_purchase' && c.ref === refN);
+  if (editStep?.editQty != null && Number.isFinite(Number(editStep.editQty))) {
+    return Number(editStep.editQty);
+  }
+  return Number(refCase.qty) || 0;
+}
+
+/** Unit cost on a PO before a price-edit step at case `atCaseN`. */
+function effectivePoPriceBeforeEditAtStep(refN, allCases, atCaseN) {
+  const refCase = inventoryCase(refN, allCases);
+  if (!refCase) return 0;
+  const priorEdits = allCases.filter(
+    (c) => c.type === 'edit_purchase_price' && c.ref === refN && c.n < atCaseN
+  );
+  if (priorEdits.length === 0) return Number(refCase.price) || 0;
+  return Number(priorEdits[priorEdits.length - 1].editPrice) || Number(refCase.price) || 0;
+}
+
+/** Unit cost on a PO after prior price-edit steps. */
+function effectivePoPrice(refN, allCases) {
+  const refCase = inventoryCase(refN, allCases);
+  if (!refCase) return 0;
+  const priceEdits = allCases.filter((c) => c.type === 'edit_purchase_price' && c.ref === refN);
+  if (priceEdits.length === 0) return Number(refCase.price) || 0;
+  const last = priceEdits[priceEdits.length - 1];
+  return Number(last.editPrice) || Number(refCase.price) || 0;
+}
+
 /** @param {number} qty @param {number} [unitPrice] */
 function saleQtyLedger(qty, unitPrice = PRODUCT_PRICE) {
   return { type: 'sale', qty, unitPrice };
@@ -459,9 +833,10 @@ function saleBody(tc, qty = tc.qty) {
   };
 }
 
-/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty */
-function purchaseBody(tc, qty = tc.qty) {
-  const total = qty * tc.price;
+/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty @param {number} [unitPrice] */
+function purchaseBody(tc, qty = tc.qty, unitPrice = tc.price) {
+  const price = unitPrice ?? tc.price;
+  const total = qty * price;
   return {
     vendor_id: '{{vendor_id}}',
     ref_no: `TC-PO-${tc.n}`,
@@ -475,7 +850,7 @@ function purchaseBody(tc, qty = tc.qty) {
     order_status: 'active',
     'product_id[0]': '{{product_1_id}}',
     'qty[0]': String(qty),
-    'price[0]': String(tc.price),
+    'price[0]': String(price),
     'warehouse_id[0]': '{{warehouse_1_id}}',
     'shipping_per_unit[0]': '0',
     'total_shipping[0]': '0',
@@ -746,17 +1121,45 @@ function buildStepsForCase(tc, allCases) {
       const origQty = Number(refCase?.qty) || 0;
       const newQty = Number(tc.editQty);
       const removed = origQty - newQty;
+      const poPrice = effectivePoPrice(tc.ref, allCases);
       return [
         {
           ...base,
           method: 'PATCH',
           url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.ref}_id}}`,
           bodyType: 'form',
-          body: refCase ? purchaseBody(refCase, newQty) : {},
+          body: refCase ? purchaseBody(refCase, newQty, poPrice) : {},
           qtyLedger:
-            removed > 0
-              ? { type: 'edit_purchase', qty: removed, unitPrice: refCase?.price ?? 0 }
+            removed > 0 && !tc.replayQty
+              ? { type: 'edit_purchase', qty: removed, unitPrice: poPrice }
               : undefined,
+          replayExpectedQty:
+            tc.replayQty && tc.expected != null ? tc.expected : undefined,
+        },
+      ];
+    }
+    case 'edit_purchase_price': {
+      const refCase = inventoryCase(tc.ref, allCases);
+      const poQty = Number(tc.refQty) || effectivePoQty(tc.ref, allCases);
+      const newPrice = Number(tc.editPrice);
+      const oldPrice = effectivePoPriceBeforeEditAtStep(tc.ref, allCases, tc.n);
+      return [
+        {
+          ...base,
+          method: 'PATCH',
+          url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.ref}_id}}`,
+          bodyType: 'form',
+          body: refCase ? purchaseBody(refCase, poQty, newPrice) : {},
+          qtyLedger: tc.replayQty
+            ? undefined
+            : {
+                type: 'edit_purchase_price',
+                qty: poQty,
+                unitCost: oldPrice,
+                newUnitCost: newPrice,
+              },
+          replayExpectedQty:
+            tc.replayQty && tc.expected != null ? tc.expected : undefined,
         },
       ];
     }
@@ -783,17 +1186,22 @@ function buildStepsForCase(tc, allCases) {
     case 'delete_purchase': {
       const refCase = inventoryCase(tc.ref, allCases);
       const undoQty = overrideUndoQty(tc) ?? (effectiveTxnQty(refCase) || Number(tc.refQty) || 0);
+      const poPrice = effectivePoPrice(tc.ref, allCases);
       return [
         {
           ...base,
           method: 'DELETE',
           url: `{{url}}api/purchase_order/purchase_order_delete/{{txn_${tc.ref}_id}}`,
           body: {},
-          qtyLedger: {
-            type: 'delete_purchase',
-            qty: undoQty,
-            unitPrice: refCase?.price ?? 0,
-          },
+          qtyLedger: tc.replayQty
+            ? undefined
+            : {
+                type: 'delete_purchase',
+                qty: undoQty,
+                unitPrice: poPrice,
+              },
+          replayExpectedQty:
+            tc.replayQty && tc.expected != null ? tc.expected : undefined,
         },
       ];
     }
@@ -844,6 +1252,16 @@ function buildStepsForCase(tc, allCases) {
           },
         },
       ];
+    case 'validation':
+      return [
+        {
+          ...base,
+          method: 'GET',
+          url: '{{url}}api/product/get-all-active-pos?search=Inventory test product&limit=5',
+          body: {},
+          replayExpectedQty: tc.expected,
+        },
+      ];
     default:
       return [
         {
@@ -856,13 +1274,16 @@ function buildStepsForCase(tc, allCases) {
   }
 }
 
-/** @param {object[]} steps */
-function assignRunningExpected(steps) {
+/** @param {object[]} steps @param {typeof INVENTORY_TEST_CASES} [cases] */
+function assignRunningExpected(steps, _cases) {
   let runningQty = 0;
   return steps.map((step) => {
     const lg = step.qtyLedger;
     if (lg) {
       runningQty = applyQtyDelta(runningQty, qtyLedgerDelta(lg));
+    }
+    if (step.replayExpectedQty != null && Number.isFinite(Number(step.replayExpectedQty))) {
+      runningQty = Number(step.replayExpectedQty);
     }
     if (step.caseFinal) {
       return { ...step, expectedQty: runningQty };
@@ -1050,5 +1471,5 @@ export function createInventoryTestCaseSteps(suiteId = TEST_CASE_SUITES[0].id) {
     ...cases.flatMap((tc) => buildStepsForCase(tc, cases)),
     ...suite.postTransactionSteps(),
   ];
-  return assignRunningExpected([...createSetupSteps(), ...txnSteps]);
+  return assignRunningExpected([...createSetupSteps(), ...txnSteps], cases);
 }
