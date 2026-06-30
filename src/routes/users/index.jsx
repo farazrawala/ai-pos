@@ -9,17 +9,8 @@ import {
   setPage,
   setLimit,
   setSort,
-  deleteUser,
-  clearDeleteStatus,
 } from '../../features/users/usersSlice.js';
-import {
-  markUserAsDefaultCustomerRequest,
-  markUserAsDefaultVendorRequest,
-  isDefaultCustomerUser,
-  isDefaultVendorUser,
-  userHasRole,
-} from '../../features/users/usersAPI.js';
-import { toast } from '../../utils/toast.js';
+import { isDefaultCustomerUser, isDefaultVendorUser } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -58,16 +49,12 @@ const Users = () => {
     pagination,
     search: searchTerm,
     sort,
-    deleteStatus,
-    deleteError,
   } = useSelector((state) => state.users);
-  const authUser = useSelector((state) => state.user.user);
 
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('users');
+  const { canCreate, canEdit } = usePermissions('users');
   useRequireModuleAccess('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
-  const [markingDefaultUserId, setMarkingDefaultUserId] = useState('');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -116,84 +103,6 @@ const Users = () => {
   const handleLimitChange = (limit) => {
     dispatch(setLimit(limit));
   };
-
-  const reloadUsers = useCallback(() => {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    if (searchTerm) params.search = searchTerm;
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-    dispatch(fetchUsers(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
-
-  const handleMarkDefaultCustomer = async (user) => {
-    const userId = user?._id || user?.id;
-    if (!userId || isDefaultCustomerUser(user)) return;
-    if (!userHasRole(user, 'CUSTOMER')) {
-      toast.warning('Only users with the CUSTOMER role can be set as default customer.');
-      return;
-    }
-    setMarkingDefaultUserId(String(userId));
-    try {
-      await markUserAsDefaultCustomerRequest(userId);
-      toast.success(`"${user.name || 'User'}" is now the default customer.`);
-      reloadUsers();
-    } catch (err) {
-      toast.error(err?.message || 'Could not set default customer.');
-    } finally {
-      setMarkingDefaultUserId('');
-    }
-  };
-
-  const handleMarkDefaultVendor = async (user) => {
-    const userId = user?._id || user?.id;
-    if (!userId || isDefaultVendorUser(user)) return;
-    if (!userHasRole(user, 'VENDOR')) {
-      toast.warning('Only users with the VENDOR role can be set as default vendor.');
-      return;
-    }
-    setMarkingDefaultUserId(String(userId));
-    try {
-      await markUserAsDefaultVendorRequest(userId);
-      toast.success(`"${user.name || 'User'}" is now the default vendor.`);
-      reloadUsers();
-    } catch (err) {
-      toast.error(err?.message || 'Could not set default vendor.');
-    } finally {
-      setMarkingDefaultUserId('');
-    }
-  };
-
-  const handleDelete = async (userId, userName) => {
-    const authUserId = String(authUser?._id || authUser?.id || '');
-    if (authUserId && String(userId) === authUserId) {
-      window.alert('You cannot delete your own account.');
-      return;
-    }
-    const label = userName || 'this user';
-    if (
-      !window.confirm(`Are you sure you want to delete "${label}"? This action cannot be undone.`)
-    ) {
-      return;
-    }
-    try {
-      await dispatch(deleteUser(userId)).unwrap();
-      reloadUsers();
-    } catch (err) {
-      console.error('[Users] Delete failed', err);
-    }
-  };
-
-  useEffect(() => {
-    if (deleteStatus === 'succeeded') {
-      const timer = setTimeout(() => dispatch(clearDeleteStatus()), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [deleteStatus, dispatch]);
 
   const handleSort = (sortBy, isDoubleClick = false) => {
     if (isDoubleClick) {
@@ -334,12 +243,8 @@ const Users = () => {
                         const openingBalance = userOpeningBalance(item);
                         const profileUrl = userProfileImageUrl(item);
                         const userId = item._id || item.id;
-                        const isCustomer = userHasRole(item, 'CUSTOMER');
-                        const isVendor = userHasRole(item, 'VENDOR');
                         const isDefaultCustomer = isDefaultCustomerUser(item);
                         const isDefaultVendor = isDefaultVendorUser(item);
-                        const showActionsMenu = canEdit || canDelete;
-                        const isMarking = markingDefaultUserId === String(userId);
                         return (
                           <tr key={key}>
                             <td className="text-center">
@@ -424,52 +329,17 @@ const Users = () => {
                                 : '—'}
                             </td>
                             <td className="text-end">
-                              <div
-                                className="list-table-actions"
-                                style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}
-                              >
-                                {canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-primary mb-0"
-                                    onClick={() => navigate(`/users/edit/${userId}`)}
-                                    disabled={isMarking || deleteStatus === 'loading'}
-                                  >
-                                    Edit
-                                  </button>
-                                ) : null}
-                                {canEdit && isCustomer ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0"
-                                    onClick={() => handleMarkDefaultCustomer(item)}
-                                    disabled={isDefaultCustomer || isMarking}
-                                  >
-                                    {isDefaultCustomer ? 'Default customer' : 'Make default customer'}
-                                  </button>
-                                ) : null}
-                                {canEdit && isVendor ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0"
-                                    onClick={() => handleMarkDefaultVendor(item)}
-                                    disabled={isDefaultVendor || isMarking}
-                                  >
-                                    {isDefaultVendor ? 'Default vendor' : 'Make default vendor'}
-                                  </button>
-                                ) : null}
-                                {canDelete ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-danger mb-0"
-                                    onClick={() => handleDelete(userId, item.name)}
-                                    disabled={deleteStatus === 'loading'}
-                                  >
-                                    Delete
-                                  </button>
-                                ) : null}
-                                {!showActionsMenu ? <span className="text-muted">—</span> : null}
-                              </div>
+                              {canEdit ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-primary mb-0"
+                                  onClick={() => navigate(`/users/edit/${userId}`)}
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -478,11 +348,6 @@ const Users = () => {
                   </tbody>
                 </table>
               </ListDataTable>
-              {deleteError && (
-                <div className="alert alert-danger mx-3 mb-3" role="alert">
-                  {deleteError}
-                </div>
-              )}
             </div>
           </div>
         </div>
