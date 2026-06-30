@@ -8,7 +8,7 @@ export const STORE_TYPE_OPTIONS = [
 
 export const EMPTY_INTEGRATION_FORM = {
   store_type: 'shopify',
-  store_name: '',
+  name: '',
   storeLogoUrl: '',
   address: '',
   city: '',
@@ -26,7 +26,7 @@ export const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
 
 export const integrationNameFromRecord = (item) =>
-  item?.store_name || item?.storeName || item?.name || 'Integration';
+  item?.name || item?.store_name || item?.storeName || 'Integration';
 
 export const storeTypeLabel = (value) => {
   const match = STORE_TYPE_OPTIONS.find((opt) => opt.value === value);
@@ -43,7 +43,7 @@ export const integrationRecordToForm = (record) => {
   if (!record) return { ...EMPTY_INTEGRATION_FORM };
   return {
     store_type: record.store_type || record.storeType || 'shopify',
-    store_name: record.store_name || record.storeName || record.name || '',
+    name: record.name || record.store_name || record.storeName || '',
     storeLogoUrl: pickStoreLogoUrl(record),
     address: record.address || '',
     city: record.city || '',
@@ -66,7 +66,7 @@ export const syncIntegrationFormFromDom = (form, formElement) => {
   return {
     ...form,
     store_type: formData.get('store_type')?.toString() ?? form.store_type,
-    store_name: formData.get('store_name')?.toString() ?? form.store_name,
+    name: formData.get('name')?.toString() ?? form.name,
     address: formData.get('address')?.toString() ?? form.address,
     city: formData.get('city')?.toString() ?? form.city,
     state: formData.get('state')?.toString() ?? form.state,
@@ -80,7 +80,7 @@ export const syncIntegrationFormFromDom = (form, formElement) => {
   };
 };
 
-export const validateIntegrationForm = (form) => {
+export const validateIntegrationForm = (form, { isEdit = false } = {}) => {
   const errors = {};
   const storeType = fieldValue(form, 'store_type');
 
@@ -90,13 +90,15 @@ export const validateIntegrationForm = (form) => {
     errors.store_type = 'Invalid store type';
   }
 
-  if (!fieldValue(form, 'store_name')) errors.store_name = 'Store name is required';
+  if (!fieldValue(form, 'name')) errors.name = 'Store name is required';
   if (!fieldValue(form, 'address')) errors.address = 'Address is required';
   if (!fieldValue(form, 'city')) errors.city = 'City is required';
   if (!fieldValue(form, 'state')) errors.state = 'State is required';
   if (!fieldValue(form, 'url')) errors.url = 'URL is required';
   if (!fieldValue(form, 'integrationKey')) errors.integrationKey = 'Key is required';
-  if (!fieldValue(form, 'integrationSecret')) errors.integrationSecret = 'Secret is required';
+  if (!isEdit && !fieldValue(form, 'integrationSecret')) {
+    errors.integrationSecret = 'Secret is required';
+  }
   if (!fieldValue(form, 'description')) errors.description = 'Description is required';
 
   const email = fieldValue(form, 'email');
@@ -107,18 +109,20 @@ export const validateIntegrationForm = (form) => {
   return errors;
 };
 
-export const buildIntegrationPayload = (form, { storeLogoFile = null } = {}) => {
+export const buildIntegrationPayload = (form, { isEdit = false } = {}) => {
   const payload = {
     store_type: fieldValue(form, 'store_type'),
-    store_name: fieldValue(form, 'store_name'),
+    name: fieldValue(form, 'name'),
     address: fieldValue(form, 'address'),
     city: fieldValue(form, 'city'),
     state: fieldValue(form, 'state'),
     url: fieldValue(form, 'url'),
     key: fieldValue(form, 'integrationKey'),
-    secret: fieldValue(form, 'integrationSecret'),
     description: fieldValue(form, 'description'),
   };
+
+  const secret = fieldValue(form, 'integrationSecret');
+  if (secret || !isEdit) payload.secret = secret;
 
   const email = fieldValue(form, 'email');
   const phone = fieldValue(form, 'phone');
@@ -127,7 +131,6 @@ export const buildIntegrationPayload = (form, { storeLogoFile = null } = {}) => 
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
   if (token) payload.token = token;
-  if (storeLogoFile) payload.image = storeLogoFile;
 
   return payload;
 };

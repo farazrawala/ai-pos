@@ -5,6 +5,8 @@ import {
   createIntegrationRequest,
   updateIntegrationRequest,
   deleteIntegrationRequest,
+  extractIntegrationRecord,
+  isIntegrationUploadFilePart,
 } from './integrationAPI.js';
 
 export const fetchIntegrations = createAsyncThunk(
@@ -31,9 +33,13 @@ export const fetchIntegrationById = createAsyncThunk(
 
 export const createIntegration = createAsyncThunk(
   'integration/createIntegration',
-  async (integrationData, { rejectWithValue }) => {
+  async ({ integrationFields, image }, { rejectWithValue }) => {
     try {
-      return await createIntegrationRequest(integrationData);
+      const payload = {
+        ...integrationFields,
+        ...(isIntegrationUploadFilePart(image) ? { image } : {}),
+      };
+      return await createIntegrationRequest(payload);
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to create integration');
     }
@@ -42,9 +48,13 @@ export const createIntegration = createAsyncThunk(
 
 export const updateIntegration = createAsyncThunk(
   'integration/updateIntegration',
-  async ({ integrationId, integrationData }, { rejectWithValue }) => {
+  async ({ integrationId, integrationFields, image }, { rejectWithValue }) => {
     try {
-      const response = await updateIntegrationRequest(integrationId, integrationData);
+      const payload = {
+        ...integrationFields,
+        ...(isIntegrationUploadFilePart(image) ? { image } : {}),
+      };
+      const response = await updateIntegrationRequest(integrationId, payload);
       return { integrationId, response };
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to update integration');
@@ -149,7 +159,8 @@ const integrationSlice = createSlice({
       })
       .addCase(fetchIntegrationById.fulfilled, (state, action) => {
         state.fetchStatus = 'succeeded';
-        state.currentIntegration = action.payload.data || action.payload;
+        state.currentIntegration =
+          extractIntegrationRecord(action.payload) ?? action.payload?.data ?? action.payload;
       })
       .addCase(fetchIntegrationById.rejected, (state, action) => {
         state.fetchStatus = 'failed';
@@ -168,9 +179,11 @@ const integrationSlice = createSlice({
             String(item._id || item.id || item.integration_id) === String(integrationId)
         );
         if (index !== -1) {
+          const updated =
+            extractIntegrationRecord(action.payload.response) ?? action.payload.response?.data;
           state.list[index] = {
             ...state.list[index],
-            ...(action.payload.response.data || action.payload.response),
+            ...(updated && typeof updated === 'object' ? updated : action.payload.response),
           };
         }
       })

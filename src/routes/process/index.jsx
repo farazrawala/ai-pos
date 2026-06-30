@@ -11,10 +11,32 @@ import {
 import { executeProcessRequest } from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 
 const processIdFromRecord = (item) => item?._id || item?.id || item?.process_id || '';
+
+/** Processes table columns. `sno`, `action`, `actions` are always visible. */
+const PROCESS_COLUMNS = [
+  { key: 'sno', label: 'S.No', alwaysVisible: true },
+  { key: 'action', label: 'Action', alwaysVisible: true },
+  { key: 'integration', label: 'Integration' },
+  { key: 'product', label: 'Product' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'count', label: 'Count' },
+  { key: 'page', label: 'Page' },
+  { key: 'hits', label: 'Hits' },
+  { key: 'progress', label: 'Progress' },
+  { key: 'remarks', label: 'Remarks' },
+  { key: 'status', label: 'Status' },
+  { key: 'createdAt', label: 'Created At' },
+  { key: 'updatedAt', label: 'Updated At' },
+  { key: 'duration', label: 'Duration' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
 
 const formatAction = (action) => {
   if (!action) return '-';
@@ -96,9 +118,10 @@ const ProcessIndex = () => {
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
   const [executingProcessId, setExecutingProcessId] = useState(null);
   const [executeError, setExecuteError] = useState(null);
+
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('processes', PROCESS_COLUMNS);
 
   const buildFetchParams = () => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -113,6 +136,7 @@ const ProcessIndex = () => {
   const refreshProcesses = () => {
     dispatch(fetchProcesses(buildFetchParams()));
   };
+
   useEffect(() => {
     refreshProcesses();
   }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
@@ -156,24 +180,23 @@ const ProcessIndex = () => {
     [dispatch]
   );
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
     }
-    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    sortClickTimeoutRef.current = setTimeout(() => dispatch(setSort({ sortBy })), 200);
+    dispatch(setSort({ sortBy: column }));
   };
 
-  const renderSortIcon = (columnName) =>
-    sort.sortBy !== columnName ? (
-      <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh
+      column={column}
+      label={label}
+      sort={sort}
+      onSort={handleSort}
+      className={className}
+    />
+  );
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -188,7 +211,6 @@ const ProcessIndex = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
 
@@ -219,6 +241,13 @@ const ProcessIndex = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={PROCESS_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="processColumnVisibilityMenu"
+                    />
                   </div>
                 </div>
               </div>
@@ -243,61 +272,26 @@ const ProcessIndex = () => {
                   <thead>
                     <tr>
                       <th>S.No</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('action')}
-                        onDoubleClick={() => handleSort('action', true)}
-                      >
-                        Action
-                        {renderSortIcon('action')}
-                      </th>
-                      <th>Integration</th>
-                      <th>Product</th>
-                      <th>Priority</th>
-                      <th>Count</th>
-                      <th>Page</th>
-                      <th>Hits</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('progress')}
-                        onDoubleClick={() => handleSort('progress', true)}
-                      >
-                        Progress
-                        {renderSortIcon('progress')}
-                      </th>
-                      <th>Remarks</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('status')}
-                        onDoubleClick={() => handleSort('status', true)}
-                      >
-                        Status
-                        {renderSortIcon('status')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('createdAt')}
-                        onDoubleClick={() => handleSort('createdAt', true)}
-                      >
-                        Created At
-                        {renderSortIcon('createdAt')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('updatedAt')}
-                        onDoubleClick={() => handleSort('updatedAt', true)}
-                      >
-                        Updated At
-                        {renderSortIcon('updatedAt')}
-                      </th>
-                      <th>Duration</th>
+                      {sortableTh('action', 'Action')}
+                      {isVisible('integration') ? <th>Integration</th> : null}
+                      {isVisible('product') ? <th>Product</th> : null}
+                      {isVisible('priority') ? <th>Priority</th> : null}
+                      {isVisible('count') ? <th>Count</th> : null}
+                      {isVisible('page') ? <th>Page</th> : null}
+                      {isVisible('hits') ? <th>Hits</th> : null}
+                      {isVisible('progress') ? sortableTh('progress', 'Progress') : null}
+                      {isVisible('remarks') ? <th>Remarks</th> : null}
+                      {isVisible('status') ? sortableTh('status', 'Status') : null}
+                      {isVisible('createdAt') ? sortableTh('createdAt', 'Created At') : null}
+                      {isVisible('updatedAt') ? sortableTh('updatedAt', 'Updated At') : null}
+                      {isVisible('duration') ? <th>Duration</th> : null}
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="15" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan={visibleCount} className="text-center text-sm font-weight-normal p-4">
                           No processes found
                         </td>
                       </tr>
@@ -316,34 +310,50 @@ const ProcessIndex = () => {
                                 {formatAction(item.action)}
                               </span>
                             </td>
-                            <td title={item.integration_id || ''}>
-                              {shortId(item.integration_id)}
-                            </td>
-                            <td title={item.product_id || ''}>{shortId(item.product_id)}</td>
-                            <td>{item.priority ?? '-'}</td>
-                            <td>{item.count ?? '-'}</td>
-                            <td>{item.page ?? '-'}</td>
-                            <td>{item.hits ?? 0}</td>
-                            <td>
-                              <span className={`badge ${progressBadgeClass(item.progress)}`}>
-                                {formatProgress(item.progress)}
-                              </span>
-                            </td>
-                            <td>{item.remarks || '-'}</td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  String(item.status || '').toLowerCase() === 'active'
-                                    ? 'bg-success'
-                                    : 'bg-secondary'
-                                }`}
-                              >
-                                {item.status || 'inactive'}
-                              </span>
-                            </td>
-                            <td>{formatProcessTimestamp(createdAt)}</td>
-                            <td>{formatProcessTimestamp(updatedAt)}</td>
-                            <td title={duration !== '-' ? `Updated − created` : undefined}>{duration}</td>
+                            {isVisible('integration') ? (
+                              <td title={item.integration_id || ''}>
+                                {shortId(item.integration_id)}
+                              </td>
+                            ) : null}
+                            {isVisible('product') ? (
+                              <td title={item.product_id || ''}>{shortId(item.product_id)}</td>
+                            ) : null}
+                            {isVisible('priority') ? <td>{item.priority ?? '-'}</td> : null}
+                            {isVisible('count') ? <td>{item.count ?? '-'}</td> : null}
+                            {isVisible('page') ? <td>{item.page ?? '-'}</td> : null}
+                            {isVisible('hits') ? <td>{item.hits ?? 0}</td> : null}
+                            {isVisible('progress') ? (
+                              <td>
+                                <span className={`badge ${progressBadgeClass(item.progress)}`}>
+                                  {formatProgress(item.progress)}
+                                </span>
+                              </td>
+                            ) : null}
+                            {isVisible('remarks') ? <td>{item.remarks || '-'}</td> : null}
+                            {isVisible('status') ? (
+                              <td>
+                                <span
+                                  className={`badge ${
+                                    String(item.status || '').toLowerCase() === 'active'
+                                      ? 'bg-success'
+                                      : 'bg-secondary'
+                                  }`}
+                                >
+                                  {item.status || 'inactive'}
+                                </span>
+                              </td>
+                            ) : null}
+                            {isVisible('createdAt') ? (
+                              <td>{formatProcessTimestamp(createdAt)}</td>
+                            ) : null}
+                            {isVisible('updatedAt') ? (
+                              <td>{formatProcessTimestamp(updatedAt)}</td>
+                            ) : null}
+                            {isVisible('duration') ? (
+                              <td title={duration !== '-' ? 'Updated − created' : undefined}>
+                                {duration}
+                              </td>
+                            ) : null}
                             <td>
                               <button
                                 type="button"

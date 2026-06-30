@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createIntegration } from '../../features/integration/integrationSlice.js';
-import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
+import { pickIntegrationImageFromSubmit } from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
@@ -101,12 +101,12 @@ const IntegrationAdd = () => {
 
     setIsSubmitting(true);
     try {
+      const image = pickIntegrationImageFromSubmit(storeLogoFile, e.currentTarget);
       await dispatch(
-        createIntegration(
-          buildIntegrationPayload(syncedForm, {
-            storeLogoFile: isUserUploadFilePart(storeLogoFile) ? storeLogoFile : null,
-          })
-        )
+        createIntegration({
+          integrationFields: buildIntegrationPayload(syncedForm),
+          image,
+        })
       ).unwrap();
       clearStoreLogoSelection();
       showToast('successToast');
@@ -145,7 +145,7 @@ const IntegrationAdd = () => {
               </div>
             </div>
             <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} encType="multipart/form-data">
                 <div className="mb-3">
                   <label htmlFor="store_type" className="form-label">
                     Store type <span className="text-danger">*</span>
@@ -168,19 +168,19 @@ const IntegrationAdd = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="store_name" className="form-label">
+                  <label htmlFor="name" className="form-label">
                     Store name <span className="text-danger">*</span>
                   </label>
                   <input
                     type="text"
-                    className={`form-control ${errors.store_name ? 'is-invalid' : ''}`}
-                    id="store_name"
-                    name="store_name"
-                    value={form.store_name}
+                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                    id="name"
+                    name="name"
+                    value={form.name}
                     onChange={handleChange}
                     disabled={isSubmitting}
                   />
-                  {errors.store_name && <div className="invalid-feedback">{errors.store_name}</div>}
+                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                 </div>
 
                 <div className="mb-3">
@@ -192,10 +192,15 @@ const IntegrationAdd = () => {
                     type="file"
                     className={`form-control ${errors.image ? 'is-invalid' : ''}`}
                     id="store_image"
+                    name="image"
                     accept="image/*"
                     onChange={handleStoreLogoChange}
                     disabled={isSubmitting}
                   />
+                  <small className="text-muted d-block">
+                    Optional. Uploaded as <code className="text-xs">image</code> via multipart on{' '}
+                    <code className="text-xs">POST /integration/create</code>.
+                  </small>
                   {errors.image && (
                     <div className="invalid-feedback d-block">{errors.image}</div>
                   )}

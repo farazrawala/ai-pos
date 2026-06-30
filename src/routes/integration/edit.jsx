@@ -7,7 +7,7 @@ import {
   clearCurrentIntegration,
   clearUpdateStatus,
 } from '../../features/integration/integrationSlice.js';
-import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
+import { pickIntegrationImageFromSubmit } from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
@@ -90,20 +90,20 @@ const IntegrationEdit = () => {
     e.preventDefault();
     const syncedForm = syncIntegrationFormFromDom(form, e.currentTarget);
     setForm(syncedForm);
-    const nextErrors = validateIntegrationForm(syncedForm);
+    const nextErrors = validateIntegrationForm(syncedForm, { isEdit: true });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     try {
+      const image = pickIntegrationImageFromSubmit(storeLogoFile, e.currentTarget);
       await dispatch(
         updateIntegration({
           integrationId: id,
-          integrationData: buildIntegrationPayload(syncedForm, {
-            storeLogoFile: isUserUploadFilePart(storeLogoFile) ? storeLogoFile : null,
-          }),
+          integrationFields: buildIntegrationPayload(syncedForm, { isEdit: true }),
+          image,
         })
       ).unwrap();
-      if (isUserUploadFilePart(storeLogoFile)) clearStoreLogoSelection();
+      if (image) clearStoreLogoSelection();
       navigate('/integration');
     } catch (error) {
       const message =
@@ -145,7 +145,7 @@ const IntegrationEdit = () => {
               </div>
             </div>
             <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} encType="multipart/form-data">
                 <div className="mb-3">
                   <label htmlFor="store_type" className="form-label">
                     Store type <span className="text-danger">*</span>
@@ -168,19 +168,19 @@ const IntegrationEdit = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="store_name" className="form-label">
+                  <label htmlFor="name" className="form-label">
                     Store name <span className="text-danger">*</span>
                   </label>
                   <input
                     type="text"
-                    className={`form-control ${errors.store_name ? 'is-invalid' : ''}`}
-                    id="store_name"
-                    name="store_name"
-                    value={form.store_name}
+                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                    id="name"
+                    name="name"
+                    value={form.name}
                     onChange={handleChange}
                     disabled={isSubmitting}
                   />
-                  {errors.store_name && <div className="invalid-feedback">{errors.store_name}</div>}
+                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                 </div>
 
                 <div className="mb-3">
@@ -192,6 +192,7 @@ const IntegrationEdit = () => {
                     type="file"
                     className={`form-control ${errors.image ? 'is-invalid' : ''}`}
                     id="store_image"
+                    name="image"
                     accept="image/*"
                     onChange={handleStoreLogoChange}
                     disabled={isSubmitting}
@@ -199,6 +200,10 @@ const IntegrationEdit = () => {
                   {errors.image && (
                     <div className="invalid-feedback d-block">{errors.image}</div>
                   )}
+                  <small className="text-muted d-block">
+                    Optional. Uploaded as <code className="text-xs">image</code> via multipart when
+                    changed.
+                  </small>
                   {(storeLogoPreview || form.storeLogoUrl) && (
                     <div className="mt-3 d-flex align-items-start gap-2">
                       <img
@@ -357,7 +362,7 @@ const IntegrationEdit = () => {
 
                 <div className="mb-3">
                   <label htmlFor="integration_secret" className="form-label">
-                    Secret <span className="text-danger">*</span>
+                    Secret
                   </label>
                   <input
                     type="password"
@@ -372,6 +377,7 @@ const IntegrationEdit = () => {
                   {errors.integrationSecret && (
                     <div className="invalid-feedback">{errors.integrationSecret}</div>
                   )}
+                  <small className="text-muted">Leave blank to keep the current secret.</small>
                 </div>
 
                 <div className="mb-4">

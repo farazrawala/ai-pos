@@ -23,11 +23,11 @@ import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
 import { integrationIdFromRecord, integrationNameFromRecord, storeTypeLabel } from './integrationForm.js';
 
-/** Integrations table columns. `sno`, `store_name`, `actions` are always visible. */
+/** Integrations table columns. `sno`, `name`, `actions` are always visible. */
 const INTEGRATION_COLUMNS = [
   { key: 'sno', label: 'S.No', alwaysVisible: true },
   { key: 'image', label: 'Image' },
-  { key: 'store_name', label: 'Store name', alwaysVisible: true },
+  { key: 'name', label: 'Store name', alwaysVisible: true },
   { key: 'store_type', label: 'Store type' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },

@@ -1,9 +1,36 @@
 import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
-import { isUserUploadFilePart } from '../users/usersAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
 export const INTEGRATION_IMAGE_FIELD = 'image';
+
+/** True for values from `<input type="file">`. */
+export const isIntegrationUploadFilePart = (value) => {
+  if (value == null || typeof value !== 'object') return false;
+  if (typeof File !== 'undefined' && value instanceof File) return true;
+  if (typeof Blob === 'undefined' || !(value instanceof Blob)) return false;
+  if (typeof value.name === 'string') return true;
+  return typeof value.lastModified === 'number';
+};
+
+export const extractIntegrationRecord = (body) => {
+  if (!body || typeof body !== 'object') return null;
+  if (Array.isArray(body)) return body[0] ?? null;
+
+  const candidates = [body.data, body.integration, body];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    if (candidate.data && typeof candidate.data === 'object' && !Array.isArray(candidate.data)) {
+      const nested = candidate.data;
+      if (nested._id || nested.id || nested.integration_id || nested.name != null) return nested;
+    }
+    if (candidate._id || candidate.id || candidate.integration_id || candidate.name != null) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
 
 const logIntegrationModuleError = (operation, details) => {
   console.error(`[Integration module] ${operation}`, details);
@@ -35,61 +62,42 @@ const appendIntegrationFieldsToFormData = (formData, data = {}) => {
   });
 };
 
+/** Build multipart body for integration create/update (`image` file field when provided). */
+export const buildIntegrationFormData = (fields = {}, image = null) => {
+  const formData = new FormData();
+  appendIntegrationFieldsToFormData(formData, fields);
+  if (isIntegrationUploadFilePart(image)) {
+    formData.append(INTEGRATION_IMAGE_FIELD, image, image.name || 'upload');
+  }
+  return formData;
+};
+
+/** Prefer React file state; fall back to `<input name="image">` on the form. */
+export const pickIntegrationImageFromSubmit = (fileState, formElement) => {
+  if (isIntegrationUploadFilePart(fileState)) return fileState;
+  if (!formElement) return undefined;
+  const raw = new FormData(formElement).get(INTEGRATION_IMAGE_FIELD);
+  return isIntegrationUploadFilePart(raw) ? raw : undefined;
+};
+
 const authHeadersForMultipart = () => {
   const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-const postIntegrationRequest = async (url, integrationData) => {
-  const { image, ...rest } = integrationData || {};
-  const useMultipart = isUserUploadFilePart(image);
-
-  if (useMultipart) {
-    const formData = new FormData();
-    appendIntegrationFieldsToFormData(formData, rest);
-    const fileName = image.name || 'upload';
-    formData.append(INTEGRATION_IMAGE_FIELD, image, fileName);
-
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: authHeadersForMultipart(),
-        body: formData,
-      });
-    } catch (err) {
-      logIntegrationModuleError('postIntegrationRequest network error (multipart)', {
-        url,
-        error: err,
-      });
-      throw err;
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const message = errorData.message || `HTTP error! status: ${response.status}`;
-      logIntegrationModuleError('postIntegrationRequest failed (multipart)', {
-        status: response.status,
-        errorData,
-        message,
-      });
-      throw new Error(message);
-    }
-
-    return response.json();
-  }
-
+const sendIntegrationMultipart = async (url, method, formData) => {
   let response;
   try {
     response = await fetch(url, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(rest),
+      method,
+      headers: authHeadersForMultipart(),
+      body: formData,
     });
   } catch (err) {
-    logIntegrationModuleError('postIntegrationRequest network error', {
+    logIntegrationModuleError('sendIntegrationMultipart network error', {
       url,
-      payloadKeys: Object.keys(rest || {}),
+      method,
+      formFieldKeys: [...formData.keys()],
       error: err,
     });
     throw err;
@@ -98,7 +106,10 @@ const postIntegrationRequest = async (url, integrationData) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const message = errorData.message || `HTTP error! status: ${response.status}`;
-    logIntegrationModuleError('postIntegrationRequest failed', {
+    logIntegrationModuleError('sendIntegrationMultipart failed', {
+      url,
+      method,
+      formFieldKeys: [...formData.keys()],
       status: response.status,
       errorData,
       message,
@@ -106,46 +117,27 @@ const postIntegrationRequest = async (url, integrationData) => {
     throw new Error(message);
   }
 
-  return response.json();
+  try {
+    const result = await response.json();
+    return extractIntegrationRecord(result) ?? result;
+  } catch {
+    return { success: true };
+  }
+};
+
+const postIntegrationRequest = async (url, integrationData) => {
+  const { image, ...rest } = integrationData || {};
+  const formData = buildIntegrationFormData(rest, image);
+  return sendIntegrationMultipart(url, 'POST', formData);
 };
 
 const patchIntegrationRequest = async (url, integrationData) => {
   const { image, ...rest } = integrationData || {};
-  const useMultipart = isUserUploadFilePart(image);
+  const useMultipart = isIntegrationUploadFilePart(image);
 
   if (useMultipart) {
-    const formData = new FormData();
-    appendIntegrationFieldsToFormData(formData, rest);
-    const fileName = image.name || 'upload';
-    formData.append(INTEGRATION_IMAGE_FIELD, image, fileName);
-
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'PATCH',
-        headers: authHeadersForMultipart(),
-        body: formData,
-      });
-    } catch (err) {
-      logIntegrationModuleError('patchIntegrationRequest network error (multipart)', {
-        url,
-        error: err,
-      });
-      throw err;
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const message = errorData.message || `HTTP error! status: ${response.status}`;
-      logIntegrationModuleError('patchIntegrationRequest failed (multipart)', {
-        status: response.status,
-        errorData,
-        message,
-      });
-      throw new Error(message);
-    }
-
-    return response.json();
+    const formData = buildIntegrationFormData(rest, image);
+    return sendIntegrationMultipart(url, 'PATCH', formData);
   }
 
   let response;
@@ -171,7 +163,8 @@ const patchIntegrationRequest = async (url, integrationData) => {
     throw new Error(message);
   }
 
-  return response.json();
+  const result = await response.json();
+  return extractIntegrationRecord(result) ?? result;
 };
 
 export const pickIntegrationStoreLogoUrl = (record) => {
@@ -279,7 +272,8 @@ export const fetchIntegrationByIdRequest = async (integrationId) => {
     throw new Error(message);
   }
 
-  return response.json();
+  const result = await response.json();
+  return extractIntegrationRecord(result) ?? result;
 };
 
 export const createIntegrationRequest = async (integrationData) => {
