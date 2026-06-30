@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -7,6 +7,7 @@ import {
   clearCurrentIntegration,
   clearUpdateStatus,
 } from '../../features/integration/integrationSlice.js';
+import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
@@ -27,6 +28,9 @@ const IntegrationEdit = () => {
   const { canEdit } = usePermissions('integration');
   const [form, setForm] = useState({ ...EMPTY_INTEGRATION_FORM });
   const [errors, setErrors] = useState({});
+  const [storeLogoFile, setStoreLogoFile] = useState(null);
+  const [storeLogoPreview, setStoreLogoPreview] = useState(null);
+  const storeLogoInputRef = useRef(null);
   const isSubmitting = updateStatus === 'loading';
 
   useEffect(() => {
@@ -54,6 +58,34 @@ const IntegrationEdit = () => {
     }
   };
 
+  const handleStoreLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, image: 'Please choose an image file.' }));
+      return;
+    }
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.image;
+      return next;
+    });
+    setStoreLogoFile(file);
+    setStoreLogoPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearStoreLogoSelection = () => {
+    setStoreLogoFile(null);
+    setStoreLogoPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (storeLogoInputRef.current) storeLogoInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const syncedForm = syncIntegrationFormFromDom(form, e.currentTarget);
@@ -66,9 +98,12 @@ const IntegrationEdit = () => {
       await dispatch(
         updateIntegration({
           integrationId: id,
-          integrationData: buildIntegrationPayload(syncedForm),
+          integrationData: buildIntegrationPayload(syncedForm, {
+            storeLogoFile: isUserUploadFilePart(storeLogoFile) ? storeLogoFile : null,
+          }),
         })
       ).unwrap();
+      if (isUserUploadFilePart(storeLogoFile)) clearStoreLogoSelection();
       navigate('/integration');
     } catch (error) {
       const message =
@@ -133,19 +168,57 @@ const IntegrationEdit = () => {
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="name" className="form-label">
-                    Name <span className="text-danger">*</span>
+                  <label htmlFor="store_name" className="form-label">
+                    Store name <span className="text-danger">*</span>
                   </label>
                   <input
                     type="text"
-                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                    id="name"
-                    name="name"
-                    value={form.name}
+                    className={`form-control ${errors.store_name ? 'is-invalid' : ''}`}
+                    id="store_name"
+                    name="store_name"
+                    value={form.store_name}
                     onChange={handleChange}
                     disabled={isSubmitting}
                   />
-                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                  {errors.store_name && <div className="invalid-feedback">{errors.store_name}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="store_image" className="form-label">
+                    Store Image
+                  </label>
+                  <input
+                    ref={storeLogoInputRef}
+                    type="file"
+                    className={`form-control ${errors.image ? 'is-invalid' : ''}`}
+                    id="store_image"
+                    accept="image/*"
+                    onChange={handleStoreLogoChange}
+                    disabled={isSubmitting}
+                  />
+                  {errors.image && (
+                    <div className="invalid-feedback d-block">{errors.image}</div>
+                  )}
+                  {(storeLogoPreview || form.storeLogoUrl) && (
+                    <div className="mt-3 d-flex align-items-start gap-2">
+                      <img
+                        src={storeLogoPreview || form.storeLogoUrl}
+                        alt="Store image"
+                        className="rounded border"
+                        style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                      />
+                      {storeLogoPreview ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={clearStoreLogoSelection}
+                          disabled={isSubmitting}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-3">

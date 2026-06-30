@@ -47,6 +47,41 @@ const progressBadgeClass = (progress) => {
   return 'bg-secondary';
 };
 
+const processTimestamp = (item, field) => {
+  if (!item) return null;
+  if (field === 'createdAt') {
+    return item.createdAt ?? item.created_at ?? null;
+  }
+  return item.updatedAt ?? item.updated_at ?? null;
+};
+
+const formatProcessTimestamp = (value) => {
+  if (!value) return '-';
+  const parsed = moment(value);
+  return parsed.isValid() ? parsed.format('MM-DD-YYYY h:mm a') : '-';
+};
+
+const formatProcessDuration = (createdAt, updatedAt) => {
+  if (!createdAt || !updatedAt) return '-';
+  const start = moment(createdAt);
+  const end = moment(updatedAt);
+  if (!start.isValid() || !end.isValid()) return '-';
+
+  const diffMs = end.diff(start);
+  if (diffMs < 0) return '-';
+  if (diffMs === 0) return '0 sec';
+
+  const duration = moment.duration(diffMs);
+  const hours = Math.floor(duration.asHours());
+  const mins = duration.minutes();
+  const secs = duration.seconds();
+  const parts = [];
+  if (hours > 0) parts.push(`${hours} hr`);
+  if (mins > 0) parts.push(`${mins} min`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
+  return parts.join(' ');
+};
+
 const ProcessIndex = () => {
   const dispatch = useDispatch();
   const {
@@ -247,13 +282,22 @@ const ProcessIndex = () => {
                         Created At
                         {renderSortIcon('createdAt')}
                       </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('updatedAt')}
+                        onDoubleClick={() => handleSort('updatedAt', true)}
+                      >
+                        Updated At
+                        {renderSortIcon('updatedAt')}
+                      </th>
+                      <th>Duration</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="13" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan="15" className="text-center text-sm font-weight-normal p-4">
                           No processes found
                         </td>
                       </tr>
@@ -261,6 +305,9 @@ const ProcessIndex = () => {
                       data.map((item, index) => {
                         const id = processIdFromRecord(item);
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const createdAt = processTimestamp(item, 'createdAt');
+                        const updatedAt = processTimestamp(item, 'updatedAt');
+                        const duration = formatProcessDuration(createdAt, updatedAt);
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
@@ -294,11 +341,9 @@ const ProcessIndex = () => {
                                 {item.status || 'inactive'}
                               </span>
                             </td>
-                            <td>
-                              {item.createdAt
-                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                : '-'}
-                            </td>
+                            <td>{formatProcessTimestamp(createdAt)}</td>
+                            <td>{formatProcessTimestamp(updatedAt)}</td>
+                            <td title={duration !== '-' ? `Updated − created` : undefined}>{duration}</td>
                             <td>
                               <button
                                 type="button"

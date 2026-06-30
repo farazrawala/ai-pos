@@ -1,3 +1,5 @@
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+
 export const STORE_TYPE_OPTIONS = [
   { value: 'shopify', label: 'Shopify' },
   { value: 'woocommerce', label: 'WooCommerce' },
@@ -6,7 +8,8 @@ export const STORE_TYPE_OPTIONS = [
 
 export const EMPTY_INTEGRATION_FORM = {
   store_type: 'shopify',
-  name: '',
+  store_name: '',
+  storeLogoUrl: '',
   address: '',
   city: '',
   state: '',
@@ -22,16 +25,26 @@ export const EMPTY_INTEGRATION_FORM = {
 export const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
 
+export const integrationNameFromRecord = (item) =>
+  item?.store_name || item?.storeName || item?.name || 'Integration';
+
 export const storeTypeLabel = (value) => {
   const match = STORE_TYPE_OPTIONS.find((opt) => opt.value === value);
   return match ? match.label : value || '-';
+};
+
+const pickStoreLogoUrl = (record) => {
+  if (!record || typeof record !== 'object') return '';
+  const raw = record.image ?? record.store_logo ?? record.storeLogo ?? record.logo ?? '';
+  return resolveCategoryMediaUrl(raw);
 };
 
 export const integrationRecordToForm = (record) => {
   if (!record) return { ...EMPTY_INTEGRATION_FORM };
   return {
     store_type: record.store_type || record.storeType || 'shopify',
-    name: record.name || '',
+    store_name: record.store_name || record.storeName || record.name || '',
+    storeLogoUrl: pickStoreLogoUrl(record),
     address: record.address || '',
     city: record.city || '',
     state: record.state || '',
@@ -53,7 +66,7 @@ export const syncIntegrationFormFromDom = (form, formElement) => {
   return {
     ...form,
     store_type: formData.get('store_type')?.toString() ?? form.store_type,
-    name: formData.get('name')?.toString() ?? form.name,
+    store_name: formData.get('store_name')?.toString() ?? form.store_name,
     address: formData.get('address')?.toString() ?? form.address,
     city: formData.get('city')?.toString() ?? form.city,
     state: formData.get('state')?.toString() ?? form.state,
@@ -77,7 +90,7 @@ export const validateIntegrationForm = (form) => {
     errors.store_type = 'Invalid store type';
   }
 
-  if (!fieldValue(form, 'name')) errors.name = 'Name is required';
+  if (!fieldValue(form, 'store_name')) errors.store_name = 'Store name is required';
   if (!fieldValue(form, 'address')) errors.address = 'Address is required';
   if (!fieldValue(form, 'city')) errors.city = 'City is required';
   if (!fieldValue(form, 'state')) errors.state = 'State is required';
@@ -94,10 +107,10 @@ export const validateIntegrationForm = (form) => {
   return errors;
 };
 
-export const buildIntegrationPayload = (form) => {
+export const buildIntegrationPayload = (form, { storeLogoFile = null } = {}) => {
   const payload = {
     store_type: fieldValue(form, 'store_type'),
-    name: fieldValue(form, 'name'),
+    store_name: fieldValue(form, 'store_name'),
     address: fieldValue(form, 'address'),
     city: fieldValue(form, 'city'),
     state: fieldValue(form, 'state'),
@@ -114,6 +127,7 @@ export const buildIntegrationPayload = (form) => {
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
   if (token) payload.token = token;
+  if (storeLogoFile) payload.image = storeLogoFile;
 
   return payload;
 };

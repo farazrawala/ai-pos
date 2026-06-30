@@ -11,7 +11,7 @@ const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
 
 const integrationOptionLabel = (item) => {
-  const name = item?.name || 'Integration';
+  const name = item?.store_name || item?.storeName || item?.name || 'Integration';
   const storeType = item?.store_type || item?.storeType || '';
   return storeType ? `${name} (${storeType})` : name;
 };
@@ -34,7 +34,7 @@ const recordName = (record) => {
 
 const integrationLabel = (integration) => {
   if (!integration || typeof integration !== 'object') return '-';
-  const name = integration.name || 'Integration';
+  const name = integration.store_name || integration.storeName || integration.name || 'Integration';
   const storeType = integration.store_type || integration.storeType || '';
   return storeType ? `${name} (${storeType})` : name;
 };

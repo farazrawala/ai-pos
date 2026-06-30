@@ -9,7 +9,7 @@ const integrationIdFromRecord = (item) =>
 const brandIdFromRecord = (item) => item?._id || item?.id || item?.brand_id || '';
 
 const integrationLabel = (item) => {
-  const name = item?.name || 'Integration';
+  const name = item?.store_name || item?.storeName || item?.name || 'Integration';
   const storeType = item?.store_type || item?.storeType || '';
   return storeType ? `${name} (${storeType})` : name;
 };

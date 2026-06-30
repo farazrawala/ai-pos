@@ -11,13 +11,32 @@ import {
   setSort,
   clearDeleteStatus,
 } from '../../features/integration/integrationSlice.js';
+import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
-import { integrationIdFromRecord, storeTypeLabel } from './integrationForm.js';
+import { integrationIdFromRecord, integrationNameFromRecord, storeTypeLabel } from './integrationForm.js';
+
+/** Integrations table columns. `sno`, `store_name`, `actions` are always visible. */
+const INTEGRATION_COLUMNS = [
+  { key: 'sno', label: 'S.No', alwaysVisible: true },
+  { key: 'image', label: 'Image' },
+  { key: 'store_name', label: 'Store name', alwaysVisible: true },
+  { key: 'store_type', label: 'Store type' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'url', label: 'URL' },
+  { key: 'createdAt', label: 'Created At' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
 
 const Integration = () => {
   const dispatch = useDispatch();
@@ -37,7 +56,11 @@ const Integration = () => {
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
-  const sortClickTimeoutRef = useRef(null);
+
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
+    'integrations',
+    INTEGRATION_COLUMNS
+  );
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -71,24 +94,23 @@ const Integration = () => {
     [dispatch]
   );
 
-  const handleSort = (sortBy, isDoubleClick = false) => {
+  const handleSort = (column, isDoubleClick = false) => {
     if (isDoubleClick) {
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
       dispatch(setSort({ sortBy: null, sortOrder: null }));
       return;
     }
-    if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
-    sortClickTimeoutRef.current = setTimeout(() => dispatch(setSort({ sortBy })), 200);
+    dispatch(setSort({ sortBy: column }));
   };
 
-  const renderSortIcon = (columnName) =>
-    sort.sortBy !== columnName ? (
-      <i className="fas fa-sort text-muted ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : sort.sortOrder === 'asc' ? (
-      <i className="fas fa-sort-up text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    ) : (
-      <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
-    );
+  const sortableTh = (column, label, className = '') => (
+    <ListSortableTh
+      column={column}
+      label={label}
+      sort={sort}
+      onSort={handleSort}
+      className={className}
+    />
+  );
 
   const handleDelete = async (integrationId, integrationName) => {
     if (window.confirm(`Delete "${integrationName || 'this integration'}"?`)) {
@@ -105,7 +127,6 @@ const Integration = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (sortClickTimeoutRef.current) clearTimeout(sortClickTimeoutRef.current);
     };
   }, []);
 
@@ -136,6 +157,13 @@ const Integration = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={INTEGRATION_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="integrationColumnVisibilityMenu"
+                    />
                     {canCreate && <AddNewButton to="/integration/add" label="Add Integration" />}
                   </div>
                 </div>
@@ -156,42 +184,22 @@ const Integration = () => {
                   <thead>
                     <tr>
                       <th>S.No</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('name')}
-                        onDoubleClick={() => handleSort('name', true)}
-                      >
-                        Name
-                        {renderSortIcon('name')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('store_type')}
-                        onDoubleClick={() => handleSort('store_type', true)}
-                      >
-                        Store type
-                        {renderSortIcon('store_type')}
-                      </th>
-                      <th>City</th>
-                      <th>State</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>URL</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('createdAt')}
-                        onDoubleClick={() => handleSort('createdAt', true)}
-                      >
-                        Created At
-                        {renderSortIcon('createdAt')}
-                      </th>
+                      {isVisible('image') ? <th className="list-col-product-img">Image</th> : null}
+                      <th>Store name</th>
+                      {isVisible('store_type') ? sortableTh('store_type', 'Store type') : null}
+                      {isVisible('city') ? <th>City</th> : null}
+                      {isVisible('state') ? <th>State</th> : null}
+                      {isVisible('email') ? <th>Email</th> : null}
+                      {isVisible('phone') ? <th>Phone</th> : null}
+                      {isVisible('url') ? <th>URL</th> : null}
+                      {isVisible('createdAt') ? sortableTh('createdAt', 'Created At') : null}
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="10" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan={visibleCount} className="text-center text-sm font-weight-normal p-4">
                           No integrations found
                         </td>
                       </tr>
@@ -199,29 +207,52 @@ const Integration = () => {
                       data.map((item, index) => {
                         const id = integrationIdFromRecord(item);
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
+                        const logoSrc = pickIntegrationStoreLogoUrl(item);
+                        const displayName = integrationNameFromRecord(item);
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
-                            <td>{item.name || '-'}</td>
-                            <td>{storeTypeLabel(item.store_type || item.storeType)}</td>
-                            <td>{item.city || '-'}</td>
-                            <td>{item.state || '-'}</td>
-                            <td>{item.email || '-'}</td>
-                            <td>{item.phone || '-'}</td>
-                            <td>
-                              {item.url ? (
-                                <a href={item.url} target="_blank" rel="noopener noreferrer">
-                                  {item.url}
-                                </a>
-                              ) : (
-                                '-'
-                              )}
-                            </td>
-                            <td>
-                              {item.createdAt
-                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                : '-'}
-                            </td>
+                            {isVisible('image') ? (
+                              <td>
+                                {logoSrc ? (
+                                  <img
+                                    src={logoSrc}
+                                    alt={displayName}
+                                    className="list-product-thumb"
+                                  />
+                                ) : (
+                                  <div className="list-product-thumb list-product-thumb--empty">
+                                    <i className="fas fa-image text-muted" aria-hidden="true" />
+                                  </div>
+                                )}
+                              </td>
+                            ) : null}
+                            <td>{displayName}</td>
+                            {isVisible('store_type') ? (
+                              <td>{storeTypeLabel(item.store_type || item.storeType)}</td>
+                            ) : null}
+                            {isVisible('city') ? <td>{item.city || '-'}</td> : null}
+                            {isVisible('state') ? <td>{item.state || '-'}</td> : null}
+                            {isVisible('email') ? <td>{item.email || '-'}</td> : null}
+                            {isVisible('phone') ? <td>{item.phone || '-'}</td> : null}
+                            {isVisible('url') ? (
+                              <td>
+                                {item.url ? (
+                                  <a href={item.url} target="_blank" rel="noopener noreferrer">
+                                    {item.url}
+                                  </a>
+                                ) : (
+                                  '-'
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('createdAt') ? (
+                              <td>
+                                {item.createdAt
+                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : '-'}
+                              </td>
+                            ) : null}
                             <td>
                               <div className="d-flex gap-1">
                                 {canEdit && (
@@ -235,7 +266,7 @@ const Integration = () => {
                                 {canDelete && (
                                   <button
                                     className="btn btn-sm btn-danger mb-0"
-                                    onClick={() => handleDelete(id, item.name)}
+                                    onClick={() => handleDelete(id, displayName)}
                                     disabled={deleteStatus === 'loading'}
                                   >
                                     Delete

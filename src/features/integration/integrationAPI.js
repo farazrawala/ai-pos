@@ -1,6 +1,9 @@
-import { API_BASE_URL } from '../../config/apiConfig.js';
+import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { isUserUploadFilePart } from '../users/usersAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
+
+export const INTEGRATION_IMAGE_FIELD = 'image';
 
 const logIntegrationModuleError = (operation, details) => {
   console.error(`[Integration module] ${operation}`, details);
@@ -18,6 +21,164 @@ const getHeaders = () => {
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;
+};
+
+const appendIntegrationFieldsToFormData = (formData, data = {}) => {
+  Object.entries(data).forEach(([key, value]) => {
+    if (key === INTEGRATION_IMAGE_FIELD) return;
+    if (value === undefined) return;
+    if (value === null) {
+      formData.append(key, '');
+      return;
+    }
+    formData.append(key, typeof value === 'string' ? value : String(value));
+  });
+};
+
+const authHeadersForMultipart = () => {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const postIntegrationRequest = async (url, integrationData) => {
+  const { image, ...rest } = integrationData || {};
+  const useMultipart = isUserUploadFilePart(image);
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendIntegrationFieldsToFormData(formData, rest);
+    const fileName = image.name || 'upload';
+    formData.append(INTEGRATION_IMAGE_FIELD, image, fileName);
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: authHeadersForMultipart(),
+        body: formData,
+      });
+    } catch (err) {
+      logIntegrationModuleError('postIntegrationRequest network error (multipart)', {
+        url,
+        error: err,
+      });
+      throw err;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.message || `HTTP error! status: ${response.status}`;
+      logIntegrationModuleError('postIntegrationRequest failed (multipart)', {
+        status: response.status,
+        errorData,
+        message,
+      });
+      throw new Error(message);
+    }
+
+    return response.json();
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(rest),
+    });
+  } catch (err) {
+    logIntegrationModuleError('postIntegrationRequest network error', {
+      url,
+      payloadKeys: Object.keys(rest || {}),
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('postIntegrationRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  return response.json();
+};
+
+const patchIntegrationRequest = async (url, integrationData) => {
+  const { image, ...rest } = integrationData || {};
+  const useMultipart = isUserUploadFilePart(image);
+
+  if (useMultipart) {
+    const formData = new FormData();
+    appendIntegrationFieldsToFormData(formData, rest);
+    const fileName = image.name || 'upload';
+    formData.append(INTEGRATION_IMAGE_FIELD, image, fileName);
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'PATCH',
+        headers: authHeadersForMultipart(),
+        body: formData,
+      });
+    } catch (err) {
+      logIntegrationModuleError('patchIntegrationRequest network error (multipart)', {
+        url,
+        error: err,
+      });
+      throw err;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.message || `HTTP error! status: ${response.status}`;
+      logIntegrationModuleError('patchIntegrationRequest failed (multipart)', {
+        status: response.status,
+        errorData,
+        message,
+      });
+      throw new Error(message);
+    }
+
+    return response.json();
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(rest),
+    });
+  } catch (err) {
+    logIntegrationModuleError('patchIntegrationRequest network error', { url, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('patchIntegrationRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  return response.json();
+};
+
+export const pickIntegrationStoreLogoUrl = (record) => {
+  if (!record || typeof record !== 'object') return '';
+  const raw =
+    record.image ?? record.store_logo ?? record.storeLogo ?? record.logo ?? '';
+  return resolveCategoryMediaUrl(raw);
 };
 
 const parsePaginatedResponse = (result, params = {}) => {
@@ -123,69 +284,12 @@ export const fetchIntegrationByIdRequest = async (integrationId) => {
 
 export const createIntegrationRequest = async (integrationData) => {
   const url = `${BASE_URL}integration/create`;
-
-  let response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(integrationData),
-    });
-  } catch (err) {
-    logIntegrationModuleError('createIntegrationRequest network error', {
-      url,
-      payloadKeys: Object.keys(integrationData || {}),
-      error: err,
-    });
-    throw err;
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.message || `HTTP error! status: ${response.status}`;
-    logIntegrationModuleError('createIntegrationRequest failed', {
-      status: response.status,
-      errorData,
-      message,
-    });
-    throw new Error(message);
-  }
-
-  return response.json();
+  return postIntegrationRequest(url, integrationData);
 };
 
 export const updateIntegrationRequest = async (integrationId, integrationData) => {
   const url = `${BASE_URL}integration/update/${integrationId}`;
-
-  let response;
-  try {
-    response = await fetch(url, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(integrationData),
-    });
-  } catch (err) {
-    logIntegrationModuleError('updateIntegrationRequest network error', {
-      integrationId,
-      url,
-      error: err,
-    });
-    throw err;
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.message || `HTTP error! status: ${response.status}`;
-    logIntegrationModuleError('updateIntegrationRequest failed', {
-      integrationId,
-      status: response.status,
-      errorData,
-      message,
-    });
-    throw new Error(message);
-  }
-
-  return response.json();
+  return patchIntegrationRequest(url, integrationData);
 };
 
 export const deleteIntegrationRequest = async (integrationId) => {

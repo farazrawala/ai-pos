@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
-import { createSyncOrderProcessRequest } from '../../features/process/processAPI.js';
+import { createFetchOrderProcessRequest } from '../../features/process/processAPI.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
 
 const integrationLabel = (item) => {
-  const name = item?.name || 'Integration';
+  const name = item?.store_name || item?.storeName || item?.name || 'Integration';
   const storeType = item?.store_type || item?.storeType || '';
   return storeType ? `${name} (${storeType})` : name;
 };
@@ -62,7 +62,7 @@ export default function FetchOrdersModal({ open, onClose, onSaved }) {
     setSaveError(null);
 
     try {
-      await createSyncOrderProcessRequest(selectedIntegrationId);
+      await createFetchOrderProcessRequest(selectedIntegrationId);
       setSaveStatus('succeeded');
       onSaved?.();
       onClose?.();
