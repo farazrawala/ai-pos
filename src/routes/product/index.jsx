@@ -616,7 +616,18 @@ const Product = () => {
                               className="text-sm font-weight-bold text-dark list-cell-truncate"
                               title={productName !== 'Product' ? productName : undefined}
                             >
-                              {productName}
+                              {canEdit ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
+                                  title={`Edit ${productName}`}
+                                  onClick={() => navigate(`/products/edit/${productId}`)}
+                                >
+                                  {productName}
+                                </button>
+                              ) : (
+                                productName
+                              )}
                             </td>
                             {isVisible('stock') ? (
                               <td className="text-sm text-end list-col-stock">
