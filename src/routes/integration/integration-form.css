@@ -1,0 +1,138 @@
+/* Integration add / edit form — professional layout */
+.integration-form-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 1.5rem;
+}
+
+.integration-form-card {
+  max-width: 880px;
+  margin: 0 auto;
+  border: 1px solid #e9ecf1;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.06);
+}
+
+.integration-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem;
+  background: linear-gradient(120deg, #f8fafc 0%, #eef2f9 100%);
+  border-bottom: 1px solid #e9ecf1;
+}
+
+.integration-form-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6b8c;
+  margin-bottom: 0.35rem;
+}
+
+.integration-form-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1f2a44;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.integration-form-subtitle {
+  font-size: 0.85rem;
+  color: #7a869a;
+  margin: 0.25rem 0 0;
+}
+
+.integration-form-body {
+  padding: 1.5rem;
+}
+
+.integration-form-section {
+  border: 1px solid #edf0f5;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  background: #fff;
+}
+
+.integration-form-section + .integration-form-section {
+  margin-top: 1rem;
+}
+
+.integration-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2a3654;
+  margin-bottom: 0.25rem;
+}
+
+.integration-form-section-hint {
+  font-size: 0.78rem;
+  color: #9aa4b6;
+  margin-bottom: 1rem;
+}
+
+.integration-form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #41506b;
+  margin-bottom: 0.35rem;
+}
+
+.integration-form-label .req {
+  color: #e5484d;
+  margin-left: 0.15rem;
+}
+
+.integration-form-control {
+  border-radius: 0.6rem;
+  border: 1px solid #d8dee9;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.integration-form-control:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18);
+}
+
+.integration-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid #edf0f5;
+  background: #fbfcfe;
+}
+
+.integration-form-footer .integration-form-footer-note {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #9aa4b6;
+}
+
+.integration-store-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #3b6fd4;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #c7d9f7;
+}

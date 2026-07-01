@@ -7,11 +7,12 @@ import { pickIntegrationImageFromSubmit } from '../../features/integration/integ
 import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
-  STORE_TYPE_OPTIONS,
   buildIntegrationPayload,
   syncIntegrationFormFromDom,
   validateIntegrationForm,
 } from './integrationForm.js';
+import IntegrationFormFields from './IntegrationFormFields.jsx';
+import './integration-form.css';
 
 const IntegrationAdd = () => {
   const dispatch = useDispatch();
@@ -125,24 +126,19 @@ const IntegrationAdd = () => {
   };
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Add Integration</h5>
-                  <p className="text-sm mb-0">Connect a new store or sales channel.</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/integration')}
-                >
-                  <i className="fas fa-arrow-left me-1"></i>
-                  Back to List
-                </button>
-              </div>
+    <div className="integration-form-page">
+      <form onSubmit={handleSubmit}>
+        <div className="integration-form-card card">
+          <div className="integration-form-header">
+            <div>
+              <span className="integration-form-eyebrow">
+                <i className="fas fa-plug" aria-hidden="true" />
+                Integration
+              </span>
+              <h5 className="integration-form-title">Add integration</h5>
+              <p className="integration-form-subtitle">
+                Connect a new store or sales channel to your POS.
+              </p>
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit} encType="multipart/form-data">
@@ -425,9 +421,61 @@ const IntegrationAdd = () => {
                 </div>
               </form>
             </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
+
+          <div className="integration-form-body">
+            <IntegrationFormFields
+              form={form}
+              errors={errors}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+
+            {errors.submit ? (
+              <div className="alert alert-danger py-2 mt-3 mb-0">{errors.submit}</div>
+            ) : null}
+          </div>
+
+          <div className="integration-form-footer">
+            <span className="integration-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-plus me-2" aria-hidden="true" />
+                  Create integration
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div>
+      </form>
 
       <div className="position-fixed bottom-1 end-1 z-index-2">
         <div

@@ -15,9 +15,12 @@ import {
   PRODUCT_SETTING_FIELDS,
   buildIntegrationPayload,
   integrationRecordToForm,
+  storeTypeLabel,
   syncIntegrationFormFromDom,
   validateIntegrationForm,
 } from './integrationForm.js';
+import IntegrationFormFields from './IntegrationFormFields.jsx';
+import './integration-form.css';
 
 const IntegrationEdit = () => {
   const dispatch = useDispatch();
@@ -33,6 +36,7 @@ const IntegrationEdit = () => {
   const [storeLogoPreview, setStoreLogoPreview] = useState(null);
   const storeLogoInputRef = useRef(null);
   const isSubmitting = updateStatus === 'loading';
+  const isLoading = fetchStatus === 'loading';
 
   useEffect(() => {
     if (canEdit === false) navigate('/integration');
@@ -124,36 +128,65 @@ const IntegrationEdit = () => {
     }
   };
 
-  if (fetchStatus === 'loading') {
-    return <div className="container-fluid py-4">Loading integration...</div>;
+  if (isLoading) {
+    return (
+      <div className="integration-form-page">
+        <div className="integration-form-card card">
+          <div className="card-body text-center p-5">
+            <div className="spinner-border text-primary mb-3" role="status">
+              <span className="visually-hidden">Loading…</span>
+            </div>
+            <div className="text-muted">Loading integration…</div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (fetchStatus === 'failed') {
     return (
-      <div className="container-fluid py-4">
-        <div className="alert alert-danger">{fetchError || 'Failed to load integration.'}</div>
+      <div className="integration-form-page">
+        <div className="integration-form-card card">
+          <div className="card-body p-4">
+            <div className="alert alert-danger mb-3">
+              {fetchError || 'Failed to load integration.'}
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Edit Integration</h5>
-                  <p className="text-sm mb-0">Update store connection settings.</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/integration')}
-                >
-                  Back to List
-                </button>
-              </div>
+    <div className="integration-form-page">
+      <form onSubmit={handleSubmit}>
+        <div className="integration-form-card card">
+          <div className="integration-form-header">
+            <div>
+              <span className="integration-form-eyebrow">
+                <i className="fas fa-plug" aria-hidden="true" />
+                Integration
+              </span>
+              <h5 className="integration-form-title">Edit integration</h5>
+              <p className="integration-form-subtitle">
+                Update connection settings for{' '}
+                <strong>{form.name || 'this store'}</strong>
+                {form.store_type ? (
+                  <>
+                    {' '}
+                    <span className="integration-store-pill">{storeTypeLabel(form.store_type)}</span>
+                  </>
+                ) : null}
+                .
+              </p>
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit} encType="multipart/form-data">
@@ -461,9 +494,61 @@ const IntegrationEdit = () => {
                 </div>
               </form>
             </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
+
+          <div className="integration-form-body">
+            <IntegrationFormFields
+              form={form}
+              errors={errors}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+
+            {errors.submit || updateError ? (
+              <div className="alert alert-danger py-2 mt-3 mb-0">{errors.submit || updateError}</div>
+            ) : null}
+          </div>
+
+          <div className="integration-form-footer">
+            <span className="integration-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save me-2" aria-hidden="true" />
+                  Update integration
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 };
