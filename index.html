@@ -20,10 +20,35 @@
     </script>
     <script>
       if ('serviceWorker' in navigator) {
+        var swRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (swRefreshing) return;
+          swRefreshing = true;
+          window.location.reload();
+        });
+
         navigator.serviceWorker
           .register('%BASE_URL%sw.js', { scope: '%BASE_URL%', updateViaCache: 'none' })
           .then(function (registration) {
-            registration.update();
+            function activateWaitingWorker() {
+              if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+            }
+
+            activateWaitingWorker();
+
+            registration.addEventListener('updatefound', function () {
+              var worker = registration.installing;
+              if (!worker) return;
+              worker.addEventListener('statechange', function () {
+                if (worker.state === 'installed') {
+                  activateWaitingWorker();
+                }
+              });
+            });
+
+            return registration.update();
           })
           .catch(function () {});
       }

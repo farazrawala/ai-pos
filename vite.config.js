@@ -77,6 +77,8 @@ export default defineConfig(({ mode }) => {
         manifest: pwaManifest,
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,eot,ttf,json,webmanifest}'],
+          globIgnores: ['**/assets/scss/**', '**/assets/js/argon-dashboard.js', '**/assets/css/argon-dashboard.css'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           navigateFallback,
           navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/storage\//],
           ...(basePathPattern
