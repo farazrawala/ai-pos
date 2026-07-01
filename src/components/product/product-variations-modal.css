@@ -218,6 +218,7 @@
   border: 1px solid #e9ecf1;
   border-radius: 0.75rem;
   overflow: hidden;
+  position: relative;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
@@ -259,25 +260,40 @@
 
 .pv-variation-remove {
   flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.65rem;
+  height: 1.65rem;
   padding: 0;
-  border: none;
+  border: 1px solid #e2e8f0;
   border-radius: 0.4rem;
-  background: transparent;
-  color: #94a3b8;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.pv-variation-remove:hover {
+.pv-variation-remove i {
+  font-size: 0.7rem;
+  pointer-events: none;
+}
+
+.pv-variation-remove:hover:not(:disabled) {
   background: #fee2e2;
+  border-color: #fecaca;
   color: #dc2626;
+}
+
+.pv-variation-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .pv-variation-card-body {

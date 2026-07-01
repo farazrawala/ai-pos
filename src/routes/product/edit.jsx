@@ -16,6 +16,9 @@ import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.js';
 import { toast } from '../../utils/toast.js';
 import ProductVariationsModal from '../../components/product/ProductVariationsModal.jsx';
+import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
+import '../../components/product/product-variations-modal.css';
+import './product-form.css';
 
 const ProductEdit = () => {
   const dispatch = useDispatch();
@@ -969,42 +972,35 @@ const ProductEdit = () => {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row">
-          <div className="col-12" style={{ padding: '20px' }}>
-            <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <div className="card-body text-center p-4">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-                <p className="mt-3">Loading product data...</p>
-              </div>
+      <div className="product-form-page">
+        <div className="product-form-card card">
+          <div className="card-body text-center p-5">
+            <div className="spinner-border text-primary mb-3" role="status">
+              <span className="visually-hidden">Loading…</span>
             </div>
+            <div className="text-muted">Loading product data…</div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Show error state
   if (fetchStatus === 'failed') {
     return (
-      <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="row">
-          <div className="col-12" style={{ padding: '20px' }}>
-            <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <div className="card-body">
-                <div className="alert alert-danger" role="alert">
-                  <h5 className="alert-heading">Error Loading Product</h5>
-                  <p>{fetchError || 'Failed to load product data.'}</p>
-                  <hr />
-                  <button className="btn btn-outline-danger" onClick={() => navigate('/products')}>
-                    <i className="fas fa-arrow-left me-1"></i>
-                    Back to List
-                  </button>
-                </div>
-              </div>
+      <div className="product-form-page">
+        <div className="product-form-card card">
+          <div className="card-body p-4">
+            <div className="alert alert-danger mb-3">
+              {fetchError || 'Failed to load product data.'}
             </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/products')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
           </div>
         </div>
       </div>
@@ -1012,27 +1008,32 @@ const ProductEdit = () => {
   }
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Edit Product</h5>
-                  <p className="text-sm mb-0">Update product information and images</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/products')}
-                >
-                  <i className="fas fa-arrow-left me-1"></i>
-                  Back to List
-                </button>
-              </div>
+    <div className="product-form-page">
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="product-form-card card">
+          <div className="product-form-header">
+            <div>
+              <span className="product-form-eyebrow">
+                <i className="fas fa-box" aria-hidden="true" />
+                Products
+              </span>
+              <h5 className="product-form-title">Edit product</h5>
+              <p className="product-form-subtitle">
+                Update details, images, and variations for{' '}
+                <strong>{form.name || 'this product'}</strong>.
+              </p>
             </div>
-            <div className="card-body pt-0">
-              <form onSubmit={handleSubmit} noValidate>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/products')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
+
+          <div className="product-form-body">
                 {/* Name Field */}
                 <div className="mb-3">
                   <label htmlFor="name" className="form-label">
@@ -1549,257 +1550,89 @@ const ProductEdit = () => {
                     <div className="mt-2">
                       <button
                         type="button"
-                        className="btn btn-outline-primary btn-sm"
+                        className="btn btn-sm btn-outline-primary mb-0"
                         onClick={() => setShowVariationsModal(true)}
                         disabled={isSubmitting}
                       >
-                        <i className="fas fa-cog me-1"></i>
-                        Manage Variations
+                        <i className="fas fa-layer-group me-1" aria-hidden="true" />
+                        Manage variations
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Variations Display Section - Show on main page */}
                 {form.product_type === 'Variable' && variations.length > 0 && (
-                  <div className="mb-4">
-                    <h6 className="mb-3">
-                      <i className="fas fa-list me-2"></i>
-                      Product Variations ({variations.length} total)
-                    </h6>
-                    <div className="row g-3">
-                      {variations.map((variation) => (
-                        <div key={variation.id} className="col-md-6 col-lg-4">
-                          <div className="card h-100 position-relative">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
-                              style={{ zIndex: 10 }}
-                              onClick={() => handleRemoveVariation(variation.id)}
-                              disabled={isSubmitting}
-                              title="Remove variation"
-                            >
-                              <i className="fas fa-times"></i>
-                            </button>
-                            <div className="card-body">
-                              <h6 className="card-title text-primary mb-3">{variation.name}</h6>
-
-                              {/* Variation Image */}
-                              <div className="mb-3">
-                                <label className="form-label small">Image</label>
-                                <input
-                                  type="file"
-                                  className="form-control form-control-sm"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                      handleVariationImageChange(variation.id, file);
-                                    }
-                                  }}
-                                  disabled={isSubmitting}
-                                />
-                                {variation.imagePreview && (
-                                  <img
-                                    src={variation.imagePreview}
-                                    alt={variation.name}
-                                    className="img-thumbnail mt-2"
-                                    style={{
-                                      width: '100%',
-                                      maxHeight: '100px',
-                                      objectFit: 'cover',
-                                    }}
-                                  />
-                                )}
-                              </div>
-
-                              {/* Variation Name */}
-                              <div className="mb-2">
-                                <label className="form-label small">Name</label>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm bg-light"
-                                  value={variation.name}
-                                  readOnly
-                                  disabled={isSubmitting}
-                                />
-                              </div>
-
-                              {/* Variation Slug */}
-                              <div className="mb-2">
-                                <label className="form-label small">Slug</label>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm bg-light"
-                                  value={variation.slug}
-                                  onChange={(e) =>
-                                    handleVariationChange(variation.id, 'slug', e.target.value)
-                                  }
-                                  disabled={isSubmitting}
-                                />
-                              </div>
-
-                              {/* Price and Quantity Row */}
-                              <div className="row g-2">
-                                <div className="col-6">
-                                  <label className="form-label small">Price</label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="form-control form-control-sm"
-                                    placeholder="0.00"
-                                    value={variation.price}
-                                    onChange={(e) =>
-                                      handleVariationChange(variation.id, 'price', e.target.value)
-                                    }
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label small">Quantity</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    className="form-control form-control-sm"
-                                    placeholder="0"
-                                    value={variation.qty}
-                                    onChange={(e) =>
-                                      handleVariationChange(variation.id, 'qty', e.target.value)
-                                    }
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Wholesale Price and Alert Qty Row */}
-                              <div className="row g-2">
-                                <div className="col-6">
-                                  <label className="form-label small">Wholesale Price</label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="form-control form-control-sm bg-light"
-                                    placeholder="0.00"
-                                    value={variation.wholesale_price || ''}
-                                    readOnly
-                                    disabled={isSubmitting}
-                                    aria-readonly="true"
-                                  />
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label small">Alert Qty</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    className="form-control form-control-sm"
-                                    placeholder="0"
-                                    value={variation.alert_qty || ''}
-                                    onChange={(e) =>
-                                      handleVariationChange(
-                                        variation.id,
-                                        'alert_qty',
-                                        e.target.value
-                                      )
-                                    }
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Product Code and SKU Row */}
-                              <div className="row g-2">
-                                <div className="col-6">
-                                  <label className="form-label small">Product Code</label>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    placeholder="Product Code"
-                                    value={variation.product_code || ''}
-                                    onChange={(e) =>
-                                      handleVariationChange(
-                                        variation.id,
-                                        'product_code',
-                                        e.target.value
-                                      )
-                                    }
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label small">SKU</label>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    placeholder="SKU"
-                                    value={variation.sku || ''}
-                                    onChange={(e) =>
-                                      handleVariationChange(variation.id, 'sku', e.target.value)
-                                    }
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Barcode */}
-                              <div className="mb-2">
-                                <label className="form-label small">Barcode</label>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  placeholder="Barcode"
-                                  value={variation.barcode || ''}
-                                  onChange={(e) =>
-                                    handleVariationChange(variation.id, 'barcode', e.target.value)
-                                  }
-                                  disabled={isSubmitting}
-                                />
-                                <small className="text-muted">
-                                  Leave empty, it will automatically generate barcode for you.
-                                </small>
-                              </div>
-                            </div>
-                          </div>
+                  <div className="product-form-section">
+                    <div className="product-form-variations-toolbar">
+                      <div>
+                        <div className="product-form-section-title mb-0">
+                          <i className="fas fa-layer-group text-primary" aria-hidden="true" />
+                          Product variations
                         </div>
+                        <p className="product-form-section-hint mb-0 mt-1">
+                          Edit pricing, stock, and identifiers per combination.
+                        </p>
+                      </div>
+                      <span className="pv-summary-count">
+                        <span className="pv-summary-badge">{variations.length}</span>
+                        total
+                      </span>
+                    </div>
+
+                    <div className="pv-variation-grid pv-variation-grid--page">
+                      {variations.map((variation) => (
+                        <ProductVariationCard
+                          key={variation.id}
+                          variation={variation}
+                          showMetaFields
+                          disabled={isSubmitting}
+                          fileInputId={`product-edit-variation-image-${variation.id}`}
+                          onChange={handleVariationChange}
+                          onImageChange={handleVariationImageChange}
+                          onRemove={handleRemoveVariation}
+                        />
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Form Actions */}
-                <div className="d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => navigate('/products')}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save me-2"></i>
-                        Update Product
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
+                {updateError ? (
+                  <div className="alert alert-danger py-2 mt-3 mb-0">{updateError}</div>
+                ) : null}
+          </div>
+
+          <div className="product-form-footer">
+            <span className="product-form-footer-note">
+              <span className="text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/products')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save me-2" aria-hidden="true" />
+                  Update product
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div>
+      </form>
 
       <ProductVariationsModal
         open={showVariationsModal}

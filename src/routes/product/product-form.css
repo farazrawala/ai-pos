@@ -1,0 +1,135 @@
+/* Product add / edit form — professional layout */
+.product-form-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 1.5rem;
+}
+
+.product-form-card {
+  max-width: 1120px;
+  margin: 0 auto;
+  border: 1px solid #e9ecf1;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.06);
+}
+
+.product-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem;
+  background: linear-gradient(120deg, #f8fafc 0%, #eef2f9 100%);
+  border-bottom: 1px solid #e9ecf1;
+}
+
+.product-form-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6b8c;
+  margin-bottom: 0.35rem;
+}
+
+.product-form-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1f2a44;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.product-form-subtitle {
+  font-size: 0.85rem;
+  color: #7a869a;
+  margin: 0.25rem 0 0;
+}
+
+.product-form-body {
+  padding: 1.5rem;
+}
+
+.product-form-body .form-control,
+.product-form-body .form-select {
+  border-radius: 0.6rem;
+  border: 1px solid #d8dee9;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.product-form-body .form-control:focus,
+.product-form-body .form-select:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18);
+}
+
+.product-form-body .form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #41506b;
+  margin-bottom: 0.35rem;
+}
+
+.product-form-section {
+  border: 1px solid #edf0f5;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  background: #fff;
+  margin-top: 1.25rem;
+}
+
+.product-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2a3654;
+  margin-bottom: 0.25rem;
+}
+
+.product-form-section-hint {
+  font-size: 0.78rem;
+  color: #9aa4b6;
+  margin-bottom: 1rem;
+}
+
+.product-form-variations-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.product-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid #edf0f5;
+  background: #fbfcfe;
+}
+
+.product-form-footer .product-form-footer-note {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #9aa4b6;
+}
+
+/* Page-level variation grid — same 2-col layout as modal, no height cap */
+.pv-variation-grid--page {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
