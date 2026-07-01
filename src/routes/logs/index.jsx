@@ -48,6 +48,149 @@ function LogDescriptionCell({ text, maxWidth = 'min(22rem, 38vw)' }) {
   );
 }
 
+const toReadableLabel = (value) => {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  return s
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const formatLogDescriptionJson = (obj) => {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return '';
+
+  const source = obj.source ?? obj.Source ?? '';
+  const module = obj.module ?? obj.Module ?? '';
+  const action = obj.action ?? obj.Action ?? obj.event ?? obj.Event ?? '';
+
+  const lines = [];
+  if (source) lines.push(`Source: ${toReadableLabel(source)}`);
+  if (module) lines.push(`Module: ${toReadableLabel(module)}`);
+  if (action) lines.push(`Action: ${toReadableLabel(action)}`);
+
+  if (lines.length > 0) {
+    return lines.join('\n');
+  }
+
+  const entries = Object.entries(obj)
+    .filter(([, v]) => v != null && String(v).trim() !== '')
+    .map(([k, v]) => {
+      const val =
+        typeof v === 'object'
+          ? JSON.stringify(v)
+          : toReadableLabel(String(v));
+      return `${toReadableLabel(k)}: ${val}`;
+    });
+
+  return entries.length > 0 ? entries.join('\n') : '';
+};
+
+const getLogHumanReadablePreview = (fullText) => {
+  const raw = String(fullText ?? '').trim();
+  if (!raw) return '';
+  const oneLine = raw.replace(/\s*\n+\s*/g, ' · ');
+  if (oneLine.length <= 40) return oneLine;
+  return `${oneLine.slice(0, 40)}…`;
+};
+
+/** Prefer API field; otherwise parse JSON `description` like `{ source, module, action }`. */
+const getLogHumanReadableDescription = (item) => {
+  const explicit = item?.human_readable_description ?? item?.humanReadableDescription;
+  if (explicit != null && String(explicit).trim() !== '') {
+    return String(explicit).trim();
+  }
+
+  const rawDesc = item?.description ?? item?.details ?? item?.detail ?? item?.message;
+  if (rawDesc == null) return '';
+  const text = String(rawDesc).trim();
+  if (!text) return '';
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') {
+        const formatted = Array.isArray(parsed)
+          ? parsed.map((entry) => formatLogDescriptionJson(entry)).filter(Boolean).join('\n\n')
+          : formatLogDescriptionJson(parsed);
+        if (formatted) return formatted;
+      }
+    } catch {
+      /* keep raw text below */
+    }
+  }
+
+  return text;
+};
+
+function LogHumanReadablePreviewCell({ fullText, onOpen }) {
+  const raw = fullText == null ? '' : String(fullText).trim();
+  if (!raw) {
+    return <span className="text-muted">—</span>;
+  }
+  const preview = getLogHumanReadablePreview(raw);
+  return (
+    <button
+      type="button"
+      className="btn btn-link btn-sm p-0 mb-0 text-start text-decoration-none text-dark font-weight-normal"
+      onClick={() => onOpen?.(raw)}
+      title="View full details"
+    >
+      <span
+        className="text-truncate d-inline-block text-sm"
+        style={{ maxWidth: 'min(16rem, 28vw)' }}
+      >
+        {preview}
+      </span>
+    </button>
+  );
+}
+
+function LogDetailsModal({ open, text, onClose }) {
+  if (!open) return null;
+  const body = String(text ?? '').trim();
+  return (
+    <>
+      <div
+        className="modal fade show"
+        style={{ display: 'block' }}
+        tabIndex={-1}
+        role="dialog"
+        aria-labelledby="logDetailsModalLabel"
+        aria-modal="true"
+      >
+        <div className="modal-dialog modal-dialog-centered modal-lg">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="logDetailsModalLabel">
+                Log details
+              </h5>
+              <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
+            </div>
+            <div className="modal-body">
+              {body ? (
+                <div
+                  className="text-sm mb-0"
+                  style={{ whiteSpace: 'pre-line', wordBreak: 'break-word' }}
+                >
+                  {body}
+                </div>
+              ) : (
+                <span className="text-muted">No details available.</span>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary mb-0" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="modal-backdrop fade show" onClick={onClose} aria-hidden="true" />
+    </>
+  );
+}
+
 const LOG_FILTER_TABS = [
   { id: '', label: 'ALL' },
   { id: 'API', label: 'API' },
@@ -65,6 +208,10 @@ const LOG_FILTER_TABS = [
   { id: 'out', label: 'out' },
   { id: 'wholesale_price', label: 'Wholesale Price' },
   { id: 'stock_alert', label: 'Stock Alert' },
+  { id: 'fetch_order', label: 'fetch_order' },
+  { id: 'woocommerce', label: 'woocommerce' },
+  { id: 'imported_woocommerce', label: 'imported_woocommerce' },
+  { id: 'skipped_woocommerce', label: 'skipped_woocommerce' },
 ];
 
 const Logs = () => {
@@ -84,6 +231,7 @@ const Logs = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
+  const [logDetailsText, setLogDetailsText] = useState(null);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -336,11 +484,11 @@ const Logs = () => {
                       </th>
                       <th
                         style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('description')}
-                        onDoubleClick={() => handleSort('description', true)}
+                        onClick={() => handleSort('human_readable_description')}
+                        onDoubleClick={() => handleSort('human_readable_description', true)}
                       >
-                        Description
-                        {renderSortIcon('description')}
+                        Human readable description
+                        {renderSortIcon('human_readable_description')}
                       </th>
                       <th>Tags</th>
                       <th
@@ -396,10 +544,9 @@ const Logs = () => {
                               <LogUrlCell url={item.url} />
                             </td>
                             <td className="text-sm font-weight-normal align-middle">
-                              <LogDescriptionCell
-                                text={
-                                  item.description ?? item.details ?? item.detail ?? item.message
-                                }
+                              <LogHumanReadablePreviewCell
+                                fullText={getLogHumanReadableDescription(item)}
+                                onOpen={setLogDetailsText}
                               />
                             </td>
                             <td className="text-sm font-weight-normal">
@@ -447,6 +594,12 @@ const Logs = () => {
           </div>
         </div>
       </div>
+
+      <LogDetailsModal
+        open={logDetailsText != null}
+        text={logDetailsText ?? ''}
+        onClose={() => setLogDetailsText(null)}
+      />
     </div>
   );
 };

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
+import { FaArrowsRotate, FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
 import {
   fetchOrders,
   deleteOrder,
@@ -28,14 +28,23 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
+import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
+import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
 import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import {
+  integrationNameFromRecord,
+  storeTypeLabel,
+} from '../integration/integrationForm.js';
+import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
 
 const getOrderStatusDisplay = (row) => {
   if (!row || typeof row !== 'object') return '';
@@ -60,6 +69,140 @@ const orderDisplayStatus = (row) => {
   if (s == null || String(s).trim() === '') return '—';
   return String(s).trim();
 };
+
+const getOrderIntegrationRecord = (row) => {
+  const integration = row?.integration_id ?? row?.integrationId;
+  if (!integration || typeof integration !== 'object' || Array.isArray(integration)) {
+    return null;
+  }
+  return integration;
+};
+
+const normalizeStoreBaseUrl = (url) => {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.origin}${path === '/' ? '' : path}`;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+};
+
+const buildWooCommerceOrderAdminUrl = (integration, integrationOrderId) => {
+  const orderId = String(integrationOrderId ?? '').trim();
+  if (!orderId || orderId === '—') return '';
+
+  const storeType = String(integration?.store_type || integration?.storeType || '').toLowerCase();
+  if (storeType && storeType !== 'woocommerce') return '';
+
+  const baseUrl = normalizeStoreBaseUrl(
+    integration?.url || integration?.store_url || integration?.storeUrl
+  );
+  if (!baseUrl) return '';
+
+  return `${baseUrl}/wp-admin/admin.php?page=wc-orders&action=edit&id=${encodeURIComponent(orderId)}`;
+};
+
+function OrderIntegrationMergedCell({
+  integration,
+  integrationOrderId,
+  wooOrderAdminUrl,
+}) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const hasOrderId = integrationOrderId && integrationOrderId !== '—';
+
+  if (!integration && !hasOrderId) {
+    return <span className="text-muted">—</span>;
+  }
+
+  const logoSrc = integration ? pickIntegrationStoreLogoUrl(integration) : '';
+  const rawName = integration ? integrationNameFromRecord(integration) : '';
+  const displayName =
+    rawName !== 'Integration'
+      ? rawName
+      : integration?._id || integration?.id
+        ? String(integration._id || integration.id)
+        : '';
+  const storeType = integration?.store_type || integration?.storeType || '';
+  const integrationTitle = storeType
+    ? `${displayName} (${storeTypeLabel(storeType)})`
+    : displayName;
+
+  const orderIdNode = hasOrderId ? (
+    wooOrderAdminUrl ? (
+      <a
+        href={wooOrderAdminUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary font-weight-bold text-decoration-none text-nowrap"
+        title={`Open WooCommerce order ${integrationOrderId}`}
+      >
+        {integrationOrderId}
+      </a>
+    ) : (
+      <span className="font-weight-bold text-nowrap" title={String(integrationOrderId)}>
+        {integrationOrderId}
+      </span>
+    )
+  ) : null;
+
+  let identityNode = null;
+  if (integration) {
+    if (logoSrc && !logoFailed) {
+      identityNode = (
+        <img
+          src={logoSrc}
+          alt={displayName || 'Integration'}
+          title={integrationTitle || undefined}
+          className="list-product-thumb flex-shrink-0"
+          onError={() => setLogoFailed(true)}
+        />
+      );
+    } else if (displayName) {
+      identityNode = (
+        <span className="list-cell-truncate-sm text-sm" title={integrationTitle || displayName}>
+          {displayName}
+        </span>
+      );
+    }
+  }
+
+  if (!identityNode && !orderIdNode) {
+    return <span className="text-muted">—</span>;
+  }
+
+  return (
+    <div className="d-flex align-items-center gap-2 flex-wrap">
+      {identityNode}
+      {identityNode && orderIdNode ? (
+        <span className="text-muted text-xs" aria-hidden="true">
+          ·
+        </span>
+      ) : null}
+      {orderIdNode}
+    </div>
+  );
+}
+
+/** Orders table columns. `sno`, `order_no`, `actions` are always visible. */
+const ORDER_COLUMNS = [
+  { key: 'sno', label: '#', alwaysVisible: true },
+  { key: 'order_no', label: 'Order no', alwaysVisible: true },
+  { key: 'integration', label: 'Integration' },
+  { key: 'name', label: 'Customer' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'items', label: 'Items' },
+  { key: 'total', label: 'Total' },
+  { key: 'status', label: 'Status' },
+  { key: 'created', label: 'Created' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
+
+const integrationIdFromRecord = (item) =>
+  item?._id || item?.id || item?.integration_id || '';
 
 const statusBadgeClass = (status) => {
   const s = String(status || '').toLowerCase();
@@ -93,9 +236,12 @@ const Orders = () => {
   const [editLoadingId, setEditLoadingId] = useState('');
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
+  const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
   const searchTimeoutRef = useRef(null);
+
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('orders', ORDER_COLUMNS);
 
   const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
@@ -284,6 +430,46 @@ const Orders = () => {
     dispatch(clearDeleteStatus());
   };
 
+  const handleQueueOrderSync = async (orderId, orderNo) => {
+    if (!orderId) {
+      toast.error('Could not sync: missing order id.');
+      return;
+    }
+
+    const rowKey = String(orderId);
+    setSyncingOrderId(rowKey);
+
+    try {
+      const result = await fetchIntegrationsRequest();
+      const integrations = Array.isArray(result?.data) ? result.data : [];
+
+      if (integrations.length === 0) {
+        toast.error('No integrations found. Add one under Integrations first.');
+        return;
+      }
+
+      if (integrations.length > 1) {
+        toast.info('Multiple integrations found. Use Sync orders from the toolbar.');
+        return;
+      }
+
+      const integrationId = integrationIdFromRecord(integrations[0]);
+      if (!integrationId) {
+        toast.error('Could not resolve integration id.');
+        return;
+      }
+
+      await createBulkSyncOrderProcessRequest(integrationId, [orderId]);
+      const label = orderNo && orderNo !== '—' ? orderNo : rowKey;
+      toast.success(`Order sync queued for ${label}.`);
+    } catch (err) {
+      console.error('[Orders module] queue order sync failed', err);
+      toast.error(err?.message || 'Failed to queue order sync.');
+    } finally {
+      setSyncingOrderId('');
+    }
+  };
+
   const refreshOrderList = () => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
@@ -334,6 +520,13 @@ const Orders = () => {
                         aria-label="Search orders"
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={ORDER_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="ordersColumnVisibilityMenu"
+                    />
                     {canCreate ? (
                       <>
                         <button
@@ -483,20 +676,35 @@ const Orders = () => {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('order_no', 'Order no')}
-                      {sortableTh('name', 'Customer', 'list-col-truncate')}
-                      {sortableTh('email', 'Email', 'list-col-truncate')}
-                      {sortableTh('phone', 'Phone', 'list-col-truncate-sm')}
-                      {sortableTh('no_of_items', 'Items', 'text-center')}
-                      {sortableTh('order_items_total', 'Total', 'text-end list-col-amount')}
-                      {sortableTh('order_status', 'Status')}
-                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      {isVisible('integration')
+                        ? sortableTh('integration_order_id', 'Integration', 'list-col-truncate')
+                        : null}
+                      {isVisible('name')
+                        ? sortableTh('name', 'Customer', 'list-col-truncate')
+                        : null}
+                      {isVisible('email')
+                        ? sortableTh('email', 'Email', 'list-col-truncate')
+                        : null}
+                      {isVisible('phone')
+                        ? sortableTh('phone', 'Phone', 'list-col-truncate-sm')
+                        : null}
+                      {isVisible('items')
+                        ? sortableTh('no_of_items', 'Items', 'text-center')
+                        : null}
+                      {isVisible('total')
+                        ? sortableTh('order_items_total', 'Total', 'text-end list-col-amount')
+                        : null}
+                      {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                      {isVisible('created')
+                        ? sortableTh('createdAt', 'Created', 'list-col-date')
+                        : null}
                       <th className="text-end list-col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-5 text-muted">
+                        <td colSpan={visibleCount} className="text-center py-5 text-muted">
                           No orders found. Try adjusting your search or date range.
                         </td>
                       </tr>
@@ -504,10 +712,19 @@ const Orders = () => {
                       data.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const key = item._id || item.id || index;
+                        const orderId = pickOrderDocumentId(item);
                         const orderNo = item.order_no || item.orderNo || '—';
+                        const integrationOrderId =
+                          item.integration_order_id || item.integrationOrderId || '—';
+                        const integrationRecord = getOrderIntegrationRecord(item);
+                        const wooOrderAdminUrl = buildWooCommerceOrderAdminUrl(
+                          integrationRecord,
+                          integrationOrderId
+                        );
                         const statusVal = orderDisplayStatus(item);
-                        const rowKey = String(item._id || item.id || index);
+                        const rowKey = String(orderId || item._id || item.id || index);
                         const isRowLoading = editLoadingId === rowKey;
+                        const isSyncing = syncingOrderId === rowKey;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
                         const customerName = item.name || '—';
@@ -517,41 +734,96 @@ const Orders = () => {
                         return (
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                            <td className="text-sm font-weight-bold text-dark">{orderNo}</td>
-                            <td
-                              className="text-sm list-cell-truncate"
-                              title={customerName !== '—' ? customerName : undefined}
-                            >
-                              {customerName}
+                            <td className="text-sm font-weight-bold text-dark">
+                              {canEdit && orderNo !== '—' ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none"
+                                  disabled={isRowLoading}
+                                  onClick={() => handleOpenInvoice(item)}
+                                  title="View order details"
+                                >
+                                  {isRowLoading ? 'Opening…' : orderNo}
+                                </button>
+                              ) : (
+                                orderNo
+                              )}
                             </td>
-                            <td
-                              className="text-sm list-cell-truncate"
-                              title={email !== '—' ? email : undefined}
-                            >
-                              {email}
-                            </td>
-                            <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
-                            <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
-                            <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                              {total !== '—' ? `PKR ${total}` : total}
-                            </td>
-                            <td className="text-sm">
-                              <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                {String(statusVal)}
-                              </span>
-                            </td>
-                            <td
-                              className="text-sm text-nowrap list-col-date"
-                              title={
-                                updated
-                                  ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                  : undefined
-                              }
-                            >
-                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                            </td>
+                            {isVisible('integration') ? (
+                              <td className="text-sm">
+                                <OrderIntegrationMergedCell
+                                  integration={integrationRecord}
+                                  integrationOrderId={integrationOrderId}
+                                  wooOrderAdminUrl={wooOrderAdminUrl}
+                                />
+                              </td>
+                            ) : null}
+                            {isVisible('name') ? (
+                              <td
+                                className="text-sm list-cell-truncate"
+                                title={customerName !== '—' ? customerName : undefined}
+                              >
+                                {customerName}
+                              </td>
+                            ) : null}
+                            {isVisible('email') ? (
+                              <td
+                                className="text-sm list-cell-truncate"
+                                title={email !== '—' ? email : undefined}
+                              >
+                                {email}
+                              </td>
+                            ) : null}
+                            {isVisible('phone') ? (
+                              <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
+                            ) : null}
+                            {isVisible('items') ? (
+                              <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
+                            ) : null}
+                            {isVisible('total') ? (
+                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                                {total !== '—' ? `PKR ${total}` : total}
+                              </td>
+                            ) : null}
+                            {isVisible('status') ? (
+                              <td className="text-sm">
+                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                  {String(statusVal)}
+                                </span>
+                              </td>
+                            ) : null}
+                            {isVisible('created') ? (
+                              <td
+                                className="text-sm text-nowrap list-col-date"
+                                title={
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    : undefined
+                                }
+                              >
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              </td>
+                            ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                  title="Sync order"
+                                  aria-label="Sync order"
+                                  onClick={() => handleQueueOrderSync(orderId, orderNo)}
+                                  disabled={!orderId || isSyncing}
+                                >
+                                  {isSyncing ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
+                                  ) : (
+                                    <NavIcon icon={FaArrowsRotate} size={14} />
+                                  )}
+                                </button>
                                 {canEdit ? (
                                   <button
                                     type="button"
@@ -571,9 +843,6 @@ const Orders = () => {
                                   >
                                     Delete
                                   </button>
-                                ) : null}
-                                {!canEdit && !canDelete ? (
-                                  <span className="text-muted">—</span>
                                 ) : null}
                               </div>
                             </td>
