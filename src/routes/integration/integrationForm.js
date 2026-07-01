@@ -20,6 +20,50 @@ export const EMPTY_INTEGRATION_FORM = {
   integrationSecret: '',
   token: '',
   description: '',
+  product_settings: {
+    sync_product_name: 'yes',
+    sync_product_slug: 'yes',
+    sync_product_image: 'yes',
+    sync_product_price: 'yes',
+    sync_product_description: 'yes',
+    sync_product_status: 'yes',
+  },
+};
+
+export const PRODUCT_SETTING_FIELDS = [
+  { key: 'sync_product_name', label: 'Sync product name' },
+  { key: 'sync_product_slug', label: 'Sync product slug' },
+  { key: 'sync_product_image', label: 'Sync product image' },
+  { key: 'sync_product_price', label: 'Sync product price' },
+  { key: 'sync_product_description', label: 'Sync product description' },
+  { key: 'sync_product_status', label: 'Sync product status' },
+];
+
+const toYesNo = (value) => {
+  if (value === 'yes' || value === 'no') return value;
+  if (value === true || value === 'true' || value === 1 || value === '1') return 'yes';
+  if (value === false || value === 'false' || value === 0 || value === '0') return 'no';
+  return 'yes';
+};
+
+const normalizeProductSettingsFromRecord = (record) => {
+  const settings = { ...EMPTY_INTEGRATION_FORM.product_settings };
+  if (!record || typeof record !== 'object') return settings;
+
+  const nested = record.product_settings ?? record.productSettings;
+  for (const { key } of PRODUCT_SETTING_FIELDS) {
+    const raw = record[key] ?? nested?.[key];
+    if (raw != null) settings[key] = toYesNo(raw);
+  }
+  return settings;
+};
+
+const productSettingsToPayload = (productSettings) => {
+  const payload = {};
+  for (const { key } of PRODUCT_SETTING_FIELDS) {
+    payload[key] = toYesNo(productSettings?.[key]);
+  }
+  return payload;
 };
 
 export const integrationIdFromRecord = (item) =>
@@ -55,6 +99,7 @@ export const integrationRecordToForm = (record) => {
     integrationSecret: record.secret || record.secret_key || record.secretKey || '',
     token: record.token || '',
     description: record.description || '',
+    product_settings: normalizeProductSettingsFromRecord(record),
   };
 };
 
@@ -131,6 +176,8 @@ export const buildIntegrationPayload = (form, { isEdit = false } = {}) => {
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
   if (token) payload.token = token;
+
+  Object.assign(payload, productSettingsToPayload(form.product_settings));
 
   return payload;
 };

@@ -58,6 +58,10 @@ const appendIntegrationFieldsToFormData = (formData, data = {}) => {
       formData.append(key, '');
       return;
     }
+    if (typeof value === 'object') {
+      formData.append(key, JSON.stringify(value));
+      return;
+    }
     formData.append(key, typeof value === 'string' ? value : String(value));
   });
 };

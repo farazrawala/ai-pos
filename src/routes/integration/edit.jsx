@@ -12,6 +12,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
   STORE_TYPE_OPTIONS,
+  PRODUCT_SETTING_FIELDS,
   buildIntegrationPayload,
   integrationRecordToForm,
   syncIntegrationFormFromDom,
@@ -56,6 +57,16 @@ const IntegrationEdit = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const handleProductSettingToggle = (key, checked) => {
+    setForm((prev) => ({
+      ...prev,
+      product_settings: {
+        ...prev.product_settings,
+        [key]: checked ? 'yes' : 'no',
+      },
+    }));
   };
 
   const handleStoreLogoChange = (e) => {
@@ -394,6 +405,41 @@ const IntegrationEdit = () => {
                     disabled={isSubmitting}
                     autoComplete="off"
                   />
+                </div>
+
+                <div className="mb-4">
+                  <h6 className="text-sm font-weight-bold mb-3">Product settings</h6>
+                  <p className="text-sm text-muted mb-3">
+                    Choose which product fields to sync with this store integration.
+                  </p>
+                  <div className="row g-3">
+                    {PRODUCT_SETTING_FIELDS.map(({ key, label }) => {
+                      const checked = form.product_settings?.[key] === 'yes';
+                      return (
+                        <div key={key} className="col-md-6">
+                          <div className="d-flex align-items-center justify-content-between border rounded px-3 py-2">
+                            <label
+                              className="form-label mb-0 text-sm"
+                              htmlFor={`product-setting-${key}`}
+                            >
+                              {label}
+                            </label>
+                            <div className="form-check form-switch mb-0">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                role="switch"
+                                id={`product-setting-${key}`}
+                                checked={checked}
+                                onChange={(e) => handleProductSettingToggle(key, e.target.checked)}
+                                disabled={isSubmitting}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {(errors.submit || updateError) && (
