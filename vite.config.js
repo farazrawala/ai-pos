@@ -46,6 +46,9 @@ export default defineConfig(({ mode }) => {
       ? null
       : normalizedBase.replace(/\/$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+  const navigateFallback =
+    normalizedBase === '/' ? 'index.html' : withBasePath(normalizedBase, 'index.html');
+
   return {
     base: normalizedBase,
     define: {
@@ -74,12 +77,32 @@ export default defineConfig(({ mode }) => {
         manifest: pwaManifest,
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,eot,ttf,json,webmanifest}'],
-          navigateFallback: 'index.html',
+          navigateFallback,
           navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/storage\//],
           ...(basePathPattern
             ? { navigateFallbackAllowlist: [new RegExp(`^${basePathPattern}(/|$)`)] }
             : {}),
+          skipWaiting: true,
+          clientsClaim: true,
+          ignoreURLParametersMatching: [/^v$/, /^rev$/],
           runtimeCaching: [
+            {
+              urlPattern: ({ request, url }) =>
+                request.method === 'GET' &&
+                (url.pathname.includes('/assets/') ||
+                  /\.(js|css|woff2?|ttf|svg|png|ico|webmanifest)$/.test(url.pathname)),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'pos-static-assets',
+                expiration: {
+                  maxEntries: 400,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/uploads/'),
               handler: 'CacheFirst',
@@ -111,7 +134,9 @@ export default defineConfig(({ mode }) => {
           ],
         },
         devOptions: {
-          enabled: false,
+          enabled: mode === 'localhost',
+          type: 'classic',
+          navigateFallback: 'index.html',
         },
       }),
     ],
