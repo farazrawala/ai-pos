@@ -1,6 +1,12 @@
 import { STORE_TYPE_OPTIONS } from './integrationForm.js';
 
-export default function IntegrationFormFields({ form, errors, onChange, disabled = false }) {
+export default function IntegrationFormFields({
+  form,
+  errors,
+  onChange,
+  disabled = false,
+  isEdit = false,
+}) {
   return (
     <>
       <div className="integration-form-section">
@@ -210,7 +216,7 @@ export default function IntegrationFormFields({ form, errors, onChange, disabled
           </div>
           <div className="col-md-6">
             <label className="integration-form-label d-block" htmlFor="integration_secret">
-              API secret <span className="req">*</span>
+              API secret {!isEdit ? <span className="req">*</span> : null}
             </label>
             <input
               type="password"
@@ -221,6 +227,7 @@ export default function IntegrationFormFields({ form, errors, onChange, disabled
               onChange={onChange}
               disabled={disabled}
               autoComplete="new-password"
+              placeholder={isEdit ? 'Leave blank to keep current secret' : undefined}
             />
             {errors.integrationSecret ? (
               <div className="invalid-feedback">{errors.integrationSecret}</div>
