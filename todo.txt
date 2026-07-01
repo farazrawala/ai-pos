@@ -44,8 +44,18 @@ Add/edit variant product
 mark_as_default_customer, mark_as_default_vendor functionality (testing remaining)
 in user add multiple accounts to be include and not to be include.
 
- - ecommerce
-fetch orders
-sync orders
-sync products
-
+ - woocommerce
+  "fetch_products" 
+    - single (done)
+    - variable (done)
+  "sync_product",
+    - single (done)
+    - variable 
+  "fetch_category",
+  "sync_category",
+  "delete_category",
+  "fetch_brand",
+  "sync_brand",
+  "delete_brand",
+  "fetch_order",
+  "fetch_latest_order",

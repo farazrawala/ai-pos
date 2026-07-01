@@ -70,7 +70,7 @@ export const fetchProcessesRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}process/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}process/get-all${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {

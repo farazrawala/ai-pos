@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { withBase } from '../config/appBase.js';
@@ -13,6 +14,7 @@ import {
   FaUser,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
+import ClearCompanyCacheButton from './company/ClearCompanyCacheButton.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 import { clearOfflineDb } from '../offline/db.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
@@ -24,6 +26,7 @@ const Header = () => {
   const { name, user } = useSelector((state) => state.user);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const { toggle: toggleSidenav } = useSidenav();
+  const [cacheNotice, setCacheNotice] = useState(null);
 
   const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
   const firstSegment = pathSegment
@@ -37,6 +40,11 @@ const Header = () => {
     });
     dispatch(clearUser());
     navigate('/signin');
+  };
+
+  const showCacheNotice = (type, text) => {
+    setCacheNotice({ type, text });
+    window.setTimeout(() => setCacheNotice(null), 4000);
   };
 
   return (
@@ -72,7 +80,29 @@ const Header = () => {
         <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
           <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (
-              <li className="nav-item dropdown pe-2 d-flex align-items-center">
+              <>
+                <li className="nav-item d-flex align-items-center me-2">
+                  <ClearCompanyCacheButton
+                    className="btn btn-sm btn-outline-light mb-0 py-1 px-2 text-xs"
+                    onError={(err) => {
+                      showCacheNotice(
+                        'danger',
+                        err?.message || 'Failed to clear company cache.'
+                      );
+                    }}
+                  />
+                </li>
+                {cacheNotice ? (
+                  <li className="nav-item d-flex align-items-center me-2">
+                    <span
+                      className={`badge mb-0 ${cacheNotice.type === 'success' ? 'bg-success' : 'bg-danger'}`}
+                      role="status"
+                    >
+                      {cacheNotice.text}
+                    </span>
+                  </li>
+                ) : null}
+                <li className="nav-item dropdown pe-2 d-flex align-items-center">
                 <a
                   href="javascript:;"
                   className="nav-link text-white p-0"
@@ -114,6 +144,7 @@ const Header = () => {
                   </li>
                 </ul>
               </li>
+              </>
             ) : (
               <li className="nav-item d-flex align-items-center">
                 <Link to="/signin" className="nav-link text-white font-weight-bold px-0">

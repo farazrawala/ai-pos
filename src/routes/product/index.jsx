@@ -27,6 +27,7 @@ import FetchProductsModal from '../../components/product/FetchProductsModal.jsx'
 import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
+import { productEditIdFromRecord, productIdFromRecord } from '../../components/product/productVariationUtils.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 
@@ -128,8 +129,6 @@ const PRODUCT_COLUMNS = [
   { key: 'created', label: 'Created' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
-
-const productIdFromRecord = (item) => item?._id || item?.id || item?.product_id || '';
 
 const statusBadgeClass = (active) => (active ? 'bg-gradient-success' : 'bg-gradient-secondary');
 
@@ -566,6 +565,7 @@ const Product = () => {
                       data.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const productId = productIdFromRecord(item);
+                        const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
                         const mainImage =
                           item.product_image ||
@@ -621,7 +621,7 @@ const Product = () => {
                                   type="button"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
                                   title={`Edit ${productName}`}
-                                  onClick={() => navigate(`/products/edit/${productId}`)}
+                                  onClick={() => navigate(`/products/edit/${productEditId}`)}
                                 >
                                   {productName}
                                 </button>
@@ -767,7 +767,7 @@ const Product = () => {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-primary mb-0"
-                                    onClick={() => navigate(`/products/edit/${productId}`)}
+                                    onClick={() => navigate(`/products/edit/${productEditId}`)}
                                   >
                                     Edit
                                   </button>
