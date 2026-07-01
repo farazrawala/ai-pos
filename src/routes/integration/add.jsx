@@ -6,11 +6,12 @@ import { createIntegration } from '../../features/integration/integrationSlice.j
 import { usePermissions } from '../../hooks/usePermissions.js';
 import {
   EMPTY_INTEGRATION_FORM,
-  STORE_TYPE_OPTIONS,
   buildIntegrationPayload,
   syncIntegrationFormFromDom,
   validateIntegrationForm,
 } from './integrationForm.js';
+import IntegrationFormFields from './IntegrationFormFields.jsx';
+import './integration-form.css';
 
 const IntegrationAdd = () => {
   const dispatch = useDispatch();
@@ -86,268 +87,75 @@ const IntegrationAdd = () => {
   };
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Add Integration</h5>
-                  <p className="text-sm mb-0">Connect a new store or sales channel.</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/integration')}
-                >
-                  <i className="fas fa-arrow-left me-1"></i>
-                  Back to List
-                </button>
-              </div>
+    <div className="integration-form-page">
+      <form onSubmit={handleSubmit}>
+        <div className="integration-form-card card">
+          <div className="integration-form-header">
+            <div>
+              <span className="integration-form-eyebrow">
+                <i className="fas fa-plug" aria-hidden="true" />
+                Integration
+              </span>
+              <h5 className="integration-form-title">Add integration</h5>
+              <p className="integration-form-subtitle">
+                Connect a new store or sales channel to your POS.
+              </p>
             </div>
-            <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
-                <div className="mb-3">
-                  <label htmlFor="store_type" className="form-label">
-                    Store type <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className={`form-select ${errors.store_type ? 'is-invalid' : ''}`}
-                    id="store_type"
-                    name="store_type"
-                    value={form.store_type}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  >
-                    {STORE_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.store_type && <div className="invalid-feedback">{errors.store_type}</div>}
-                </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
+          </div>
 
-                <div className="mb-3">
-                  <label htmlFor="name" className="form-label">
-                    Name <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                    id="name"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
+          <div className="integration-form-body">
+            <IntegrationFormFields
+              form={form}
+              errors={errors}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+
+            {errors.submit ? (
+              <div className="alert alert-danger py-2 mt-3 mb-0">{errors.submit}</div>
+            ) : null}
+          </div>
+
+          <div className="integration-form-footer">
+            <span className="integration-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/integration')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
                   />
-                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="address" className="form-label">
-                    Address <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.address ? 'is-invalid' : ''}`}
-                    id="address"
-                    name="address"
-                    value={form.address}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                  {errors.address && <div className="invalid-feedback">{errors.address}</div>}
-                </div>
-
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="city" className="form-label">
-                      City <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className={`form-control ${errors.city ? 'is-invalid' : ''}`}
-                      id="city"
-                      name="city"
-                      value={form.city}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                    {errors.city && <div className="invalid-feedback">{errors.city}</div>}
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="state" className="form-label">
-                      State <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className={`form-control ${errors.state ? 'is-invalid' : ''}`}
-                      id="state"
-                      name="state"
-                      value={form.state}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                    {errors.state && <div className="invalid-feedback">{errors.state}</div>}
-                  </div>
-                </div>
-
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="email" className="form-label">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      className={`form-control ${errors.email ? 'is-invalid' : ''}`}
-                      id="email"
-                      name="email"
-                      value={form.email}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                    {errors.email && <div className="invalid-feedback">{errors.email}</div>}
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="phone" className="form-label">
-                      Phone
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="phone"
-                      name="phone"
-                      value={form.phone}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="url" className="form-label">
-                    URL <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    className={`form-control ${errors.url ? 'is-invalid' : ''}`}
-                    id="url"
-                    name="url"
-                    placeholder="https://example.com"
-                    value={form.url}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                  {errors.url && <div className="invalid-feedback">{errors.url}</div>}
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="description" className="form-label">
-                    Description <span className="text-danger">*</span>
-                  </label>
-                  <textarea
-                    className={`form-control ${errors.description ? 'is-invalid' : ''}`}
-                    id="description"
-                    name="description"
-                    rows={3}
-                    value={form.description}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                  />
-                  {errors.description && (
-                    <div className="invalid-feedback">{errors.description}</div>
-                  )}
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="integration_key" className="form-label">
-                    Key <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.integrationKey ? 'is-invalid' : ''}`}
-                    id="integration_key"
-                    name="integrationKey"
-                    value={form.integrationKey}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                    autoComplete="off"
-                  />
-                  {errors.integrationKey && (
-                    <div className="invalid-feedback">{errors.integrationKey}</div>
-                  )}
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="integration_secret" className="form-label">
-                    Secret <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    className={`form-control ${errors.integrationSecret ? 'is-invalid' : ''}`}
-                    id="integration_secret"
-                    name="integrationSecret"
-                    value={form.integrationSecret}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                    autoComplete="new-password"
-                  />
-                  {errors.integrationSecret && (
-                    <div className="invalid-feedback">{errors.integrationSecret}</div>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <label htmlFor="token" className="form-label">
-                    Token
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="token"
-                    name="token"
-                    value={form.token}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                    autoComplete="off"
-                  />
-                </div>
-
-                {errors.submit && <div className="alert alert-danger py-2">{errors.submit}</div>}
-
-                <div className="d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => navigate('/integration')}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save me-2"></i>
-                        Create Integration
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-plus me-2" aria-hidden="true" />
+                  Create integration
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div>
+      </form>
 
       <div className="position-fixed bottom-1 end-1 z-index-2">
         <div

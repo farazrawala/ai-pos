@@ -1,0 +1,223 @@
+/* Attribute add / edit form — professional layout */
+.attr-form-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 1.5rem;
+}
+
+.attr-form-card {
+  max-width: 720px;
+  margin: 0 auto;
+  border: 1px solid #e9ecf1;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.06);
+}
+
+.attr-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem;
+  background: linear-gradient(120deg, #f8fafc 0%, #eef2f9 100%);
+  border-bottom: 1px solid #e9ecf1;
+}
+
+.attr-form-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6b8c;
+  margin-bottom: 0.35rem;
+}
+
+.attr-form-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1f2a44;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.attr-form-subtitle {
+  font-size: 0.85rem;
+  color: #7a869a;
+  margin: 0.25rem 0 0;
+}
+
+.attr-form-body {
+  padding: 1.5rem;
+}
+
+.attr-form-section {
+  border: 1px solid #edf0f5;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  background: #fff;
+}
+
+.attr-form-section + .attr-form-section {
+  margin-top: 1rem;
+}
+
+.attr-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2a3654;
+  margin-bottom: 0.25rem;
+}
+
+.attr-form-section-hint {
+  font-size: 0.78rem;
+  color: #9aa4b6;
+  margin-bottom: 1rem;
+}
+
+.attr-form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #41506b;
+  margin-bottom: 0.35rem;
+}
+
+.attr-form-label .req {
+  color: #e5484d;
+  margin-left: 0.15rem;
+}
+
+.attr-form-help {
+  font-size: 0.75rem;
+  color: #9aa4b6;
+  margin-top: 0.3rem;
+  display: block;
+}
+
+.attr-form-control {
+  border-radius: 0.6rem;
+  border: 1px solid #d8dee9;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.attr-form-control:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18);
+}
+
+.attr-value-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attr-value-add-row .attr-form-control {
+  flex: 1;
+  min-width: 180px;
+}
+
+.attr-value-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #edf0f5;
+  border-radius: 0.65rem;
+  min-height: 2.75rem;
+}
+
+.attr-value-chips--empty {
+  align-items: center;
+  justify-content: center;
+  color: #9aa4b6;
+  font-size: 0.78rem;
+}
+
+.attr-value-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+  border-radius: 2rem;
+  border: 1.5px solid #c7d9f7;
+  background: #eef3ff;
+  color: #3b6fd4;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.attr-value-chip-remove {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid #d0daf0;
+  border-radius: 50%;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.attr-value-chip-remove:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.attr-value-chip-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.attr-value-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #5b8def;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 0.35rem;
+}
+
+.attr-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid #edf0f5;
+  background: #fbfcfe;
+}
+
+.attr-form-footer .attr-form-footer-note {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #9aa4b6;
+}

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import { createAttribute } from '../../features/attributes/attributesSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import AttributeValuesEditor from './AttributeValuesEditor.jsx';
+import './attribute-form.css';
 
 const AttributeAdd = () => {
   const dispatch = useDispatch();
@@ -152,134 +154,103 @@ const AttributeAdd = () => {
   };
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="row">
-        <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-0">Add New Attribute</h5>
-                  <p className="text-sm mb-0">Create a new attribute with values</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => navigate('/attributes')}
-                >
-                  <i className="fas fa-arrow-left me-1"></i>
-                  Back to List
-                </button>
-              </div>
+    <div className="attr-form-page">
+      <div className="attr-form-card card">
+        <form onSubmit={handleSubmit}>
+          <div className="attr-form-header">
+            <div>
+              <span className="attr-form-eyebrow">
+                <i className="fas fa-sliders" aria-hidden="true" />
+                Attributes
+              </span>
+              <h5 className="attr-form-title">Add attribute</h5>
+              <p className="attr-form-subtitle">
+                Create a new attribute with values for product variations.
+              </p>
             </div>
-            <div className="card-body pt-0">
-              <form onSubmit={handleSubmit}>
-                {/* Name Field */}
-                <div className="mb-3">
-                  <label htmlFor="name" className="form-label">
-                    Attribute Name <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
-                    id="name"
-                    name="name"
-                    placeholder="Enter attribute name (e.g., Color, Size)"
-                    value={form.name}
-                    onChange={handleChange}
-                    required
-                  />
-                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
-                  <small className="text-muted">
-                    The name will be used to identify this attribute.
-                  </small>
-                </div>
-
-                {/* Attribute Values Section */}
-                <div className="mb-4">
-                  <label className="form-label">Attribute Values</label>
-                  <div className="input-group mb-2">
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Enter attribute value (e.g., Red, Small)"
-                      value={newValue}
-                      onChange={(e) => setNewValue(e.target.value)}
-                      onKeyPress={handleValueKeyPress}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary"
-                      onClick={handleAddValue}
-                      disabled={!newValue.trim()}
-                    >
-                      <i className="fas fa-plus me-1"></i>
-                      Add Value
-                    </button>
-                  </div>
-                  <small className="text-muted">
-                    Press Enter or click "Add Value" to add a new attribute value.
-                  </small>
-
-                  {/* Display added values */}
-                  {form.attribute_values.length > 0 && (
-                    <div className="mt-3">
-                      <div className="d-flex flex-wrap gap-2">
-                        {form.attribute_values.map((value, index) => (
-                          <div
-                            key={index}
-                            className="badge bg-info text-dark d-flex align-items-center gap-2"
-                            style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
-                          >
-                            <span>{value.name}</span>
-                            <button
-                              type="button"
-                              className="btn-close btn-close-white"
-                              style={{ fontSize: '0.5rem' }}
-                              onClick={() => handleRemoveValue(index)}
-                              aria-label="Remove"
-                            ></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Form Actions */}
-                <div className="d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => navigate('/attributes')}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save me-2"></i>
-                        Create Attribute
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary mb-0"
+              onClick={() => navigate('/attributes')}
+            >
+              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+              Back to list
+            </button>
           </div>
-        </div>
+
+          <div className="attr-form-body">
+            <div className="attr-form-section">
+              <div className="attr-form-section-title">
+                <i className="fas fa-tag text-primary" aria-hidden="true" />
+                Basic details
+              </div>
+              <p className="attr-form-section-hint">
+                The attribute name appears when building product variations (e.g. Color, Size).
+              </p>
+
+              <label className="attr-form-label d-block" htmlFor="name">
+                Attribute name <span className="req">*</span>
+              </label>
+              <input
+                type="text"
+                className={`form-control attr-form-control ${errors.name ? 'is-invalid' : ''}`}
+                id="name"
+                name="name"
+                placeholder="e.g. Color, Size, Material"
+                value={form.name}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+              {errors.name ? <div className="invalid-feedback">{errors.name}</div> : null}
+              <span className="attr-form-help">Used to identify this attribute across products.</span>
+            </div>
+
+            <AttributeValuesEditor
+              values={form.attribute_values}
+              newValue={newValue}
+              onNewValueChange={setNewValue}
+              onAddValue={handleAddValue}
+              onRemoveValue={handleRemoveValue}
+              onKeyDown={handleValueKeyPress}
+              disabled={isSubmitting}
+              error={errors.attribute_values}
+            />
+          </div>
+
+          <div className="attr-form-footer">
+            <span className="attr-form-footer-note">
+              <span className="req text-danger">*</span> Required fields
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={() => navigate('/attributes')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary mb-0" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-plus me-2" aria-hidden="true" />
+                  Create attribute
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">
         <div
           className="toast fade hide p-2 bg-white"
