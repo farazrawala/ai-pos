@@ -41,6 +41,7 @@ import BranchEdit from './routes/branch/edit.jsx';
 import Accounts from './routes/accounts/index.jsx';
 import AccountsEdit from './routes/accounts/edit.jsx';
 import Orders from './routes/orders/index.jsx';
+import OMS from './routes/oms/index.jsx';
 import PurchaseOrderLookup from './routes/purchase_order/index.jsx';
 import PurchaseOrderAdd from './routes/purchase_order/add.jsx';
 import PurchaseOrderEdit from './routes/purchase_order/edit.jsx';
@@ -203,6 +204,7 @@ const App = () => {
           <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/assets/edit/:id" element={<AssetEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/oms" element={<OMS />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
@@ -324,6 +326,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/assets/edit/:id" element={<AssetEdit />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/oms" element={<OMS />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />

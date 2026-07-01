@@ -2,6 +2,7 @@
 export const PERMISSION_MODULE_KEYS = [
   'pos',
   'orders',
+  'oms',
   'purchase-orders',
   'purchase-order-returns',
   'sales-returns',
@@ -44,6 +45,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/': null,
   '/pos': 'pos',
   '/orders': 'orders',
+  '/oms': 'oms',
   '/purchase-orders': 'purchase-orders',
   '/purchase-order-returns': 'purchase-order-returns',
   '/sales-returns': 'sales-returns',

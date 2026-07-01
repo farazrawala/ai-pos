@@ -43,6 +43,7 @@ export const NAV_ITEMS = [
   { to: '/pos', label: 'POS', icon: FaLaptop },
   { to: '/products', label: 'Products', icon: FaBox },
   { to: '/orders', label: 'Orders', icon: FaCartShopping },
+  { to: '/oms', label: 'OMS', icon: FaClipboardList },
   { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },
   { to: '/purchase-order-returns', label: 'Purchase order returns', icon: FaArrowRotateLeft },
   { to: '/sales-returns', label: 'Sales returns', icon: FaArrowRotateLeft },
