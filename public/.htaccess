@@ -9,4 +9,7 @@
 
 <IfModule mod_headers.c>
   Header set Cache-Control "no-cache, no-store, must-revalidate" env=REDIRECT_no_cache
+  <FilesMatch "^(sw\.js|workbox-.*\.js|registerSW\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
 </IfModule>

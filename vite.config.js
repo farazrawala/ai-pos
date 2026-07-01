@@ -58,6 +58,8 @@ export default defineConfig(({ mode }) => {
       projectDevLogPlugin({ logFile: projectDevLogFile }),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: false,
+        scope: normalizedBase,
         includeAssets: [
           'pwa-icon.svg',
           'manifest.json',
@@ -75,7 +77,7 @@ export default defineConfig(({ mode }) => {
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/storage\//],
           ...(basePathPattern
-            ? { navigateFallbackAllowlist: [new RegExp(`^${basePathPattern}`)] }
+            ? { navigateFallbackAllowlist: [new RegExp(`^${basePathPattern}(/|$)`)] }
             : {}),
           runtimeCaching: [
             {

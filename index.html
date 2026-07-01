@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#5e72e4" />
     <link rel="apple-touch-icon" href="%BASE_URL%pwa-icon.svg" />
+    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <title>AI POS</title>
     <script>
       (function () {
@@ -16,6 +17,11 @@
         var nextPath = path.replace(/^\//, '');
         window.location.replace(base + nextPath + window.location.search + window.location.hash);
       })();
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('%BASE_URL%sw.js', { scope: '%BASE_URL%' }).catch(function () {});
+      }
     </script>
     <!-- Fonts: bundled locally via @fontsource/open-sans in src/index.js -->
     <!-- CSS Files -->
