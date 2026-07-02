@@ -68,6 +68,10 @@ export const fetchProcessesRequest = async (params = {}) => {
   if (params.search) queryParams.append('search', params.search);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  queryParams.append(
+    'populate',
+    params.populate || 'integration_id,category_id,product_id,brand_id'
+  );
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}process/get-all${queryString ? `?${queryString}` : ''}`;
@@ -241,6 +245,54 @@ export const createBulkSyncOrderProcessRequest = async (integrationId, orderIds 
     priority: 100,
     order_ids: orderIds,
   });
+
+/** PATCH process/update/:id — partial update (e.g. `{ status: 'inactive' }`). */
+export const updateProcessRequest = async (processId, processData = {}) => {
+  const id = String(processId || '').trim();
+  if (!id) throw new Error('Process id is required');
+
+  const url = `${BASE_URL}process/update/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(processData),
+    });
+  } catch (err) {
+    logProcessModuleError('updateProcessRequest network error', {
+      url,
+      processId: id,
+      processData,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('updateProcessRequest failed', {
+      status: response.status,
+      processId: id,
+      processData,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/** Stop a process by marking its status inactive. */
+export const stopProcessRequest = async (processId) =>
+  updateProcessRequest(processId, { status: 'inactive' });
 
 export const executeProcessRequest = async (processId) => {
   const id = String(processId || '').trim();

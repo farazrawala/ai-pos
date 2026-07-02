@@ -8,7 +8,7 @@ import {
   setLimit,
   setSort,
 } from '../../features/process/processSlice.js';
-import { executeProcessRequest } from '../../features/process/processAPI.js';
+import { executeProcessRequest, stopProcessRequest } from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -24,7 +24,7 @@ const PROCESS_COLUMNS = [
   { key: 'sno', label: 'S.No', alwaysVisible: true },
   { key: 'action', label: 'Action', alwaysVisible: true },
   { key: 'integration', label: 'Integration' },
-  { key: 'product', label: 'Product' },
+  { key: 'product', label: 'Item Name' },
   { key: 'priority', label: 'Priority' },
   { key: 'count', label: 'Count' },
   { key: 'page', label: 'Page' },
@@ -50,6 +50,40 @@ const shortId = (value) => {
   if (!value) return '-';
   const id = String(value);
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
+};
+
+const refId = (ref) => {
+  if (!ref) return '';
+  if (typeof ref === 'object') return String(ref._id ?? ref.id ?? '');
+  return String(ref);
+};
+
+/** Display name of a populated reference (product/category/brand/integration). */
+const refName = (ref) => {
+  if (!ref || typeof ref !== 'object') return '';
+  return ref.product_name || ref.name || ref.title || '';
+};
+
+/** Integration cell: populated name, else short id. */
+const formatIntegration = (item) => refName(item?.integration_id) || shortId(refId(item?.integration_id));
+
+/**
+ * Item name: a process targets one of product / category / brand at a time.
+ * Show whichever reference is populated with its name.
+ */
+const formatItemName = (item) => {
+  const candidates = [
+    { ref: item?.product_id, type: 'Product' },
+    { ref: item?.category_id, type: 'Category' },
+    { ref: item?.brand_id, type: 'Brand' },
+  ];
+  for (const { ref, type } of candidates) {
+    const name = refName(ref);
+    if (name) return { name, type };
+    const id = refId(ref);
+    if (id) return { name: shortId(id), type };
+  }
+  return { name: '-', type: '' };
 };
 
 const formatProgress = (progress) => {
@@ -119,6 +153,7 @@ const ProcessIndex = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const [executingProcessId, setExecutingProcessId] = useState(null);
+  const [stoppingProcessId, setStoppingProcessId] = useState(null);
   const [executeError, setExecuteError] = useState(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('processes', PROCESS_COLUMNS);
@@ -155,6 +190,23 @@ const ProcessIndex = () => {
       console.error('[Process module] Failed to execute process', { processId, error: err });
     } finally {
       setExecutingProcessId(null);
+    }
+  };
+
+  const handleStopProcess = async (processId) => {
+    if (!processId) return;
+
+    setStoppingProcessId(processId);
+    setExecuteError(null);
+
+    try {
+      await stopProcessRequest(processId);
+      refreshProcesses();
+    } catch (err) {
+      setExecuteError(err?.message || 'Failed to stop process');
+      console.error('[Process module] Failed to stop process', { processId, error: err });
+    } finally {
+      setStoppingProcessId(null);
     }
   };
 
@@ -302,6 +354,7 @@ const ProcessIndex = () => {
                         const createdAt = processTimestamp(item, 'createdAt');
                         const updatedAt = processTimestamp(item, 'updatedAt');
                         const duration = formatProcessDuration(createdAt, updatedAt);
+                        const isActive = String(item.status || '').toLowerCase() === 'active';
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
@@ -311,13 +364,25 @@ const ProcessIndex = () => {
                               </span>
                             </td>
                             {isVisible('integration') ? (
-                              <td title={item.integration_id || ''}>
-                                {shortId(item.integration_id)}
+                              <td title={refId(item.integration_id)}>
+                                {formatIntegration(item)}
                               </td>
                             ) : null}
-                            {isVisible('product') ? (
-                              <td title={item.product_id || ''}>{shortId(item.product_id)}</td>
-                            ) : null}
+                            {isVisible('product')
+                              ? (() => {
+                                  const { name, type } = formatItemName(item);
+                                  return (
+                                    <td>
+                                      {name}
+                                      {type ? (
+                                        <span className="badge bg-light text-dark ms-1">
+                                          {type}
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                  );
+                                })()
+                              : null}
                             {isVisible('priority') ? <td>{item.priority ?? '-'}</td> : null}
                             {isVisible('count') ? <td>{item.count ?? '-'}</td> : null}
                             {isVisible('page') ? <td>{item.page ?? '-'}</td> : null}
@@ -355,25 +420,49 @@ const ProcessIndex = () => {
                               </td>
                             ) : null}
                             <td>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary mb-0"
-                                onClick={() => handleExecuteProcess(id)}
-                                disabled={!id || executingProcessId === id}
-                              >
-                                {executingProcessId === id ? (
-                                  <>
-                                    <span
-                                      className="spinner-border spinner-border-sm me-1"
-                                      role="status"
-                                      aria-hidden="true"
-                                    />
-                                    Executing…
-                                  </>
-                                ) : (
-                                  'Execute'
-                                )}
-                              </button>
+                              <div className="d-flex gap-2">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary mb-0"
+                                  onClick={() => handleExecuteProcess(id)}
+                                  disabled={!id || executingProcessId === id || stoppingProcessId === id}
+                                >
+                                  {executingProcessId === id ? (
+                                    <>
+                                      <span
+                                        className="spinner-border spinner-border-sm me-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                      Executing…
+                                    </>
+                                  ) : (
+                                    'Execute'
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-danger mb-0"
+                                  onClick={() => handleStopProcess(id)}
+                                  disabled={
+                                    !id || !isActive || stoppingProcessId === id || executingProcessId === id
+                                  }
+                                  title={isActive ? 'Set status to inactive' : 'Already inactive'}
+                                >
+                                  {stoppingProcessId === id ? (
+                                    <>
+                                      <span
+                                        className="spinner-border spinner-border-sm me-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                      Stopping…
+                                    </>
+                                  ) : (
+                                    'Stop'
+                                  )}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

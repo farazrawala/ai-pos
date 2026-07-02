@@ -50,8 +50,9 @@ in user add multiple accounts to be include and not to be include.
     - variable (done)
   "sync_product",
     - single (done)
-    - variable 
+    - variable (done)
   "fetch_category",
+      (done)
   "sync_category",
   "fetch_brand",
   "sync_brand",
