@@ -697,6 +697,10 @@ export const updateProductVariationRequest = async (
   // Add variations
   if (variations && Array.isArray(variations) && variations.length > 0) {
     variations.forEach((variation, idx) => {
+      const variationId = variation._id ?? variation.id ?? variation.product_id;
+      if (variationId != null && String(variationId).trim() !== '') {
+        formData.append(`variations[${idx}][_id]`, String(variationId));
+      }
       if (variation.product_name !== undefined) {
         formData.append(`variations[${idx}][product_name]`, String(variation.product_name));
       }

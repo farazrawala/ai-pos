@@ -9,6 +9,16 @@ export const parseVariationAttrs = (name) => {
 
 export const productIdFromRecord = (item) => item?._id || item?.id || item?.product_id || '';
 
+/** Existing child product id for update payloads (omit temp `var_*` ids). */
+export const variationProductIdFromRecord = (variation) => {
+  const raw =
+    variation?.childProductId ?? variation?._id ?? variation?.id ?? variation?.product_id;
+  if (raw == null || raw === '') return '';
+  const id = String(raw).trim();
+  if (!id || id.startsWith('var_')) return '';
+  return id;
+};
+
 const parentProductIdFromRecord = (item) => {
   const raw = item?.parent_product_id ?? item?.parentProductId;
   if (raw == null || raw === '') return '';

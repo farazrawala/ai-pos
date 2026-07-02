@@ -130,8 +130,6 @@ const PRODUCT_COLUMNS = [
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
-const statusBadgeClass = (active) => (active ? 'bg-gradient-success' : 'bg-gradient-secondary');
-
 const productIsActive = (item) => item?.status === 'active' || item?.isActive || item?.status === 1;
 
 const Product = () => {
@@ -710,30 +708,23 @@ const Product = () => {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                <div className="d-flex align-items-center gap-2 flex-wrap">
-                                  <span className={`badge text-xxs ${statusBadgeClass(isActive)}`}>
-                                    {isActive ? 'Active' : 'Inactive'}
-                                  </span>
-                                  {canEdit ? (
-                                    <div className="form-check form-switch mb-0 list-status-switch">
-                                      <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        role="switch"
-                                        id={`toggle-${productId || index}`}
-                                        checked={isActive}
-                                        onChange={() => handleToggleStatus(productId, isActive)}
-                                        disabled={isToggling}
-                                        aria-label={`Toggle ${productName} status`}
-                                      />
-                                      {isToggling ? (
-                                        <span
-                                          className="spinner-border spinner-border-sm text-primary ms-1"
-                                          role="status"
-                                          aria-hidden="true"
-                                        />
-                                      ) : null}
-                                    </div>
+                                <div className="form-check form-switch mb-0 list-status-switch">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id={`toggle-${productId || index}`}
+                                    checked={isActive}
+                                    onChange={() => handleToggleStatus(productId, isActive)}
+                                    disabled={!canEdit || isToggling}
+                                    aria-label={`Toggle ${productName} status`}
+                                  />
+                                  {isToggling ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm text-primary ms-1"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
                                   ) : null}
                                 </div>
                               </td>

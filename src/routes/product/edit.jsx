@@ -17,6 +17,7 @@ import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.
 import { toast } from '../../utils/toast.js';
 import ProductVariationsModal from '../../components/product/ProductVariationsModal.jsx';
 import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
+import { variationProductIdFromRecord } from '../../components/product/productVariationUtils.js';
 import '../../components/product/product-variations-modal.css';
 import './product-form.css';
 
@@ -823,6 +824,11 @@ const ProductEdit = () => {
             alert_qty:
               variation.alert_qty && variation.alert_qty !== '' ? parseInt(variation.alert_qty) : 0,
           };
+
+          const existingVariationId = variationProductIdFromRecord(variation);
+          if (existingVariationId) {
+            mapped._id = existingVariationId;
+          }
 
           // Optional fields - only include if they have values
           if (variation.weight && variation.weight !== '') {
