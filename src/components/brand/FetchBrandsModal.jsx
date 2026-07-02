@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
-import { createSyncBrandProcessRequest } from '../../features/process/processAPI.js';
+import { createFetchBrandProcessRequest } from '../../features/process/processAPI.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -62,7 +62,7 @@ export default function FetchBrandsModal({ open, onClose, onSaved }) {
     setSaveError(null);
 
     try {
-      await createSyncBrandProcessRequest(selectedIntegrationId);
+      await createFetchBrandProcessRequest(selectedIntegrationId);
       setSaveStatus('succeeded');
       onSaved?.();
       onClose?.();

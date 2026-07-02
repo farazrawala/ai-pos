@@ -378,13 +378,7 @@ const Brand = () => {
                                   >
                                     <span className="visually-hidden">Loading...</span>
                                   </span>
-                                ) : (
-                                  <span
-                                    className={`badge ${isBrandActive(item) ? 'bg-success' : 'bg-secondary'}`}
-                                  >
-                                    {isBrandActive(item) ? 'Active' : 'Inactive'}
-                                  </span>
-                                )}
+                                ) : null}
                               </div>
                             </td>
                             <td className="text-sm font-weight-normal">

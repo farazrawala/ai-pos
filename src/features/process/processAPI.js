@@ -182,12 +182,26 @@ export const createBulkSyncCategoryProcessRequest = async (integrationId, catego
     category_ids: categoryIds,
   });
 
-export const createSyncBrandProcessRequest = async (integrationId) =>
+/** Queue import of all brands from a store integration (WooCommerce / Shopify). */
+export const createFetchBrandProcessRequest = async (integrationId) =>
   createProcessRequest({
     integration_id: integrationId,
-    action: 'sync_brand',
+    action: 'fetch_brand',
     priority: 1000,
   });
+
+/** Queue a per-brand sync. `sync_brand` requires a target `brand_id`. */
+export const createSyncBrandProcessRequest = async (integrationId, brandId) => {
+  const brand = String(brandId || '').trim();
+  if (!brand) throw new Error('brand_id is required for sync_brand.');
+
+  return createProcessRequest({
+    integration_id: integrationId,
+    action: 'sync_brand',
+    brand_id: brand,
+    priority: 1000,
+  });
+};
 
 export const createBulkSyncBrandProcessRequest = async (integrationId, brandIds = []) =>
   bulkCreateProcessRequest({

@@ -54,7 +54,12 @@ in user add multiple accounts to be include and not to be include.
   "fetch_category",
       (done)
   "sync_category",
+       (done)
   "fetch_brand",
+    (done)
   "sync_brand",
+    (done)
+
+    
   "fetch_order",
   "fetch_latest_order",
