@@ -28,3 +28,4 @@ coverage
 
 testing_sites_credentials.txt
 testing_sites.txt
+.env

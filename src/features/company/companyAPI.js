@@ -283,6 +283,7 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('bType', get('bType', 'b_type'));
   setIf('labelCount', get('labelCount', 'label_count'));
   setIf('sheetWidthIn', get('sheetWidthIn', 'sheet_width_in'));
+  setIf('sheetHeightAuto', get('sheetHeightAuto', 'sheet_height_auto'));
   setIf('sheetHeightIn', get('sheetHeightIn', 'sheet_height_in'));
   setIf('sheetWidthMm', get('sheetWidthMm', 'sheet_width_mm'));
   setIf('sheetHeightMm', get('sheetHeightMm', 'sheet_height_mm'));
@@ -290,6 +291,11 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('labelHeightMm', get('labelHeightMm', 'label_height_mm'));
   setIf('totalRows', get('totalRows', 'total_rows'));
   setIf('totalCols', get('totalCols', 'total_cols'));
+  setIf('labelGapHorizontalMm', get('labelGapHorizontalMm', 'label_gap_horizontal_mm'));
+  setIf('labelGapVerticalMm', get('labelGapVerticalMm', 'label_gap_vertical_mm'));
+  setIf('sheetMarginTopMm', get('sheetMarginTopMm', 'sheet_margin_top_mm'));
+  setIf('sheetMarginLeftMm', get('sheetMarginLeftMm', 'sheet_margin_left_mm'));
+  setIf('sheetMarginBottomMm', get('sheetMarginBottomMm', 'sheet_margin_bottom_mm'));
   setIf('barCodeWidthField', get('barCodeWidthField', 'bar_code_width'));
   setIf('barCodeHeightField', get('barCodeHeightField', 'bar_code_height'));
   setIf('fontSize', get('fontSize', 'font_size'));
@@ -298,6 +304,7 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('showWarehouse', get('showWarehouse', 'show_warehouse'));
   setIf('showPrice', get('showPrice', 'show_price'));
   setIf('showProductCode', get('showProductCode', 'show_product_code'));
+  setIf('showBarcodeNumber', get('showBarcodeNumber', 'show_barcode_number'));
   setIf('maxChars', get('maxChars', 'max_chars'));
 
   if (out.sheetWidthIn == null && out.sheetWidthMm != null) {
@@ -320,11 +327,17 @@ export function buildBarcodeSettingsPayload(values) {
     b_type: values.bType,
     label_count: values.labelCount,
     sheet_width_in: values.sheetWidthIn,
+    sheet_height_auto: values.sheetHeightAuto,
     sheet_height_in: values.sheetHeightIn,
     label_width_mm: values.labelWidthMm,
     label_height_mm: values.labelHeightMm,
     total_rows: values.totalRows,
     total_cols: values.totalCols,
+    label_gap_horizontal_mm: values.labelGapHorizontalMm,
+    label_gap_vertical_mm: values.labelGapVerticalMm,
+    sheet_margin_top_mm: values.sheetMarginTopMm,
+    sheet_margin_left_mm: values.sheetMarginLeftMm,
+    sheet_margin_bottom_mm: values.sheetMarginBottomMm,
     bar_code_width: values.barCodeWidthField,
     bar_code_height: values.barCodeHeightField,
     font_size: values.fontSize,
@@ -333,6 +346,7 @@ export function buildBarcodeSettingsPayload(values) {
     show_warehouse: values.showWarehouse,
     show_price: values.showPrice,
     show_product_code: values.showProductCode,
+    show_barcode_number: values.showBarcodeNumber,
     max_chars: values.maxChars,
   };
 }
