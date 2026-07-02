@@ -14,18 +14,24 @@ function sumWarehouseInventoryRows(inventory, warehouseId = '') {
   if (inventory.length === 0) return 0;
 
   const filterWh = String(warehouseId || '').trim();
-  let total = 0;
+  let matchedTotal = 0;
+  let allTotal = 0;
   let matchedWh = false;
 
   for (const row of inventory) {
     if (!row || typeof row !== 'object') continue;
+    const qty = Math.max(0, Number(row?.quantity) || 0);
+    allTotal += qty;
     const rowWh = pickWarehouseRefId(row.warehouse_id ?? row.warehouseId);
     if (filterWh && rowWh !== filterWh) continue;
     if (filterWh) matchedWh = true;
-    total += Math.max(0, Number(row?.quantity) || 0);
+    matchedTotal += qty;
   }
 
-  if (filterWh && !matchedWh) return 0;
+  // When a warehouse is requested but none of the rows match it, the record is
+  // already scoped to the company (e.g. POS `get-all-active-pos`), so fall back
+  // to the total available instead of misreporting 0.
+  const total = filterWh && !matchedWh ? allTotal : matchedTotal;
   return Math.round(total * 100) / 100;
 }
 
