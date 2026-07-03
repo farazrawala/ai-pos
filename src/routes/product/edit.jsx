@@ -603,6 +603,28 @@ const ProductEdit = () => {
     }
   };
 
+  // Generate a valid EAN-13 barcode (12 random digits + check digit).
+  const generateBarcode = () => {
+    let base = '';
+    for (let i = 0; i < 12; i += 1) {
+      base += Math.floor(Math.random() * 10);
+    }
+    let sum = 0;
+    for (let i = 0; i < 12; i += 1) {
+      sum += Number(base[i]) * (i % 2 === 0 ? 1 : 3);
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    return `${base}${checkDigit}`;
+  };
+
+  const handleRegenerateBarcode = () => {
+    const barcode = generateBarcode();
+    setForm((prev) => ({ ...prev, barcode }));
+    if (errors.barcode) {
+      setErrors((prev) => ({ ...prev, barcode: '' }));
+    }
+  };
+
   // Handle single image upload
   const handleSingleImageChange = (e) => {
     const file = e.target.files[0];
@@ -1256,16 +1278,43 @@ const ProductEdit = () => {
                     <label htmlFor="barcode" className="form-label">
                       Barcode
                     </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="barcode"
-                      name="barcode"
-                      placeholder="Product barcode (optional)"
-                      value={form.barcode}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
+                    <div className="input-group">
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="barcode"
+                        name="barcode"
+                        placeholder="Product barcode (optional)"
+                        value={form.barcode}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary mb-0"
+                        onClick={handleRegenerateBarcode}
+                        disabled={isSubmitting}
+                        title="Regenerate barcode"
+                        aria-label="Regenerate barcode"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 2v6h-6" />
+                          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                          <path d="M3 22v-6h6" />
+                          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
