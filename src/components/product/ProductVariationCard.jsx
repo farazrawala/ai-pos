@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { parseVariationAttrs } from './productVariationUtils.js';
+import { parseVariationAttrs, generateBarcode } from './productVariationUtils.js';
 
 export default function ProductVariationCard({
   variation,
@@ -13,6 +13,10 @@ export default function ProductVariationCard({
   const reactId = useId();
   const inputId = fileInputId || `pv-variation-image-${variation.id}-${reactId}`;
   const attrPills = parseVariationAttrs(variation.name);
+
+  const handleRegenerateBarcode = () => {
+    onChange(variation.id, 'barcode', generateBarcode());
+  };
 
   return (
     <div className="pv-variation-card">
@@ -178,14 +182,41 @@ export default function ProductVariationCard({
           </div>
           <div className="pv-field pv-field--full">
             <div className="pv-field-label">Barcode</div>
-            <input
-              type="text"
-              className="pv-field-input"
-              placeholder="Auto-generated if empty"
-              value={variation.barcode || ''}
-              disabled={disabled}
-              onChange={(e) => onChange(variation.id, 'barcode', e.target.value)}
-            />
+            <div className="pv-field-input-group">
+              <input
+                type="text"
+                className="pv-field-input"
+                placeholder="Auto-generated if empty"
+                value={variation.barcode || ''}
+                disabled={disabled}
+                onChange={(e) => onChange(variation.id, 'barcode', e.target.value)}
+              />
+              <button
+                type="button"
+                className="pv-field-icon-btn"
+                onClick={handleRegenerateBarcode}
+                disabled={disabled}
+                title="Regenerate barcode"
+                aria-label="Regenerate barcode"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 2v6h-6" />
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                  <path d="M3 22v-6h6" />
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+              </button>
+            </div>
             <div className="pv-hint">Leave empty to auto-generate on save.</div>
           </div>
         </div>

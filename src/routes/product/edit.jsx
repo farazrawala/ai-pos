@@ -17,7 +17,7 @@ import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.
 import { toast } from '../../utils/toast.js';
 import ProductVariationsModal from '../../components/product/ProductVariationsModal.jsx';
 import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
-import { variationProductIdFromRecord } from '../../components/product/productVariationUtils.js';
+import { variationProductIdFromRecord, generateBarcode } from '../../components/product/productVariationUtils.js';
 import '../../components/product/product-variations-modal.css';
 import './product-form.css';
 
@@ -601,20 +601,6 @@ const ProductEdit = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
-  };
-
-  // Generate a valid EAN-13 barcode (12 random digits + check digit).
-  const generateBarcode = () => {
-    let base = '';
-    for (let i = 0; i < 12; i += 1) {
-      base += Math.floor(Math.random() * 10);
-    }
-    let sum = 0;
-    for (let i = 0; i < 12; i += 1) {
-      sum += Number(base[i]) * (i % 2 === 0 ? 1 : 3);
-    }
-    const checkDigit = (10 - (sum % 10)) % 10;
-    return `${base}${checkDigit}`;
   };
 
   const handleRegenerateBarcode = () => {

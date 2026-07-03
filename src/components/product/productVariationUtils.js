@@ -1,3 +1,17 @@
+/** Generate a valid EAN-13 barcode (12 random digits + check digit). */
+export const generateBarcode = () => {
+  let base = '';
+  for (let i = 0; i < 12; i += 1) {
+    base += Math.floor(Math.random() * 10);
+  }
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) {
+    sum += Number(base[i]) * (i % 2 === 0 ? 1 : 3);
+  }
+  const checkDigit = (10 - (sum % 10)) % 10;
+  return `${base}${checkDigit}`;
+};
+
 export const parseVariationAttrs = (name) => {
   const match = String(name || '').match(/\[([^\]]+)\]/);
   if (!match) return [];

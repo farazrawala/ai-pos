@@ -8,7 +8,11 @@ import {
   setLimit,
   setSort,
 } from '../../features/process/processSlice.js';
-import { executeProcessRequest, stopProcessRequest } from '../../features/process/processAPI.js';
+import {
+  executeProcessRequest,
+  stopProcessRequest,
+  restartProcessRequest,
+} from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -154,6 +158,7 @@ const ProcessIndex = () => {
   const searchTimeoutRef = useRef(null);
   const [executingProcessId, setExecutingProcessId] = useState(null);
   const [stoppingProcessId, setStoppingProcessId] = useState(null);
+  const [restartingProcessId, setRestartingProcessId] = useState(null);
   const [executeError, setExecuteError] = useState(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('processes', PROCESS_COLUMNS);
@@ -190,6 +195,23 @@ const ProcessIndex = () => {
       console.error('[Process module] Failed to execute process', { processId, error: err });
     } finally {
       setExecutingProcessId(null);
+    }
+  };
+
+  const handleRestartProcess = async (processId) => {
+    if (!processId) return;
+
+    setRestartingProcessId(processId);
+    setExecuteError(null);
+
+    try {
+      await restartProcessRequest(processId);
+      refreshProcesses();
+    } catch (err) {
+      setExecuteError(err?.message || 'Failed to restart process');
+      console.error('[Process module] Failed to restart process', { processId, error: err });
+    } finally {
+      setRestartingProcessId(null);
     }
   };
 
@@ -425,7 +447,12 @@ const ProcessIndex = () => {
                                   type="button"
                                   className="btn btn-sm btn-primary mb-0"
                                   onClick={() => handleExecuteProcess(id)}
-                                  disabled={!id || executingProcessId === id || stoppingProcessId === id}
+                                  disabled={
+                                    !id ||
+                                    executingProcessId === id ||
+                                    stoppingProcessId === id ||
+                                    restartingProcessId === id
+                                  }
                                 >
                                   {executingProcessId === id ? (
                                     <>
@@ -442,10 +469,39 @@ const ProcessIndex = () => {
                                 </button>
                                 <button
                                   type="button"
+                                  className="btn btn-sm btn-outline-secondary mb-0"
+                                  onClick={() => handleRestartProcess(id)}
+                                  disabled={
+                                    !id ||
+                                    restartingProcessId === id ||
+                                    executingProcessId === id ||
+                                    stoppingProcessId === id
+                                  }
+                                  title="Reset progress and run again"
+                                >
+                                  {restartingProcessId === id ? (
+                                    <>
+                                      <span
+                                        className="spinner-border spinner-border-sm me-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                      Restarting…
+                                    </>
+                                  ) : (
+                                    'Restart'
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
                                   className="btn btn-sm btn-outline-danger mb-0"
                                   onClick={() => handleStopProcess(id)}
                                   disabled={
-                                    !id || !isActive || stoppingProcessId === id || executingProcessId === id
+                                    !id ||
+                                    !isActive ||
+                                    stoppingProcessId === id ||
+                                    executingProcessId === id ||
+                                    restartingProcessId === id
                                   }
                                   title={isActive ? 'Set status to inactive' : 'Already inactive'}
                                 >

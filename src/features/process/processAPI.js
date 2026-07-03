@@ -308,6 +308,22 @@ export const updateProcessRequest = async (processId, processData = {}) => {
 export const stopProcessRequest = async (processId) =>
   updateProcessRequest(processId, { status: 'inactive' });
 
+/**
+ * Restart a process: reset its progress/hits and re-activate, then execute again.
+ */
+export const restartProcessRequest = async (processId) => {
+  const id = String(processId || '').trim();
+  if (!id) throw new Error('Process id is required');
+
+  await updateProcessRequest(id, {
+    status: 'active',
+    progress: 'not_started',
+    hits: 0,
+  });
+
+  return executeProcessRequest(id);
+};
+
 export const executeProcessRequest = async (processId) => {
   const id = String(processId || '').trim();
   if (!id) throw new Error('Process id is required');
