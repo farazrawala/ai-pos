@@ -60,6 +60,28 @@ in user add multiple accounts to be include and not to be include.
   "sync_brand",
     (done)
 
+
+  "fetch_order",
+  "fetch_latest_order",
+
+
+
+ - shopify
+  "fetch_products" 
+    - single 
+    - variable 
+  "sync_product",
+    - single 
+    - variable 
+  "fetch_category",
+      
+  "sync_category",
+       
+  "fetch_brand",
+    
+  "sync_brand",
+    
+
     
   "fetch_order",
   "fetch_latest_order",
