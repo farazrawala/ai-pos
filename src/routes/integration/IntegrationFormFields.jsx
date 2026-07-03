@@ -1,5 +1,18 @@
 import { STORE_TYPE_OPTIONS } from './integrationForm.js';
 
+/** Credential field labels differ per platform (Shopify/WooCommerce/Daraz). */
+const CREDENTIAL_LABELS = {
+  shopify: { key: 'API key', secret: 'API secret key', token: 'Admin API access token' },
+  woocommerce: { key: 'Consumer key', secret: 'Consumer secret', token: 'Access token' },
+  daraz: { key: 'App Key', secret: 'App Secret', token: 'Access token' },
+};
+
+const DEFAULT_CREDENTIAL_LABELS = {
+  key: 'API key',
+  secret: 'API secret',
+  token: 'Access token',
+};
+
 export default function IntegrationFormFields({
   form,
   errors,
@@ -7,6 +20,8 @@ export default function IntegrationFormFields({
   disabled = false,
   isEdit = false,
 }) {
+  const credentialLabels = CREDENTIAL_LABELS[form.store_type] || DEFAULT_CREDENTIAL_LABELS;
+
   return (
     <>
       <div className="integration-form-section">
@@ -198,7 +213,7 @@ export default function IntegrationFormFields({
         <div className="row g-3">
           <div className="col-md-6">
             <label className="integration-form-label d-block" htmlFor="integration_key">
-              API key <span className="req">*</span>
+              {credentialLabels.key} <span className="req">*</span>
             </label>
             <input
               type="text"
@@ -216,7 +231,7 @@ export default function IntegrationFormFields({
           </div>
           <div className="col-md-6">
             <label className="integration-form-label d-block" htmlFor="integration_secret">
-              API secret {!isEdit ? <span className="req">*</span> : null}
+              {credentialLabels.secret} {!isEdit ? <span className="req">*</span> : null}
             </label>
             <input
               type="password"
@@ -235,7 +250,7 @@ export default function IntegrationFormFields({
           </div>
           <div className="col-12">
             <label className="integration-form-label d-block" htmlFor="token">
-              Access token
+              {credentialLabels.token}
             </label>
             <input
               type="text"
