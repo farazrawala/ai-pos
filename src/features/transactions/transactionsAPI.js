@@ -243,6 +243,106 @@ export async function fetchMyLedgerTransactionsRequest(params = {}) {
   };
 }
 
+const TRANSACTION_CREATE_PATH = 'transaction/create';
+const TRANSACTION_UPDATE_PATH = 'transaction/update';
+const TRANSACTION_GET_PATH = 'transaction/get';
+
+/**
+ * Build the request body for creating/updating a single transaction (ledger line).
+ * Centralized so the payload keys can be adjusted in one place if the backend differs.
+ */
+export function buildTransactionSaveBody(data = {}) {
+  const body = {
+    account_id: String(data.account_id ?? '').trim(),
+    type: String(data.type ?? '').trim().toLowerCase(),
+    description: String(data.description ?? '').trim(),
+  };
+
+  const amount = Number(String(data.amount ?? '').toString().replace(/,/g, ''));
+  if (!Number.isNaN(amount)) body.amount = amount;
+
+  const status = String(data.status ?? '').trim();
+  if (status) body.status = status;
+
+  const refNo = String(data.transaction_number ?? '').trim();
+  if (refNo) body.transaction_number = refNo;
+
+  return body;
+}
+
+/** POST /transaction/create */
+export async function createTransactionRequest(data = {}) {
+  const url = `${BASE_URL}${TRANSACTION_CREATE_PATH}`;
+  const body = buildTransactionSaveBody(data);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+}
+
+/** PATCH /transaction/update/:id */
+export async function updateTransactionRequest(transactionId, data = {}) {
+  const id = String(transactionId ?? '').trim();
+  if (!id) throw new Error('Missing transaction id');
+
+  const url = `${BASE_URL}${TRANSACTION_UPDATE_PATH}/${encodeURIComponent(id)}`;
+  const body = buildTransactionSaveBody(data);
+
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+}
+
+/** GET /transaction/get/:id?populate=account_id — single transaction for the edit form. */
+export async function fetchTransactionByIdRequest(transactionId, params = {}) {
+  const id = String(transactionId ?? '').trim();
+  if (!id) throw new Error('Missing transaction id');
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('populate', params.populate != null ? String(params.populate) : 'account_id');
+
+  const url = `${BASE_URL}${TRANSACTION_GET_PATH}/${encodeURIComponent(id)}?${queryParams.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  if (result && typeof result === 'object') {
+    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+      return result.data;
+    }
+    if (result.transaction && typeof result.transaction === 'object') return result.transaction;
+    if (result._id || result.id) return result;
+  }
+  throw new Error('Transaction not found');
+}
+
 export const getAccountName = (row) => {
   if (!row || typeof row !== 'object') return '—';
   const acc = row.account_id;

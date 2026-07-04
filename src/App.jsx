@@ -52,6 +52,8 @@ import SalesReturnLookup from './routes/sales_order_return/index.jsx';
 import SalesReturnAdd from './routes/sales_order_return/add.jsx';
 import SalesReturnEdit from './routes/sales_order_return/edit.jsx';
 import Transactions from './routes/transactions/index.jsx';
+import TransactionAdd from './routes/transactions/add.jsx';
+import TransactionEdit from './routes/transactions/edit.jsx';
 import StockListing from './routes/stock/index.jsx';
 import WarehouseInventoryListing from './routes/warehouse_inventory/index.jsx';
 import LedgerListingPage from './routes/ledger/index.jsx';
@@ -206,6 +208,8 @@ const App = () => {
           <Route path="/orders" element={<Orders />} />
           <Route path="/oms" element={<OMS />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/transactions/add" element={<TransactionAdd />} />
+          <Route path="/transactions/edit/:id" element={<TransactionEdit />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
@@ -328,6 +332,8 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/orders" element={<Orders />} />
           <Route path="/oms" element={<OMS />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/transactions/add" element={<TransactionAdd />} />
+          <Route path="/transactions/edit/:id" element={<TransactionEdit />} />
           <Route path="/ledger" element={<LedgerListingPage />} />
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />

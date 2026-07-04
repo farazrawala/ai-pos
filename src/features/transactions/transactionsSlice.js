@@ -1,5 +1,10 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { fetchTransactionsRequest } from './transactionsAPI.js';
+import {
+  fetchTransactionsRequest,
+  createTransactionRequest,
+  updateTransactionRequest,
+  fetchTransactionByIdRequest,
+} from './transactionsAPI.js';
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetchTransactions',
@@ -8,6 +13,39 @@ export const fetchTransactions = createAsyncThunk(
       return await fetchTransactionsRequest(params);
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch transactions');
+    }
+  }
+);
+
+export const createTransaction = createAsyncThunk(
+  'transactions/createTransaction',
+  async (data = {}, { rejectWithValue }) => {
+    try {
+      return await createTransactionRequest(data);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to create transaction');
+    }
+  }
+);
+
+export const updateTransaction = createAsyncThunk(
+  'transactions/updateTransaction',
+  async ({ id, data } = {}, { rejectWithValue }) => {
+    try {
+      return await updateTransactionRequest(id, data);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to update transaction');
+    }
+  }
+);
+
+export const fetchTransactionById = createAsyncThunk(
+  'transactions/fetchTransactionById',
+  async (id, { rejectWithValue }) => {
+    try {
+      return await fetchTransactionByIdRequest(id);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to load transaction');
     }
   }
 );

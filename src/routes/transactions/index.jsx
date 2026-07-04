@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchTransactions,
@@ -39,8 +40,9 @@ const Transactions = () => {
     sort,
     filters,
   } = useSelector((state) => state.transactions);
-  const { canView } = usePermissions('transactions');
+  const { canView, isAdmin } = usePermissions('transactions');
   useRequireModuleAccess('transactions');
+  const navigate = useNavigate();
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -227,6 +229,16 @@ const Transactions = () => {
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary mb-0"
+                        onClick={() => navigate('/transactions/add')}
+                      >
+                        <i className="fas fa-plus me-1" aria-hidden="true" />
+                        Add transaction
+                      </button>
+                    ) : null}
                     <div
                       className="btn-group btn-group-sm"
                       role="group"
@@ -490,12 +502,16 @@ const Transactions = () => {
                             Created
                             {renderSortIcon('createdAt')}
                           </th>
+                          {isAdmin ? <th className="text-end">Actions</th> : null}
                         </tr>
                       </thead>
                       <tbody>
                         {data.length === 0 ? (
                           <tr>
-                            <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
+                            <td
+                              colSpan={isAdmin ? 10 : 9}
+                              className="text-center text-sm font-weight-normal p-4"
+                            >
                               No transactions found
                             </td>
                           </tr>
@@ -557,6 +573,22 @@ const Transactions = () => {
                                     ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
                                     : '—'}
                                 </td>
+                                {isAdmin ? (
+                                  <td className="text-end">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0 py-1 px-2"
+                                      title="Edit transaction"
+                                      onClick={() =>
+                                        navigate(`/transactions/edit/${item._id || item.id}`, {
+                                          state: { transaction: item },
+                                        })
+                                      }
+                                    >
+                                      <i className="fas fa-pen" aria-hidden="true" />
+                                    </button>
+                                  </td>
+                                ) : null}
                               </tr>
                             );
                           })
