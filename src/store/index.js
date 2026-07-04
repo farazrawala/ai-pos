@@ -28,6 +28,7 @@ import amountTransfersReducer from '../features/amountTransfers/amountTransfersS
 import warehouseInventoryReducer from '../features/warehouseInventory/warehouseInventorySlice.js';
 import integrationReducer from '../features/integration/integrationSlice.js';
 import processReducer from '../features/process/processSlice.js';
+import printersReducer from '../features/printers/printersSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -61,6 +62,7 @@ const store = configureStore({
     warehouseInventory: warehouseInventoryReducer,
     integration: integrationReducer,
     process: processReducer,
+    printers: printersReducer,
   },
 });
 

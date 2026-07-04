@@ -18,6 +18,7 @@ export const PERMISSION_MODULE_KEYS = [
 
   'company',
   'barcode-print',
+  'printer-settings',
   'attributes',
   'users',
 
@@ -61,6 +62,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/company': null,
   '/barcode-print': 'barcode-print',
   '/product-print': 'products',
+  '/printer-settings': 'printer-settings',
   '/attributes': 'attributes',
   '/users': 'users',
   '/amount-transfers': 'amount-transfers',

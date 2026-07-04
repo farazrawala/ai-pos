@@ -72,6 +72,7 @@ import CompanyQueuesPage from './routes/companyQueues/index.jsx';
 import CompanyPage from './routes/company/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
 import ProductPrint from './routes/productPrint/index.jsx';
+import PrinterSettings from './routes/printerSettings/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
 import ExpenseEdit from './routes/expense/edit.jsx';
@@ -173,6 +174,7 @@ const App = () => {
           <Route path="/products/edit/:id" element={<ProductEdit />} />
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
+          <Route path="/printer-settings" element={<PrinterSettings />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
@@ -298,6 +300,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/products/edit/:id" element={<ProductEdit />} />
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
+          <Route path="/printer-settings" element={<PrinterSettings />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />

@@ -35,6 +35,7 @@ import {
 import { setCompany } from '../../features/user/userSlice.js';
 import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
+import { printPosOrderViaBridge } from '../../services/printing/posPrintIntegration.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
@@ -720,7 +721,16 @@ const Pos = () => {
           };
           return next;
         }
-        return [...prev, { productId, name, unitPrice, quantity: '1', availableStock }];
+        return [...prev, {
+          productId,
+          name,
+          unitPrice,
+          quantity: '1',
+          availableStock,
+          category_id: String(
+            product.category_id ?? product.categoryId ?? product.category?._id ?? product.category?.id ?? ''
+          ).trim() || undefined,
+        }];
       });
     },
     [defaultWarehouseId]
@@ -1075,25 +1085,36 @@ const Pos = () => {
           receipt.terms = OFFLINE_RECEIPT_FOOTER;
         }
 
-        const printed = await openThermalReceiptPrint(receipt, {
-          documentTitlePrefix: 'Receipt',
-          invoiceNumberPrefix: saved.offline ? 'OFF#' : 'POS#',
-          printerSettings: settings,
+        const bridgePrinted = await printPosOrderViaBridge({
+          receipt,
+          payment,
           companyBrand: brand,
-          footerThankYou: saved.offline ? OFFLINE_RECEIPT_FOOTER : undefined,
-          sourceOrder: {
-            amount_received: payment?.paid ?? 0,
-            change_given: payment?.change ?? 0,
-          },
+          cartLines: saved.cartSnapshot,
+          invoiceNo,
         });
-        if (!printed) {
-          toast.error('Allow pop-ups to print the thermal receipt.', { delay: 6000 });
+
+        let printed = bridgePrinted;
+        if (!bridgePrinted) {
+          printed = await openThermalReceiptPrint(receipt, {
+            documentTitlePrefix: 'Receipt',
+            invoiceNumberPrefix: saved.offline ? 'OFF#' : 'POS#',
+            printerSettings: settings,
+            companyBrand: brand,
+            footerThankYou: saved.offline ? OFFLINE_RECEIPT_FOOTER : undefined,
+            sourceOrder: {
+              amount_received: payment?.paid ?? 0,
+              change_given: payment?.change ?? 0,
+            },
+          });
+          if (!printed) {
+            toast.error('Allow pop-ups to print the thermal receipt, or configure the print bridge in Printer Settings.', { delay: 6000 });
+          }
         }
 
         if (saved.offline) {
           toast.success('Sale saved offline — will sync when online', { delay: 6000 });
         } else {
-          showToast('successToast', 'Order saved and sent to printer.');
+          showToast('successToast', bridgePrinted ? 'Order saved and sent to network printer.' : 'Order saved and sent to printer.');
         }
         clearCartAfterSale();
       } catch (e) {

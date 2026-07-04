@@ -16,7 +16,8 @@
     "preview:live": "vite preview --mode live",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "echo \"Linting not configured\" && exit 0"
+    "lint": "echo \"Linting not configured\" && exit 0",
+    "print-bridge": "node print-bridge/server.mjs"
   },
   "dependencies": {
     "@fontsource/open-sans": "^5.2.7",
