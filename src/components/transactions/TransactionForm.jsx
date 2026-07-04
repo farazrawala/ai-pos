@@ -11,11 +11,23 @@ const accountOptionLabel = (a) => {
 };
 
 const EMPTY_FORM = {
+  transaction_number: '',
   account_id: '',
   type: 'debit',
   amount: '',
   description: '',
   status: 'active',
+};
+
+const pad = (n, len = 2) => String(n).padStart(len, '0');
+
+/** Suggest a unique reference like TXN-DDMMYY-HHMMSS-<random>, matching existing entries. */
+const generateTransactionNumber = () => {
+  const d = new Date();
+  const datePart = `${pad(d.getDate())}${pad(d.getMonth() + 1)}${pad(d.getFullYear() % 100)}`;
+  const timePart = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const rand = Math.floor(1000000 + Math.random() * 9000000);
+  return `TXN-${datePart}-${timePart}-${rand}`;
 };
 
 /**
@@ -29,7 +41,11 @@ export default function TransactionForm({
   submitLabel = 'Save transaction',
   onCancel,
 }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(() =>
+    initialValues
+      ? EMPTY_FORM
+      : { ...EMPTY_FORM, transaction_number: generateTransactionNumber() }
+  );
   const [errors, setErrors] = useState({});
   const [accounts, setAccounts] = useState([]);
   const [accountsStatus, setAccountsStatus] = useState('idle');
@@ -37,6 +53,8 @@ export default function TransactionForm({
   useEffect(() => {
     if (initialValues) {
       setForm({
+        transaction_number:
+          initialValues.transaction_number ?? initialValues.transactionNumber ?? '',
         account_id: initialValues.account_id ?? '',
         type: (initialValues.type ?? 'debit').toLowerCase(),
         amount: initialValues.amount != null ? String(initialValues.amount) : '',
@@ -77,6 +95,8 @@ export default function TransactionForm({
 
   const validate = () => {
     const next = {};
+    if (!String(form.transaction_number).trim())
+      next.transaction_number = 'Transaction number is required';
     if (!String(form.account_id).trim()) next.account_id = 'Account is required';
     if (form.type !== 'debit' && form.type !== 'credit') next.type = 'Select debit or credit';
     const amt = Number(String(form.amount).replace(/,/g, ''));
@@ -89,6 +109,7 @@ export default function TransactionForm({
     e.preventDefault();
     if (!validate()) return;
     onSubmit({
+      transaction_number: form.transaction_number.trim(),
       account_id: form.account_id.trim(),
       type: form.type,
       amount: Number(String(form.amount).replace(/,/g, '')),
@@ -97,8 +118,45 @@ export default function TransactionForm({
     });
   };
 
+  const handleRegenerateNumber = () => {
+    setForm((prev) => ({ ...prev, transaction_number: generateTransactionNumber() }));
+    if (errors.transaction_number)
+      setErrors((prev) => ({ ...prev, transaction_number: '' }));
+  };
+
   return (
     <form onSubmit={handleSubmit}>
+      <div className="mb-3">
+        <label className="form-label" htmlFor="transaction_number">
+          Transaction number <span className="text-danger">*</span>
+        </label>
+        <div className="input-group">
+          <input
+            id="transaction_number"
+            name="transaction_number"
+            type="text"
+            className={`form-control ${errors.transaction_number ? 'is-invalid' : ''}`}
+            value={form.transaction_number}
+            onChange={handleChange}
+            disabled={submitting}
+            placeholder="e.g. TXN-030726-025334-3975229"
+          />
+          <button
+            type="button"
+            className="btn btn-outline-secondary mb-0"
+            onClick={handleRegenerateNumber}
+            disabled={submitting}
+            title="Generate a new reference"
+          >
+            <i className="fas fa-sync-alt" aria-hidden="true" />
+          </button>
+          {errors.transaction_number && (
+            <div className="invalid-feedback d-block">{errors.transaction_number}</div>
+          )}
+        </div>
+        <div className="form-text">Must be unique. Auto-suggested — edit if needed.</div>
+      </div>
+
       <div className="mb-3">
         <label className="form-label" htmlFor="account_id">
           Account <span className="text-danger">*</span>

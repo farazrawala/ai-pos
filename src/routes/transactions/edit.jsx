@@ -19,6 +19,7 @@ const toInitialValues = (row) => {
       ? String(acc._id ?? acc.id ?? '')
       : String(acc ?? '');
   return {
+    transaction_number: row.transaction_number ?? row.transactionNumber ?? '',
     account_id: accountId,
     type: row.type ?? 'debit',
     amount: row.amount,
