@@ -1,5 +1,7 @@
 import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { isUserUploadFilePart } from '../users/usersAPI.js';
+import { DEFAULT_PRINTER } from '../printers/printerConstants.js';
+import { isValidPrinterIp, isValidPort } from '../printers/printerValidation.js';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -869,11 +871,16 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
   if (!fallback) return fetched;
   const printerRaw = readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
   const productRaw = readProductSettingsRaw(fetched) ?? readProductSettingsRaw(fallback) ?? null;
+  const defaultPrinterRaw =
+    readDefaultPrinterSettingsRaw(fetched) ?? readDefaultPrinterSettingsRaw(fallback) ?? null;
   return {
     ...fallback,
     ...fetched,
     ...(printerRaw != null ? { printer_settings: printerRaw, printerSettings: printerRaw } : {}),
     ...(productRaw != null ? { product_settings: productRaw, productSettings: productRaw } : {}),
+    ...(defaultPrinterRaw != null
+      ? { default_printer_settings: defaultPrinterRaw, defaultPrinterSettings: defaultPrinterRaw }
+      : {}),
   };
 }
 
@@ -1044,5 +1051,104 @@ export function buildProductSettingsPayload(values) {
 export async function patchCompanyProductSettings(companyId, settingsObject) {
   return patchCompanyFormFields(companyId, {
     product_settings: JSON.stringify(settingsObject),
+  });
+}
+
+export function defaultDefaultPrinterSettings() {
+  return { ...DEFAULT_PRINTER };
+}
+
+function readDefaultPrinterSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw = company.default_printer_settings ?? company.defaultPrinterSettings;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.default_printer_settings != null) return parsed.default_printer_settings;
+    if (parsed?.defaultPrinterSettings != null) return parsed.defaultPrinterSettings;
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw = allFields.default_printer_settings ?? allFields.defaultPrinterSettings;
+    if (raw != null) return raw;
+  }
+
+  return null;
+}
+
+export function extractDefaultPrinterSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readDefaultPrinterSettingsRaw(company));
+}
+
+export function normalizeIncomingDefaultPrinterSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultDefaultPrinterSettings();
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (parsed[k] !== undefined && parsed[k] !== null) return parsed[k];
+    }
+    return undefined;
+  };
+  return {
+    name: String(get('name') ?? defaults.name),
+    ip_address: String(get('ip_address', 'ipAddress') ?? defaults.ip_address),
+    port: Number(get('port')) || defaults.port,
+    printer_type: get('printer_type', 'printerType') ?? defaults.printer_type,
+    paper_width: get('paper_width', 'paperWidth') ?? defaults.paper_width,
+    character_encoding: get('character_encoding', 'characterEncoding') ?? defaults.character_encoding,
+    copies: Math.max(1, Number(get('copies')) || defaults.copies),
+    auto_cut: get('auto_cut', 'autoCut') !== false,
+    open_cash_drawer: Boolean(get('open_cash_drawer', 'openCashDrawer')),
+    status: get('status') === 'disabled' ? 'disabled' : 'enabled',
+  };
+}
+
+export function mergeDefaultPrinterSettings(parsed) {
+  return normalizeIncomingDefaultPrinterSettings(parsed) || defaultDefaultPrinterSettings();
+}
+
+export function buildDefaultPrinterSettingsPayload(values) {
+  const normalized = normalizeIncomingDefaultPrinterSettings(values) || defaultDefaultPrinterSettings();
+  return {
+    name: String(normalized.name || '').trim(),
+    ip_address: String(normalized.ip_address || '').trim(),
+    port: Number(normalized.port) || 9100,
+    printer_type: normalized.printer_type || 'esc_pos',
+    paper_width: normalized.paper_width || '80mm',
+    character_encoding: normalized.character_encoding || 'utf8',
+    copies: Math.max(1, Number(normalized.copies) || 1),
+    auto_cut: normalized.auto_cut !== false,
+    open_cash_drawer: Boolean(normalized.open_cash_drawer),
+    status: normalized.status === 'disabled' ? 'disabled' : 'enabled',
+  };
+}
+
+export function validateDefaultPrinterSettingsPayload(data = {}) {
+  const errors = {};
+  const status = data.status === 'disabled' ? 'disabled' : 'enabled';
+  const hasIp = String(data.ip_address || '').trim();
+  const hasName = String(data.name || '').trim();
+
+  if (status === 'enabled') {
+    if (!hasName) errors.name = 'Printer name is required';
+    if (!isValidPrinterIp(hasIp)) errors.ip_address = 'Enter a valid IPv4 address';
+  } else if (hasIp && !isValidPrinterIp(hasIp)) {
+    errors.ip_address = 'Enter a valid IPv4 address';
+  }
+
+  if (!isValidPort(data.port ?? 9100)) errors.port = 'Port must be 1–65535';
+  return errors;
+}
+
+export async function patchCompanyDefaultPrinterSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    default_printer_settings: JSON.stringify(settingsObject),
   });
 }

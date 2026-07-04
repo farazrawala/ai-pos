@@ -80,6 +80,7 @@ export async function printPosOrderViaBridge({
   companyBrand,
   cartLines = [],
   invoiceNo,
+  defaultPrinter,
 }) {
   if (!isNetworkPrintConfigured()) return false;
 
@@ -90,9 +91,17 @@ export async function printPosOrderViaBridge({
   }
 
   const config = await loadPrintConfig();
-  const salesPrinter = config.salesPrinterId
+  let salesPrinter = config.salesPrinterId
     ? config.printersById[String(config.salesPrinterId)]
-    : config.printers.find((p) => p.status === 'enabled');
+    : null;
+
+  if (!salesPrinter && defaultPrinter?.status === 'enabled' && defaultPrinter?.ip_address) {
+    salesPrinter = defaultPrinter;
+  }
+
+  if (!salesPrinter) {
+    salesPrinter = config.printers.find((p) => p.status === 'enabled');
+  }
 
   if (!salesPrinter || salesPrinter.status === 'disabled') return false;
 

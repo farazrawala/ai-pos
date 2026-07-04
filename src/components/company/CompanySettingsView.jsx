@@ -20,11 +20,18 @@ import {
   normalizeIncomingProductSettings,
   patchCompanyPrinterSettings,
   patchCompanyProductSettings,
+  defaultDefaultPrinterSettings,
+  extractDefaultPrinterSettingsFromCompanyBody,
+  mergeDefaultPrinterSettings,
+  buildDefaultPrinterSettingsPayload,
+  validateDefaultPrinterSettingsPayload,
+  patchCompanyDefaultPrinterSettings,
   pickCompanyLogoUrl,
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { showToast } from '../../utils/toast.js';
+import DefaultPrinterSettingsForm from './DefaultPrinterSettingsForm.jsx';
 
 function applyCompanyToForm(company, setters) {
   if (!company) return;
@@ -74,6 +81,13 @@ export default function CompanySettingsView() {
   const [togglingProductKey, setTogglingProductKey] = useState('');
   const [productSaveError, setProductSaveError] = useState('');
 
+  const [networkPrinterSettings, setNetworkPrinterSettings] = useState(() =>
+    defaultDefaultPrinterSettings()
+  );
+  const [networkPrinterErrors, setNetworkPrinterErrors] = useState({});
+  const [networkPrinterSaving, setNetworkPrinterSaving] = useState(false);
+  const [networkPrinterSaveError, setNetworkPrinterSaveError] = useState('');
+
   const printerSettingByKey = useMemo(() => {
     const map = {};
     PRINTER_SETTING_DEFS.forEach((def) => {
@@ -110,6 +124,8 @@ export default function CompanySettingsView() {
     setPrinterSettings(mergePrinterSettings(parsed));
     const productParsed = extractProductSettingsFromCompanyBody(body ?? { data: company });
     setProductSettings(mergeProductSettings(productParsed));
+    const defaultPrinterParsed = extractDefaultPrinterSettingsFromCompanyBody(body ?? { data: company });
+    setNetworkPrinterSettings(mergeDefaultPrinterSettings(defaultPrinterParsed));
   }, []);
 
   useEffect(() => {
@@ -273,6 +289,40 @@ export default function CompanySettingsView() {
     dispatch(setCompany(merged));
     const parsed = extractProductSettingsFromCompanyBody({ data: merged });
     setProductSettings(mergeProductSettings(parsed));
+  };
+
+  const handleSaveDefaultPrinterSettings = async (e) => {
+    e.preventDefault();
+    if (!companyId || networkPrinterSaving) return;
+
+    const validationErrors = validateDefaultPrinterSettingsPayload(networkPrinterSettings);
+    if (Object.keys(validationErrors).length) {
+      setNetworkPrinterErrors(validationErrors);
+      return;
+    }
+
+    setNetworkPrinterSaving(true);
+    setNetworkPrinterSaveError('');
+    setNetworkPrinterErrors({});
+
+    try {
+      const payload = buildDefaultPrinterSettingsPayload(networkPrinterSettings);
+      await patchCompanyDefaultPrinterSettings(companyId, payload);
+      const merged = {
+        ...(authCompany || {}),
+        default_printer_settings: payload,
+        defaultPrinterSettings: payload,
+      };
+      dispatch(setCompany(merged));
+      setNetworkPrinterSettings(mergeDefaultPrinterSettings(payload));
+      showToast({ message: 'Default printer settings saved.', variant: 'success' });
+    } catch (err) {
+      const message = err?.message || 'Failed to save default printer settings';
+      setNetworkPrinterSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setNetworkPrinterSaving(false);
+    }
   };
 
   const handleToggleProductSetting = async (key) => {
@@ -559,6 +609,59 @@ export default function CompanySettingsView() {
           {printerSaveError ? (
             <div className="alert alert-danger py-2 mt-3 mb-0">{printerSaveError}</div>
           ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-network-wired" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Default printer settings</h5>
+            <p className="company-card-subtitle">
+              Default network printer for receipts — saved to{' '}
+              <code className="text-xs">default_printer_settings</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          <form onSubmit={handleSaveDefaultPrinterSettings}>
+            <DefaultPrinterSettingsForm
+              form={networkPrinterSettings}
+              onChange={setNetworkPrinterSettings}
+              errors={networkPrinterErrors}
+              disabled={networkPrinterSaving || !companyId}
+            />
+
+            {networkPrinterSaveError ? (
+              <div className="alert alert-danger py-2 mt-3 mb-0">{networkPrinterSaveError}</div>
+            ) : null}
+
+            <div className="company-card-footer">
+              <button
+                type="submit"
+                className="btn btn-primary mb-0"
+                disabled={networkPrinterSaving || !companyId}
+              >
+                {networkPrinterSaving ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-save me-2" aria-hidden="true" />
+                    Save default printer
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 

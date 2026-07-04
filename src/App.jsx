@@ -234,6 +234,9 @@ const App = () => {
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
           <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
           <Route path="/test-case" element={<InventoryTestCaseRunner />} />
+          <Route path="/company" element={<CompanyPage />} />
+          <Route path="/company-cache" element={<CompanyCachePage />} />
+          <Route path="/company-queues" element={<CompanyQueuesPage />} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}

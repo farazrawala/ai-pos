@@ -29,6 +29,8 @@ import {
   mergeCompanyRecordForSettings,
   mergePrinterSettings,
   mergeProductSettings,
+  mergeDefaultPrinterSettings,
+  extractDefaultPrinterSettingsFromCompanyBody,
   pickCompanyLogoUrl,
   getWarehouseIdFromCompany,
 } from '../../features/company/companyAPI.js';
@@ -389,6 +391,11 @@ const Pos = () => {
   const productSettings = useMemo(() => {
     const parsed = extractProductSettingsFromCompanyBody({ data: authCompany });
     return mergeProductSettings(parsed);
+  }, [authCompany]);
+
+  const defaultPrinterSettings = useMemo(() => {
+    const parsed = extractDefaultPrinterSettingsFromCompanyBody({ data: authCompany });
+    return mergeDefaultPrinterSettings(parsed);
   }, [authCompany]);
 
   const allowAddWhenStockInsufficient = Boolean(
@@ -1091,6 +1098,7 @@ const Pos = () => {
           companyBrand: brand,
           cartLines: saved.cartSnapshot,
           invoiceNo,
+          defaultPrinter: defaultPrinterSettings,
         });
 
         let printed = bridgePrinted;
@@ -1140,6 +1148,7 @@ const Pos = () => {
       extraDiscountNum,
       grandTotal,
       printerSettings,
+      defaultPrinterSettings,
       companyBrand,
       authUser,
       authCompany,
