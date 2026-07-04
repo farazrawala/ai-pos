@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAllProductsForExportRequest } from '../../features/products/productsAPI.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import './product-print-module.css';
@@ -39,6 +40,12 @@ const cssPageSizeFor = (formatKey, orientation) => {
 
 const productId = (p) => String(p?._id ?? p?.id ?? p?.product_id ?? '');
 const productName = (p) => p?.name || p?.product_name || 'Product';
+
+const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
+const categoryOptionLabel = (c) => {
+  const name = c?.name ?? c?.category_name ?? '';
+  return name ? String(name) : categoryOptionValue(c) || 'Category';
+};
 
 const parsePrice = (value) => {
   if (value == null || value === '') return null;
@@ -210,6 +217,9 @@ const ProductPrint = () => {
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [categoriesStatus, setCategoriesStatus] = useState('idle');
+  const [categoryFilterId, setCategoryFilterId] = useState('');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
@@ -236,11 +246,13 @@ const ProductPrint = () => {
     }
   }, [pageFormat, orientation]);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (categoryId = categoryFilterId) => {
     setListLoading(true);
     setListError(null);
     try {
-      const rows = await fetchAllProductsForExportRequest({});
+      const params = {};
+      if (categoryId) params.category_id = categoryId;
+      const rows = await fetchAllProductsForExportRequest(params);
       rows.sort((a, b) =>
         String(productName(a)).localeCompare(String(productName(b)), undefined, { sensitivity: 'base' })
       );
@@ -251,11 +263,36 @@ const ProductPrint = () => {
     } finally {
       setListLoading(false);
     }
+  }, [categoryFilterId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCategoriesStatus('loading');
+    fetchCategoriesRequest({ page: 1, limit: 1000, sortBy: 'name', sortOrder: 'asc' })
+      .then((res) => {
+        if (cancelled) return;
+        setCategories(Array.isArray(res.data) ? res.data : []);
+        setCategoriesStatus('succeeded');
+      })
+      .catch((err) => {
+        console.error('[Product print] Failed to load categories', err);
+        if (!cancelled) {
+          setCategories([]);
+          setCategoriesStatus('failed');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadProducts(categoryFilterId);
+  }, [categoryFilterId, loadProducts]);
+
+  const handleCategoryChange = (value) => {
+    setCategoryFilterId(value);
+  };
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -291,7 +328,6 @@ const ProductPrint = () => {
 
   const allFilteredSelected =
     filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.has(productId(p)));
-  const someFilteredSelected = filteredProducts.some((p) => selectedIds.has(productId(p)));
 
   const toggleProduct = (id) => {
     setSelectedIds((prev) => {
@@ -315,7 +351,25 @@ const ProductPrint = () => {
   };
 
   const selectAllProducts = () => {
-    setSelectedIds(new Set(products.map((p) => productId(p)).filter(Boolean)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      products.forEach((p) => {
+        const id = productId(p);
+        if (id) next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const selectAllInCategory = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      filteredProducts.forEach((p) => {
+        const id = productId(p);
+        if (id) next.add(id);
+      });
+      return next;
+    });
   };
 
   const clearSelection = () => setSelectedIds(new Set());
@@ -453,7 +507,7 @@ const ProductPrint = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-secondary mb-0"
-                    onClick={loadProducts}
+                    onClick={() => loadProducts(categoryFilterId)}
                     disabled={listLoading}
                   >
                     Refresh
@@ -475,6 +529,28 @@ const ProductPrint = () => {
                 <div className="col-lg-5 product-print-picker-col">
                   <section className="product-print-section">
                     <h6 className="product-print-section-title">Select products</h6>
+                    <div className="mb-2">
+                      <label className="form-label mb-1" htmlFor="pp-category-filter">
+                        Category
+                      </label>
+                      <select
+                        id="pp-category-filter"
+                        className="form-select form-select-sm"
+                        value={categoryFilterId}
+                        onChange={(e) => handleCategoryChange(e.target.value)}
+                        disabled={listLoading || categoriesStatus === 'loading'}
+                      >
+                        <option value="">All categories</option>
+                        {categories.map((cat) => (
+                          <option key={categoryOptionValue(cat)} value={categoryOptionValue(cat)}>
+                            {categoryOptionLabel(cat)}
+                          </option>
+                        ))}
+                      </select>
+                      {categoriesStatus === 'failed' ? (
+                        <div className="form-text text-danger">Could not load categories.</div>
+                      ) : null}
+                    </div>
                     <div className="input-group input-group-sm mb-2">
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -499,10 +575,18 @@ const ProductPrint = () => {
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-primary mb-0"
+                        onClick={selectAllInCategory}
+                        disabled={!filteredProducts.length}
+                      >
+                        {categoryFilterId ? 'Select category' : 'Select shown'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary mb-0"
                         onClick={selectAllProducts}
                         disabled={!products.length}
                       >
-                        Select all
+                        Select all loaded
                       </button>
                       <button
                         type="button"
@@ -513,10 +597,8 @@ const ProductPrint = () => {
                         Clear
                       </button>
                       <span className="text-sm text-muted align-self-center">
-                        {selectedIds.size} selected
-                        {someFilteredSelected && search.trim()
-                          ? ` · ${filteredProducts.filter((p) => selectedIds.has(productId(p))).length} in filter`
-                          : ''}
+                        {selectedIds.size} selected · {products.length} loaded
+                        {categoryFilterId ? ' in category' : ''}
                       </span>
                     </div>
 
