@@ -794,3 +794,43 @@ export const updateProductVariationRequest = async (
   const result = await response.json();
   return result;
 };
+
+/** Fetch every page matching filters (for CSV / Excel / PDF export). */
+export async function fetchAllProductsForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchProductsRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return allData;
+}
+
+/** Fetch every page matching filters (for CSV / Excel / PDF export). */
+export async function fetchAllProductsForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchProductsRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return allData;
+}

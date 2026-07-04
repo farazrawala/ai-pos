@@ -30,6 +30,13 @@ import NavIcon from '../../components/NavIcon.jsx';
 import { productEditIdFromRecord, productIdFromRecord } from '../../components/product/productVariationUtils.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
+import { fetchAllProductsForExportRequest } from '../../features/products/productsAPI.js';
+import {
+  mapProductsToExportRows,
+  PRODUCT_EXPORT_COLUMNS,
+} from '../../features/products/productExportMapper.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import { toast } from '../../utils/toast.js';
 
 const sumWarehouseInventory = (inventory) => {
   if (!Array.isArray(inventory) || inventory.length === 0) return null;
@@ -153,6 +160,7 @@ const Product = () => {
   const [fetchProductsModalOpen, setFetchProductsModalOpen] = useState(false);
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
   const [viewSyncProduct, setViewSyncProduct] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -447,6 +455,53 @@ const Product = () => {
     });
   };
 
+  const buildExportParams = () => {
+    const params = {};
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    return params;
+  };
+
+  const handleExport = async (format) => {
+    setExporting(true);
+    try {
+      const records = await fetchAllProductsForExportRequest(buildExportParams());
+      if (!records.length) {
+        toast.info('No products to export.');
+        return;
+      }
+      const mapped = mapProductsToExportRows(records);
+      const stamp = moment().format('YYYY-MM-DD-HHmm');
+      const filename = `products-with-stock-${stamp}`;
+      if (format === 'csv') {
+        exportRowsToCsv({ columns: PRODUCT_EXPORT_COLUMNS, rows: mapped, filename });
+      } else if (format === 'excel') {
+        exportRowsToExcel({
+          columns: PRODUCT_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          sheetTitle: 'Products',
+        });
+      } else if (format === 'pdf') {
+        await exportRowsToPdf({
+          columns: PRODUCT_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          title: 'Products with stock',
+        });
+      }
+      toast.success(`Exported ${mapped.length} product(s) as ${format.toUpperCase()}.`);
+    } catch (err) {
+      console.error('[Products] export failed', err);
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
@@ -481,6 +536,40 @@ const Product = () => {
                       onToggle={toggle}
                       onReset={reset}
                     />
+                    {canView ? (
+                      <div className="btn-group btn-group-sm" role="group" aria-label="Export products">
+                        <button
+                          type="button"
+                          className="btn btn-outline-success mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('csv')}
+                          title="Export all products with stock (CSV)"
+                        >
+                          <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                          {exporting ? 'Exporting…' : 'Export CSV'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-success mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('excel')}
+                          title="Export all products with stock (Excel)"
+                        >
+                          <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                          Excel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('pdf')}
+                          title="Export all products with stock (PDF)"
+                        >
+                          <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                          PDF
+                        </button>
+                      </div>
+                    ) : null}
                     {canCreate ? (
                       <>
                         <button
