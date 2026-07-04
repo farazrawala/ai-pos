@@ -3,6 +3,10 @@ import { fetchAllProductsForExportRequest } from '../../features/products/produc
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import {
+  loadProductPrintSettings,
+  saveProductPrintSettings,
+} from './productPrintSettingsCache.js';
 import './product-print-module.css';
 
 const ROW_COL_OPTIONS = Array.from({ length: 6 }, (_, i) => i + 1);
@@ -211,6 +215,14 @@ function chunkArray(items, size) {
   return chunks;
 }
 
+let initialProductPrintSettings;
+const getInitialProductPrintSettings = () => {
+  if (!initialProductPrintSettings) {
+    initialProductPrintSettings = loadProductPrintSettings();
+  }
+  return initialProductPrintSettings;
+};
+
 const ProductPrint = () => {
   useRequireModuleAccess('products');
 
@@ -219,23 +231,71 @@ const ProductPrint = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
-  const [categoryFilterId, setCategoryFilterId] = useState('');
+  const [categoryFilterId, setCategoryFilterId] = useState(
+    () => getInitialProductPrintSettings().categoryFilterId
+  );
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
-  const [priceSuffix, setPriceSuffix] = useState('RS KG');
-  const [discountPercent, setDiscountPercent] = useState('10');
-  const [totalCols, setTotalCols] = useState(4);
-  const [totalRows, setTotalRows] = useState(3);
-  const [pageFormat, setPageFormat] = useState('a4');
-  const [orientation, setOrientation] = useState('landscape');
-  const [sheetWidthIn, setSheetWidthIn] = useState(11.69);
-  const [sheetHeightIn, setSheetHeightIn] = useState(8.27);
-  const [labelGapMm, setLabelGapMm] = useState(2);
-  const [sheetMarginMm, setSheetMarginMm] = useState(4);
-  const [fontSize, setFontSize] = useState(14);
-  const [showRegularPrice, setShowRegularPrice] = useState(true);
-  const [showDiscountedPrice, setShowDiscountedPrice] = useState(true);
+  const [priceSuffix, setPriceSuffix] = useState(() => getInitialProductPrintSettings().priceSuffix);
+  const [discountPercent, setDiscountPercent] = useState(
+    () => getInitialProductPrintSettings().discountPercent
+  );
+  const [totalCols, setTotalCols] = useState(() => getInitialProductPrintSettings().totalCols);
+  const [totalRows, setTotalRows] = useState(() => getInitialProductPrintSettings().totalRows);
+  const [pageFormat, setPageFormat] = useState(() => getInitialProductPrintSettings().pageFormat);
+  const [orientation, setOrientation] = useState(() => getInitialProductPrintSettings().orientation);
+  const [sheetWidthIn, setSheetWidthIn] = useState(
+    () => getInitialProductPrintSettings().sheetWidthIn
+  );
+  const [sheetHeightIn, setSheetHeightIn] = useState(
+    () => getInitialProductPrintSettings().sheetHeightIn
+  );
+  const [labelGapMm, setLabelGapMm] = useState(() => getInitialProductPrintSettings().labelGapMm);
+  const [sheetMarginMm, setSheetMarginMm] = useState(
+    () => getInitialProductPrintSettings().sheetMarginMm
+  );
+  const [fontSize, setFontSize] = useState(() => getInitialProductPrintSettings().fontSize);
+  const [showRegularPrice, setShowRegularPrice] = useState(
+    () => getInitialProductPrintSettings().showRegularPrice
+  );
+  const [showDiscountedPrice, setShowDiscountedPrice] = useState(
+    () => getInitialProductPrintSettings().showDiscountedPrice
+  );
+
+  useEffect(() => {
+    saveProductPrintSettings({
+      priceSuffix,
+      discountPercent,
+      totalCols,
+      totalRows,
+      pageFormat,
+      orientation,
+      sheetWidthIn,
+      sheetHeightIn,
+      labelGapMm,
+      sheetMarginMm,
+      fontSize,
+      showRegularPrice,
+      showDiscountedPrice,
+      categoryFilterId,
+    });
+  }, [
+    priceSuffix,
+    discountPercent,
+    totalCols,
+    totalRows,
+    pageFormat,
+    orientation,
+    sheetWidthIn,
+    sheetHeightIn,
+    labelGapMm,
+    sheetMarginMm,
+    fontSize,
+    showRegularPrice,
+    showDiscountedPrice,
+    categoryFilterId,
+  ]);
 
   useEffect(() => {
     if (pageFormat === 'custom') return;
