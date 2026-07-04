@@ -7,6 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { toast } from '../../utils/toast.js';
+import './product-form.css';
 
 const ProductAdd = () => {
   const dispatch = useDispatch();
@@ -827,11 +828,26 @@ const ProductAdd = () => {
                       />
                       <button
                         type="button"
-                        className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                        className="product-image-remove-btn"
                         onClick={removeSingleImage}
                         disabled={isSubmitting}
+                        aria-label="Remove image"
+                        title="Remove image"
                       >
-                        <i className="fas fa-times"></i>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
                       </button>
                     </div>
                   )}
@@ -866,11 +882,26 @@ const ProductAdd = () => {
                             />
                             <button
                               type="button"
-                              className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                              className="product-image-remove-btn"
                               onClick={() => removeBulkImage(index)}
                               disabled={isSubmitting}
+                              aria-label="Remove image"
+                              title="Remove image"
                             >
-                              <i className="fas fa-times"></i>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                              </svg>
                             </button>
                           </div>
                         ))}

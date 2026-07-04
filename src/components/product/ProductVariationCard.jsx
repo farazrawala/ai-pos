@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 import { parseVariationAttrs, generateBarcode } from './productVariationUtils.js';
 
 export default function ProductVariationCard({
@@ -12,10 +12,18 @@ export default function ProductVariationCard({
 }) {
   const reactId = useId();
   const inputId = fileInputId || `pv-variation-image-${variation.id}-${reactId}`;
+  const fileInputRef = useRef(null);
   const attrPills = parseVariationAttrs(variation.name);
 
   const handleRegenerateBarcode = () => {
     onChange(variation.id, 'barcode', generateBarcode());
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) onImageChange(variation.id, file);
+    // Reset so selecting the same file again still fires onChange.
+    e.target.value = '';
   };
 
   return (
@@ -59,20 +67,18 @@ export default function ProductVariationCard({
             <div className="pv-image-upload-label">Image</div>
             <input
               id={inputId}
+              ref={fileInputRef}
               type="file"
               className="d-none"
               accept="image/*"
               disabled={disabled}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onImageChange(variation.id, file);
-              }}
+              onChange={handleImageSelect}
             />
             <button
               type="button"
               className="btn btn-sm btn-outline-primary pv-image-upload-btn mb-0"
               disabled={disabled}
-              onClick={() => document.getElementById(inputId)?.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
               <i className="fas fa-upload me-1" aria-hidden="true" />
               {variation.imagePreview ? 'Change' : 'Upload'}

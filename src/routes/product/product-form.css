@@ -133,3 +133,41 @@
   overflow: visible;
   padding-right: 0;
 }
+
+/* Circular remove button overlaid on image thumbnails */
+.product-image-remove-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.85rem;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(220, 53, 69, 0.92);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(20, 31, 51, 0.25);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.product-image-remove-btn:hover:not(:disabled) {
+  background: #c82333;
+  transform: scale(1.08);
+}
+
+.product-image-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.product-image-remove-btn svg {
+  display: block;
+}

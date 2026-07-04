@@ -743,9 +743,11 @@ export const updateProductVariationRequest = async (
       if (variation.sku !== undefined) {
         formData.append(`variations[${idx}][sku]`, String(variation.sku));
       }
-      // Add variation image if it's a File
+      // Add variation image if it's a File. Use `product_image` to match the
+      // field name the backend expects for a product's image (a variation is a
+      // child product), consistent with the main product image field.
       if (variation.image instanceof File) {
-        formData.append(`variations[${idx}][image]`, variation.image);
+        formData.append(`variations[${idx}][product_image]`, variation.image);
       }
     });
   }
