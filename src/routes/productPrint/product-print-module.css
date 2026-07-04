@@ -1,0 +1,170 @@
+.product-print-page {
+  --pp-label-border: #333;
+  --pp-label-bg: #fff;
+}
+
+.product-print-page .product-print-main-card {
+  max-width: 100%;
+}
+
+.product-print-page .product-print-section {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.product-print-page .product-print-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.product-print-page .product-print-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #67748e;
+  margin-bottom: 0.75rem;
+}
+
+.product-print-page .product-print-picker {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.5rem;
+}
+
+.product-print-page .product-print-picker table {
+  margin-bottom: 0;
+}
+
+.product-print-page .product-print-picker thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8f9fa;
+}
+
+.product-print-page .product-print-preview-panel {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.75rem;
+  background: #f8f9fa;
+  padding: 1rem;
+}
+
+.product-print-page .product-print-preview-viewport {
+  overflow: auto;
+  max-height: 520px;
+  background: #e9ecef;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.product-print-page .pp-sheet {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin: 0 auto 1rem;
+  box-sizing: border-box;
+}
+
+.product-print-page .pp-label-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.product-print-page .pp-price-label {
+  box-sizing: border-box;
+  border: 1px solid var(--pp-label-border);
+  background: var(--pp-label-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  padding: 0.35rem 0.25rem 0.3rem;
+  font-family: 'Times New Roman', Times, serif;
+  overflow: hidden;
+}
+
+.product-print-page .pp-price-label__name {
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.15;
+  width: 100%;
+  word-break: break-word;
+}
+
+.product-print-page .pp-price-label__prices {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0;
+}
+
+.product-print-page .pp-price-label__row-label {
+  line-height: 1.15;
+}
+
+.product-print-page .pp-price-label__row-label--regular,
+.product-print-page .pp-price-label__row-value--regular {
+  font-weight: 400;
+}
+
+.product-print-page .pp-price-label__row-label--discounted,
+.product-print-page .pp-price-label__row-value--discounted {
+  font-weight: 700;
+}
+
+.product-print-page .pp-price-label__row-value {
+  line-height: 1.15;
+  margin-bottom: 0.2rem;
+}
+
+.product-print-page .product-print-print-area {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+@media print {
+  .product-print-toolbar,
+  .product-print-preview-panel,
+  .product-print-settings-col,
+  .product-print-picker-col {
+    display: none !important;
+  }
+
+  .product-print-page .product-print-print-area {
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .product-print-page .pp-sheet {
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .product-print-page .pp-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .product-print-page .pp-price-label {
+    border: 1px solid #333 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

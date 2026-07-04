@@ -60,6 +60,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/adjustments': 'adjustments',
   '/company': null,
   '/barcode-print': 'barcode-print',
+  '/product-print': 'products',
   '/attributes': 'attributes',
   '/users': 'users',
   '/amount-transfers': 'amount-transfers',
