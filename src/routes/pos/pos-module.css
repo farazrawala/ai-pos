@@ -345,10 +345,31 @@
 .pos-page .pos-grand-total-row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   padding-top: 0.65rem;
   margin-top: 0.65rem;
   border-top: 1px dashed var(--pos-border);
+}
+
+.pos-page .pos-grand-total-row__left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pos-page .pos-calc-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.pos-page .pos-calc-btn svg {
+  font-size: 0.95rem;
 }
 
 .pos-page .pos-grand-total-row .label {

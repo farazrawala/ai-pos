@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
-import { FaTrash } from 'react-icons/fa6';
+import { FaTrash, FaCalculator } from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
   fetchUsersListRequest,
@@ -41,6 +41,7 @@ import { printPosOrderViaBridge } from '../../services/printing/posPrintIntegrat
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
+import { CalculatorModal, openCalculatorModal } from '../../components/Calculator/index.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
@@ -1546,7 +1547,18 @@ const Pos = () => {
                   <span className="pos-summary-value">PKR 0.00</span>
                 </div>
                 <div className="pos-grand-total-row">
-                  <span className="label">Grand total</span>
+                  <div className="pos-grand-total-row__left">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary mb-0 pos-calc-btn"
+                      onClick={() => openCalculatorModal()}
+                      aria-label="Open calculator"
+                      title="Calculator"
+                    >
+                      <FaCalculator aria-hidden="true" />
+                    </button>
+                    <span className="label">Grand total</span>
+                  </div>
                   <span className="pos-grand-total">PKR {grandTotal.toFixed(2)}</span>
                 </div>
               </div>
@@ -1723,6 +1735,8 @@ const Pos = () => {
           <div className="toast-body">Order saved successfully.</div>
         </div>
       </div>
+
+      <CalculatorModal initialValue={grandTotal} title="Calculator" />
     </div>
   );
 };
