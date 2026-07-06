@@ -21,3 +21,19 @@
 .profit-report-page .bg-gradient-primary {
   background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
 }
+
+.profit-report-page .profit-report-lines-table th {
+  font-weight: 600;
+  color: #67748e;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.profit-report-page .profit-report-lines-table td {
+  vertical-align: middle;
+}
+
+.profit-report-page .list-data-table--profit-report {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
