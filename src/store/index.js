@@ -29,6 +29,7 @@ import warehouseInventoryReducer from '../features/warehouseInventory/warehouseI
 import integrationReducer from '../features/integration/integrationSlice.js';
 import processReducer from '../features/process/processSlice.js';
 import printersReducer from '../features/printers/printersSlice.js';
+import profitReportReducer from '../features/profitReport/profitReportSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -63,6 +64,7 @@ const store = configureStore({
     integration: integrationReducer,
     process: processReducer,
     printers: printersReducer,
+    profitReport: profitReportReducer,
   },
 });
 

@@ -67,6 +67,7 @@ export const NAV_ITEMS = [
   { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
   { to: '/advance-balance-sheet', label: 'Advance balance sheet', icon: FaScaleBalanced },
   { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
+  { to: '/profit-report', label: 'Profit report', icon: FaChartLine },
   { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
   { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
   { to: '/payments', label: 'Payments', icon: FaBasketShopping },

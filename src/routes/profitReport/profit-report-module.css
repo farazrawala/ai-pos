@@ -1,0 +1,23 @@
+@keyframes profit-report-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.profit-report-page .spin-icon {
+  animation: profit-report-spin 0.8s linear infinite;
+}
+
+.profit-report-page .profit-report-stat__value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.profit-report-page .profit-report-meta dt {
+  font-weight: 600;
+}
+
+.profit-report-page .bg-gradient-primary {
+  background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
+}
