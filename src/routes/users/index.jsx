@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -8,6 +8,8 @@ import {
   setPage,
   setLimit,
   setSort,
+  setRoleFilter,
+  USER_LIST_ROLE_TABS,
 } from '../../features/users/usersSlice.js';
 import { isDefaultCustomerUser, isDefaultVendorUser } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -20,6 +22,7 @@ import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import { DEBUG } from '../../config/env.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
+import './users-module.css';
 
 const userOpeningBalance = (user) =>
   Number(user?.initial_balance ?? user?.initialBalance ?? user?.opening_balance ?? 0) || 0;
@@ -48,7 +51,13 @@ const Users = () => {
     pagination,
     search: searchTerm,
     sort,
+    roleFilter,
   } = useSelector((state) => state.users);
+
+  const activeRoleTab = useMemo(
+    () => USER_LIST_ROLE_TABS.find((t) => t.id === roleFilter) ?? USER_LIST_ROLE_TABS[0],
+    [roleFilter]
+  );
 
   const { canCreate, canEdit } = usePermissions('users');
   useRequireModuleAccess('users');
@@ -66,8 +75,17 @@ const Users = () => {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
+    if (activeRoleTab.role) params.role = activeRoleTab.role;
     dispatch(fetchUsers(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    sort.sortBy,
+    sort.sortOrder,
+    activeRoleTab.role,
+  ]);
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -119,6 +137,28 @@ const Users = () => {
     />
   );
 
+  const handleRoleTabChange = (tabId) => {
+    dispatch(setRoleFilter(tabId));
+  };
+
+  const emptyMessage = useMemo(() => {
+    if (activeRoleTab.id === 'customer') return 'No customers found. Try adjusting your search.';
+    if (activeRoleTab.id === 'vendor') return 'No vendors found. Try adjusting your search.';
+    return 'No users found. Try adjusting your search.';
+  }, [activeRoleTab.id]);
+
+  const searchPlaceholder = useMemo(() => {
+    if (activeRoleTab.id === 'customer') return 'Search customers…';
+    if (activeRoleTab.id === 'vendor') return 'Search vendors…';
+    return 'Search users…';
+  }, [activeRoleTab.id]);
+
+  const addButtonLabel = useMemo(() => {
+    if (activeRoleTab.id === 'customer') return 'Add customer';
+    if (activeRoleTab.id === 'vendor') return 'Add vendor';
+    return 'Add user';
+  }, [activeRoleTab.id]);
+
   const renderRoleCell = (role) => {
     const roles = Array.isArray(role) ? role : role ? [role] : [];
     if (roles.length === 0) return <span className="text-muted text-sm">—</span>;
@@ -144,7 +184,7 @@ const Users = () => {
                   <h5 className="mb-1">Users</h5>
                   {DEBUG ? (
                     <p className="text-sm text-muted mb-0">
-                      User list with role and permissions details.
+                      Filter by role — staff, customers, or vendors.
                     </p>
                   ) : null}
                 </div>
@@ -157,16 +197,31 @@ const Users = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search users…"
+                        placeholder={searchPlaceholder}
                         value={localSearch}
                         onChange={handleSearchChange}
-                        aria-label="Search users"
+                        aria-label={searchPlaceholder}
                       />
                     </div>
-                    {canCreate ? <AddNewButton to="/users/add" label="Add user" size="sm" /> : null}
+                    {canCreate ? (
+                      <AddNewButton to="/users/add" label={addButtonLabel} size="sm" />
+                    ) : null}
                   </div>
                 </div>
               </div>
+              <ul className="nav nav-tabs users-role-tabs mt-3 border-0">
+                {USER_LIST_ROLE_TABS.map((tab) => (
+                  <li className="nav-item" key={tab.id}>
+                    <button
+                      type="button"
+                      className={`nav-link ${roleFilter === tab.id ? 'active' : ''}`}
+                      onClick={() => handleRoleTabChange(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="card-body pt-0 px-0 pb-0">
@@ -202,7 +257,7 @@ const Users = () => {
                     {data.length === 0 ? (
                       <tr>
                         <td colSpan={11} className="text-center py-5 text-muted">
-                          No users found. Try adjusting your search.
+                          {emptyMessage}
                         </td>
                       </tr>
                     ) : (

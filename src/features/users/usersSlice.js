@@ -65,6 +65,12 @@ export const deleteUser = createAsyncThunk(
   }
 );
 
+export const USER_LIST_ROLE_TABS = [
+  { id: 'users', label: 'Users', role: 'USER' },
+  { id: 'customer', label: 'Customers', role: 'CUSTOMER' },
+  { id: 'vendor', label: 'Vendors', role: 'VENDOR' },
+];
+
 const initialState = {
   status: 'idle',
   list: [],
@@ -76,6 +82,7 @@ const initialState = {
     totalPages: 0,
   },
   search: '',
+  roleFilter: 'users',
   sort: {
     sortBy: null,
     sortOrder: 'asc',
@@ -101,6 +108,10 @@ const usersSlice = createSlice({
     },
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setRoleFilter: (state, action) => {
+      state.roleFilter = action.payload;
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -244,6 +255,7 @@ const usersSlice = createSlice({
 export const {
   clearError,
   setSearch,
+  setRoleFilter,
   setPage,
   setLimit,
   setSort,

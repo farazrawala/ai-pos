@@ -275,6 +275,7 @@ export async function fetchUsersRequest(params = {}) {
   }
   if (params.limit) query.set('limit', String(params.limit));
   if (params.search) query.set('search', String(params.search));
+  if (params.role) query.set('role', String(params.role));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
