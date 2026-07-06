@@ -141,6 +141,7 @@ export function mapOrderToInvoiceView(order, options = {}) {
       subTotal: 0,
       tax: 0,
       discount: 0,
+      discountPercentage: 0,
       shipping: 0,
       total: 0,
       paymentMade: 0,
@@ -190,6 +191,9 @@ export function mapOrderToInvoiceView(order, options = {}) {
   const discountRaw = order.discount ?? order.discount_amount ?? 0;
   const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
   const discount = Number.isFinite(discountNum) ? discountNum : 0;
+  const discountPctRaw = order.discount_percentage ?? order.discountPercentage ?? 0;
+  const discountPctNum = parseFloat(String(discountPctRaw).replace(/,/g, ''));
+  const discountPercentage = Number.isFinite(discountPctNum) ? discountPctNum : 0;
   const shipRaw = order.shipping ?? order.shipment ?? 0;
   const shipNum = parseFloat(String(shipRaw).replace(/,/g, ''));
   const shipping = Number.isFinite(shipNum) ? shipNum : 0;
@@ -218,6 +222,7 @@ export function mapOrderToInvoiceView(order, options = {}) {
       subTotal,
       tax: taxTotal,
       discount,
+      discountPercentage,
       shipping,
       total,
       paymentMade,

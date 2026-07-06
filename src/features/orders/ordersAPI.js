@@ -1447,6 +1447,9 @@ export async function createPosOrderRequest(payload = {}) {
   if (payload.discount != null) {
     form.append('discount', String(payload.discount));
   }
+  if (payload.discount_percentage != null) {
+    form.append('discount_percentage', String(payload.discount_percentage));
+  }
   if (payload.shipping != null) {
     form.append('shipping', String(payload.shipping));
   }
@@ -1539,6 +1542,9 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
 
   if (payload.discount != null) {
     form.append('discount', String(payload.discount));
+  }
+  if (payload.discount_percentage != null) {
+    form.append('discount_percentage', String(payload.discount_percentage));
   }
   if (payload.shipping != null) {
     form.append('shipping', String(payload.shipping));

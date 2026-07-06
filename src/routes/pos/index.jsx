@@ -798,6 +798,11 @@ const Pos = () => {
     return Number.isFinite(n) ? n : 0;
   }, [extraDiscount]);
 
+  const extraDiscountPercentNum = useMemo(() => {
+    const n = parseFloat(String(extraDiscountPercent).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }, [extraDiscountPercent]);
+
   useEffect(() => {
     if (discountEditSourceRef.current === 'percent') {
       const pct = String(extraDiscountPercent).trim();
@@ -908,6 +913,7 @@ const Pos = () => {
         shipping: shippingNum || 0,
         shipment: shippingNum || 0,
         discount: extraDiscountNum || 0,
+        discount_percentage: extraDiscountPercentNum || 0,
         order_status: 'active',
         amount_received: payment?.paid ?? 0,
         change_given: payment?.change ?? 0,
@@ -964,6 +970,7 @@ const Pos = () => {
       selectedCustomerId,
       shippingNum,
       extraDiscountNum,
+      extraDiscountPercentNum,
       defaultWarehouseId,
       isOnline,
       allowAddWhenStockInsufficient,

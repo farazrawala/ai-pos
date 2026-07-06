@@ -37,3 +37,27 @@
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
+
+.profit-report-page .profit-report-order-row {
+  background: #f8f9fe;
+}
+
+.profit-report-page .profit-report-order-row td {
+  border-top: 2px solid #e9ecef;
+}
+
+.profit-report-page .profit-report-line-row td {
+  background: #fff;
+}
+
+.profit-report-page .profit-report-order-total-row {
+  background: #f0f2f8;
+}
+
+.profit-report-page .profit-report-order-total-row td {
+  border-top: 2px solid #dee2e6;
+}
+
+.profit-report-page .border-dashed {
+  border-style: dashed !important;
+}

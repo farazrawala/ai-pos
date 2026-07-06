@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
@@ -73,6 +73,7 @@ const DEMO_INVOICE = {
     subTotal: 0,
     tax: 0,
     discount: 0,
+    discountPercentage: 0,
     shipping: 0,
     total: 0,
     paymentMade: 0,
@@ -103,6 +104,46 @@ const DEMO_INVOICE = {
 };
 
 const fmt = formatInvoiceMoney;
+
+function parseInvoiceMoneyInput(raw) {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatInvoicePercentInput(n) {
+  if (!Number.isFinite(n) || n < 0) return '';
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+function amountFromDiscountPercent(subtotal, percentRaw) {
+  const pct = parseInvoiceMoneyInput(percentRaw);
+  if (pct == null || pct <= 0) return '';
+  const sub = Number(subtotal) || 0;
+  if (sub <= 0) return '';
+  const amt = Math.round(((sub * pct) / 100) * 100) / 100;
+  return Number.isInteger(amt) ? String(amt) : amt.toFixed(2);
+}
+
+function percentFromDiscountAmount(subtotal, amountRaw) {
+  const amt = parseInvoiceMoneyInput(amountRaw);
+  if (amt == null || amt <= 0) return '';
+  const sub = Number(subtotal) || 0;
+  if (sub <= 0) return '';
+  return formatInvoicePercentInput((amt / sub) * 100);
+}
+
+function isPartialDiscountInput(value) {
+  const s = String(value ?? '').trim();
+  return !s || s === '.' || s.endsWith('.');
+}
+
+function pickOrderDiscountPercent(order) {
+  if (!order || typeof order !== 'object') return 0;
+  const raw = order.discount_percentage ?? order.discountPercentage ?? 0;
+  const n = parseFloat(String(raw).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
 
 const lineProductIdFromOrderLine = (line) => {
   if (!line || typeof line !== 'object') return '';
@@ -225,7 +266,9 @@ const PosInvoice = () => {
   const [addProductError, setAddProductError] = useState('');
   const [invoiceOrderStatus, setInvoiceOrderStatus] = useState(DEFAULT_ORDER_STATUS);
   const [invoiceDiscountInput, setInvoiceDiscountInput] = useState('');
+  const [invoiceDiscountPercentInput, setInvoiceDiscountPercentInput] = useState('');
   const [invoiceShippingInput, setInvoiceShippingInput] = useState('');
+  const discountEditSourceRef = useRef(null);
   const [invoiceCustomerId, setInvoiceCustomerId] = useState('');
   const [invoicePosPayMethod, setInvoicePosPayMethod] = useState('');
   const [users, setUsers] = useState([]);
@@ -268,6 +311,8 @@ const PosInvoice = () => {
     const disc = sourceOrder.discount ?? sourceOrder.discount_amount ?? 0;
     const d = parseFloat(String(disc).replace(/,/g, ''));
     setInvoiceDiscountInput(String(Number.isFinite(d) ? d : 0));
+    const discPct = pickOrderDiscountPercent(sourceOrder);
+    setInvoiceDiscountPercentInput(discPct > 0 ? formatInvoicePercentInput(discPct) : '0');
     const shipRaw = sourceOrder.shipping ?? sourceOrder.shipment ?? 0;
     const s = parseFloat(String(shipRaw).replace(/,/g, ''));
     setInvoiceShippingInput(String(Number.isFinite(s) ? s : 0));
@@ -357,7 +402,9 @@ const PosInvoice = () => {
     setInvoiceCustomerId('');
     setInvoicePosPayMethod('');
     setInvoiceDiscountInput('');
+    setInvoiceDiscountPercentInput('');
     setInvoiceShippingInput('');
+    discountEditSourceRef.current = null;
 
     (async () => {
       const requestedId = invoiceId;
@@ -414,6 +461,7 @@ const PosInvoice = () => {
         address: '',
         lines: [],
         discount: 0,
+        discount_percentage: 0,
         order_status: normalizeOrderStatus(orderStatus),
         amount_received: '',
         change_given: '',
@@ -433,6 +481,7 @@ const PosInvoice = () => {
     const discountRaw = order.discount ?? order.discount_amount ?? 0;
     const discountNum = parseFloat(String(discountRaw).replace(/,/g, ''));
     const discount = Number.isFinite(discountNum) ? discountNum : 0;
+    const discount_percentage = pickOrderDiscountPercent(order);
 
     const order_status = normalizeOrderStatus(
       orderStatus ?? order.order_status ?? order.orderStatus ?? order.status
@@ -450,6 +499,7 @@ const PosInvoice = () => {
       address: order.address ?? '',
       lines,
       discount,
+      discount_percentage,
       order_status,
       amount_received,
       change_given,
@@ -472,8 +522,10 @@ const PosInvoice = () => {
     try {
       const base = buildOrderUpdatePayload(sourceOrder, invoiceDraftLines, invoiceOrderStatus);
       const discNum = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
+      const discPctNum = parseFloat(String(invoiceDiscountPercentInput).replace(/,/g, ''));
       const shipNum = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
       const discount = Number.isFinite(discNum) ? discNum : 0;
+      const discount_percentage = Number.isFinite(discPctNum) ? discPctNum : 0;
       const shipping = Number.isFinite(shipNum) ? shipNum : 0;
       const customer = invoiceCustomerId
         ? users.find((u) => getUserOptionValue(u) === invoiceCustomerId)
@@ -484,6 +536,7 @@ const PosInvoice = () => {
         email: customer?.email || base.email,
         phone: customer?.mobile || customer?.phone || customer?.phoneNumber || base.phone,
         discount,
+        discount_percentage,
         shipping,
         shipment: shipping,
         customer_id: invoiceCustomerId || undefined,
@@ -520,6 +573,7 @@ const PosInvoice = () => {
     invoiceDraftLines,
     invoiceOrderStatus,
     invoiceDiscountInput,
+    invoiceDiscountPercentInput,
     invoiceShippingInput,
     invoiceCustomerId,
     invoicePosPayMethod,
@@ -625,12 +679,7 @@ const PosInvoice = () => {
     setAddProductError('');
   }, []);
 
-  const liveSummaryFromDraft = useMemo(() => {
-    const hasOrder =
-      sourceOrder &&
-      typeof sourceOrder === 'object' &&
-      (sourceOrder._id != null || sourceOrder.id != null);
-    if (!hasOrder || !view?.summary) return null;
+  const invoiceLineTotals = useMemo(() => {
     let subTotal = 0;
     let taxTotal = 0;
     invoiceDraftLines.forEach((d) => {
@@ -645,11 +694,77 @@ const PosInvoice = () => {
       subTotal += lineSub;
       taxTotal += taxAmount;
     });
-    const totalBeforeAdjust = subTotal + taxTotal;
+    return { subTotal, taxTotal, totalBeforeAdjust: subTotal + taxTotal };
+  }, [invoiceDraftLines]);
+
+  useEffect(() => {
+    const base = invoiceLineTotals.totalBeforeAdjust;
+    if (discountEditSourceRef.current === 'percent') {
+      const pct = String(invoiceDiscountPercentInput).trim();
+      if (!pct) {
+        setInvoiceDiscountInput('');
+        return;
+      }
+      if (isPartialDiscountInput(pct)) return;
+      setInvoiceDiscountInput(amountFromDiscountPercent(base, pct));
+      return;
+    }
+    if (discountEditSourceRef.current === 'amount') {
+      const amt = String(invoiceDiscountInput).trim();
+      if (!amt) {
+        setInvoiceDiscountPercentInput('');
+        return;
+      }
+      if (isPartialDiscountInput(amt)) return;
+      setInvoiceDiscountPercentInput(percentFromDiscountAmount(base, amt));
+    }
+  }, [invoiceLineTotals.totalBeforeAdjust, invoiceDiscountPercentInput, invoiceDiscountInput]);
+
+  const handleInvoiceDiscountPercentChange = useCallback(
+    (e) => {
+      const raw = e.target.value;
+      discountEditSourceRef.current = 'percent';
+      setInvoiceDiscountPercentInput(raw);
+      if (!raw.trim() || isPartialDiscountInput(raw)) {
+        if (!raw.trim()) setInvoiceDiscountInput('');
+        return;
+      }
+      setInvoiceDiscountInput(amountFromDiscountPercent(invoiceLineTotals.totalBeforeAdjust, raw));
+    },
+    [invoiceLineTotals.totalBeforeAdjust]
+  );
+
+  const handleInvoiceDiscountChange = useCallback(
+    (e) => {
+      const raw = e.target.value;
+      discountEditSourceRef.current = 'amount';
+      setInvoiceDiscountInput(raw);
+      if (!raw.trim() || isPartialDiscountInput(raw)) {
+        if (!raw.trim()) setInvoiceDiscountPercentInput('');
+        return;
+      }
+      setInvoiceDiscountPercentInput(
+        percentFromDiscountAmount(invoiceLineTotals.totalBeforeAdjust, raw)
+      );
+    },
+    [invoiceLineTotals.totalBeforeAdjust]
+  );
+
+  const liveSummaryFromDraft = useMemo(() => {
+    const hasOrder =
+      sourceOrder &&
+      typeof sourceOrder === 'object' &&
+      (sourceOrder._id != null || sourceOrder.id != null);
+    if (!hasOrder || !view?.summary) return null;
+    const { subTotal, taxTotal, totalBeforeAdjust } = invoiceLineTotals;
     const discountParsed = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
     const discount = Number.isFinite(discountParsed)
       ? discountParsed
       : Number(view.summary.discount) || 0;
+    const discountPctParsed = parseFloat(String(invoiceDiscountPercentInput).replace(/,/g, ''));
+    const discountPercentage = Number.isFinite(discountPctParsed)
+      ? discountPctParsed
+      : Number(view.summary.discountPercentage) || 0;
     const shippingParsed = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
     const shipping = Number.isFinite(shippingParsed)
       ? shippingParsed
@@ -660,12 +775,21 @@ const PosInvoice = () => {
       subTotal,
       tax: taxTotal,
       discount,
+      discountPercentage,
       shipping,
       total,
       paymentMade,
       balanceDue: Math.max(0, total - paymentMade),
     };
-  }, [sourceOrder, invoiceDraftLines, view, invoiceDiscountInput, invoiceShippingInput]);
+  }, [
+    sourceOrder,
+    invoiceDraftLines,
+    invoiceLineTotals,
+    view,
+    invoiceDiscountInput,
+    invoiceDiscountPercentInput,
+    invoiceShippingInput,
+  ]);
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
   const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
@@ -1294,7 +1418,7 @@ const PosInvoice = () => {
                                   style={{ maxWidth: 140 }}
                                   inputMode="decimal"
                                   value={invoiceDiscountInput}
-                                  onChange={(e) => setInvoiceDiscountInput(e.target.value)}
+                                  onChange={handleInvoiceDiscountChange}
                                   aria-label="Discount amount"
                                 />
                                 <span className="d-none d-print-inline-block fw-semibold">
@@ -1303,6 +1427,39 @@ const PosInvoice = () => {
                               </>
                             ) : (
                               <span>{fmt(summaryDisplay.discount)}</span>
+                            )}
+                          </div>
+                        ) : null}
+                        {printerSettings.show_discount || canUpdateInvoice ? (
+                          <div
+                            className={`pos-inv-summary-row align-items-center ${!printerSettings.show_discount ? 'pos-inv-no-print' : ''}`}
+                          >
+                            <span className="text-muted">Discount %</span>
+                            {canUpdateInvoice ? (
+                              <>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm text-end pos-inv-no-print"
+                                  style={{ maxWidth: 140 }}
+                                  inputMode="decimal"
+                                  value={invoiceDiscountPercentInput}
+                                  onChange={handleInvoiceDiscountPercentChange}
+                                  aria-label="Discount percentage"
+                                />
+                                <span className="d-none d-print-inline-block fw-semibold">
+                                  {summaryDisplay.discountPercentage != null &&
+                                  Number.isFinite(summaryDisplay.discountPercentage)
+                                    ? `${summaryDisplay.discountPercentage}%`
+                                    : '—'}
+                                </span>
+                              </>
+                            ) : (
+                              <span>
+                                {summaryDisplay.discountPercentage != null &&
+                                Number.isFinite(summaryDisplay.discountPercentage)
+                                  ? `${summaryDisplay.discountPercentage}%`
+                                  : '—'}
+                              </span>
                             )}
                           </div>
                         ) : null}
