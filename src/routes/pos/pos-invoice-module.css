@@ -275,7 +275,22 @@
 }
 
 .pos-invoice-page .pos-inv-col-action {
-  width: 2.75rem;
+  width: 3.5rem;
+}
+
+.pos-invoice-page .pos-inv-line-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.pos-invoice-page .pos-inv-line-delete-btn:hover,
+.pos-invoice-page .pos-inv-line-delete-btn:focus {
+  color: #f5365c !important;
 }
 
 .pos-invoice-page .pos-inv-line-desc {

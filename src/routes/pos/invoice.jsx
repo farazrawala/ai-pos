@@ -34,6 +34,8 @@ import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
+import { FaTrash } from 'react-icons/fa6';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import './pos-invoice-module.css';
 
@@ -1315,11 +1317,11 @@ const PosInvoice = () => {
                                   <td className="text-center pos-inv-no-print">
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      className="btn btn-link btn-sm text-danger p-0 pos-inv-line-delete-btn"
                                       aria-label={`Remove line ${i + 1}`}
                                       onClick={() => removeDraftLine(row.key)}
                                     >
-                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                      <NavIcon icon={FaTrash} size={18} />
                                     </button>
                                   </td>
                                 </tr>
