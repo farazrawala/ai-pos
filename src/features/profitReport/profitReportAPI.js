@@ -215,6 +215,129 @@ function summarizeProfitLines(lines) {
   };
 }
 
+/**
+ * @param {ReturnType<typeof normalizeProfitLineItem>[]} lines
+ */
+export function groupProfitLinesByOrder(lines) {
+  const groups = [];
+  const indexByOrder = new Map();
+
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const key = String(line.orderId ?? line.orderNo ?? 'unknown');
+    if (!indexByOrder.has(key)) {
+      const group = {
+        orderId: line.orderId,
+        orderNo: line.orderNo,
+        orderDate: line.orderDate,
+        lines: [],
+        orderProfit: 0,
+        orderSubtotal: 0,
+        itemCount: 0,
+        marginPct: null,
+      };
+      indexByOrder.set(key, groups.length);
+      groups.push(group);
+    }
+    const group = groups[indexByOrder.get(key)];
+    group.lines.push(line);
+    group.orderProfit += line.profit;
+    group.orderSubtotal += line.subtotal;
+  }
+
+  for (const group of groups) {
+    group.itemCount = group.lines.length;
+    group.marginPct =
+      group.orderSubtotal !== 0 ? (group.orderProfit / group.orderSubtotal) * 100 : null;
+  }
+
+  return groups;
+}
+
+/**
+ * @param {ReturnType<typeof groupProfitLinesByOrder>} orderGroups
+ */
+export function summarizeOrderProfitGroups(orderGroups) {
+  const groups = Array.isArray(orderGroups) ? orderGroups : [];
+  const profit = groups.reduce((sum, row) => sum + row.orderProfit, 0);
+  const subtotal = groups.reduce((sum, row) => sum + row.orderSubtotal, 0);
+  const lineCount = groups.reduce((sum, row) => sum + row.itemCount, 0);
+  const marginPct = subtotal !== 0 ? (profit / subtotal) * 100 : null;
+  return {
+    orderCount: groups.length,
+    lineCount,
+    profit,
+    subtotal,
+    marginPct,
+  };
+}
+
+/**
+ * Merge period totals from order_item and order profit paths plus page order rollup.
+ */
+export function mergeProfitSummaries(itemReport, orderPathReport, pageSummary) {
+  if (!itemReport) return null;
+  const orderPathProfit =
+    orderPathReport?.profit != null && Number.isFinite(orderPathReport.profit)
+      ? orderPathReport.profit
+      : null;
+  const profitsMatch =
+    orderPathProfit == null || Math.abs(orderPathProfit - itemReport.profit) < 0.01;
+
+  return {
+    ...itemReport,
+    orderPathProfit,
+    profitsMatch,
+    pageOrderCount: pageSummary?.orderCount ?? 0,
+    pageOrderProfit: pageSummary?.profit ?? 0,
+    pageOrderSubtotal: pageSummary?.subtotal ?? 0,
+    pageLineCount: pageSummary?.lineCount ?? 0,
+    pageMarginPct: pageSummary?.marginPct ?? null,
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} order
+ */
+export function normalizeOrderProfitSummary(order) {
+  const lines = flattenOrdersToProfitLines([order]);
+  const lineRollup = summarizeProfitLines(lines);
+  const orderProfit = parseProfitNumber(
+    order.total_profit ?? order.totalProfit ?? order.profit ?? lineRollup.profit
+  );
+  const itemsSubtotal = parseProfitNumber(
+    order.order_items_total ??
+      order.orderItemsTotal ??
+      order.items_total ??
+      lineRollup.subtotal
+  );
+  const totalAmount = parseProfitNumber(order.total_amount ?? order.totalAmount);
+  const itemCount = parseProfitNumber(
+    order.no_of_items ?? order.noOfItems ?? lines.length
+  );
+
+  return {
+    orderId: order._id ?? order.id ?? null,
+    orderNo: order.order_no ?? order.orderNo ?? '—',
+    orderDate: order.createdAt ?? order.created_at ?? order.date ?? null,
+    itemCount: Number.isFinite(itemCount) ? itemCount : lines.length,
+    itemsSubtotal,
+    orderProfit,
+    totalAmount,
+    marginPct: itemsSubtotal !== 0 ? (orderProfit / itemsSubtotal) * 100 : null,
+    lines,
+  };
+}
+
+/**
+ * @param {unknown[]} orders
+ */
+export function buildOrderProfitSummaries(orders) {
+  if (!Array.isArray(orders)) return [];
+  return orders
+    .filter((order) => order && typeof order === 'object')
+    .map((order) => normalizeOrderProfitSummary(order));
+}
+
 async function parseApiError(response, fallback) {
   const text = await response.text().catch(() => '');
   let message = fallback || `Request failed (${response.status})`;
@@ -311,9 +434,28 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
     orderId: params.orderId,
     productId: params.productId,
   });
+  const orderGroups = groupProfitLinesByOrder(lines);
+  const orderProfitRows = buildOrderProfitSummaries(orders).map((row) => {
+    const group = orderGroups.find(
+      (g) =>
+        (g.orderId && g.orderId === row.orderId) ||
+        String(g.orderNo).toLowerCase() === String(row.orderNo).toLowerCase()
+    );
+    if (!group) return row;
+    return {
+      ...row,
+      orderProfit: group.orderProfit,
+      itemsSubtotal: group.orderSubtotal,
+      itemCount: group.itemCount,
+      marginPct: group.marginPct,
+      lines: group.lines,
+    };
+  });
 
   return {
     orders,
+    orderProfitRows,
+    orderGroups,
     lines,
     pagination: {
       page: result.page ?? page,
@@ -322,6 +464,7 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
       totalPages: result.totalPages ?? 0,
     },
     linesSummary: summarizeProfitLines(lines),
+    ordersPageSummary: summarizeOrderProfitGroups(orderGroups),
   };
 }
 
@@ -329,17 +472,28 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
  * Load summary totals and paginated profit lines together.
  */
 export async function fetchProfitReportBundleRequest(params = {}) {
-  const [summaryResult, linesResult] = await Promise.all([
+  const [summaryResult, orderProfitResult, linesResult] = await Promise.all([
     fetchProfitByOrderItemRequest(params),
+    fetchOrderProfitByOrderItemRequest(params),
     fetchOrdersWithProfitLinesRequest(params),
   ]);
 
+  const mergedReport = mergeProfitSummaries(
+    summaryResult.report,
+    orderProfitResult.report,
+    linesResult.ordersPageSummary
+  );
+
   return {
-    report: summaryResult.report,
+    report: mergedReport,
     summaryRaw: summaryResult.raw,
+    orderProfitRaw: orderProfitResult.raw,
     lines: linesResult.lines,
     orders: linesResult.orders,
+    orderProfitRows: linesResult.orderProfitRows,
+    orderGroups: linesResult.orderGroups,
     linesPagination: linesResult.pagination,
     linesSummary: linesResult.linesSummary,
+    ordersPageSummary: linesResult.ordersPageSummary,
   };
 }

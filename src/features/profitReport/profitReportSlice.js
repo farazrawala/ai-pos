@@ -38,7 +38,10 @@ const profitReportSlice = createSlice({
   initialState: {
     report: null,
     lines: [],
+    orderProfitRows: [],
+    orderGroups: [],
     linesSummary: null,
+    ordersPageSummary: null,
     linesPagination: { ...defaultPagination },
     status: 'idle',
     linesStatus: 'idle',
@@ -73,7 +76,10 @@ const profitReportSlice = createSlice({
         state.linesStatus = 'succeeded';
         state.report = action.payload.report;
         state.lines = action.payload.lines ?? [];
+        state.orderProfitRows = action.payload.orderProfitRows ?? [];
+        state.orderGroups = action.payload.orderGroups ?? [];
         state.linesSummary = action.payload.linesSummary ?? null;
+        state.ordersPageSummary = action.payload.ordersPageSummary ?? null;
         state.linesPagination = action.payload.linesPagination ?? { ...defaultPagination };
       })
       .addCase(loadProfitReport.rejected, (state, action) => {
@@ -83,7 +89,10 @@ const profitReportSlice = createSlice({
         state.linesError = state.error;
         state.report = null;
         state.lines = [];
+        state.orderProfitRows = [];
+        state.orderGroups = [];
         state.linesSummary = null;
+        state.ordersPageSummary = null;
       })
       .addCase(loadProfitReportLines.pending, (state) => {
         state.linesStatus = 'loading';
@@ -92,7 +101,10 @@ const profitReportSlice = createSlice({
       .addCase(loadProfitReportLines.fulfilled, (state, action) => {
         state.linesStatus = 'succeeded';
         state.lines = action.payload.lines ?? [];
+        state.orderProfitRows = action.payload.orderProfitRows ?? [];
+        state.orderGroups = action.payload.orderGroups ?? [];
         state.linesSummary = action.payload.linesSummary ?? null;
+        state.ordersPageSummary = action.payload.ordersPageSummary ?? null;
         state.linesPagination = action.payload.pagination ?? state.linesPagination;
       })
       .addCase(loadProfitReportLines.rejected, (state, action) => {

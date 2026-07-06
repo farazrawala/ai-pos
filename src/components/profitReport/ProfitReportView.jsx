@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import {
@@ -11,6 +11,7 @@ import {
   buildProfitByOrderItemUrl,
   buildOrderProfitByOrderItemUrl,
   buildOrdersWithProfitLinesUrl,
+  groupProfitLinesByOrder,
 } from '../../features/profitReport/profitReportAPI.js';
 import { formatCurrencyAccounting } from '../balanceSheet/formatCurrency.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -37,7 +38,10 @@ export default function ProfitReportView() {
   const {
     report,
     lines,
+    orderProfitRows,
+    orderGroups,
     linesSummary,
+    ordersPageSummary,
     linesPagination,
     status,
     linesStatus,
@@ -113,6 +117,26 @@ export default function ProfitReportView() {
       : '—';
 
   const pageLinesSummary = linesSummary;
+  const pageOrdersSummary = useMemo(() => {
+    if (ordersPageSummary) return ordersPageSummary;
+    const groups = orderGroups?.length ? orderGroups : groupProfitLinesByOrder(lines);
+    const profit = groups.reduce((sum, row) => sum + row.orderProfit, 0);
+    const subtotal = groups.reduce((sum, row) => sum + row.orderSubtotal, 0);
+    const lineCount = groups.reduce((sum, row) => sum + row.itemCount, 0);
+    return {
+      orderCount: groups.length,
+      lineCount,
+      profit,
+      subtotal,
+      marginPct: subtotal !== 0 ? (profit / subtotal) * 100 : null,
+    };
+  }, [ordersPageSummary, orderGroups, lines]);
+
+  const groupedLines = useMemo(() => {
+    if (orderGroups?.length) return orderGroups;
+    return groupProfitLinesByOrder(lines);
+  }, [orderGroups, lines]);
+
   const pageMarginText =
     pageLinesSummary?.marginPct != null && Number.isFinite(pageLinesSummary.marginPct)
       ? `${pageLinesSummary.marginPct.toFixed(1)}%`
@@ -131,8 +155,8 @@ export default function ProfitReportView() {
                 Profit report
               </h5>
               <p className="text-sm text-muted mb-0">
-                Period totals from profit-by-order-item; line items from orders with nested
-                order_items (per-line profit).
+                Period totals merged from profit-by-order-item APIs; lines grouped by order with
+                per-order profit.
               </p>
             </div>
             <button
@@ -235,17 +259,24 @@ export default function ProfitReportView() {
           {report ? (
             <>
               <div className="mb-2">
-                <h6 className="text-sm fw-semibold mb-1">Period summary</h6>
+                <h6 className="text-sm fw-semibold mb-1">Period summary (merged)</h6>
                 <p className="text-xs text-muted mb-0">
-                  From <code>order_item/profit-by-order-item</code> — uses date range and
-                  inventory-movement rules.
+                  Total order profit from <code>order_item/profit-by-order-item</code>
+                  {report.orderPathProfit != null ? (
+                    <>
+                      {' '}
+                      and <code>order/profit-by-order-item</code>
+                      {report.profitsMatch ? ' (both match)' : ' (paths differ — see below)'}
+                    </>
+                  ) : null}
+                  . Uses date range and inventory-movement rules.
                 </p>
               </div>
               <div className="row g-3 mb-4">
                 <div className="col-md-6 col-xl-3">
                   <div className="profit-report-stat card h-100 border-0 bg-gradient-primary text-white">
                     <div className="card-body">
-                      <p className="text-xs text-white text-opacity-8 mb-1">Total profit</p>
+                      <p className="text-xs text-white text-opacity-8 mb-1">Total order profit</p>
                       <p className="profit-report-stat__value mb-0">{fmt(report.profit)}</p>
                     </div>
                   </div>
@@ -274,6 +305,32 @@ export default function ProfitReportView() {
                     </div>
                   </div>
                 </div>
+                <div className="col-md-6 col-xl-3">
+                  <div className="profit-report-stat card h-100 border border-dashed">
+                    <div className="card-body">
+                      <p className="text-xs text-muted mb-1">Orders on this page</p>
+                      <p className="profit-report-stat__value mb-0">{report.pageOrderCount ?? 0}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-6 col-xl-3">
+                  <div className="profit-report-stat card h-100 border border-dashed">
+                    <div className="card-body">
+                      <p className="text-xs text-muted mb-1">Page order profit</p>
+                      <p className="profit-report-stat__value mb-0">
+                        {fmt(report.pageOrderProfit ?? pageOrdersSummary.profit)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                {report.orderPathProfit != null && !report.profitsMatch ? (
+                  <div className="col-12">
+                    <div className="alert alert-warning py-2 text-sm mb-0">
+                      Order path profit ({fmt(report.orderPathProfit)}) differs from order_item path
+                      ({fmt(report.profit)}). Period card uses order_item total.
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="card border mb-4">
@@ -304,13 +361,95 @@ export default function ProfitReportView() {
             </>
           ) : null}
 
+          {orderProfitRows.length > 0 ? (
+            <div className="card border mb-4">
+              <div className="card-header py-2">
+                <h6 className="mb-0 text-sm">Profit by order (current page)</h6>
+                <p className="text-xs text-muted mb-0">
+                  Order totals merged from <code>order/get-order-by-order-item</code> line profits.
+                </p>
+              </div>
+              <div className="card-body p-0">
+                <div className="table-responsive">
+                  <table className="table align-items-center mb-0 profit-report-lines-table">
+                    <thead>
+                      <tr>
+                        <th className="text-xxs text-uppercase">Order</th>
+                        <th className="text-end text-xxs text-uppercase">Items</th>
+                        <th className="text-end text-xxs text-uppercase">Items subtotal</th>
+                        <th className="text-end text-xxs text-uppercase">Order profit</th>
+                        <th className="text-end text-xxs text-uppercase">Margin</th>
+                        <th className="text-xxs text-uppercase">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderProfitRows.map((order) => {
+                        const profitClass =
+                          order.orderProfit > 0
+                            ? 'text-success'
+                            : order.orderProfit < 0
+                              ? 'text-danger'
+                              : 'text-muted';
+                        const orderMargin =
+                          order.marginPct != null && Number.isFinite(order.marginPct)
+                            ? `${order.marginPct.toFixed(1)}%`
+                            : '—';
+                        return (
+                          <tr key={order.orderId || order.orderNo}>
+                            <td className="text-sm">
+                              <div className="fw-semibold">{order.orderNo}</div>
+                              {order.orderId ? (
+                                <code className="text-xxs text-muted">{order.orderId}</code>
+                              ) : null}
+                            </td>
+                            <td className="text-sm text-end">{order.itemCount}</td>
+                            <td className="text-sm text-end">{fmt(order.itemsSubtotal)}</td>
+                            <td className={`text-sm text-end fw-semibold ${profitClass}`}>
+                              {fmt(order.orderProfit)}
+                            </td>
+                            <td className="text-sm text-end">{orderMargin}</td>
+                            <td className="text-sm text-nowrap">
+                              {order.orderDate
+                                ? moment(order.orderDate).format('DD MMM YYYY')
+                                : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="profit-report-order-total-row">
+                        <td className="text-sm fw-semibold">Page total</td>
+                        <td className="text-sm text-end fw-semibold">
+                          {pageOrdersSummary.lineCount}
+                        </td>
+                        <td className="text-sm text-end fw-semibold">
+                          {fmt(pageOrdersSummary.subtotal)}
+                        </td>
+                        <td className="text-sm text-end fw-semibold text-primary">
+                          {fmt(pageOrdersSummary.profit)}
+                        </td>
+                        <td className="text-sm text-end fw-semibold">
+                          {pageOrdersSummary.marginPct != null &&
+                          Number.isFinite(pageOrdersSummary.marginPct)
+                            ? `${pageOrdersSummary.marginPct.toFixed(1)}%`
+                            : '—'}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="card border">
             <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
               <div>
-                <h6 className="mb-0 text-sm">Profit lines (current page)</h6>
+                <h6 className="mb-0 text-sm">Profit lines by order</h6>
                 <p className="text-xs text-muted mb-0">
-                  From <code>order/get-order-by-order-item</code> — profit = subtotal − (cost_price_at_sale
-                  × qty) on each line.
+                  Each order header shows merged order profit; rows below are line items.
                 </p>
               </div>
               {pageLinesSummary ? (
@@ -354,50 +493,87 @@ export default function ProfitReportView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.length === 0 && !linesLoading ? (
+                    {groupedLines.length === 0 && !linesLoading ? (
                       <tr>
                         <td colSpan={9} className="text-center py-5 text-muted text-sm">
                           No profit lines on this page. Adjust filters or date range.
                         </td>
                       </tr>
                     ) : (
-                      lines.map((line, index) => {
-                        const rowNo =
-                          (linesPagination.page - 1) * linesPagination.limit + index + 1;
-                        const profitClass =
-                          line.profit > 0
+                      groupedLines.map((group, groupIndex) => {
+                        const orderProfitClass =
+                          group.orderProfit > 0
                             ? 'text-success'
-                            : line.profit < 0
+                            : group.orderProfit < 0
                               ? 'text-danger'
                               : 'text-muted';
+                        let lineOffset = 0;
+                        for (let i = 0; i < groupIndex; i += 1) {
+                          lineOffset += groupedLines[i].lines.length + 1;
+                        }
                         return (
-                          <tr key={line.lineId || `${line.orderId}-${index}`}>
-                            <td className="text-center text-sm text-muted">{rowNo}</td>
-                            <td className="text-sm">
-                              <div className="fw-semibold">{line.orderNo}</div>
-                              {line.orderId ? (
-                                <code className="text-xxs text-muted">{line.orderId}</code>
-                              ) : null}
-                            </td>
-                            <td className="text-sm">
-                              <div>{line.productName}</div>
-                              {line.productId ? (
-                                <code className="text-xxs text-muted">{line.productId}</code>
-                              ) : null}
-                            </td>
-                            <td className="text-sm text-end">{line.qty}</td>
-                            <td className="text-sm text-end">{fmt(line.price)}</td>
-                            <td className="text-sm text-end">{fmt(line.subtotal)}</td>
-                            <td className="text-sm text-end">{fmt(line.costPriceAtSale)}</td>
-                            <td className={`text-sm text-end fw-semibold ${profitClass}`}>
-                              {fmt(line.profit)}
-                            </td>
-                            <td className="text-sm text-nowrap">
-                              {line.orderDate
-                                ? moment(line.orderDate).format('DD MMM YYYY')
-                                : '—'}
-                            </td>
-                          </tr>
+                          <Fragment key={`order-${group.orderId || group.orderNo}`}>
+                            <tr className="profit-report-order-row">
+                              <td className="text-center text-sm text-muted">{lineOffset + 1}</td>
+                              <td className="text-sm" colSpan={2}>
+                                <div className="fw-bold">{group.orderNo}</div>
+                                {group.orderId ? (
+                                  <code className="text-xxs text-muted">{group.orderId}</code>
+                                ) : null}
+                                <span className="badge bg-light text-dark text-xxs ms-2">
+                                  {group.itemCount} item{group.itemCount === 1 ? '' : 's'}
+                                </span>
+                              </td>
+                              <td className="text-sm text-end text-muted">—</td>
+                              <td className="text-sm text-end text-muted">—</td>
+                              <td className="text-sm text-end fw-semibold">
+                                {fmt(group.orderSubtotal)}
+                              </td>
+                              <td className="text-sm text-end text-muted">—</td>
+                              <td
+                                className={`text-sm text-end fw-bold ${orderProfitClass}`}
+                              >
+                                {fmt(group.orderProfit)}
+                              </td>
+                              <td className="text-sm text-nowrap">
+                                {group.orderDate
+                                  ? moment(group.orderDate).format('DD MMM YYYY')
+                                  : '—'}
+                              </td>
+                            </tr>
+                            {group.lines.map((line, index) => {
+                              const rowNo = lineOffset + index + 2;
+                              const profitClass =
+                                line.profit > 0
+                                  ? 'text-success'
+                                  : line.profit < 0
+                                    ? 'text-danger'
+                                    : 'text-muted';
+                              return (
+                                <tr
+                                  key={line.lineId || `${line.orderId}-${index}`}
+                                  className="profit-report-line-row"
+                                >
+                                  <td className="text-center text-sm text-muted">{rowNo}</td>
+                                  <td className="text-sm ps-4 text-muted">{group.orderNo}</td>
+                                  <td className="text-sm">
+                                    <div>{line.productName}</div>
+                                    {line.productId ? (
+                                      <code className="text-xxs text-muted">{line.productId}</code>
+                                    ) : null}
+                                  </td>
+                                  <td className="text-sm text-end">{line.qty}</td>
+                                  <td className="text-sm text-end">{fmt(line.price)}</td>
+                                  <td className="text-sm text-end">{fmt(line.subtotal)}</td>
+                                  <td className="text-sm text-end">{fmt(line.costPriceAtSale)}</td>
+                                  <td className={`text-sm text-end fw-semibold ${profitClass}`}>
+                                    {fmt(line.profit)}
+                                  </td>
+                                  <td className="text-sm text-nowrap text-muted">—</td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
                         );
                       })
                     )}
