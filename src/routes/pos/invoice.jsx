@@ -1252,7 +1252,9 @@ const PosInvoice = () => {
                             <th
                               className="text-center pos-inv-col-action pos-inv-no-print"
                               aria-label="Remove row"
-                            />
+                            >
+                              <span className="visually-hidden">Delete</span>
+                            </th>
                           ) : null}
                         </tr>
                       </thead>
@@ -1314,14 +1316,15 @@ const PosInvoice = () => {
                                   <td className="text-end fw-semibold text-nowrap">
                                     {fmt(amount)}
                                   </td>
-                                  <td className="text-center pos-inv-no-print">
+                                  <td className="text-center pos-inv-col-action pos-inv-no-print">
                                     <button
                                       type="button"
-                                      className="btn btn-link btn-sm text-danger p-0 pos-inv-line-delete-btn"
+                                      className="btn btn-sm btn-outline-danger border-0 pos-inv-line-delete-btn"
                                       aria-label={`Remove line ${i + 1}`}
+                                      title="Remove line"
                                       onClick={() => removeDraftLine(row.key)}
                                     >
-                                      <NavIcon icon={FaTrash} size={18} />
+                                      <NavIcon icon={FaTrash} size={20} />
                                     </button>
                                   </td>
                                 </tr>
