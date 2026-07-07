@@ -43,6 +43,7 @@ import './pos-invoice-module.css';
 const DEMO_INVOICE = {
   shopName,
   invoiceNo: '42693',
+  transactionNumber: 'TXN-000001',
   reference: '',
   grossAmount: 922.5,
   billTo: {
@@ -701,7 +702,13 @@ const PosInvoice = () => {
 
   useEffect(() => {
     const base = invoiceLineTotals.totalBeforeAdjust;
-    if (discountEditSourceRef.current === 'percent') {
+    const pct = String(invoiceDiscountPercentInput ?? '').trim();
+    const amt = String(invoiceDiscountInput ?? '').trim();
+    const mode =
+      discountEditSourceRef.current ||
+      (pct !== '' ? 'percent' : amt !== '' ? 'amount' : null);
+
+    if (mode === 'percent') {
       const pct = String(invoiceDiscountPercentInput).trim();
       if (!pct) {
         setInvoiceDiscountInput('');
@@ -711,7 +718,7 @@ const PosInvoice = () => {
       setInvoiceDiscountInput(amountFromDiscountPercent(base, pct));
       return;
     }
-    if (discountEditSourceRef.current === 'amount') {
+    if (mode === 'amount') {
       const amt = String(invoiceDiscountInput).trim();
       if (!amt) {
         setInvoiceDiscountPercentInput('');
@@ -759,14 +766,37 @@ const PosInvoice = () => {
       (sourceOrder._id != null || sourceOrder.id != null);
     if (!hasOrder || !view?.summary) return null;
     const { subTotal, taxTotal, totalBeforeAdjust } = invoiceLineTotals;
-    const discountParsed = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
-    const discount = Number.isFinite(discountParsed)
-      ? discountParsed
-      : Number(view.summary.discount) || 0;
-    const discountPctParsed = parseFloat(String(invoiceDiscountPercentInput).replace(/,/g, ''));
-    const discountPercentage = Number.isFinite(discountPctParsed)
-      ? discountPctParsed
-      : Number(view.summary.discountPercentage) || 0;
+    const pctRaw = String(invoiceDiscountPercentInput ?? '').trim();
+    const pctParsed = parseFloat(pctRaw.replace(/,/g, ''));
+    const hasPctInput =
+      pctRaw !== '' && !isPartialDiscountInput(pctRaw) && Number.isFinite(pctParsed);
+    const discountPercentage = hasPctInput ? Math.max(0, pctParsed) : 0;
+
+    const amtRaw = String(invoiceDiscountInput ?? '').trim();
+    const amtParsed = parseFloat(amtRaw.replace(/,/g, ''));
+    const hasAmtInput =
+      amtRaw !== '' && !isPartialDiscountInput(amtRaw) && Number.isFinite(amtParsed);
+
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+    // Use the last edited field as the source of truth:
+    // - If user typed discount amount last, use that exact number (prevents 49.98 vs 50 drift).
+    // - If user typed discount % last, compute from % (0% means no discount).
+    // - If neither is actively edited, default to 0 for live recalculation.
+    let discount = 0;
+    const lastEdit = discountEditSourceRef.current;
+    if (lastEdit === 'amount' && hasAmtInput) {
+      discount = Math.max(0, round2(amtParsed));
+    } else if (hasPctInput) {
+      discount = Math.max(
+        0,
+        round2((Number(totalBeforeAdjust) || 0) * (discountPercentage / 100))
+      );
+    } else if (hasAmtInput) {
+      discount = Math.max(0, round2(amtParsed));
+    } else {
+      discount = 0;
+    }
     const shippingParsed = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
     const shipping = Number.isFinite(shippingParsed)
       ? shippingParsed
@@ -795,6 +825,41 @@ const PosInvoice = () => {
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
   const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
+
+  const originalTotal = useMemo(() => {
+    const base = data?.summary?.total ?? data?.grossAmount ?? 0;
+    const n = Number(base);
+    return Number.isFinite(n) ? n : 0;
+  }, [data]);
+
+  const totalDifference = useMemo(() => {
+    if (!canUpdateInvoice) return 0;
+    // Only meaningful when editing an existing invoice.
+    if (!liveSummaryFromDraft) return 0;
+    const editedTotal = Number(liveSummaryFromDraft.total) || 0;
+    const diff = editedTotal - originalTotal;
+    // Avoid noisy -0.00
+    return Math.abs(diff) < 0.005 ? 0 : diff;
+    // Depend on draft inputs explicitly so delete/add always recalculates.
+  }, [
+    canUpdateInvoice,
+    liveSummaryFromDraft,
+    originalTotal,
+    invoiceDraftLines,
+    invoiceDiscountInput,
+    invoiceDiscountPercentInput,
+    invoiceShippingInput,
+  ]);
+
+  const formatSignedMoney = useCallback(
+    (diff) => {
+      const n = Number(diff) || 0;
+      if (n === 0) return fmt(0);
+      const sign = n > 0 ? '+' : '-';
+      return `${sign} ${fmt(Math.abs(n))}`;
+    },
+    [fmt]
+  );
 
   const printLines = useMemo(() => {
     if (canUpdateInvoice && invoiceDraftLines.length > 0) {
@@ -1140,6 +1205,12 @@ const PosInvoice = () => {
                       <div className="small mb-2">
                         <span className="text-muted me-2">Date:</span>
                         <span className="fw-semibold">{data.invoiceDate}</span>
+                      </div>
+                    ) : null}
+                    {data.transactionNumber ? (
+                      <div className="small mb-2">
+                        <span className="text-muted me-2">Transaction #:</span>
+                        <span className="fw-semibold">{data.transactionNumber}</span>
                       </div>
                     ) : null}
                     <div className="small">
@@ -1497,6 +1568,19 @@ const PosInvoice = () => {
                           <span>Total</span>
                           <span>{fmt(summaryDisplay.total)}</span>
                         </div>
+                        {canUpdateInvoice ? (
+                          <div className="pos-inv-summary-row">
+                            <span className="text-muted">Difference</span>
+                            <span
+                              className="fw-semibold"
+                              style={{
+                                color: totalDifference > 0 ? '#2dce89' : totalDifference < 0 ? '#f5365c' : undefined,
+                              }}
+                            >
+                              {formatSignedMoney(totalDifference)}
+                            </span>
+                          </div>
+                        ) : null}
                         {printerSettings.show_payment_made ? (
                           <div className="pos-inv-summary-row pos-inv-payment-made">
                             <span>Payment Made</span>

@@ -2,7 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaArrowsRotate, FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
+import {
+  FaArrowsRotate,
+  FaCloudArrowUp,
+  FaFilter,
+  FaClockRotateLeft,
+  FaListCheck,
+  FaHourglassStart,
+  FaMoneyBillWave,
+  FaHand,
+  FaBoxOpen,
+  FaCircleCheck,
+  FaBox,
+  FaCodeBranch,
+  FaLayerGroup,
+  FaFlag,
+  FaTruckFast,
+  FaTruck,
+  FaRoad,
+  FaClock,
+  FaTriangleExclamation,
+  FaRotateLeft,
+  FaBoxArchive,
+  FaBan,
+  FaUserClock,
+  FaTrash,
+} from 'react-icons/fa6';
 import {
   fetchOrders,
   deleteOrder,
@@ -45,6 +70,60 @@ import {
   storeTypeLabel,
 } from '../integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
+import './orders-list-page.css';
+
+const normalizeStatusKey = (raw) => {
+  const s = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (!s) return '';
+  return s.replace(/\s+/g, '_').replace(/-+/g, '_');
+};
+
+const orderStatusKey = (row) => {
+  const raw = row?.order_status ?? row?.orderStatus ?? row?.status ?? '';
+  return normalizeStatusKey(raw);
+};
+
+const pickOrderCreatedAt = (row) => row?.createdAt ?? row?.created_at ?? row?.date ?? null;
+
+const isWithinLastHours = (dt, hours) => {
+  if (!dt) return false;
+  const ts = Date.parse(String(dt));
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts <= hours * 60 * 60 * 1000;
+};
+
+const tileGradientClass = (variant) => {
+  const v = String(variant || '').trim().toLowerCase();
+  if (!v) return 'bg-gradient-secondary';
+  // Map to existing theme classes (Argon/Bootstrap)
+  if (v === 'primary') return 'bg-gradient-primary';
+  if (v === 'info') return 'bg-gradient-info';
+  if (v === 'success') return 'bg-gradient-success';
+  if (v === 'warning') return 'bg-gradient-warning';
+  if (v === 'danger') return 'bg-gradient-danger';
+  if (v === 'dark') return 'bg-gradient-dark';
+  if (v === 'secondary') return 'bg-gradient-secondary';
+  return 'bg-gradient-secondary';
+};
+
+const buildOmsTileValue = (tile, { data, pagination }) => {
+  const type = String(tile?.type || '').trim();
+  if (type === 'total') return Number(pagination?.total ?? 0) || 0;
+  if (type === 'last24h') {
+    // Note: based on currently loaded page data (server list is paginated).
+    return (Array.isArray(data) ? data : []).filter((row) =>
+      isWithinLastHours(pickOrderCreatedAt(row), 24)
+    ).length;
+  }
+
+  const match = Array.isArray(tile?.statusKeys) ? tile.statusKeys : [];
+  if (!match.length) return 0;
+
+  const set = new Set(match.map((s) => normalizeStatusKey(s)).filter(Boolean));
+  return (Array.isArray(data) ? data : []).filter((row) => set.has(orderStatusKey(row))).length;
+};
 
 const getOrderStatusDisplay = (row) => {
   if (!row || typeof row !== 'object') return '';
@@ -242,6 +321,8 @@ export default function OrdersListPage({ config }) {
     showFetchSyncToolbar = false,
     showRowSyncButton = false,
     showIntegrationColumn = false,
+    topSummaryName = '',
+    topTiles = null,
   } = config;
   const logLabel = pageTitle;
 
@@ -533,10 +614,79 @@ export default function OrdersListPage({ config }) {
     refreshOrderList();
   };
 
+  const showTopSummary = Boolean(topSummaryName && String(topSummaryName).trim());
+  const tiles = Array.isArray(topTiles) ? topTiles : [];
+  const showTopTiles = tiles.length > 0;
+
+  const tileRows = useMemo(() => {
+    if (!showTopTiles) return [];
+    return tiles.map((tile) => {
+      const value = buildOmsTileValue(tile, { data, pagination });
+      return { ...tile, value };
+    });
+  }, [showTopTiles, tiles, data, pagination]);
+
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
+          {showTopSummary ? (
+            <div className="mb-4">
+              <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <h5 className="mb-0">{topSummaryName}</h5>
+              </div>
+
+              {showTopTiles ? (
+                <div className="oms-tiles-grid">
+                  {tileRows.map((tile) => {
+                    const gradient = tileGradientClass(tile.variant);
+                    const shadow =
+                      gradient === 'bg-gradient-primary'
+                        ? 'shadow-primary'
+                        : gradient === 'bg-gradient-info'
+                          ? 'shadow-info'
+                          : gradient === 'bg-gradient-success'
+                            ? 'shadow-success'
+                            : gradient === 'bg-gradient-warning'
+                              ? 'shadow-warning'
+                              : gradient === 'bg-gradient-danger'
+                                ? 'shadow-danger'
+                                : gradient === 'bg-gradient-dark'
+                                  ? 'shadow-dark'
+                                  : 'shadow-secondary';
+
+                    return (
+                      <div key={tile.id || tile.label} className="card oms-kpi-card border-0 shadow-sm">
+                        <div className="card-body p-3">
+                          <div className="row">
+                            <div className="col-8">
+                              <div className="numbers">
+                                <p className="text-sm mb-0 text-uppercase font-weight-bold">
+                                  {tile.label}
+                                </p>
+                                <h5 className="font-weight-bolder mb-0">
+                                  {(tile.value ?? 0).toLocaleString()}
+                                </h5>
+                              </div>
+                            </div>
+                            <div className="col-4 text-end">
+                              <div
+                                className={`icon icon-shape ${gradient} ${shadow} text-center rounded-circle d-inline-flex align-items-center justify-content-center`}
+                              >
+                                <span className="text-white opacity-10 oms-kpi-icon">
+                                  {tile.icon}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">

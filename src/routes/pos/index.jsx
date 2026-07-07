@@ -1563,6 +1563,7 @@ const Pos = () => {
                       title="Calculator"
                     >
                       <FaCalculator aria-hidden="true" />
+                      <span className="pos-calc-btn__label">Calculator</span>
                     </button>
                     <span className="label">Grand total</span>
                   </div>

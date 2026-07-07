@@ -130,6 +130,7 @@ export function mapOrderToInvoiceView(order, options = {}) {
   const empty = {
     shopName,
     invoiceNo: '',
+    transactionNumber: '',
     reference: '',
     grossAmount: 0,
     billTo: { name: '—', phone: '—', email: '—' },
@@ -204,9 +205,17 @@ export function mapOrderToInvoiceView(order, options = {}) {
   const paymentMadeNum = parseFloat(String(paymentMadeRaw).replace(/,/g, ''));
   const paymentMade = Number.isFinite(paymentMadeNum) ? paymentMadeNum : 0;
 
+  const transactionNumberRaw =
+    order.transaction_number ?? order.transactionNumber ?? order.transaction_no ?? order.transactionNo ?? '';
+  const transactionNumber =
+    transactionNumberRaw != null && String(transactionNumberRaw).trim() !== ''
+      ? String(transactionNumberRaw).trim()
+      : '';
+
   return {
     shopName,
     invoiceNo: order.order_no || order.orderNo || (orderId != null ? String(orderId) : ''),
+    transactionNumber,
     reference: orderId != null ? String(orderId) : '',
     grossAmount: total,
     billTo: {
