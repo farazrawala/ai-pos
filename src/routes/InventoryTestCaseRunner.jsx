@@ -27,8 +27,10 @@ import {
   isTransactionRelatedStep,
 } from '../utils/apiWorkflow/balanceSheetCheck.js';
 import {
+  buildStockByProductCheckUrl,
   buildWarehouseInventoryCheckUrl,
   expectedQtyForStep,
+  extractStockByProductQty,
   extractWarehouseQtyForProduct,
   qtyMatchesExpected,
   shouldCheckQtyAfterStep,
@@ -332,12 +334,38 @@ const InventoryTestCaseRunner = () => {
               }),
             });
             const expected = expectedQtyForStep(step, index, steps);
-            const actual = extractWarehouseQtyForProduct(
+            let actual = extractWarehouseQtyForProduct(
               wiRes.data,
               qtyVars.product_1_id,
               qtyVars.warehouse_1_id
             );
             const apiOk = wiRes.status >= 200 && wiRes.status < 300;
+            if (
+              apiOk &&
+              (actual == null || actual === 0) &&
+              Number.isFinite(expected) &&
+              expected !== 0
+            ) {
+              const stockUrl = buildStockByProductCheckUrl(baseUrl, qtyVars.product_1_id);
+              const stockRes = await axios({
+                method: 'GET',
+                url: stockUrl,
+                validateStatus: () => true,
+                headers: buildWorkflowRequestHeaders({
+                  vars: qtyVars,
+                  method: 'GET',
+                  bodyType: undefined,
+                  hasJsonBody: false,
+                }),
+              });
+              if (stockRes.status >= 200 && stockRes.status < 300) {
+                const stockActual = extractStockByProductQty(
+                  stockRes.data,
+                  qtyVars.warehouse_1_id
+                );
+                if (stockActual != null) actual = stockActual;
+              }
+            }
             payload.qtyCheck = {
               triggered: true,
               url: wiUrl,

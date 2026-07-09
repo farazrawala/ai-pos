@@ -43,6 +43,15 @@ const normalizeListPayload = (result) => {
   if (Array.isArray(result.data)) return result.data;
   if (Array.isArray(result.warehouse_inventory)) return result.warehouse_inventory;
   if (Array.isArray(result)) return result;
+
+  const nested = result.data;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    if (Array.isArray(nested.data)) return nested.data;
+    if (Array.isArray(nested.warehouse_inventory)) return nested.warehouse_inventory;
+    if (Array.isArray(nested.rows)) return nested.rows;
+    if (Array.isArray(nested.items)) return nested.items;
+  }
+
   return [];
 };
 
