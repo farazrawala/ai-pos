@@ -18,6 +18,7 @@ import ClearCompanyCacheButton from './company/ClearCompanyCacheButton.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 import { clearOfflineDb } from '../offline/db.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
+import { APP_VERSION, APP_BUILT_AT } from '../config/appVersion.js';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -81,6 +82,14 @@ const Header = () => {
           <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (
               <>
+                <li className="nav-item d-flex align-items-center me-2">
+                  <span
+                    className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold"
+                    title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
+                  >
+                    v{APP_VERSION}
+                  </span>
+                </li>
                 <li className="nav-item d-flex align-items-center me-2">
                   <ClearCompanyCacheButton
                     className="btn btn-sm btn-outline-light mb-0 py-1 px-2 text-xs"

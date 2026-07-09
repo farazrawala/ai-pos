@@ -1,6 +1,7 @@
 import moment from 'moment';
 import { FaEllipsisVertical } from 'react-icons/fa6';
 import NavIcon from '../../NavIcon.jsx';
+import SearchInputIcon from '../../SearchInputIcon.jsx';
 import ListSortableTh from '../../list/ListSortableTh.jsx';
 import TablePagination from '../../TablePagination.jsx';
 import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
@@ -48,6 +49,8 @@ export default function LedgerUsersTable({
   onSort,
   onRowNavigate,
   onAction,
+  search = '',
+  onSearchChange,
   /** When set, pagination uses server total (rows are already one page). */
   totalRowCount,
 }) {
@@ -101,6 +104,23 @@ export default function LedgerUsersTable({
       </div>
 
       <div className="card-body pt-0 px-0 pb-0">
+        {onSearchChange ? (
+          <div className="d-flex justify-content-center px-3 pt-3 pb-2">
+            <div className="input-group input-group-sm w-100" style={{ maxWidth: '420px' }}>
+              <span className="input-group-text text-body">
+                <SearchInputIcon />
+              </span>
+              <input
+                type="search"
+                className="form-control"
+                placeholder="Search name, phone, email…"
+                value={search}
+                onChange={onSearchChange}
+                aria-label="Search ledger users"
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="list-data-table ledger-users-table mx-3 mb-3">
           <div className="list-data-table-scroll">
             <table className="table align-items-center mb-0 table-ledger">

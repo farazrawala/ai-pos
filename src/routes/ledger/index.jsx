@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -51,10 +51,22 @@ export default function LedgerListingPage() {
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
+  const [localSearch, setLocalSearch] = useState('');
+  const searchTimeoutRef = useRef(null);
 
   /** Sample for summary cards (capped); `totalUsers` comes from API total when available. */
   const [aggregateSample, setAggregateSample] = useState([]);
   const [aggregateTotalUsers, setAggregateTotalUsers] = useState(0);
+
+  useEffect(() => {
+    setLocalSearch(appliedFilters.search || '');
+  }, [appliedFilters.search]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +175,17 @@ export default function LedgerListingPage() {
     setDraftFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const handleSearchChange = useCallback((e) => {
+    const value = e.target.value;
+    setLocalSearch(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      setDraftFilters((prev) => ({ ...prev, search: value, contactSearch: '' }));
+      setAppliedFilters((prev) => ({ ...prev, search: value, contactSearch: '' }));
+      setPage(1);
+    }, 500);
+  }, []);
+
   const handleApply = useCallback(() => {
     setAppliedFilters({ ...draftFilters });
     setPage(1);
@@ -172,6 +195,7 @@ export default function LedgerListingPage() {
     const empty = initialFilters();
     setDraftFilters(empty);
     setAppliedFilters(empty);
+    setLocalSearch('');
     setSortKey('fullName');
     setSortDir('asc');
     setPage(1);
@@ -243,6 +267,8 @@ export default function LedgerListingPage() {
         page={page}
         pageSize={pageSize}
         totalRowCount={totalRowCount}
+        search={localSearch}
+        onSearchChange={handleSearchChange}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         sortKey={sortKey}

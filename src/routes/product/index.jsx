@@ -31,6 +31,7 @@ import { productEditIdFromRecord, productIdFromRecord } from '../../components/p
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 import { fetchAllProductsForExportRequest } from '../../features/products/productsAPI.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import {
   mapProductsToExportRows,
   PRODUCT_EXPORT_COLUMNS,
@@ -139,6 +140,13 @@ const PRODUCT_COLUMNS = [
 
 const productIsActive = (item) => item?.status === 'active' || item?.isActive || item?.status === 1;
 
+const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
+
+const categoryOptionLabel = (c) => {
+  const name = c?.name ?? c?.category_name ?? '';
+  return name ? String(name) : categoryOptionValue(c) || 'Category';
+};
+
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -161,6 +169,9 @@ const Product = () => {
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
   const [viewSyncProduct, setViewSyncProduct] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [categoriesStatus, setCategoriesStatus] = useState('idle');
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -172,24 +183,53 @@ const Product = () => {
     PRODUCT_COLUMNS
   );
 
-  // Fetch data from API using Redux with pagination, search, and sort
-  useEffect(() => {
+  const buildListParams = useCallback(() => {
     const params = {
       page: pagination.page,
       limit: pagination.limit,
     };
-
-    if (searchTerm) {
-      params.search = searchTerm;
-    }
-
+    if (searchTerm) params.search = searchTerm;
+    if (categoryFilter) params.categoryId = categoryFilter;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
+    return params;
+  }, [pagination.page, pagination.limit, searchTerm, categoryFilter, sort.sortBy, sort.sortOrder]);
 
-    dispatch(fetchProducts(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  useEffect(() => {
+    let cancelled = false;
+    setCategoriesStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchCategoriesRequest({ page: 1, limit: 2000 });
+        if (cancelled) return;
+        setCategories(Array.isArray(result?.data) ? result.data : []);
+        setCategoriesStatus('succeeded');
+      } catch {
+        if (!cancelled) {
+          setCategories([]);
+          setCategoriesStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fetch data from API using Redux with pagination, search, category, and sort
+  useEffect(() => {
+    dispatch(fetchProducts(buildListParams()));
+  }, [dispatch, buildListParams]);
+
+  const handleCategoryFilterChange = useCallback(
+    (e) => {
+      setCategoryFilter(e.target.value);
+      dispatch(setPage(1));
+    },
+    [dispatch]
+  );
 
   // Handle search input with debounce
   const handleSearchChange = useCallback(
@@ -253,18 +293,7 @@ const Product = () => {
         })
       ).unwrap();
 
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-      };
-      if (searchTerm) {
-        params.search = searchTerm;
-      }
-      if (sort.sortBy) {
-        params.sortBy = sort.sortBy;
-        params.sortOrder = sort.sortOrder;
-      }
-      dispatch(fetchProducts(params));
+      dispatch(fetchProducts(buildListParams()));
     } catch (error) {
       console.error('Toggle status error:', error);
       const toastElement = document.getElementById('dangerToast');
@@ -307,18 +336,7 @@ const Product = () => {
     ) {
       try {
         await dispatch(deleteProduct(productId)).unwrap();
-        const params = {
-          page: pagination.page,
-          limit: pagination.limit,
-        };
-        if (searchTerm) {
-          params.search = searchTerm;
-        }
-        if (sort.sortBy) {
-          params.sortBy = sort.sortBy;
-          params.sortOrder = sort.sortOrder;
-        }
-        dispatch(fetchProducts(params));
+        dispatch(fetchProducts(buildListParams()));
       } catch (error) {
         console.error('Delete error:', error);
       }
@@ -426,16 +444,7 @@ const Product = () => {
   };
 
   const refreshProductList = () => {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    if (searchTerm) params.search = searchTerm;
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-    dispatch(fetchProducts(params));
+    dispatch(fetchProducts(buildListParams()));
   };
 
   const handleFetchProductsSaved = () => {
@@ -458,6 +467,7 @@ const Product = () => {
   const buildExportParams = () => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
+    if (categoryFilter) params.categoryId = categoryFilter;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -517,6 +527,22 @@ const Product = () => {
                 </div>
                 <div className="col-lg-9 col-md-8">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <select
+                      id="products-category-filter"
+                      className="form-select form-select-sm"
+                      style={{ maxWidth: '200px' }}
+                      value={categoryFilter}
+                      onChange={handleCategoryFilterChange}
+                      disabled={categoriesStatus === 'loading'}
+                      aria-label="Filter by category"
+                    >
+                      <option value="">All categories</option>
+                      {categories.map((cat) => (
+                        <option key={categoryOptionValue(cat)} value={categoryOptionValue(cat)}>
+                          {categoryOptionLabel(cat)}
+                        </option>
+                      ))}
+                    </select>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />

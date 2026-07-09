@@ -51,9 +51,6 @@ const isCategoryActive = (item) => {
   return Boolean(item?.isActive);
 };
 
-const statusBadgeClass = (active) =>
-  active ? 'bg-gradient-success' : 'bg-gradient-secondary';
-
 const buildCategoryListParams = (pagination, searchTerm, sort) => {
   const params = {
     page: pagination.page,
@@ -477,10 +474,7 @@ const Category = () => {
                                 {slug}
                               </td>
                               <td className="text-sm">
-                                <div className="d-flex align-items-center gap-2 flex-wrap">
-                                  <span className={`badge text-xxs ${statusBadgeClass(active)}`}>
-                                    {active ? 'Active' : 'Inactive'}
-                                  </span>
+                                <div className="d-flex align-items-center gap-2">
                                   {canEdit ? (
                                     <div className="form-check form-switch mb-0 list-status-switch">
                                       <input
@@ -501,7 +495,18 @@ const Category = () => {
                                         />
                                       ) : null}
                                     </div>
-                                  ) : null}
+                                  ) : (
+                                    <div className="form-check form-switch mb-0 list-status-switch">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        checked={active}
+                                        disabled
+                                        aria-label={`${displayName} status`}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td

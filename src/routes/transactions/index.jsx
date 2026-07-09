@@ -414,6 +414,9 @@ const Transactions = () => {
                             <table className="table table-sm table-flush mb-0 w-100">
                               <thead>
                                 <tr>
+                                  {isAdmin ? (
+                                    <th className="text-xs text-uppercase" style={{ width: '40px' }} />
+                                  ) : null}
                                   <th className="text-xs text-uppercase">Account</th>
                                   <th className="text-xs text-uppercase text-end">Debit</th>
                                   <th className="text-xs text-uppercase text-end">Credit</th>
@@ -425,6 +428,22 @@ const Transactions = () => {
                                   const rowKey = item._id || item.id || idx;
                                   return (
                                     <tr key={rowKey}>
+                                      {isAdmin ? (
+                                        <td>
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-outline-primary mb-0 py-1 px-2"
+                                            title="Edit transaction"
+                                            onClick={() =>
+                                              navigate(`/transactions/edit/${item._id || item.id}`, {
+                                                state: { transaction: item },
+                                              })
+                                            }
+                                          >
+                                            <i className="fas fa-pen" aria-hidden="true" />
+                                          </button>
+                                        </td>
+                                      ) : null}
                                       <td className="text-sm">{getAccountName(item)}</td>
                                       <td className="text-sm text-end">{debit}</td>
                                       <td className="text-sm text-end">{credit}</td>
@@ -434,6 +453,7 @@ const Transactions = () => {
                               </tbody>
                               <tfoot>
                                 <tr className="font-weight-bold">
+                                  {isAdmin ? <td className="pt-2" /> : null}
                                   <td className="text-sm pt-2">Totals</td>
                                   <td className="text-sm text-end pt-2">
                                     {formatTransactionAmount(sums.debit)}

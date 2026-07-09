@@ -351,10 +351,6 @@ export default function ProfitReportView() {
                     <dd className="col-sm-9 col-md-4">{report.filters.orderId || '—'}</dd>
                     <dt className="col-sm-3 col-md-2 text-muted">Product</dt>
                     <dd className="col-sm-9 col-md-4">{report.filters.productId || '—'}</dd>
-                    <dt className="col-sm-3 col-md-2 text-muted">Company</dt>
-                    <dd className="col-sm-9 col-md-4">
-                      <code className="text-xs">{report.companyId || '—'}</code>
-                    </dd>
                   </dl>
                 </div>
               </div>

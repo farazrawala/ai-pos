@@ -34,6 +34,7 @@ import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { FaTrash } from 'react-icons/fa6';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
@@ -585,6 +586,22 @@ const PosInvoice = () => {
 
   const canUpdateInvoice =
     Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
+
+  const customerOptions = useMemo(() => {
+    const walkIn = { value: '', label: 'Walk in (no customer)' };
+    const rows = users
+      .filter((u) => getUserOptionValue(u))
+      .map((u) => {
+        const email = u.email || '';
+        const phone = u.mobile || u.phone || u.phoneNumber || '';
+        return {
+          value: getUserOptionValue(u),
+          label: formatUserOptionLabel(u),
+          subLabel: [email, phone].filter(Boolean).join(' · '),
+        };
+      });
+    return [walkIn, ...rows];
+  }, [users]);
 
   const billToDisplay = useMemo(() => {
     const fallback =
@@ -1165,25 +1182,15 @@ const PosInvoice = () => {
                         <label className="form-label" htmlFor="posInvCustomer">
                           Customer
                         </label>
-                        <select
-                          id="posInvCustomer"
-                          className="form-select form-select-sm pos-inv-no-print mb-2"
-                          value={invoiceCustomerId}
-                          onChange={(e) => setInvoiceCustomerId(e.target.value)}
-                          disabled={usersStatus === 'loading'}
-                        >
-                          <option value="">Walk in (no customer)</option>
-                          {users
-                            .filter((u) => getUserOptionValue(u))
-                            .map((u) => {
-                              const v = getUserOptionValue(u);
-                              return (
-                                <option key={v} value={v}>
-                                  {formatUserOptionLabel(u)}
-                                </option>
-                              );
-                            })}
-                        </select>
+                        <div className="pos-inv-no-print mb-2">
+                          <SearchableSelect
+                            options={customerOptions}
+                            value={invoiceCustomerId}
+                            placeholder="Walk in (no customer)"
+                            disabled={usersStatus === 'loading'}
+                            onChange={setInvoiceCustomerId}
+                          />
+                        </div>
                         {usersError ? (
                           <div className="small text-danger mb-2 pos-inv-no-print">
                             {usersError}

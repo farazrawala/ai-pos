@@ -5,6 +5,15 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { projectDevLogPlugin } from './vite-plugin-project-dev-log.js';
 
+function readAppVersion() {
+  try {
+    const raw = readFileSync(resolve(__dirname, 'src/version.json'), 'utf-8');
+    return JSON.parse(raw).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 function withBasePath(base, pathSegment) {
   const segment = String(pathSegment || '').replace(/^\//, '');
   if (base === '/') return `/${segment}`.replace(/\/+/g, '/');
@@ -53,6 +62,7 @@ export default defineConfig(({ mode }) => {
     base: normalizedBase,
     define: {
       __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || mode),
+      __APP_VERSION__: JSON.stringify(readAppVersion()),
     },
     plugins: [
       react({
