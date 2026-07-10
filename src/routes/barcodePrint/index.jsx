@@ -283,16 +283,18 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .barcode-print-label-barcode {
+  .barcode-print-label-text {
     width: 100% !important;
-    max-width: 100% !important;
-    object-fit: contain !important;
+    text-align: center !important;
   }
+  .barcode-print-label-barcode,
   .barcode-print-svg {
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
+    /* Do NOT force height:auto — that keeps the PNG at tiny pixel size in print. */
+    object-fit: fill !important;
+    object-position: center center !important;
   }
 `;
   }
@@ -316,8 +318,13 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   }
   .bp-sheet:last-child { page-break-after: auto; break-after: auto; }
   .barcode-print-label { border: 1px solid #ccc !important; }
-  .barcode-print-label-barcode { width: 100% !important; max-width: 100% !important; object-fit: contain !important; }
-  .barcode-print-svg { width: 100% !important; max-width: 100% !important; }
+  .barcode-print-label-barcode,
+  .barcode-print-svg {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    object-fit: fill !important;
+  }
   ${pageRules}
   ${pageAssign}
 `;
@@ -365,26 +372,25 @@ function BarcodeLabelCell({
   const barH = autoFitLabel
     ? fitted.barHeightPx
     : Math.max(40, Math.min(280, Number(barCodeHeightField) || 40));
-  const fs = autoFitLabel
+  const fsPx = autoFitLabel
     ? fitted.fontSize
     : Math.max(8, Math.min(28, Number(fontSize) || 11));
-  const textTop = autoFitLabel ? 0.6 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
-  const barcodeTop = autoFitLabel ? 0.4 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
-  const lineHeightPx = Math.round(fs * 1.2);
-  const textMaxHeightPx = lineHeightPx * Math.min(
-    maxTextLines,
-    Math.max(1, displayText ? displayText.split('\n').length : 1)
-  );
+  const fsMm = autoFitLabel
+    ? fitted.fontSizeMm
+    : Math.max(2, Math.min(6, (Number(fontSize) || 11) * 0.28));
+  const textTop = autoFitLabel ? 0.5 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
+  const barcodeTop = autoFitLabel ? 0.3 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
+  const sidePad = autoFitLabel ? 0.8 : 1.5;
+  const textMaxHeightMm = autoFitLabel
+    ? fitted.textBlockMm
+    : Math.max(4, fsMm * 1.25 * Math.min(maxTextLines, Math.max(1, displayText ? displayText.split('\n').length : 1)));
   // Remaining label height for the barcode image (explicit mm — % heights fail in print).
   const barcodeAreaMm = Math.max(
     10,
-    Number(labelHeightMm) -
-      textTop -
-      barcodeTop -
-      (hasText ? Math.min(Number(labelHeightMm) * 0.3, fs * 0.4 * 3) : 0) -
-      2
+    Number(labelHeightMm) - textTop - barcodeTop - (hasText ? textMaxHeightMm : 0) - 1.5
   );
   const barcodeHeightMm = autoFitLabel ? fitted.barcodeMaxHeightMm : barcodeAreaMm;
+  const barcodeObjectFit = autoFitLabel ? 'fill' : 'contain';
 
   useLayoutEffect(() => {
     if (!encodeValue) {
@@ -399,8 +405,8 @@ function BarcodeLabelCell({
         displayValue: Boolean(showBarcodeNumber),
         width: modW,
         height: barH,
-        fontSize: Math.max(10, Math.min(22, fs)),
-        margin: 1,
+        fontSize: Math.max(10, Math.min(22, fsPx)),
+        margin: 0,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -410,7 +416,7 @@ function BarcodeLabelCell({
       setImgUrl('');
       setErr(e?.message || 'Could not build this barcode');
     }
-  }, [encodeValue, format, modW, barH, fs, showBarcodeNumber, index]);
+  }, [encodeValue, format, modW, barH, fsPx, showBarcodeNumber, index]);
 
   return (
     <div
@@ -427,9 +433,9 @@ function BarcodeLabelCell({
         alignItems: 'stretch',
         justifyContent: 'flex-start',
         paddingTop: `${textTop}mm`,
-        paddingLeft: '1.5mm',
-        paddingRight: '1.5mm',
-        paddingBottom: '1mm',
+        paddingLeft: `${sidePad}mm`,
+        paddingRight: `${sidePad}mm`,
+        paddingBottom: '0.8mm',
         background: '#fff',
       }}
     >
@@ -440,12 +446,12 @@ function BarcodeLabelCell({
             width: '100%',
             textAlign: 'center',
             color: '#111',
-            fontSize: `${fs}px`,
-            lineHeight: `${lineHeightPx}px`,
-            fontWeight: 600,
+            fontSize: `${fsMm}mm`,
+            lineHeight: 1.2,
+            fontWeight: 700,
             flex: '0 0 auto',
             overflow: 'hidden',
-            maxHeight: autoFitLabel ? `${fitted.textBlockMm}mm` : `${textMaxHeightPx}px`,
+            maxHeight: `${textMaxHeightMm}mm`,
             wordBreak: 'normal',
             overflowWrap: 'break-word',
             whiteSpace: 'pre-line',
@@ -472,10 +478,10 @@ function BarcodeLabelCell({
             height: `${barcodeHeightMm}mm`,
             maxWidth: '100%',
             marginTop: `${barcodeTop}mm`,
-            objectFit: 'contain',
-            objectPosition: 'center top',
+            objectFit: barcodeObjectFit,
+            objectPosition: 'center center',
             flex: '0 0 auto',
-            imageRendering: 'crisp-edges',
+            imageRendering: 'pixelated',
           }}
         />
       ) : null}

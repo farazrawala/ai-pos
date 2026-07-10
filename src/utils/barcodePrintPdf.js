@@ -135,11 +135,13 @@ export async function downloadBarcodeLabelsPdf(opts) {
     showBarcodeNumber,
   });
   const useAuto = autoFitLabel !== false;
-  const effectiveFontSize = useAuto ? fitted.fontSize : fontSize;
+  const effectiveFontSize = useAuto
+    ? Math.max(14, Math.min(36, Math.round((fitted.fontSizeMm || 3.5) * 4.2)))
+    : fontSize;
   const effectiveBarWidth = useAuto ? fitted.moduleWidth * 10 : barCodeWidthField;
   const effectiveBarHeight = useAuto ? fitted.barHeightPx : barCodeHeightField;
-  const textTop = useAuto ? 0.8 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
-  const barcodeTop = useAuto ? 0.6 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
+  const textTop = useAuto ? 0.5 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
+  const barcodeTop = useAuto ? 0.3 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
 
   const barcode = renderBarcodePngDataUrl({
     encodeValue,
@@ -244,15 +246,23 @@ export async function downloadBarcodeLabelsPdf(opts) {
       }
 
       const textBottom = wrapped.length ? textY - textLineMm * 0.15 : y + textTop;
-      const pad = 1.5;
+      const pad = useAuto ? 0.8 : 1.5;
       const imgTop = textBottom + barcodeTop;
       const imgMaxW = Math.max(8, lw - pad * 2);
       const imgMaxH = Math.max(6, y + lh - pad - imgTop);
-      let imgW = imgMaxW;
-      let imgH = imgW * barcodeNativeRatio;
-      if (imgH > imgMaxH) {
+      let imgW;
+      let imgH;
+      if (useAuto) {
+        // Stretch to fill remaining label area (matches on-screen auto-fit).
+        imgW = imgMaxW;
         imgH = imgMaxH;
-        imgW = Math.min(imgMaxW, imgH / Math.max(0.05, barcodeNativeRatio));
+      } else {
+        imgW = imgMaxW;
+        imgH = imgW * barcodeNativeRatio;
+        if (imgH > imgMaxH) {
+          imgH = imgMaxH;
+          imgW = Math.min(imgMaxW, imgH / Math.max(0.05, barcodeNativeRatio));
+        }
       }
       const imgX = x + (lw - imgW) / 2;
       const imgY = imgTop;

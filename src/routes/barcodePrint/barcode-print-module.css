@@ -181,6 +181,9 @@
   position: static !important;
   float: none !important;
   clear: both;
+  display: block;
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (max-width: 991.98px) {

@@ -8,27 +8,29 @@ export function computeLabelAutoFit(opts) {
   const hasText = Boolean(opts.hasText);
   const showBarcodeNumber = Boolean(opts.showBarcodeNumber);
 
-  // Product text ~22% of label height.
-  const fontSize = hasText
-    ? Math.max(9, Math.min(28, Math.round(lh * 0.22)))
-    : Math.max(8, Math.min(16, Math.round(lh * 0.14)));
+  // Font in mm so print size tracks the sticker (px stays tiny on thermal printers).
+  const fontSizeMm = hasText
+    ? Math.max(2.8, Math.min(7, Math.round(lh * 0.14 * 10) / 10))
+    : Math.max(2.2, Math.min(4, Math.round(lh * 0.1 * 10) / 10));
 
-  const textBlockMm = hasText ? Math.min(lh * 0.28, fontSize * 0.4 * 3) : 0;
-  const numberReserveMm = showBarcodeNumber ? Math.min(7, lh * 0.12) : 0;
-  const padMm = 2;
-  const barcodeMaxHeightMm = Math.max(10, lh - textBlockMm - numberReserveMm - padMm);
+  // Rough px equivalent for JsBarcode human-readable digits only.
+  const fontSize = Math.max(10, Math.min(28, Math.round(fontSizeMm * 3.8)));
 
-  // Tall bars so when the PNG is scaled to label width it still looks thick.
+  const textBlockMm = hasText ? Math.min(lh * 0.34, fontSizeMm * 1.25 * 3) : 0;
+  const numberReserveMm = showBarcodeNumber ? Math.min(6, lh * 0.1) : 0;
+  const padMm = 1.5;
+  const barcodeMaxHeightMm = Math.max(12, lh - textBlockMm - numberReserveMm - padMm);
+
   const barHeightPx = Math.max(
-    40,
-    Math.min(280, Math.round((barcodeMaxHeightMm / 25.4) * 96 * 1.15))
+    48,
+    Math.min(300, Math.round((barcodeMaxHeightMm / 25.4) * 96))
   );
 
-  // Narrower modules → denser code → scales up larger on the sticker.
-  const moduleWidth = Math.max(1, Math.min(3, Math.round(lw / 55) || 2));
+  const moduleWidth = Math.max(1, Math.min(3, Math.round(lw / 50) || 2));
 
   return {
     fontSize,
+    fontSizeMm,
     barHeightPx,
     moduleWidth,
     barcodeMaxHeightMm: Math.round(barcodeMaxHeightMm * 100) / 100,
