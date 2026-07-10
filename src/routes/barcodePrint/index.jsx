@@ -220,11 +220,21 @@ function inchesToMm(inches) {
   return roundMm(n * 25.4);
 }
 
-/** @page size: width = roll, height = feed; always portrait for sticker layout. */
+/** @page size: exact sheet width × height (no portrait/landscape keyword — that swaps sides). */
 function atPageSizeRule(widthMm, heightMm) {
   const w = roundMm(widthMm);
   const h = roundMm(heightMm);
-  return `margin: 0; size: ${w}mm ${h}mm portrait`;
+  return `margin: 0; size: ${w}mm ${h}mm`;
+}
+
+/**
+ * Keep page portrait-shaped (height >= width) so browsers/PDF viewers don't rotate
+ * the sheet when the label stack is shorter than the roll width.
+ */
+function portraitPageSize(widthMm, heightMm) {
+  const w = Math.max(20, roundMm(widthMm));
+  const h = Math.max(20, roundMm(heightMm));
+  return { widthMm: w, heightMm: Math.max(h, w) };
 }
 
 function printPageName(heightMm) {
@@ -236,26 +246,27 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   const wMm = Math.max(20, roundMm(sheetWidthMm));
 
   if (rollMode && unique.length === 1) {
-    const h = unique[0];
+    const sized = portraitPageSize(wMm, unique[0]);
+    const h = sized.heightMm;
+    const w = sized.widthMm;
     return `
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
     padding: 0;
-    width: ${wMm}mm;
+    width: ${w}mm;
     height: ${h}mm;
-    max-width: ${wMm}mm;
+    max-width: ${w}mm;
     max-height: ${h}mm;
     overflow: hidden;
     background: #fff;
     font-family: system-ui, sans-serif;
   }
-  @page { ${atPageSizeRule(wMm, h)}; }
+  @page { ${atPageSizeRule(w, h)}; }
   .bp-sheet {
-    width: ${wMm}mm !important;
-    height: ${h}mm !important;
-    max-width: ${wMm}mm !important;
-    max-height: ${h}mm !important;
+    width: ${w}mm !important;
+    height: ${unique[0]}mm !important;
+    max-width: ${w}mm !important;
     margin: 0 !important;
     overflow: hidden;
     page-break-before: avoid;
@@ -273,7 +284,10 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   }
 
   const pageRules = unique
-    .map((h) => `@page ${printPageName(h)} { ${atPageSizeRule(wMm, h)}; }`)
+    .map((h) => {
+      const sized = portraitPageSize(wMm, h);
+      return `@page ${printPageName(h)} { ${atPageSizeRule(sized.widthMm, sized.heightMm)}; }`;
+    })
     .join('\n');
   const pageAssign = unique
     .map((h) => `.bp-sheet[data-print-h="${h}"] { page: ${printPageName(h)}; }`)

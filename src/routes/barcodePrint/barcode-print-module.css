@@ -259,7 +259,8 @@
   }
 }
 
+/* Exact size comes from injected print styles per sheet; do not force orientation here
+   (portrait/landscape keywords swap width/height when the sheet is wider than tall). */
 @page {
   margin: 0;
-  orientation: portrait;
 }
