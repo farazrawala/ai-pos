@@ -231,10 +231,22 @@ export default function CompanySettingsView() {
 
       const updated = await updateCompanyDetailsRequest(companyId, payload);
       const fromApi = getCompanyFromApiBody(updated) || updated;
-      const merged = { ...(authCompany || {}), ...(fromApi || {}), ...payload };
+      // Never spread the File upload into company state — String(File) becomes "[object File]".
+      const { company_logo: _uploadedLogo, ...savedFields } = payload;
+      const merged = { ...(authCompany || {}), ...(fromApi || {}), ...savedFields };
+      if (isUserUploadFilePart(merged.company_logo)) delete merged.company_logo;
       dispatch(setCompany(merged));
-      setExistingLogoUrl(pickCompanyLogoUrl(merged));
-      if (isUserUploadFilePart(logoFile)) clearLogoSelection();
+      const nextLogoUrl = pickCompanyLogoUrl(merged);
+      setExistingLogoUrl(nextLogoUrl);
+      if (isUserUploadFilePart(logoFile)) {
+        if (nextLogoUrl) {
+          clearLogoSelection();
+        } else {
+          // Keep blob preview if API did not return a logo path yet.
+          setLogoFile(null);
+          if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+      }
       showToast({ message: 'Company details saved.', variant: 'success' });
     } catch (err) {
       const message = err?.message || 'Failed to save company details';

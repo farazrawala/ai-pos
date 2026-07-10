@@ -661,7 +661,14 @@ export function pickCompanyLogoUrl(company) {
   if (!company || typeof company !== 'object') return '';
   const raw =
     company.company_logo ?? company.companyLogo ?? company.logo ?? company.logo_image ?? '';
-  return resolveCategoryMediaUrl(raw);
+  if (raw == null || raw === '') return '';
+  // Reject File/Blob leftovers from a bad merge (would stringify to "[object File]").
+  if (typeof File !== 'undefined' && raw instanceof File) return '';
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
+  if (typeof raw === 'object' && raw !== null && !('url' in raw)) return '';
+  const resolved = resolveCategoryMediaUrl(raw);
+  if (!resolved || /\[object\s/i.test(resolved)) return '';
+  return resolved;
 }
 
 function normalizeSingleCompanyPayload(body) {

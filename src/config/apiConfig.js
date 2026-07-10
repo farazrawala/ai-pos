@@ -96,12 +96,14 @@ export function formatDisplayApiUrl(url) {
  */
 export function resolveCategoryMediaUrl(raw) {
   if (raw == null || raw === '') return '';
+  if (typeof File !== 'undefined' && raw instanceof File) return '';
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
   let value = raw;
   if (typeof raw === 'object' && raw !== null && 'url' in raw && raw.url != null) {
     value = raw.url;
   }
   const s = String(value);
-  if (!s) return '';
+  if (!s || /^\[object\s/i.test(s)) return '';
   if (/^https?:\/\//i.test(s)) return s;
   const path = s.startsWith('/') ? s : `/${s.replace(/^\//, '')}`;
   if (path.startsWith('/api/')) {
