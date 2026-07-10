@@ -23,9 +23,10 @@ function sheetContentHeightMm(usedRows, labelHeightMm, gapVerticalMm) {
   return rows * lh + Math.max(0, rows - 1) * gap;
 }
 
-function usedRowsForChunk(labelCount, cols, rows, sheetHeightAuto) {
+function usedRowsForChunk(labelCount, cols, rows, sheetHeightMode) {
   const filledRows = Math.max(1, Math.ceil(labelCount / cols));
-  return sheetHeightAuto ? filledRows : Math.min(rows, filledRows);
+  if (sheetHeightMode === 'per-label' || sheetHeightMode === 'auto') return filledRows;
+  return Math.min(rows, filledRows);
 }
 
 function chunk(arr, size) {
@@ -87,9 +88,11 @@ export async function downloadBarcodeLabelsPdf(opts) {
     totalLabels = 1,
     cols = 1,
     rows = 1,
-    sheetHeightAuto = true,
+    sheetHeightMode = 'per-label',
+    sheetHeightAuto = undefined,
     sheetWidthAuto = false,
     sheetWidthIn = 6.3,
+    sheetHeightIn = 2,
     sheetWidthMm = null,
     labelWidthMm = 80,
     labelHeightMm = 50,
@@ -133,7 +136,16 @@ export async function downloadBarcodeLabelsPdf(opts) {
   const mBottom = Math.max(0, Number(marginBottom) || 0);
   const textTop = Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
   const barcodeTop = Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
-  const contentW = roundMm(mLeft + c * lw + Math.max(0, c - 1) * gH);
+  const mode =
+    sheetHeightMode === 'per-label' || sheetHeightMode === 'auto' || sheetHeightMode === 'fixed'
+      ? sheetHeightMode
+      : sheetHeightAuto === false
+        ? 'fixed'
+        : sheetHeightAuto === true
+          ? 'auto'
+          : 'per-label';
+  const layoutCols = mode === 'per-label' ? 1 : c;
+  const contentW = roundMm(mLeft + layoutCols * lw + Math.max(0, layoutCols - 1) * gH);
   // UI passes resolved sheetWidthMm; fall back to auto content width or fixed inches.
   const pageW = Math.max(
     20,
@@ -145,7 +157,12 @@ export async function downloadBarcodeLabelsPdf(opts) {
   );
   const slotsPerSheet = r * c;
   const indices = Array.from({ length: count }, (_, i) => i);
-  const sheets = sheetHeightAuto ? [indices] : chunk(indices, slotsPerSheet);
+  const sheets =
+    mode === 'per-label'
+      ? chunk(indices, 1)
+      : mode === 'auto'
+        ? [indices]
+        : chunk(indices, slotsPerSheet);
   const fs = Math.max(8, Math.min(24, Number(fontSize) || 11));
   // Approximate px→mm for text: ~0.35mm per CSS px at 96dpi
   const textLineMm = Math.max(2.5, fs * 0.32);
@@ -153,8 +170,13 @@ export async function downloadBarcodeLabelsPdf(opts) {
   let pdf = null;
 
   sheets.forEach((slotIndices, sheetIdx) => {
-    const usedRows = usedRowsForChunk(slotIndices.length, c, r, sheetHeightAuto);
-    const pageH = roundMm(mTop + sheetContentHeightMm(usedRows, lh, gV) + mBottom);
+    const usedRows = usedRowsForChunk(slotIndices.length, layoutCols, r, mode);
+    const pageH =
+      mode === 'fixed'
+        ? Math.max(15, inchesToMm(sheetHeightIn))
+        : mode === 'per-label'
+          ? roundMm(mTop + lh + mBottom)
+          : roundMm(mTop + sheetContentHeightMm(usedRows, lh, gV) + mBottom);
     // Match orientation to size so jsPDF does not swap width/height.
     const orientation = pageW > pageH ? 'landscape' : 'portrait';
 
@@ -170,8 +192,8 @@ export async function downloadBarcodeLabelsPdf(opts) {
     }
 
     slotIndices.forEach((labelIdx, i) => {
-      const col = i % c;
-      const row = Math.floor(i / c);
+      const col = i % layoutCols;
+      const row = Math.floor(i / layoutCols);
       const x = mLeft + col * (lw + gH);
       const y = mTop + row * (lh + gV);
 

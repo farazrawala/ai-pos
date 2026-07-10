@@ -287,6 +287,7 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('sheetWidthIn', get('sheetWidthIn', 'sheet_width_in'));
   setIf('sheetWidthAuto', get('sheetWidthAuto', 'sheet_width_auto'));
   setIf('sheetHeightAuto', get('sheetHeightAuto', 'sheet_height_auto'));
+  setIf('sheetHeightMode', get('sheetHeightMode', 'sheet_height_mode'));
   setIf('sheetHeightIn', get('sheetHeightIn', 'sheet_height_in'));
   setIf('sheetWidthMm', get('sheetWidthMm', 'sheet_width_mm'));
   setIf('sheetHeightMm', get('sheetHeightMm', 'sheet_height_mm'));
@@ -333,7 +334,8 @@ export function buildBarcodeSettingsPayload(values) {
     label_count: values.labelCount,
     sheet_width_in: values.sheetWidthIn,
     sheet_width_auto: values.sheetWidthAuto,
-    sheet_height_auto: values.sheetHeightAuto,
+    sheet_height_auto: values.sheetHeightMode === 'auto',
+    sheet_height_mode: values.sheetHeightMode,
     sheet_height_in: values.sheetHeightIn,
     label_width_mm: values.labelWidthMm,
     label_height_mm: values.labelHeightMm,

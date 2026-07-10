@@ -205,9 +205,10 @@ function sheetContentWidthMm(cols, labelWidthMm, gapHorizontalMm, marginLeft) {
   return ml + c * lw + Math.max(0, c - 1) * gap;
 }
 
-function usedRowsForChunk(labelCount, cols, rows, sheetHeightAuto) {
+function usedRowsForChunk(labelCount, cols, rows, sheetHeightMode) {
   const filledRows = Math.max(1, Math.ceil(labelCount / cols));
-  return sheetHeightAuto ? filledRows : Math.min(rows, filledRows);
+  if (sheetHeightMode === 'per-label' || sheetHeightMode === 'auto') return filledRows;
+  return Math.min(rows, filledRows);
 }
 
 function roundMm(mm) {
@@ -434,7 +435,8 @@ const BarcodePrint = () => {
   /** Sheet size on screen and in print (CSS `in`). ~160×50 mm ≈ 6.3×2.0 in. */
   const [sheetWidthIn, setSheetWidthIn] = useState(6.3);
   const [sheetWidthAuto, setSheetWidthAuto] = useState(true);
-  const [sheetHeightAuto, setSheetHeightAuto] = useState(true);
+  /** per-label = label printer (1 page each); auto = continuous roll; fixed = sheet inches */
+  const [sheetHeightMode, setSheetHeightMode] = useState('per-label');
   const [sheetHeightIn, setSheetHeightIn] = useState(2);
   const [labelWidthMm, setLabelWidthMm] = useState(80);
   const [labelHeightMm, setLabelHeightMm] = useState(50);
@@ -532,7 +534,12 @@ const BarcodePrint = () => {
         if (norm.labelCount !== undefined) applyStr(norm.labelCount, setLabelCount);
         if (norm.sheetWidthIn !== undefined) applyStr(norm.sheetWidthIn, setSheetWidthIn);
         applyBool(norm.sheetWidthAuto, setSheetWidthAuto);
-        applyBool(norm.sheetHeightAuto, setSheetHeightAuto);
+        if (norm.sheetHeightMode === 'per-label' || norm.sheetHeightMode === 'auto' || norm.sheetHeightMode === 'fixed') {
+          setSheetHeightMode(norm.sheetHeightMode);
+        } else if (norm.sheetHeightAuto === false || norm.sheetHeightAuto === 'no' || norm.sheetHeightAuto === 0) {
+          setSheetHeightMode('fixed');
+        }
+        // Legacy "auto" continuous roll often breaks sticker printers — prefer one label/page.
         if (norm.sheetHeightIn !== undefined) applyStr(norm.sheetHeightIn, setSheetHeightIn);
         if (norm.labelWidthMm !== undefined) applyStr(norm.labelWidthMm, setLabelWidthMm);
         if (norm.labelHeightMm !== undefined) applyStr(norm.labelHeightMm, setLabelHeightMm);
@@ -631,10 +638,12 @@ const BarcodePrint = () => {
 
   const sheetChunks = useMemo(() => {
     const indices = Array.from({ length: totalLabels }, (_, i) => i);
-    // Auto height = one continuous sheet sized to fit all labels.
-    if (sheetHeightAuto) return [indices];
+    // Label printer: one sticker = one page at label size (avoids 90° rotate/shrink).
+    if (sheetHeightMode === 'per-label') return chunk(indices, 1);
+    // Continuous roll: one tall sheet for all labels.
+    if (sheetHeightMode === 'auto') return [indices];
     return chunk(indices, slotsPerSheet);
-  }, [totalLabels, slotsPerSheet, sheetHeightAuto]);
+  }, [totalLabels, slotsPerSheet, sheetHeightMode]);
 
   const swIn = Math.max(1, Math.min(24, Number(sheetWidthIn) || 6.3));
   const shIn = Math.max(0.5, Math.min(36, Number(sheetHeightIn) || 2));
@@ -648,10 +657,17 @@ const BarcodePrint = () => {
   const textTopMargin = Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
   const barcodeTopMargin = Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
   const sheetContentWidth = roundMm(sheetContentWidthMm(cols, lw, gapH, marginLeft));
+  const perLabelPageWidthMm = roundMm(
+    sheetWidthAuto ? Math.max(20, marginLeft + lw) : Math.max(20, inchesToMm(swIn))
+  );
   /** Page/sheet width used for preview, print, and PDF. */
-  const sheetPrintWidthMm = sheetWidthAuto
-    ? Math.max(20, sheetContentWidth)
-    : Math.max(20, inchesToMm(swIn));
+  const sheetPrintWidthMm =
+    sheetHeightMode === 'per-label'
+      ? perLabelPageWidthMm
+      : sheetWidthAuto
+        ? Math.max(20, sheetContentWidth)
+        : Math.max(20, inchesToMm(swIn));
+  const layoutCols = sheetHeightMode === 'per-label' ? 1 : cols;
 
   const previewScale = useMemo(() => {
     const sheetPxW = (sheetPrintWidthMm / 25.4) * 96;
@@ -666,11 +682,15 @@ const BarcodePrint = () => {
 
   const sheetPrintHeightsMm = useMemo(
     () =>
-      sheetChunks.map((chunk) => {
-        const usedRows = usedRowsForChunk(chunk.length, cols, rows, sheetHeightAuto);
+      sheetChunks.map((chunkItems) => {
+        if (sheetHeightMode === 'fixed') return Math.max(15, inchesToMm(shIn));
+        if (sheetHeightMode === 'per-label') {
+          return roundMm(marginTop + lh + marginBottom);
+        }
+        const usedRows = usedRowsForChunk(chunkItems.length, layoutCols, rows, sheetHeightMode);
         return roundMm(marginTop + sheetContentHeightMm(usedRows, lh, gapV) + marginBottom);
       }),
-    [sheetChunks, cols, rows, sheetHeightAuto, marginTop, marginBottom, lh, gapV]
+    [sheetChunks, layoutCols, rows, sheetHeightMode, marginTop, marginBottom, lh, gapV, shIn]
   );
 
   const printDocStyles = useMemo(
@@ -678,16 +698,16 @@ const BarcodePrint = () => {
       buildPrintDocStyles({
         sheetWidthMm: sheetPrintWidthMm,
         sheetHeightsMm: sheetPrintHeightsMm,
-        rollMode: sheetHeightAuto,
+        rollMode: sheetHeightMode === 'auto',
       }),
-    [sheetPrintWidthMm, sheetPrintHeightsMm, sheetHeightAuto]
+    [sheetPrintWidthMm, sheetPrintHeightsMm, sheetHeightMode]
   );
 
   const printMediaStyles = useMemo(() => wrapPrintMedia(printDocStyles), [printDocStyles]);
 
   const renderLabelSheets = (chunks) =>
     chunks.map((slotIndices, sheetIdx) => {
-      const usedRows = usedRowsForChunk(slotIndices.length, cols, rows, sheetHeightAuto);
+      const usedRows = usedRowsForChunk(slotIndices.length, layoutCols, rows, sheetHeightMode);
       const sheetHeightMm =
         sheetPrintHeightsMm[sheetIdx] ??
         roundMm(marginTop + sheetContentHeightMm(usedRows, lh, gapV) + marginBottom);
@@ -706,7 +726,7 @@ const BarcodePrint = () => {
             paddingLeft: `${marginLeft}mm`,
             paddingBottom: `${marginBottom}mm`,
             display: 'grid',
-            gridTemplateColumns: `repeat(${cols}, ${lw}mm)`,
+            gridTemplateColumns: `repeat(${layoutCols}, ${lw}mm)`,
             gridTemplateRows: `repeat(${usedRows}, ${lh}mm)`,
             columnGap: `${gapH}mm`,
             rowGap: `${gapV}mm`,
@@ -751,7 +771,7 @@ const BarcodePrint = () => {
         labelCount: Number(labelCount) || 1,
         sheetWidthIn: Number(sheetWidthIn) || 6.3,
         sheetWidthAuto,
-        sheetHeightAuto,
+        sheetHeightMode,
         sheetHeightIn: Number(sheetHeightIn) || 2,
         labelWidthMm: Number(labelWidthMm) || 80,
         labelHeightMm: Number(labelHeightMm) || 50,
@@ -852,7 +872,7 @@ const BarcodePrint = () => {
         totalLabels,
         cols,
         rows,
-        sheetHeightAuto,
+        sheetHeightMode,
         sheetWidthAuto,
         sheetWidthIn: swIn,
         sheetWidthMm: sheetPrintWidthMm,
@@ -887,7 +907,7 @@ const BarcodePrint = () => {
 
   return (
     <div
-      className={`container-fluid py-4 px-3 px-lg-4 barcode-print-page${sheetHeightAuto ? ' bp-roll-print' : ''}`}
+      className={`container-fluid py-4 px-3 px-lg-4 barcode-print-page${sheetHeightMode === 'auto' ? ' bp-roll-print' : ''}`}
     >
       <style>{printMediaStyles}</style>
       <div className="row">
@@ -1021,19 +1041,22 @@ const BarcodePrint = () => {
                         <label className="form-label">Sheet height</label>
                         <select
                           className="form-select"
-                          value={sheetHeightAuto ? 'auto' : 'fixed'}
-                          onChange={(e) => setSheetHeightAuto(e.target.value === 'auto')}
+                          value={sheetHeightMode}
+                          onChange={(e) => setSheetHeightMode(e.target.value)}
                         >
-                          <option value="auto">Auto (sticker roll)</option>
+                          <option value="per-label">One label per page (label printer)</option>
+                          <option value="auto">Auto (continuous roll)</option>
                           <option value="fixed">Fixed (inches)</option>
                         </select>
                         <span className="barcode-print-field-hint">
-                          {sheetHeightAuto
-                            ? 'Continuous roll — exact length, no extra feed'
-                            : 'Set fixed height below'}
+                          {sheetHeightMode === 'per-label'
+                            ? `Each page = ${lw}×${lh} mm — use this for sticker printers`
+                            : sheetHeightMode === 'auto'
+                              ? 'One tall page for all labels (desktop/PDF roll)'
+                              : 'Set fixed height below'}
                         </span>
                       </div>
-                      {!sheetHeightAuto ? (
+                      {sheetHeightMode === 'fixed' ? (
                         <div className="col-6 col-md-3">
                           <label className="form-label">Fixed height</label>
                           <input
@@ -1360,12 +1383,20 @@ const BarcodePrint = () => {
                             {sheetWidthAuto
                               ? `${sheetPrintWidthMm} mm`
                               : `${swIn} in`}
-                            ×{sheetHeightAuto ? 'auto' : `${shIn} in`} sheet
+                            ×
+                            {sheetHeightMode === 'per-label'
+                              ? `${sheetPrintHeightsMm[0] ?? lh} mm`
+                              : sheetHeightMode === 'auto'
+                                ? 'auto'
+                                : `${shIn} in`}{' '}
+                            sheet
                           </span>
                           <span className="barcode-print-preview-chip">
-                            {sheetHeightAuto
-                              ? `${Math.ceil(totalLabels / cols)}×${cols} grid`
-                              : `${rows}×${cols} grid`}
+                            {sheetHeightMode === 'per-label'
+                              ? '1 label / page'
+                              : sheetHeightMode === 'auto'
+                                ? `${Math.ceil(totalLabels / cols)}×${cols} grid`
+                                : `${rows}×${cols} grid`}
                           </span>
                           <span className="barcode-print-preview-chip">
                             {totalLabels} label{totalLabels !== 1 ? 's' : ''}
