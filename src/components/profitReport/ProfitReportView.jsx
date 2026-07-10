@@ -13,17 +13,26 @@ import {
   buildOrdersWithProfitLinesUrl,
   groupProfitLinesByOrder,
 } from '../../features/profitReport/profitReportAPI.js';
+import {
+  fetchOrdersRequest,
+  pickOrderDocumentId,
+  pickOrderInvoiceNo,
+} from '../../features/orders/ordersAPI.js';
+import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { formatCurrencyAccounting } from '../balanceSheet/formatCurrency.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import NavIcon from '../NavIcon.jsx';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import ListDataTable from '../list/ListDataTable.jsx';
+import SearchableSelect from '../common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
 import '../common/devApiSources.css';
 import { FaArrowsRotate, FaChartLine, FaFilter } from 'react-icons/fa6';
 
-function toYmd(d) {
-  return moment(d).format('YYYY-MM-DD');
+/** Display dates as day-month-year, e.g. 10-7-2026 */
+function formatDisplayDate(d) {
+  const m = moment(d);
+  return m.isValid() ? m.format('D-M-YYYY') : '—';
 }
 
 function defaultRange() {
@@ -31,6 +40,9 @@ function defaultRange() {
   const start = moment().startOf('month');
   return { startDate: start.format('YYYY-MM-DD'), endDate: end.format('YYYY-MM-DD') };
 }
+
+const productRowId = (p) => p?._id || p?.id || p?.product_id || '';
+const productRowName = (p) => p?.name || p?.product_name || 'Product';
 
 export default function ProfitReportView() {
   useRequireModuleAccess('profit-report');
@@ -54,6 +66,94 @@ export default function ProfitReportView() {
   const [endDate, setEndDate] = useState(() => defaultRange().endDate);
   const [orderId, setOrderId] = useState('');
   const [productId, setProductId] = useState('');
+  const [orderOptions, setOrderOptions] = useState([{ value: '', label: 'All orders' }]);
+  const [productOptions, setProductOptions] = useState([{ value: '', label: 'All products' }]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
+
+  const loadOrderOptions = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const res = await fetchOrdersRequest({
+        page: 1,
+        limit: 500,
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      const options = [{ value: '', label: 'All orders' }];
+      const seen = new Set();
+      for (const order of rows) {
+        const id = pickOrderDocumentId(order);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        const invoiceNo = pickOrderInvoiceNo(order);
+        const when = order.createdAt || order.created_at || order.date;
+        options.push({
+          value: id,
+          label: invoiceNo || id,
+          subLabel: [
+            when ? formatDisplayDate(when) : '',
+            order.name || order.customer_name || '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        });
+      }
+      setOrderOptions(options);
+    } catch {
+      setOrderOptions([{ value: '', label: 'All orders' }]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [startDate, endDate]);
+
+  const loadProductOptions = useCallback(async () => {
+    setProductsLoading(true);
+    try {
+      const res = await fetchProductsRequest({ page: 1, limit: 2000 });
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      rows.sort((a, b) =>
+        String(productRowName(a)).localeCompare(String(productRowName(b)), undefined, {
+          sensitivity: 'base',
+        })
+      );
+      const options = [{ value: '', label: 'All products' }];
+      for (const p of rows) {
+        const id = String(productRowId(p) || '').trim();
+        if (!id) continue;
+        const sku = String(p.sku || p.product_code || p.barcode || '').trim();
+        options.push({
+          value: id,
+          label: productRowName(p),
+          subLabel: sku || undefined,
+        });
+      }
+      setProductOptions(options);
+    } catch {
+      setProductOptions([{ value: '', label: 'All products' }]);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrderOptions();
+  }, [loadOrderOptions]);
+
+  useEffect(() => {
+    loadProductOptions();
+  }, [loadProductOptions]);
+
+  // Drop stale order selection if it is no longer in the date-filtered list.
+  useEffect(() => {
+    if (!orderId) return;
+    if (!orderOptions.some((o) => o.value && String(o.value) === String(orderId))) {
+      setOrderId('');
+    }
+  }, [orderOptions, orderId]);
 
   const params = useMemo(
     () => ({
@@ -205,26 +305,26 @@ export default function ProfitReportView() {
                 </div>
                 <div className="col-md-3 col-sm-6">
                   <label className="form-label text-xs mb-1" htmlFor="profit-order-id">
-                    Order ID <span className="text-muted">(optional)</span>
+                    Order <span className="text-muted">(optional)</span>
                   </label>
-                  <input
-                    id="profit-order-id"
-                    className="form-control form-control-sm"
+                  <SearchableSelect
+                    options={orderOptions}
                     value={orderId}
-                    onChange={(e) => setOrderId(e.target.value)}
-                    placeholder="Filter by order"
+                    placeholder={ordersLoading ? 'Loading orders…' : 'All orders'}
+                    disabled={ordersLoading}
+                    onChange={setOrderId}
                   />
                 </div>
                 <div className="col-md-3 col-sm-6">
                   <label className="form-label text-xs mb-1" htmlFor="profit-product-id">
-                    Product ID <span className="text-muted">(optional)</span>
+                    Product <span className="text-muted">(optional)</span>
                   </label>
-                  <input
-                    id="profit-product-id"
-                    className="form-control form-control-sm"
+                  <SearchableSelect
+                    options={productOptions}
                     value={productId}
-                    onChange={(e) => setProductId(e.target.value)}
-                    placeholder="Filter by product"
+                    placeholder={productsLoading ? 'Loading products…' : 'All products'}
+                    disabled={productsLoading}
+                    onChange={setProductId}
                   />
                 </div>
                 <div className="col-12 col-md-auto">
@@ -341,16 +441,27 @@ export default function ProfitReportView() {
                   <dl className="row mb-0 text-sm profit-report-meta">
                     <dt className="col-sm-3 col-md-2 text-muted">From</dt>
                     <dd className="col-sm-9 col-md-4">
-                      {report.filters.from ? toYmd(report.filters.from) : startDate}
+                      {formatDisplayDate(report.filters.from || startDate)}
                     </dd>
                     <dt className="col-sm-3 col-md-2 text-muted">To</dt>
                     <dd className="col-sm-9 col-md-4">
-                      {report.filters.to ? toYmd(report.filters.to) : endDate}
+                      {formatDisplayDate(report.filters.to || endDate)}
                     </dd>
                     <dt className="col-sm-3 col-md-2 text-muted">Order</dt>
-                    <dd className="col-sm-9 col-md-4">{report.filters.orderId || '—'}</dd>
+                    <dd className="col-sm-9 col-md-4">
+                      {orderOptions.find((o) => o.value && String(o.value) === String(report.filters.orderId || orderId))
+                        ?.label ||
+                        report.filters.orderId ||
+                        '—'}
+                    </dd>
                     <dt className="col-sm-3 col-md-2 text-muted">Product</dt>
-                    <dd className="col-sm-9 col-md-4">{report.filters.productId || '—'}</dd>
+                    <dd className="col-sm-9 col-md-4">
+                      {productOptions.find(
+                        (o) => o.value && String(o.value) === String(report.filters.productId || productId)
+                      )?.label ||
+                        report.filters.productId ||
+                        '—'}
+                    </dd>
                   </dl>
                 </div>
               </div>
@@ -405,9 +516,7 @@ export default function ProfitReportView() {
                             </td>
                             <td className="text-sm text-end">{orderMargin}</td>
                             <td className="text-sm text-nowrap">
-                              {order.orderDate
-                                ? moment(order.orderDate).format('DD MMM YYYY')
-                                : '—'}
+                              {order.orderDate ? formatDisplayDate(order.orderDate) : '—'}
                             </td>
                           </tr>
                         );
@@ -532,9 +641,7 @@ export default function ProfitReportView() {
                                 {fmt(group.orderProfit)}
                               </td>
                               <td className="text-sm text-nowrap">
-                                {group.orderDate
-                                  ? moment(group.orderDate).format('DD MMM YYYY')
-                                  : '—'}
+                                {group.orderDate ? formatDisplayDate(group.orderDate) : '—'}
                               </td>
                             </tr>
                             {group.lines.map((line, index) => {
