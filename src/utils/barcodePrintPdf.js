@@ -10,13 +10,6 @@ function inchesToMm(inches) {
   return roundMm(n * 25.4);
 }
 
-/** Keep page portrait-shaped so jsPDF/viewers don't rotate the sheet. */
-function portraitPageSize(widthMm, heightMm) {
-  const w = Math.max(20, roundMm(widthMm));
-  const h = Math.max(20, roundMm(heightMm));
-  return { widthMm: w, heightMm: Math.max(h, w) };
-}
-
 function jsBarcodeWidthFromUi(barCodeWidthField) {
   const n = Number(barCodeWidthField);
   if (!Number.isFinite(n) || n <= 0) return 2;
@@ -161,22 +154,19 @@ export async function downloadBarcodeLabelsPdf(opts) {
 
   sheets.forEach((slotIndices, sheetIdx) => {
     const usedRows = usedRowsForChunk(slotIndices.length, c, r, sheetHeightAuto);
-    const contentH = roundMm(mTop + sheetContentHeightMm(usedRows, lh, gV) + mBottom);
-    const sized = portraitPageSize(pageW, contentH);
-    const pdfW = sized.widthMm;
-    const pdfH = sized.heightMm;
-    // Match orientation to final size so jsPDF does not swap width/height.
-    const orientation = pdfW > pdfH ? 'landscape' : 'portrait';
+    const pageH = roundMm(mTop + sheetContentHeightMm(usedRows, lh, gV) + mBottom);
+    // Match orientation to size so jsPDF does not swap width/height.
+    const orientation = pageW > pageH ? 'landscape' : 'portrait';
 
     if (!pdf) {
       pdf = new jsPDF({
         orientation,
         unit: 'mm',
-        format: [pdfW, pdfH],
+        format: [pageW, pageH],
         compress: true,
       });
     } else {
-      pdf.addPage([pdfW, pdfH], orientation);
+      pdf.addPage([pageW, pageH], orientation);
     }
 
     slotIndices.forEach((labelIdx, i) => {
