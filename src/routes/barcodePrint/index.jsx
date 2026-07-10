@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import JsBarcode from 'jsbarcode';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
@@ -285,14 +285,14 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   }
   .barcode-print-label-barcode {
     width: 100% !important;
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
+    max-width: 100% !important;
+    object-fit: contain !important;
   }
   .barcode-print-svg {
     width: 100% !important;
     max-width: 100% !important;
-    height: 100% !important;
-    max-height: 100% !important;
+    height: auto !important;
+    max-height: none !important;
   }
 `;
   }
@@ -316,8 +316,8 @@ function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   }
   .bp-sheet:last-child { page-break-after: auto; break-after: auto; }
   .barcode-print-label { border: 1px solid #ccc !important; }
-  .barcode-print-label-barcode { width: 100% !important; flex: 1 1 auto !important; min-height: 0 !important; }
-  .barcode-print-svg { width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; }
+  .barcode-print-label-barcode { width: 100% !important; max-width: 100% !important; object-fit: contain !important; }
+  .barcode-print-svg { width: 100% !important; max-width: 100% !important; }
   ${pageRules}
   ${pageAssign}
 `;
@@ -343,7 +343,7 @@ function BarcodeLabelCell({
   autoFitLabel = true,
   index,
 }) {
-  const svgRef = useRef(null);
+  const [imgUrl, setImgUrl] = useState('');
   const [err, setErr] = useState(null);
   const maxTextLines = 3;
   const displayText = (Array.isArray(lines) ? lines : []).slice(0, maxTextLines).join('\n');
@@ -360,51 +360,54 @@ function BarcodeLabelCell({
     [labelWidthMm, labelHeightMm, hasText, showBarcodeNumber]
   );
 
+  // Always fill the label box; manual bar W/H only change barcode density/aspect.
   const modW = autoFitLabel ? fitted.moduleWidth : jsBarcodeWidthFromUi(barCodeWidthField);
   const barH = autoFitLabel
     ? fitted.barHeightPx
-    : Math.max(20, Math.min(160, Number(barCodeHeightField) || 40));
+    : Math.max(40, Math.min(280, Number(barCodeHeightField) || 40));
   const fs = autoFitLabel
     ? fitted.fontSize
-    : Math.max(8, Math.min(24, Number(fontSize) || 11));
-  const textTop = autoFitLabel ? 0.8 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
-  const barcodeTop = autoFitLabel ? 0.6 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
-  const lineHeightPx = Math.round(fs * 1.25);
-  const textMaxHeightPx = lineHeightPx * Math.min(maxTextLines, Math.max(1, displayText ? displayText.split('\n').length : 1));
-  const barcodeMaxHeightMm = autoFitLabel
-    ? fitted.barcodeMaxHeightMm
-    : Math.max(
-        8,
-        Number(labelHeightMm) - textTop - barcodeTop - (hasText ? fs * 0.45 * 3 : 2) - 3
-      );
+    : Math.max(8, Math.min(28, Number(fontSize) || 11));
+  const textTop = autoFitLabel ? 0.6 : Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
+  const barcodeTop = autoFitLabel ? 0.4 : Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
+  const lineHeightPx = Math.round(fs * 1.2);
+  const textMaxHeightPx = lineHeightPx * Math.min(
+    maxTextLines,
+    Math.max(1, displayText ? displayText.split('\n').length : 1)
+  );
+  // Remaining label height for the barcode image (explicit mm — % heights fail in print).
+  const barcodeAreaMm = Math.max(
+    10,
+    Number(labelHeightMm) -
+      textTop -
+      barcodeTop -
+      (hasText ? Math.min(Number(labelHeightMm) * 0.3, fs * 0.4 * 3) : 0) -
+      2
+  );
+  const barcodeHeightMm = autoFitLabel ? fitted.barcodeMaxHeightMm : barcodeAreaMm;
 
   useLayoutEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-    el.innerHTML = '';
     if (!encodeValue) {
+      setImgUrl('');
       setErr('Nothing to encode');
       return;
     }
     try {
-      JsBarcode(el, encodeValue, {
+      const canvas = document.createElement('canvas');
+      JsBarcode(canvas, encodeValue, {
         format,
         displayValue: Boolean(showBarcodeNumber),
         width: modW,
         height: barH,
-        fontSize: Math.max(10, Math.min(18, fs)),
+        fontSize: Math.max(10, Math.min(22, fs)),
         margin: 1,
         background: '#ffffff',
         lineColor: '#000000',
       });
-      // Ensure SVG scales to the label box (JsBarcode sets fixed px width/height).
-      el.removeAttribute('width');
-      el.removeAttribute('height');
-      el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-      el.style.width = '100%';
-      el.style.height = '100%';
+      setImgUrl(canvas.toDataURL('image/png'));
       setErr(null);
     } catch (e) {
+      setImgUrl('');
       setErr(e?.message || 'Could not build this barcode');
     }
   }, [encodeValue, format, modW, barH, fs, showBarcodeNumber, index]);
@@ -421,12 +424,12 @@ function BarcodeLabelCell({
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: autoFitLabel ? 'space-between' : 'center',
+        alignItems: 'stretch',
+        justifyContent: 'flex-start',
         paddingTop: `${textTop}mm`,
         paddingLeft: '1.5mm',
         paddingRight: '1.5mm',
-        paddingBottom: '1.2mm',
+        paddingBottom: '1mm',
         background: '#fff',
       }}
     >
@@ -450,43 +453,32 @@ function BarcodeLabelCell({
         >
           {displayText}
         </div>
-      ) : (
-        <div style={{ flex: '0 0 auto', height: 0 }} />
-      )}
+      ) : null}
       {err ? (
         <div
           className="barcode-print-label-barcode text-danger text-center small"
-          style={{ marginTop: `${barcodeTop}mm`, width: '100%', flex: '1 1 auto' }}
+          style={{ marginTop: `${barcodeTop}mm`, width: '100%' }}
         >
           {err}
         </div>
-      ) : (
-        <div
-          className="barcode-print-label-barcode"
+      ) : imgUrl ? (
+        <img
+          src={imgUrl}
+          alt=""
+          className="barcode-print-svg barcode-print-label-barcode"
           style={{
-            marginTop: `${barcodeTop}mm`,
+            display: 'block',
             width: '100%',
-            flex: '1 1 auto',
-            minHeight: 0,
-            maxHeight: `${barcodeMaxHeightMm}mm`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            height: `${barcodeHeightMm}mm`,
+            maxWidth: '100%',
+            marginTop: `${barcodeTop}mm`,
+            objectFit: 'contain',
+            objectPosition: 'center top',
+            flex: '0 0 auto',
+            imageRendering: 'crisp-edges',
           }}
-        >
-          <svg
-            ref={svgRef}
-            className="barcode-print-svg"
-            style={{
-              display: 'block',
-              width: '100%',
-              height: '100%',
-              maxWidth: '100%',
-              maxHeight: '100%',
-            }}
-          />
-        </div>
-      )}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1158,7 +1150,9 @@ const BarcodePrint = () => {
                           value={labelWidthMm}
                           onChange={(e) => setLabelWidthMm(e.target.value)}
                         />
-                        <span className="barcode-print-field-hint">mm</span>
+                        <span className="barcode-print-field-hint">
+                          mm — must match physical sticker (measure with ruler)
+                        </span>
                       </div>
                       <div className="col-6 col-md-3">
                         <label className="form-label">Label height</label>
@@ -1172,6 +1166,15 @@ const BarcodePrint = () => {
                         />
                         <span className="barcode-print-field-hint">mm</span>
                       </div>
+                      {lw > 100 || lh > 60 ? (
+                        <div className="col-12">
+                          <div className="alert alert-warning py-2 px-3 mb-0 text-sm" role="status">
+                            Label is set to <strong>{lw}×{lh} mm</strong>, but most sticker rolls are
+                            about 40–80 mm wide. If the print looks tiny, measure the sticker and set
+                            these to the real size (wrong size makes the printer shrink everything).
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="col-6 col-md-3">
                         <label className="form-label">Rows</label>
                         <select
@@ -1313,7 +1316,7 @@ const BarcodePrint = () => {
                           </label>
                         </div>
                         <span className="barcode-print-field-hint d-block">
-                          Scales text and barcode to fill the label size (recommended for sticker printers)
+                          Scales text and barcode to fill the label. Turn this on — bar width/height alone do not enlarge the print.
                         </span>
                       </div>
                       <div className="col-6 col-md-3">
@@ -1327,6 +1330,7 @@ const BarcodePrint = () => {
                           disabled={autoFitLabel}
                           onChange={(e) => setBarCodeWidthField(e.target.value)}
                         />
+                        <span className="barcode-print-field-hint">density only, not print size</span>
                       </div>
                       <div className="col-6 col-md-3">
                         <label className="form-label">Bar height</label>
@@ -1334,11 +1338,12 @@ const BarcodePrint = () => {
                           type="number"
                           className="form-control"
                           min={20}
-                          max={120}
+                          max={280}
                           value={barCodeHeightField}
                           disabled={autoFitLabel}
                           onChange={(e) => setBarCodeHeightField(e.target.value)}
                         />
+                        <span className="barcode-print-field-hint">aspect only when auto-fit is off</span>
                       </div>
                       <div className="col-6 col-md-3">
                         <label className="form-label">Font size</label>
