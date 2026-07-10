@@ -12,6 +12,7 @@ import {
 } from '../../features/company/companyAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import { downloadBarcodeLabelsPdf } from '../../utils/barcodePrintPdf.js';
 import './barcode-print-module.css';
 
 const B_TYPES = [
@@ -46,11 +47,21 @@ function wrapToMaxChars(text, maxChars) {
   const t = String(text ?? '').trim();
   if (!t) return [];
   const m = Math.max(8, Math.min(120, Number(maxChars) || 50));
+  if (t.length <= m) return [t];
+
   const lines = [];
-  for (let i = 0; i < t.length; i += m) {
-    lines.push(t.slice(i, i + m));
+  let remaining = t;
+  while (remaining.length > 0) {
+    if (remaining.length <= m) {
+      lines.push(remaining);
+      break;
+    }
+    let cut = remaining.lastIndexOf(' ', m);
+    if (cut < Math.floor(m * 0.4)) cut = m;
+    lines.push(remaining.slice(0, cut).trimEnd());
+    remaining = remaining.slice(cut).trimStart();
   }
-  return lines;
+  return lines.filter(Boolean);
 }
 
 function buildLabelLines(product, settings) {
@@ -220,12 +231,12 @@ function printPageName(heightMm) {
   return `bp-h-${String(roundMm(heightMm)).replace('.', '_')}`;
 }
 
-function buildPrintDocStyles({ sheetWidthIn, sheetHeightsMm, rollMode }) {
+function buildPrintDocStyles({ sheetWidthMm, sheetHeightsMm, rollMode }) {
   const unique = [...new Set(sheetHeightsMm.map((h) => roundMm(h)))];
+  const wMm = Math.max(20, roundMm(sheetWidthMm));
 
   if (rollMode && unique.length === 1) {
     const h = unique[0];
-    const wMm = inchesToMm(sheetWidthIn);
     return `
   * { box-sizing: border-box; }
   html, body {
@@ -262,10 +273,7 @@ function buildPrintDocStyles({ sheetWidthIn, sheetHeightsMm, rollMode }) {
   }
 
   const pageRules = unique
-    .map((h) => {
-      const wMm = inchesToMm(sheetWidthIn);
-      return `@page ${printPageName(h)} { ${atPageSizeRule(wMm, h)}; }`;
-    })
+    .map((h) => `@page ${printPageName(h)} { ${atPageSizeRule(wMm, h)}; }`)
     .join('\n');
   const pageAssign = unique
     .map((h) => `.bp-sheet[data-print-h="${h}"] { page: ${printPageName(h)}; }`)
@@ -278,6 +286,7 @@ function buildPrintDocStyles({ sheetWidthIn, sheetHeightsMm, rollMode }) {
     break-after: page;
     margin: 0 !important;
     overflow: hidden;
+    width: ${wMm}mm !important;
   }
   .bp-sheet:last-child { page-break-after: auto; break-after: auto; }
   .barcode-print-label { border: 1px solid #ccc !important; }
@@ -301,6 +310,8 @@ function BarcodeLabelCell({
   labelWidthMm,
   labelHeightMm,
   showBarcodeNumber,
+  textMarginTopMm = 0,
+  barcodeMarginTopMm = 0,
   index,
 }) {
   const svgRef = useRef(null);
@@ -308,6 +319,12 @@ function BarcodeLabelCell({
   const modW = jsBarcodeWidthFromUi(barCodeWidthField);
   const barH = Math.max(20, Math.min(120, Number(barCodeHeightField) || 40));
   const fs = Math.max(8, Math.min(24, Number(fontSize) || 11));
+  const textTop = Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
+  const barcodeTop = Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
+  const lineHeightPx = Math.round(fs * 1.35);
+  const maxTextLines = 3;
+  const displayText = (Array.isArray(lines) ? lines : []).slice(0, maxTextLines).join('\n');
+  const textMaxHeightPx = lineHeightPx * Math.min(maxTextLines, Math.max(1, displayText ? displayText.split('\n').length : 1));
 
   useLayoutEffect(() => {
     const el = svgRef.current;
@@ -336,7 +353,7 @@ function BarcodeLabelCell({
 
   return (
     <div
-      className="barcode-print-label d-flex flex-column align-items-center justify-content-start p-1"
+      className="barcode-print-label"
       style={{
         width: `${labelWidthMm}mm`,
         height: `${labelHeightMm}mm`,
@@ -344,24 +361,58 @@ function BarcodeLabelCell({
         border: '1px solid #dee2e6',
         pageBreakInside: 'avoid',
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingTop: `${textTop}mm`,
+        paddingLeft: '1.5mm',
+        paddingRight: '1.5mm',
+        paddingBottom: '1mm',
+        background: '#fff',
       }}
     >
-      {lines.length > 0 ? (
+      {displayText ? (
         <div
-          className="text-center text-dark w-100 px-1"
-          style={{ fontSize: `${fs}px`, lineHeight: 1.2, flexShrink: 0 }}
+          className="barcode-print-label-text"
+          style={{
+            width: '100%',
+            textAlign: 'center',
+            color: '#111',
+            fontSize: `${fs}px`,
+            lineHeight: `${lineHeightPx}px`,
+            fontWeight: 600,
+            flex: '0 0 auto',
+            overflow: 'hidden',
+            maxHeight: `${textMaxHeightPx}px`,
+            wordBreak: 'normal',
+            overflowWrap: 'break-word',
+            whiteSpace: 'pre-line',
+          }}
         >
-          {lines.map((ln, li) => (
-            <div key={li} style={{ wordBreak: 'break-word' }}>
-              {ln}
-            </div>
-          ))}
+          {displayText}
         </div>
       ) : null}
       {err ? (
-        <div className="text-danger text-center small px-1">{err}</div>
+        <div
+          className="barcode-print-label-barcode text-danger text-center small"
+          style={{ marginTop: `${barcodeTop}mm`, width: '100%' }}
+        >
+          {err}
+        </div>
       ) : (
-        <svg ref={svgRef} className="barcode-print-svg" style={{ maxWidth: '100%', height: 'auto' }} />
+        <svg
+          ref={svgRef}
+          className="barcode-print-svg barcode-print-label-barcode"
+          style={{
+            display: 'block',
+            maxWidth: '100%',
+            width: 'auto',
+            height: 'auto',
+            marginTop: `${barcodeTop}mm`,
+            flex: '0 0 auto',
+          }}
+        />
       )}
     </div>
   );
@@ -382,6 +433,7 @@ const BarcodePrint = () => {
 
   /** Sheet size on screen and in print (CSS `in`). ~160×50 mm ≈ 6.3×2.0 in. */
   const [sheetWidthIn, setSheetWidthIn] = useState(6.3);
+  const [sheetWidthAuto, setSheetWidthAuto] = useState(true);
   const [sheetHeightAuto, setSheetHeightAuto] = useState(true);
   const [sheetHeightIn, setSheetHeightIn] = useState(2);
   const [labelWidthMm, setLabelWidthMm] = useState(80);
@@ -393,6 +445,8 @@ const BarcodePrint = () => {
   const [sheetMarginTopMm, setSheetMarginTopMm] = useState(0);
   const [sheetMarginLeftMm, setSheetMarginLeftMm] = useState(0);
   const [sheetMarginBottomMm, setSheetMarginBottomMm] = useState(0);
+  const [textMarginTopMm, setTextMarginTopMm] = useState(0);
+  const [barcodeMarginTopMm, setBarcodeMarginTopMm] = useState(0);
   const [barCodeWidthField, setBarCodeWidthField] = useState(50);
   const [barCodeHeightField, setBarCodeHeightField] = useState(30);
   const [fontSize, setFontSize] = useState(11);
@@ -405,6 +459,8 @@ const BarcodePrint = () => {
   const [settingsSaveError, setSettingsSaveError] = useState('');
   const [settingsSaveMessage, setSettingsSaveMessage] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
   const companyId = useMemo(() => {
     const merged =
@@ -475,6 +531,7 @@ const BarcodePrint = () => {
         if (norm.bType !== undefined) applyStr(norm.bType, setBType);
         if (norm.labelCount !== undefined) applyStr(norm.labelCount, setLabelCount);
         if (norm.sheetWidthIn !== undefined) applyStr(norm.sheetWidthIn, setSheetWidthIn);
+        applyBool(norm.sheetWidthAuto, setSheetWidthAuto);
         applyBool(norm.sheetHeightAuto, setSheetHeightAuto);
         if (norm.sheetHeightIn !== undefined) applyStr(norm.sheetHeightIn, setSheetHeightIn);
         if (norm.labelWidthMm !== undefined) applyStr(norm.labelWidthMm, setLabelWidthMm);
@@ -495,6 +552,12 @@ const BarcodePrint = () => {
         }
         if (norm.sheetMarginBottomMm !== undefined) {
           applyNum(norm.sheetMarginBottomMm, setSheetMarginBottomMm, 0);
+        }
+        if (norm.textMarginTopMm !== undefined) {
+          applyNum(norm.textMarginTopMm, setTextMarginTopMm, 0);
+        }
+        if (norm.barcodeMarginTopMm !== undefined) {
+          applyNum(norm.barcodeMarginTopMm, setBarcodeMarginTopMm, 0);
         }
         if (norm.barCodeWidthField !== undefined) applyStr(norm.barCodeWidthField, setBarCodeWidthField);
         if (norm.barCodeHeightField !== undefined) applyStr(norm.barCodeHeightField, setBarCodeHeightField);
@@ -582,13 +645,19 @@ const BarcodePrint = () => {
   const marginTop = Math.max(0, Math.min(50, Number(sheetMarginTopMm) || 0));
   const marginLeft = Math.max(0, Math.min(50, Number(sheetMarginLeftMm) || 0));
   const marginBottom = Math.max(0, Math.min(50, Number(sheetMarginBottomMm) || 0));
-  const sheetPrintWidthMm = roundMm(sheetContentWidthMm(cols, lw, gapH, marginLeft));
+  const textTopMargin = Math.max(0, Math.min(30, Number(textMarginTopMm) || 0));
+  const barcodeTopMargin = Math.max(0, Math.min(30, Number(barcodeMarginTopMm) || 0));
+  const sheetContentWidth = roundMm(sheetContentWidthMm(cols, lw, gapH, marginLeft));
+  /** Page/sheet width used for preview, print, and PDF. */
+  const sheetPrintWidthMm = sheetWidthAuto
+    ? Math.max(20, sheetContentWidth)
+    : Math.max(20, inchesToMm(swIn));
 
   const previewScale = useMemo(() => {
-    const sheetPxW = swIn * 96;
+    const sheetPxW = (sheetPrintWidthMm / 25.4) * 96;
     const maxW = 400;
     return sheetPxW > maxW ? maxW / sheetPxW : 1;
-  }, [swIn]);
+  }, [sheetPrintWidthMm]);
 
   const formatLabel = useMemo(
     () => B_TYPES.find((t) => t.value === bType)?.label || 'CODE-128',
@@ -607,11 +676,11 @@ const BarcodePrint = () => {
   const printDocStyles = useMemo(
     () =>
       buildPrintDocStyles({
-        sheetWidthIn: swIn,
+        sheetWidthMm: sheetPrintWidthMm,
         sheetHeightsMm: sheetPrintHeightsMm,
         rollMode: sheetHeightAuto,
       }),
-    [swIn, sheetPrintHeightsMm, sheetHeightAuto]
+    [sheetPrintWidthMm, sheetPrintHeightsMm, sheetHeightAuto]
   );
 
   const printMediaStyles = useMemo(() => wrapPrintMedia(printDocStyles), [printDocStyles]);
@@ -628,7 +697,7 @@ const BarcodePrint = () => {
           className="bp-sheet mb-3"
           data-print-h={sheetHeightMm}
           style={{
-            width: `${swIn}in`,
+            width: `${sheetPrintWidthMm}mm`,
             boxSizing: 'border-box',
             height: `${sheetHeightMm}mm`,
             minHeight: 'unset',
@@ -660,6 +729,8 @@ const BarcodePrint = () => {
               labelWidthMm={lw}
               labelHeightMm={lh}
               showBarcodeNumber={showBarcodeNumber}
+              textMarginTopMm={textTopMargin}
+              barcodeMarginTopMm={barcodeTopMargin}
             />
           ))}
         </div>
@@ -679,6 +750,7 @@ const BarcodePrint = () => {
         bType,
         labelCount: Number(labelCount) || 1,
         sheetWidthIn: Number(sheetWidthIn) || 6.3,
+        sheetWidthAuto,
         sheetHeightAuto,
         sheetHeightIn: Number(sheetHeightIn) || 2,
         labelWidthMm: Number(labelWidthMm) || 80,
@@ -690,6 +762,8 @@ const BarcodePrint = () => {
         sheetMarginTopMm: marginTop,
         sheetMarginLeftMm: marginLeft,
         sheetMarginBottomMm: marginBottom,
+        textMarginTopMm: textTopMargin,
+        barcodeMarginTopMm: barcodeTopMargin,
         barCodeWidthField: Number(barCodeWidthField) || 50,
         barCodeHeightField: Number(barCodeHeightField) || 30,
         fontSize: Number(fontSize) || 11,
@@ -766,6 +840,44 @@ const BarcodePrint = () => {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!selectedProduct || !encodeValue || pdfExporting) return;
+    setPdfError('');
+    setPdfExporting(true);
+    try {
+      await downloadBarcodeLabelsPdf({
+        encodeValue,
+        format,
+        labelLines,
+        totalLabels,
+        cols,
+        rows,
+        sheetHeightAuto,
+        sheetWidthAuto,
+        sheetWidthIn: swIn,
+        sheetWidthMm: sheetPrintWidthMm,
+        labelWidthMm: lw,
+        labelHeightMm: lh,
+        gapH,
+        gapV,
+        marginTop,
+        marginLeft,
+        marginBottom,
+        textMarginTopMm: textTopMargin,
+        barcodeMarginTopMm: barcodeTopMargin,
+        barCodeWidthField,
+        barCodeHeightField,
+        fontSize,
+        showBarcodeNumber,
+        productName: productName(selectedProduct),
+      });
+    } catch (e) {
+      setPdfError(e?.message || 'Could not create PDF');
+    } finally {
+      setPdfExporting(false);
+    }
+  };
+
   const yesNoSelect = (value, onChange) => (
     <select className="form-select" value={value ? 'yes' : 'no'} onChange={(e) => onChange(e.target.value === 'yes')}>
       <option value="yes">Yes</option>
@@ -784,8 +896,8 @@ const BarcodePrint = () => {
             <div className="card-header pb-3 barcode-print-toolbar">
               <h5 className="mb-1">Print barcodes</h5>
               <p className="text-sm text-muted mb-0">
-                Configure labels on the left; the preview updates live on the right. Save settings to your company or
-                print when ready.
+                Configure labels on the left; the preview updates live on the right. Save settings to your company,
+                print, or download a PDF when ready.
               </p>
             </div>
 
@@ -874,20 +986,37 @@ const BarcodePrint = () => {
                     <div className="row g-3">
                       <div className="col-6 col-md-3">
                         <label className="form-label">Sheet width</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min={1}
-                          max={24}
-                          step={0.01}
-                          value={sheetWidthIn}
-                          onChange={(e) => setSheetWidthIn(e.target.value)}
-                        />
+                        <select
+                          className="form-select"
+                          value={sheetWidthAuto ? 'auto' : 'fixed'}
+                          onChange={(e) => setSheetWidthAuto(e.target.value === 'auto')}
+                        >
+                          <option value="auto">Auto (fit labels)</option>
+                          <option value="fixed">Fixed (inches)</option>
+                        </select>
                         <span className="barcode-print-field-hint">
-                          inches
-                          {sheetHeightAuto ? ` · label area ≈ ${sheetPrintWidthMm} mm` : null}
+                          {sheetWidthAuto
+                            ? `Page width = ${sheetPrintWidthMm} mm (labels + left margin)`
+                            : 'Set fixed width below'}
                         </span>
                       </div>
+                      {!sheetWidthAuto ? (
+                        <div className="col-6 col-md-3">
+                          <label className="form-label">Fixed width</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min={1}
+                            max={24}
+                            step={0.01}
+                            value={sheetWidthIn}
+                            onChange={(e) => setSheetWidthIn(e.target.value)}
+                          />
+                          <span className="barcode-print-field-hint">
+                            inches · label area ≈ {sheetContentWidth} mm
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="col-6 col-md-3">
                         <label className="form-label">Sheet height</label>
                         <select
@@ -1038,6 +1167,32 @@ const BarcodePrint = () => {
                           mm below last row (prevents cut-off)
                         </span>
                       </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Margin above text</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={0}
+                          max={30}
+                          step={0.5}
+                          value={textMarginTopMm}
+                          onChange={(e) => setTextMarginTopMm(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">mm inside each label, above name/price</span>
+                      </div>
+                      <div className="col-6 col-md-3">
+                        <label className="form-label">Margin above barcode</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={0}
+                          max={30}
+                          step={0.5}
+                          value={barcodeMarginTopMm}
+                          onChange={(e) => setBarcodeMarginTopMm(e.target.value)}
+                        />
+                        <span className="barcode-print-field-hint">mm between text and barcode</span>
+                      </div>
                     </div>
                   </section>
 
@@ -1112,6 +1267,12 @@ const BarcodePrint = () => {
                     </div>
                   ) : null}
 
+                  {pdfError ? (
+                    <div className="alert alert-danger py-2 mb-3" role="alert">
+                      {pdfError}
+                    </div>
+                  ) : null}
+
                   <div className="barcode-print-actions">
                     <button
                       type="button"
@@ -1131,6 +1292,29 @@ const BarcodePrint = () => {
                     >
                       <i className="fas fa-file-alt me-2" aria-hidden="true"></i>
                       Print page
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary"
+                      onClick={handleDownloadPdf}
+                      disabled={!selectedProduct || !encodeValue || pdfExporting}
+                      title="Download label sheets as a PDF file"
+                    >
+                      {pdfExporting ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          />
+                          Creating PDF…
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-file-pdf me-2" aria-hidden="true"></i>
+                          Download PDF
+                        </>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -1173,7 +1357,10 @@ const BarcodePrint = () => {
                             {lw}×{lh} mm
                           </span>
                           <span className="barcode-print-preview-chip">
-                            {swIn} in×{sheetHeightAuto ? 'auto' : shIn} sheet
+                            {sheetWidthAuto
+                              ? `${sheetPrintWidthMm} mm`
+                              : `${swIn} in`}
+                            ×{sheetHeightAuto ? 'auto' : `${shIn} in`} sheet
                           </span>
                           <span className="barcode-print-preview-chip">
                             {sheetHeightAuto

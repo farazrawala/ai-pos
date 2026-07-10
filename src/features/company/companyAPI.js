@@ -285,6 +285,7 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('bType', get('bType', 'b_type'));
   setIf('labelCount', get('labelCount', 'label_count'));
   setIf('sheetWidthIn', get('sheetWidthIn', 'sheet_width_in'));
+  setIf('sheetWidthAuto', get('sheetWidthAuto', 'sheet_width_auto'));
   setIf('sheetHeightAuto', get('sheetHeightAuto', 'sheet_height_auto'));
   setIf('sheetHeightIn', get('sheetHeightIn', 'sheet_height_in'));
   setIf('sheetWidthMm', get('sheetWidthMm', 'sheet_width_mm'));
@@ -298,6 +299,8 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('sheetMarginTopMm', get('sheetMarginTopMm', 'sheet_margin_top_mm'));
   setIf('sheetMarginLeftMm', get('sheetMarginLeftMm', 'sheet_margin_left_mm'));
   setIf('sheetMarginBottomMm', get('sheetMarginBottomMm', 'sheet_margin_bottom_mm'));
+  setIf('textMarginTopMm', get('textMarginTopMm', 'text_margin_top_mm'));
+  setIf('barcodeMarginTopMm', get('barcodeMarginTopMm', 'barcode_margin_top_mm'));
   setIf('barCodeWidthField', get('barCodeWidthField', 'bar_code_width'));
   setIf('barCodeHeightField', get('barCodeHeightField', 'bar_code_height'));
   setIf('fontSize', get('fontSize', 'font_size'));
@@ -329,6 +332,7 @@ export function buildBarcodeSettingsPayload(values) {
     b_type: values.bType,
     label_count: values.labelCount,
     sheet_width_in: values.sheetWidthIn,
+    sheet_width_auto: values.sheetWidthAuto,
     sheet_height_auto: values.sheetHeightAuto,
     sheet_height_in: values.sheetHeightIn,
     label_width_mm: values.labelWidthMm,
@@ -340,6 +344,8 @@ export function buildBarcodeSettingsPayload(values) {
     sheet_margin_top_mm: values.sheetMarginTopMm,
     sheet_margin_left_mm: values.sheetMarginLeftMm,
     sheet_margin_bottom_mm: values.sheetMarginBottomMm,
+    text_margin_top_mm: values.textMarginTopMm,
+    barcode_margin_top_mm: values.barcodeMarginTopMm,
     bar_code_width: values.barCodeWidthField,
     bar_code_height: values.barCodeHeightField,
     font_size: values.fontSize,

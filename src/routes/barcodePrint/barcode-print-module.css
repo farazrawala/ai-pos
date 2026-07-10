@@ -162,6 +162,25 @@
 
 .barcode-print-page .barcode-print-label {
   background: #fff;
+  position: relative;
+}
+
+.barcode-print-page .barcode-print-label-text {
+  position: static !important;
+  display: block !important;
+  float: none !important;
+  clear: both;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  transform: none !important;
+}
+
+.barcode-print-page .barcode-print-label-barcode {
+  position: static !important;
+  float: none !important;
+  clear: both;
 }
 
 @media (max-width: 991.98px) {
