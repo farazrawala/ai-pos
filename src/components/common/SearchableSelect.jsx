@@ -8,6 +8,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  *   value: string;
  *   placeholder?: string;
  *   disabled?: boolean;
+ *   loading?: boolean;
+ *   filterLocally?: boolean;
+ *   onQueryChange?: (query: string) => void;
+ *   selectedLabel?: string;
  *   onChange: (next: string) => void;
  * }} props
  */
@@ -16,6 +20,10 @@ export default function SearchableSelect({
   value,
   placeholder = 'Select…',
   disabled = false,
+  loading = false,
+  filterLocally = true,
+  onQueryChange,
+  selectedLabel = '',
   onChange,
 }) {
   const [open, setOpen] = useState(false);
@@ -28,6 +36,7 @@ export default function SearchableSelect({
   );
 
   const filtered = useMemo(() => {
+    if (!filterLocally) return options;
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter((o) => {
@@ -36,7 +45,7 @@ export default function SearchableSelect({
       const id = String(o.value || '').toLowerCase();
       return label.includes(q) || sub.includes(q) || id.includes(q);
     });
-  }, [options, query]);
+  }, [options, query, filterLocally]);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -48,12 +57,23 @@ export default function SearchableSelect({
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  const display = selected?.label || '';
+  const display = selected?.label || selectedLabel || '';
 
   const handleToggle = () => {
     if (disabled) return;
-    setOpen((o) => !o);
-    if (!open) setQuery('');
+    setOpen((o) => {
+      const next = !o;
+      if (next) {
+        setQuery('');
+        onQueryChange?.('');
+      }
+      return next;
+    });
+  };
+
+  const handleQueryChange = (next) => {
+    setQuery(next);
+    onQueryChange?.(next);
   };
 
   const pick = (nextValue) => {
@@ -93,12 +113,14 @@ export default function SearchableSelect({
               className="form-control border-start-0 ps-0 text-sm"
               placeholder="Search…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               autoComplete="off"
             />
           </div>
           <div className="overflow-auto" style={{ maxHeight: 220 }}>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="text-muted text-xs px-2 py-3 text-center">Searching…</div>
+            ) : filtered.length === 0 ? (
               <div className="text-muted text-xs px-2 py-3 text-center">No matches.</div>
             ) : (
               filtered.map((o) => (

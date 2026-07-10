@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import JsBarcode from 'jsbarcode';
-import { fetchProductsRequest } from '../../features/products/productsAPI.js';
+import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   getCompanyIdFromUser,
   fetchCompanyById,
@@ -498,6 +498,9 @@ const BarcodePrint = () => {
   const [listError, setListError] = useState(null);
   const [products, setProducts] = useState([]);
   const [selectedId, setSelectedId] = useState('');
+  const [selectedProductCache, setSelectedProductCache] = useState(null);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const productSearchSeqRef = useRef(0);
   const [bType, setBType] = useState('1');
   const [labelCount, setLabelCount] = useState(1);
   const [overrideText, setOverrideText] = useState('');
@@ -545,11 +548,18 @@ const BarcodePrint = () => {
     return getCompanyIdFromUser(merged);
   }, [user, userSlice?.company_id]);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (search = '') => {
+    const seq = ++productSearchSeqRef.current;
     setListLoading(true);
     setListError(null);
     try {
-      const res = await fetchProductsRequest({ page: 1, limit: 2000 });
+      const q = String(search || '').trim();
+      const res = await fetchProductActiveRequest({
+        ...(q ? { search: q } : {}),
+        page: 1,
+        limit: q ? 50 : 100,
+      });
+      if (seq !== productSearchSeqRef.current) return;
       const rows = Array.isArray(res.data) ? res.data : [];
       rows.sort((a, b) =>
         String(productName(a)).localeCompare(String(productName(b)), undefined, {
@@ -558,16 +568,22 @@ const BarcodePrint = () => {
       );
       setProducts(rows);
     } catch (e) {
+      if (seq !== productSearchSeqRef.current) return;
       setListError(e?.message || 'Failed to load products');
       setProducts([]);
     } finally {
-      setListLoading(false);
+      if (seq === productSearchSeqRef.current) setListLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    const q = productSearchQuery.trim();
+    const delay = q ? 350 : 0;
+    const t = setTimeout(() => {
+      loadProducts(q);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [productSearchQuery, loadProducts]);
 
   useEffect(() => {
     if (!companyId) {
@@ -656,23 +672,44 @@ const BarcodePrint = () => {
     };
   }, [companyId]);
 
-  const selectedProduct = useMemo(
-    () => products.find((p) => String(productId(p)) === String(selectedId)) || null,
-    [products, selectedId]
-  );
+  const selectedProduct = useMemo(() => {
+    const fromList = products.find((p) => String(productId(p)) === String(selectedId));
+    if (fromList) return fromList;
+    if (
+      selectedProductCache &&
+      String(productId(selectedProductCache)) === String(selectedId)
+    ) {
+      return selectedProductCache;
+    }
+    return null;
+  }, [products, selectedId, selectedProductCache]);
 
-  const productOptions = useMemo(
-    () =>
-      products.map((p) => {
-        const id = String(productId(p));
-        const sku = String(p.sku || p.product_code || p.barcode || '').trim();
-        const parts = [sku, p.barcode ? `Barcode: ${p.barcode}` : ''].filter(Boolean);
-        return {
-          value: id,
-          label: productName(p),
-          subLabel: parts.length ? parts.join(' · ') : undefined,
-        };
-      }),
+  const productOptions = useMemo(() => {
+    const map = new Map();
+    const push = (p) => {
+      if (!p) return;
+      const id = String(productId(p) || '').trim();
+      if (!id || map.has(id)) return;
+      const sku = String(p.sku || p.product_code || p.barcode || '').trim();
+      const parts = [sku, p.barcode ? `Barcode: ${p.barcode}` : ''].filter(Boolean);
+      map.set(id, {
+        value: id,
+        label: productName(p),
+        subLabel: parts.length ? parts.join(' · ') : undefined,
+      });
+    };
+    products.forEach(push);
+    push(selectedProductCache);
+    return Array.from(map.values());
+  }, [products, selectedProductCache]);
+
+  const handleProductChange = useCallback(
+    (nextId) => {
+      setSelectedId(nextId);
+      const found =
+        products.find((p) => String(productId(p)) === String(nextId)) || null;
+      setSelectedProductCache(found);
+    },
     [products]
   );
 
@@ -1029,12 +1066,22 @@ const BarcodePrint = () => {
                           options={productOptions}
                           value={selectedId}
                           placeholder="Search and select product…"
-                          disabled={listLoading}
-                          onChange={setSelectedId}
+                          disabled={false}
+                          loading={listLoading}
+                          filterLocally={false}
+                          selectedLabel={
+                            selectedProduct ? productName(selectedProduct) : ''
+                          }
+                          onQueryChange={setProductSearchQuery}
+                          onChange={handleProductChange}
                         />
                         {listLoading ? (
-                          <span className="barcode-print-field-hint">Loading products…</span>
-                        ) : null}
+                          <span className="barcode-print-field-hint">Searching products…</span>
+                        ) : (
+                          <span className="barcode-print-field-hint">
+                            Type to search by name, SKU, or barcode
+                          </span>
+                        )}
                       </div>
                       <div className="col-md-4">
                         <label className="form-label">Barcode type</label>
