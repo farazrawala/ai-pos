@@ -302,6 +302,7 @@ export function normalizeIncomingBarcodeSettings(parsed) {
   setIf('sheetMarginBottomMm', get('sheetMarginBottomMm', 'sheet_margin_bottom_mm'));
   setIf('textMarginTopMm', get('textMarginTopMm', 'text_margin_top_mm'));
   setIf('barcodeMarginTopMm', get('barcodeMarginTopMm', 'barcode_margin_top_mm'));
+  setIf('autoFitLabel', get('autoFitLabel', 'auto_fit_label'));
   setIf('barCodeWidthField', get('barCodeWidthField', 'bar_code_width'));
   setIf('barCodeHeightField', get('barCodeHeightField', 'bar_code_height'));
   setIf('fontSize', get('fontSize', 'font_size'));
@@ -348,6 +349,7 @@ export function buildBarcodeSettingsPayload(values) {
     sheet_margin_bottom_mm: values.sheetMarginBottomMm,
     text_margin_top_mm: values.textMarginTopMm,
     barcode_margin_top_mm: values.barcodeMarginTopMm,
+    auto_fit_label: values.autoFitLabel !== false,
     bar_code_width: values.barCodeWidthField,
     bar_code_height: values.barCodeHeightField,
     font_size: values.fontSize,
