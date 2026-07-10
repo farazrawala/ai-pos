@@ -104,22 +104,57 @@ export function qtyLedgerDetail(lg) {
   }
 }
 
+/** @param {{ undoQty?: number; refQty?: number; qty?: number } | null | undefined} tc */
+function caseUndoQty(tc) {
+  if (!tc) return null;
+  const n = Number(tc.undoQty ?? tc.refQty ?? tc.qty);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** @param {{ type?: string } | null | undefined} tc @param {number} effectiveDelta */
+function buildReplayDetail(tc, effectiveDelta) {
+  const undo = caseUndoQty(tc);
+  if (tc?.type === 'delete_purchase' && undo != null) {
+    return `↺ replay · delete PO −${undo}`;
+  }
+  if (tc?.type === 'delete_sale' && undo != null) {
+    return `↺ replay · delete sale +${undo}`;
+  }
+  if (tc?.type === 'delete_purchase_return' && undo != null) {
+    return `↺ replay · delete PR +${undo}`;
+  }
+  if (tc?.type === 'delete_sales_return' && undo != null) {
+    return `↺ replay · delete SR −${undo}`;
+  }
+  if (tc?.type === 'edit_purchase_price') {
+    return '↺ replay · edit PO price';
+  }
+  if (effectiveDelta !== 0) {
+    return `↺ replay ${effectiveDelta > 0 ? `+${effectiveDelta}` : effectiveDelta}`;
+  }
+  return '↺ replay';
+}
+
 /**
- * @param {{ name?: string; qtyLedger?: QtyLedgerEntry; expectedQty?: number; caseNo?: number; caseFinal?: boolean }[]} steps
- * @param {Array<{ n: number; expected?: number }> | null} [cases]
+ * @param {{ name?: string; qtyLedger?: QtyLedgerEntry; expectedQty?: number; caseNo?: number; caseFinal?: boolean; replayExpectedQty?: number }[]} steps
+ * @param {Array<{ n: number; expected?: number; type?: string; undoQty?: number; refQty?: number; qty?: number; replayQty?: boolean }> | null} [cases]
  */
 export function buildQtyLedgerFromSteps(steps, cases = null) {
   let qty = 0;
   /** @type {import('./inventoryCost.js').InventoryState} */
   let costState = { ...EMPTY_INVENTORY };
-  /** @type {Array<{ stepIndex: number; stepName: string; caseNo?: number; kind: string; delta: number; qty: number; expectedQty?: number; avgCost: number; detail: string }>} */
+  /** @type {Array<{ stepIndex: number; stepName: string; caseNo?: number; docRef?: string; kind: string; delta: number; undoQty?: number; qty: number; expectedQty?: number; avgCost: number; detail: string }>} */
   const rows = [];
 
   steps.forEach((step, index) => {
     const lg = step?.qtyLedger;
+    const tc = cases?.find((c) => c.n === step.caseNo);
     if (!lg || typeof lg !== 'object') {
       if (step.caseFinal && step.replayExpectedQty != null && step.expectedQty != null) {
-        qty = Number(step.expectedQty);
+        const priorQty = qty;
+        const nextQty = Number(step.expectedQty);
+        const effectiveDelta = nextQty - priorQty;
+        qty = nextQty;
         if (qty === 0) {
           costState = { ...EMPTY_INVENTORY };
         } else {
@@ -133,13 +168,15 @@ export function buildQtyLedgerFromSteps(steps, cases = null) {
           stepIndex: index,
           stepName: step.name || `Step ${index + 1}`,
           caseNo: step.caseNo,
+          docRef: step.docRef ?? '',
           kind: step.replayExpectedQty != null ? 'replay' : 'expected',
-          delta: 0,
+          delta: effectiveDelta,
+          undoQty: caseUndoQty(tc) ?? undefined,
           qty,
           expectedQty: step.expectedQty,
           avgCost: costState.avgCost,
           value: costState.value,
-          detail: step.replayExpectedQty != null ? '↺ replay' : '',
+          detail: buildReplayDetail(tc, effectiveDelta),
         });
       }
       return;
@@ -149,6 +186,7 @@ export function buildQtyLedgerFromSteps(steps, cases = null) {
     const costOnly = lg.type === 'edit_purchase_price';
     if (delta === 0 && !costOnly) return;
 
+    const priorQty = qty;
     const detail = qtyLedgerDetail(lg);
     if (delta !== 0) qty = applyQtyDelta(qty, delta);
     costState = applyQtyLedgerCost(costState, lg);
@@ -156,8 +194,10 @@ export function buildQtyLedgerFromSteps(steps, cases = null) {
       stepIndex: index,
       stepName: step.name || `Step ${index + 1}`,
       caseNo: step.caseNo,
+      docRef: step.docRef ?? '',
       kind: lg.type,
       delta,
+      undoQty: Number(lg.qty) > 0 ? Number(lg.qty) : undefined,
       qty,
       expectedQty: step.expectedQty,
       avgCost: costState.avgCost,
@@ -170,8 +210,14 @@ export function buildQtyLedgerFromSteps(steps, cases = null) {
       const last = rows[rows.length - 1];
       if (last) {
         last.qty = qty;
+        last.delta = qty - priorQty;
         last.avgCost = costState.avgCost;
         last.value = costState.value;
+        if (tc?.replayQty) {
+          last.undoQty = caseUndoQty(tc) ?? last.undoQty;
+          last.detail = buildReplayDetail(tc, last.delta);
+          last.kind = 'replay';
+        }
       }
     }
   });

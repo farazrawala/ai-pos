@@ -22,17 +22,28 @@ function formatInventoryValue(value, qty) {
 
 /** Step change: running qty after this step minus running qty before. */
 function stepQtyChange(row, rowIndex, rows) {
-  if (row?.delta != null && Number.isFinite(Number(row.delta))) return Number(row.delta);
-  const prev = rowIndex > 0 ? rows[rowIndex - 1]?.qty : 0;
+  const prev = priorRunningQty(rowIndex, rows);
   const curr = Number(row?.qty);
   if (!Number.isFinite(curr)) return null;
-  return curr - Number(prev ?? 0);
+  return curr - prev;
+}
+
+function priorRunningQty(rowIndex, rows) {
+  if (rowIndex <= 0) return 0;
+  const prev = rows[rowIndex - 1]?.qty;
+  return Number.isFinite(Number(prev)) ? Number(prev) : 0;
 }
 
 function formatDifference(diff) {
   if (diff == null || !Number.isFinite(diff)) return '—';
   if (diff === 0) return '0';
   return diff > 0 ? `+${diff}` : String(diff);
+}
+
+function formatRecalcLine(prior, change, running) {
+  if (change == null || !Number.isFinite(change)) return '';
+  const ch = change === 0 ? '0' : change > 0 ? `+${change}` : String(change);
+  return `${prior} ${ch} = ${running}`;
 }
 
 /**
@@ -55,9 +66,10 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
         <thead className="sticky top-0 z-[1] bg-white">
           <tr className="border-b border-slate-200 text-slate-500">
             <th className="py-2 pr-2 font-semibold">Case</th>
+            <th className="py-2 pr-2 text-end font-semibold">Prior</th>
+            <th className="py-2 pr-2 text-end font-semibold">Change</th>
             <th className="py-2 pr-2 text-end font-semibold">Running</th>
             <th className="py-2 pr-2 text-end font-semibold">Expected</th>
-            <th className="py-2 pr-2 text-end font-semibold">Difference</th>
             <th className="py-2 pr-2 text-end font-semibold">Avg cost</th>
             <th className="py-2 text-end font-semibold">Inventory value</th>
           </tr>
@@ -67,6 +79,8 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
             const status = statuses[row.stepIndex] ?? 'pending';
             const verified = status === 'success';
             const stepChange = stepQtyChange(row, rowIndex, rows);
+            const priorQty = priorRunningQty(rowIndex, rows);
+            const recalcLine = formatRecalcLine(priorQty, stepChange, row.qty);
             const match = row.expectedQty != null && verified && row.qty === row.expectedQty;
             const mismatch = row.expectedQty != null && verified && row.qty !== row.expectedQty;
             const isPurchase = row.kind === 'purchase';
@@ -80,23 +94,27 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
                 ].join(' ')}
               >
                 <td className="py-2 pr-2">
-                  <div className="font-medium text-slate-800">
-                    {row.caseNo != null ? `#${row.caseNo}` : ''} {row.stepName}
+                  <div className="flex flex-wrap items-center gap-1.5 font-medium text-slate-800">
+                    {row.caseNo != null ? (
+                      <span className="text-slate-500">#{row.caseNo}</span>
+                    ) : null}
+                    {row.docRef ? (
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wide text-white">
+                        {row.docRef}
+                      </span>
+                    ) : null}
+                    <span>{row.stepName.replace(/^\d+\.\s*/, '')}</span>
                   </div>
                   <div className="text-[10px] text-slate-500">
                     {row.detail}
+                    {recalcLine ? ` · ${recalcLine}` : ''}
                     {verified ? (match ? ' · OK' : mismatch ? ' · mismatch' : ' · done') : ''}
                   </div>
                 </td>
-                <td className="py-2 pr-2 text-end font-mono font-semibold text-slate-800">
-                  {row.qty}
-                </td>
-                <td className="py-2 pr-2 text-end font-mono text-slate-600">
-                  {row.expectedQty ?? '—'}
-                </td>
+                <td className="py-2 pr-2 text-end font-mono text-slate-600">{priorQty}</td>
                 <td
                   className={[
-                    'py-2 text-end font-mono font-semibold',
+                    'py-2 pr-2 text-end font-mono font-semibold',
                     stepChange == null ? 'text-slate-400' : '',
                     stepChange > 0 ? 'text-emerald-700' : '',
                     stepChange < 0 ? 'text-rose-700' : '',
@@ -104,6 +122,12 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
                   ].join(' ')}
                 >
                   {formatDifference(stepChange)}
+                </td>
+                <td className="py-2 pr-2 text-end font-mono font-semibold text-slate-800">
+                  {row.qty}
+                </td>
+                <td className="py-2 pr-2 text-end font-mono text-slate-600">
+                  {row.expectedQty ?? '—'}
                 </td>
                 <td
                   className={[
@@ -129,11 +153,12 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
           <tfoot className="sticky bottom-0 z-[1] bg-slate-50">
             <tr className="border-t-2 border-slate-300 font-semibold text-slate-800">
               <td className="py-2 pr-2">Final</td>
-              <td className="py-2 pr-2 text-end font-mono">{last.qty}</td>
-              <td className="py-2 pr-2 text-end font-mono">{last.expectedQty ?? '—'}</td>
+              <td className="py-2 pr-2 text-end font-mono">
+                {rows.length > 1 ? priorRunningQty(rows.length - 1, rows) : 0}
+              </td>
               <td
                 className={[
-                  'py-2 text-end font-mono',
+                  'py-2 pr-2 text-end font-mono',
                   finalStepChange == null ? 'text-slate-400' : '',
                   finalStepChange > 0 ? 'text-emerald-700' : '',
                   finalStepChange < 0 ? 'text-rose-700' : '',
@@ -142,6 +167,8 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
               >
                 {formatDifference(finalStepChange)}
               </td>
+              <td className="py-2 pr-2 text-end font-mono">{last.qty}</td>
+              <td className="py-2 pr-2 text-end font-mono">{last.expectedQty ?? '—'}</td>
               <td className="py-2 pr-2 text-end font-mono text-indigo-700">
                 {formatAvgCost(last.avgCost, last.qty)}
               </td>
@@ -162,11 +189,11 @@ function QtyLedgerTable({ rows, statuses, scrollMaxHeight }) {
 }
 
 /**
- * @param {{ steps: object[]; statuses: string[] }} props
+ * @param {{ steps: object[]; statuses: string[]; cases?: Array<{ n: number; replayQty?: boolean; expected?: number }> }} props
  */
-export default function TestCaseQtyLedger({ steps, statuses }) {
+export default function TestCaseQtyLedger({ steps, statuses, cases = null }) {
   const [maximized, setMaximized] = useState(false);
-  const rows = useMemo(() => buildQtyLedgerFromSteps(steps), [steps]);
+  const rows = useMemo(() => buildQtyLedgerFromSteps(steps, cases), [steps, cases]);
 
   const header = (onToggle) => (
     <div className="flex items-start justify-between gap-2">

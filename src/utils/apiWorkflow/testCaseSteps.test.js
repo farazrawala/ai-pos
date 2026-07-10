@@ -84,12 +84,31 @@ describe('WAC by claud suite (wac_transaction_tracker.html)', () => {
   it('includes negative stock steps from the spec', () => {
     const negatives = ledger.filter((row) => row.qty < 0).map((row) => row.qty);
     expect(negatives).toContain(-25);
-    expect(negatives).toContain(-20);
+    expect(negatives).toContain(-60);
+    expect(negatives).toContain(-30);
+    expect(negatives).toContain(-10);
   });
 
-  it('purchase return #21 is capped to available stock (qty 45 → 35)', () => {
+  it('purchase return #21 reduces stock after deleting purchase #2', () => {
+    const step20 = ledger[19];
     const step21 = ledger[20];
-    expect(step21.qty).toBe(35);
+    expect(step20.qty).toBe(5);
+    expect(step21.qty).toBe(-5);
     expect(step21.avgCost).toBeGreaterThan(0);
+  });
+
+  it('replay delete steps show undo qty in detail and net change in delta', () => {
+    const step26 = ledger[25];
+    const step28 = ledger[27];
+    const step29 = ledger[28];
+    expect(step26.delta).toBe(40);
+    expect(step26.undoQty).toBe(30);
+    expect(step26.detail).toContain('delete PO −30');
+    expect(step28.delta).toBe(0);
+    expect(step28.undoQty).toBe(25);
+    expect(step28.detail).toContain('delete PO −25');
+    expect(step29.delta).toBe(-20);
+    expect(step29.undoQty).toBe(20);
+    expect(step29.detail).toContain('delete PO −20');
   });
 });

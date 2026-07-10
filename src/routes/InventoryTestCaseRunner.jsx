@@ -52,6 +52,10 @@ const InventoryTestCaseRunner = () => {
     () => createInventoryTestCaseSteps(selectedSuiteId),
     [selectedSuiteId]
   );
+  const transactionCases = useMemo(
+    () => selectedSuite.getTransactionCases(),
+    [selectedSuite]
+  );
   const [baseUrl, setBaseUrl] = useState(() => getWorkflowBaseUrl());
   const [variables, setVariables] = useState(() => seedTestCaseWorkflowVars({}));
   const [statuses, setStatuses] = useState(() => emptyStatuses(steps.length));
@@ -693,7 +697,7 @@ const InventoryTestCaseRunner = () => {
                 {varsDisplay}
               </pre>
             </div>
-            <TestCaseQtyLedger steps={steps} statuses={statuses} />
+            <TestCaseQtyLedger steps={steps} statuses={statuses} cases={transactionCases} />
             <TestCaseBalanceLedger steps={steps} statuses={statuses} />
             <TestCaseBalanceSheetExpected steps={steps} statuses={statuses} />
           </div>

@@ -104,6 +104,11 @@ function TestCaseStepList({
                         #{step.caseNo}
                       </span>
                     ) : null}
+                    {step.docRef ? (
+                      <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wide text-white">
+                        {step.docRef}
+                      </span>
+                    ) : null}
                     <span className="truncate text-sm font-medium text-slate-900">{step.name}</span>
                   </div>
                   {!isSetup && step.expectedQty != null ? (

@@ -3,6 +3,7 @@
 import { AUTH_TOKEN_SAVE_PATHS } from './authToken.js';
 import { LOGIN_SAVE_MAP } from './loginSavePaths.js';
 import { applyQtyDelta, qtyLedgerDelta } from './inventoryQty.js';
+import { buildTestCaseDocRefMap, resolveTestCaseDocRef } from './testCaseDocRef.js';
 import { COMPANY_DEFAULT_ACCOUNT_KEYS } from '../../features/company/companyAPI.js';
 
 const PRODUCT_PRICE = 300;
@@ -503,10 +504,9 @@ export const WAC_BY_CLAUD_CASES = [
     ref: 2,
     refQty: 40,
     undoQty: 40,
-    expected: 45,
-    replayQty: true,
+    expected: 5,
     wacChanged: true,
-    wacNote: 'Replay entire history · WAC recalculated',
+    wacNote: 'Remove Purchase #2 qty (40) from running stock',
   },
   {
     n: 21,
@@ -514,7 +514,7 @@ export const WAC_BY_CLAUD_CASES = [
     label: 'Purchase Return 10',
     qty: 10,
     price: 300,
-    expected: 35,
+    expected: -5,
     wacChanged: false,
     wacNote: 'WAC unchanged · Return limited to available purchased stock',
   },
@@ -524,7 +524,7 @@ export const WAC_BY_CLAUD_CASES = [
     label: 'Purchase 25 @ 300',
     qty: 25,
     price: 300,
-    expected: 60,
+    expected: 20,
     skipEdit: true,
     wacChanged: true,
     wacNote: 'New WAC calculated',
@@ -534,7 +534,7 @@ export const WAC_BY_CLAUD_CASES = [
     type: 'sale',
     label: 'Sale 80',
     qty: 80,
-    expected: -20,
+    expected: -60,
     skipEdit: true,
     wacChanged: false,
     wacNote: 'WAC unchanged · Inventory negative',
@@ -545,7 +545,7 @@ export const WAC_BY_CLAUD_CASES = [
     label: 'Purchase 30 @ 280',
     qty: 30,
     price: 280,
-    expected: 10,
+    expected: -30,
     skipEdit: true,
     wacChanged: true,
     wacNote: 'WAC recalculated from negative stock',
@@ -556,7 +556,7 @@ export const WAC_BY_CLAUD_CASES = [
     label: 'Purchase 20 @ 320',
     qty: 20,
     price: 320,
-    expected: 30,
+    expected: -10,
     skipEdit: true,
     wacChanged: true,
     wacNote: 'New WAC calculated',
@@ -808,8 +808,8 @@ function salePaymentAccountToken(amountReceived, total) {
   return '{{default_account_receivable_account_id}}';
 }
 
-/** @param {{ qty: number; salePrice?: number }} tc @param {number} qty */
-function saleBody(tc, qty = tc.qty) {
+/** @param {{ qty: number; salePrice?: number }} tc @param {number} qty @param {string} [docRef] */
+function saleBody(tc, qty = tc.qty, docRef = '') {
   const unitPrice = saleUnitPrice(tc);
   const total = qty * unitPrice;
   const amountReceived = String(total);
@@ -827,19 +827,20 @@ function saleBody(tc, qty = tc.qty) {
     change_given: '0',
     payment_method_id: payAccount,
     posPayMethod: payAccount,
+    ...(docRef ? { order_no: docRef } : {}),
     'product_id[0]': '{{product_1_id}}',
     'qty[0]': String(qty),
     'price[0]': String(unitPrice),
   };
 }
 
-/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty @param {number} [unitPrice] */
-function purchaseBody(tc, qty = tc.qty, unitPrice = tc.price) {
+/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty @param {number} [unitPrice] @param {string} [docRef] */
+function purchaseBody(tc, qty = tc.qty, unitPrice = tc.price, docRef = '') {
   const price = unitPrice ?? tc.price;
   const total = qty * price;
   return {
     vendor_id: '{{vendor_id}}',
-    ref_no: `TC-PO-${tc.n}`,
+    ref_no: docRef || `PO-${String(tc.n).padStart(3, '0')}`,
     discount: '0',
     shipment: '0',
     payment_method_accounts_id: '{{default_account_payable_account_id}}',
@@ -857,12 +858,12 @@ function purchaseBody(tc, qty = tc.qty, unitPrice = tc.price) {
   };
 }
 
-/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty */
-function purchaseReturnBody(tc, qty = tc.qty) {
+/** @param {{ n: number; qty: number; price: number }} tc @param {number} qty @param {string} [docRef] */
+function purchaseReturnBody(tc, qty = tc.qty, docRef = '') {
   const total = qty * tc.price;
   return {
     vendor_id: '{{vendor_id}}',
-    ref_no: `TC-PR-${tc.n}`,
+    ref_no: docRef || `PR-${String(tc.n).padStart(3, '0')}`,
     discount: '0',
     shipment: '0',
     payment_method_accounts_id: '{{default_account_payable_account_id}}',
@@ -879,13 +880,13 @@ function purchaseReturnBody(tc, qty = tc.qty) {
   };
 }
 
-/** @param {{ n: number; qty: number; salePrice?: number }} tc @param {number} qty */
-function salesReturnBody(tc, qty = tc.qty) {
+/** @param {{ n: number; qty: number; salePrice?: number }} tc @param {number} qty @param {string} [docRef] */
+function salesReturnBody(tc, qty = tc.qty, docRef = '') {
   const unitPrice = saleUnitPrice(tc);
   const total = qty * unitPrice;
   return {
     customer_id: '{{customer_id}}',
-    ref_no: `TC-SR-${tc.n}`,
+    ref_no: docRef || `SR-${String(tc.n).padStart(3, '0')}`,
     discount: '0',
     shipment: '0',
     payment_method_accounts_id: '{{default_cash_account_id}}',
@@ -902,8 +903,14 @@ function salesReturnBody(tc, qty = tc.qty) {
   };
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildPurchaseReturnSteps(tc) {
+/** @param {object[]} steps @param {string} docRef */
+function withDocRef(steps, docRef) {
+  if (!docRef) return steps;
+  return steps.map((s) => ({ ...s, docRef }));
+}
+
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {string} docRef */
+function buildPurchaseReturnSteps(tc, docRef = '') {
   return [
     {
       caseNo: tc.n,
@@ -912,7 +919,7 @@ function buildPurchaseReturnSteps(tc) {
       method: 'POST',
       url: '{{url}}api/purchase_return/purchase_return_create',
       bodyType: 'form',
-      body: purchaseReturnBody(tc),
+      body: purchaseReturnBody(tc, tc.qty, docRef),
       qtyLedger: { type: 'purchase_return', qty: tc.qty, unitPrice: tc.price },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
@@ -928,8 +935,8 @@ function buildPurchaseReturnSteps(tc) {
   ];
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildSalesReturnSteps(tc) {
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {string} docRef */
+function buildSalesReturnSteps(tc, docRef = '') {
   return [
     {
       caseNo: tc.n,
@@ -938,7 +945,7 @@ function buildSalesReturnSteps(tc) {
       method: 'POST',
       url: '{{url}}api/sales_return/sales_return_create',
       bodyType: 'form',
-      body: salesReturnBody(tc),
+      body: salesReturnBody(tc, tc.qty, docRef),
       qtyLedger: { type: 'sales_return', qty: tc.qty, unitPrice: saleUnitPrice(tc) },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
@@ -954,8 +961,8 @@ function buildSalesReturnSteps(tc) {
   ];
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildPurchaseSteps(tc) {
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {string} docRef */
+function buildPurchaseSteps(tc, docRef = '') {
   if (tc.skipEdit) {
     return [
       {
@@ -965,7 +972,7 @@ function buildPurchaseSteps(tc) {
         method: 'POST',
         url: '{{url}}api/purchase_order/purchase_order_create',
         bodyType: 'form',
-        body: purchaseBody(tc),
+        body: purchaseBody(tc, tc.qty, tc.price, docRef),
         qtyLedger: { type: 'purchase', qty: tc.qty, unitCost: tc.price, unitPrice: tc.price },
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
         caseFinal: true,
@@ -984,7 +991,7 @@ function buildPurchaseSteps(tc) {
       method: 'POST',
       url: '{{url}}api/purchase_order/purchase_order_create',
       bodyType: 'form',
-      body: purchaseBody(tc),
+      body: purchaseBody(tc, tc.qty, tc.price, docRef),
       qtyLedger: { type: 'purchase', qty: tc.qty, unitCost: tc.price, unitPrice: tc.price },
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
@@ -1003,15 +1010,15 @@ function buildPurchaseSteps(tc) {
       method: 'PATCH',
       url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.n}_id}}`,
       bodyType: 'form',
-      body: purchaseBody(tc, nextQty),
+      body: purchaseBody(tc, nextQty, tc.price, docRef),
       qtyLedger: editDelta > 0 ? { type: 'edit_purchase', qty: editDelta, unitPrice: tc.price } : undefined,
       caseFinal: true,
     },
   ];
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc */
-function buildSaleSteps(tc) {
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {string} docRef */
+function buildSaleSteps(tc, docRef = '') {
   // For specific cases we want to create then immediately delete the invoice.
   // This keeps the test short while still verifying ledger behavior.
   if (tc.deleteAfterCreate) {
@@ -1023,7 +1030,7 @@ function buildSaleSteps(tc) {
         method: 'POST',
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
-        body: saleBody(tc),
+        body: saleBody(tc, tc.qty, docRef),
         qtyLedger: saleQtyLedger(tc.qty, saleUnitPrice(tc)),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
       },
@@ -1049,7 +1056,7 @@ function buildSaleSteps(tc) {
         method: 'POST',
         url: '{{url}}api/order/order_save',
         bodyType: 'form',
-        body: saleBody(tc),
+        body: saleBody(tc, tc.qty, docRef),
         qtyLedger: saleQtyLedger(tc.qty, saleUnitPrice(tc)),
         save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
         caseFinal: true,
@@ -1069,7 +1076,7 @@ function buildSaleSteps(tc) {
       method: 'POST',
       url: '{{url}}api/order/order_save',
       bodyType: 'form',
-      body: saleBody(tc),
+      body: saleBody(tc, tc.qty, docRef),
       qtyLedger: saleQtyLedger(tc.qty, unitPrice),
       save: { [`txn_${tc.n}_id`]: RECORD_ID_SAVE },
     },
@@ -1088,15 +1095,16 @@ function buildSaleSteps(tc) {
       method: 'PATCH',
       url: `{{url}}api/order/order_update/{{txn_${tc.n}_id}}`,
       bodyType: 'form',
-      body: saleBody(tc, nextQty),
+      body: saleBody(tc, nextQty, docRef),
       qtyLedger: editDelta > 0 ? { type: 'edit_sale', qty: editDelta, unitPrice } : undefined,
       caseFinal: true,
     },
   ];
 }
 
-/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {typeof INVENTORY_TEST_CASES} allCases */
-function buildStepsForCase(tc, allCases) {
+/** @param {typeof INVENTORY_TEST_CASES[number]} tc @param {typeof INVENTORY_TEST_CASES} allCases @param {Map<number, { type: string; ref: string }>} docRefMap */
+function buildStepsForCase(tc, allCases, docRefMap) {
+  const docRef = resolveTestCaseDocRef(tc, docRefMap);
   const base = {
     caseNo: tc.n,
     name: `${tc.n}. ${tc.label}`,
@@ -1107,13 +1115,13 @@ function buildStepsForCase(tc, allCases) {
 
   switch (tc.type) {
     case 'purchase':
-      return buildPurchaseSteps(tc);
+      return withDocRef(buildPurchaseSteps(tc, docRef), docRef);
     case 'sale':
-      return buildSaleSteps(tc);
+      return withDocRef(buildSaleSteps(tc, docRef), docRef);
     case 'purchase_return':
-      return buildPurchaseReturnSteps(tc);
+      return withDocRef(buildPurchaseReturnSteps(tc, docRef), docRef);
     case 'sales_return':
-      return buildSalesReturnSteps(tc);
+      return withDocRef(buildSalesReturnSteps(tc, docRef), docRef);
     case 'edit_purchase': {
       // Edit a previously created purchase order down to `editQty` (a later,
       // standalone step). Removing units recalculates WAC at the purchase cost.
@@ -1122,13 +1130,14 @@ function buildStepsForCase(tc, allCases) {
       const newQty = Number(tc.editQty);
       const removed = origQty - newQty;
       const poPrice = effectivePoPrice(tc.ref, allCases);
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'PATCH',
           url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.ref}_id}}`,
           bodyType: 'form',
-          body: refCase ? purchaseBody(refCase, newQty, poPrice) : {},
+          body: refCase ? purchaseBody(refCase, newQty, poPrice, docRef) : {},
           qtyLedger:
             removed > 0 && !tc.replayQty
               ? { type: 'edit_purchase', qty: removed, unitPrice: poPrice }
@@ -1136,20 +1145,23 @@ function buildStepsForCase(tc, allCases) {
           replayExpectedQty:
             tc.replayQty && tc.expected != null ? tc.expected : undefined,
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'edit_purchase_price': {
       const refCase = inventoryCase(tc.ref, allCases);
       const poQty = Number(tc.refQty) || effectivePoQty(tc.ref, allCases);
       const newPrice = Number(tc.editPrice);
       const oldPrice = effectivePoPriceBeforeEditAtStep(tc.ref, allCases, tc.n);
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'PATCH',
           url: `{{url}}api/purchase_order/purchase_order_update/{{txn_${tc.ref}_id}}`,
           bodyType: 'form',
-          body: refCase ? purchaseBody(refCase, poQty, newPrice) : {},
+          body: refCase ? purchaseBody(refCase, poQty, newPrice, docRef) : {},
           qtyLedger: tc.replayQty
             ? undefined
             : {
@@ -1161,7 +1173,9 @@ function buildStepsForCase(tc, allCases) {
           replayExpectedQty:
             tc.replayQty && tc.expected != null ? tc.expected : undefined,
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'edit_sale': {
       // Edit a previously created sale down to `editQty` (a later, standalone
@@ -1171,23 +1185,27 @@ function buildStepsForCase(tc, allCases) {
       const newQty = Number(tc.editQty);
       const restored = origQty - newQty;
       const unitPrice = refCase ? saleUnitPrice(refCase) : PRODUCT_PRICE;
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'PATCH',
           url: `{{url}}api/order/order_update/{{txn_${tc.ref}_id}}`,
           bodyType: 'form',
-          body: refCase ? saleBody(refCase, newQty) : {},
+          body: refCase ? saleBody(refCase, newQty, docRef) : {},
           qtyLedger:
             restored > 0 ? { type: 'edit_sale', qty: restored, unitPrice } : undefined,
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'delete_purchase': {
       const refCase = inventoryCase(tc.ref, allCases);
       const undoQty = overrideUndoQty(tc) ?? (effectiveTxnQty(refCase) || Number(tc.refQty) || 0);
       const poPrice = effectivePoPrice(tc.ref, allCases);
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'DELETE',
@@ -1203,12 +1221,15 @@ function buildStepsForCase(tc, allCases) {
           replayExpectedQty:
             tc.replayQty && tc.expected != null ? tc.expected : undefined,
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'delete_sale': {
       const refCase = inventoryCase(tc.ref, allCases);
       const undoQty = overrideUndoQty(tc) ?? (effectiveTxnQty(refCase) || Number(tc.refQty) || 0);
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'DELETE',
@@ -1220,11 +1241,14 @@ function buildStepsForCase(tc, allCases) {
             unitPrice: refCase ? saleUnitPrice(refCase) : PRODUCT_PRICE,
           },
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'delete_purchase_return': {
       const refCase = inventoryCase(tc.ref, allCases);
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'DELETE',
@@ -1236,10 +1260,13 @@ function buildStepsForCase(tc, allCases) {
             unitPrice: refCase?.price ?? 0,
           },
         },
-      ];
+      ],
+        docRef
+      );
     }
     case 'delete_sales_return':
-      return [
+      return withDocRef(
+        [
         {
           ...base,
           method: 'DELETE',
@@ -1251,7 +1278,9 @@ function buildStepsForCase(tc, allCases) {
             unitPrice: PRODUCT_PRICE,
           },
         },
-      ];
+      ],
+        docRef
+      );
     case 'validation':
       return [
         {
@@ -1467,8 +1496,9 @@ function createSetupSteps() {
 export function createInventoryTestCaseSteps(suiteId = TEST_CASE_SUITES[0].id) {
   const suite = TEST_CASE_SUITES.find((s) => s.id === suiteId) ?? TEST_CASE_SUITES[0];
   const cases = suite.getTransactionCases();
+  const docRefMap = buildTestCaseDocRefMap(cases);
   const txnSteps = [
-    ...cases.flatMap((tc) => buildStepsForCase(tc, cases)),
+    ...cases.flatMap((tc) => buildStepsForCase(tc, cases, docRefMap)),
     ...suite.postTransactionSteps(),
   ];
   return assignRunningExpected([...createSetupSteps(), ...txnSteps], cases);
