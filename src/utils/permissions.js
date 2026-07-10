@@ -4,23 +4,55 @@
  */
 
 /**
- * Check if user has ADMIN role
- * @param {Object} state - Redux state
- * @returns {boolean} - True if user has ADMIN role
+ * Normalize a single role value to an uppercase string (or '').
+ * Accepts strings and common API shapes: `{ name }`, `{ role }`, `{ label }`, `{ value }`.
+ * @param {unknown} role
+ * @returns {string}
  */
-const normalizeRoles = (role) => {
+function roleToLabel(role) {
+  if (role == null) return '';
+  if (typeof role === 'string') return role.trim().toUpperCase();
+  if (typeof role === 'object') {
+    const raw = role.name ?? role.role ?? role.label ?? role.value ?? '';
+    return typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  }
+  return '';
+}
+
+/**
+ * Flatten role / roles fields into uppercase role labels.
+ * @param {unknown} role
+ * @returns {string[]}
+ */
+export const normalizeRoles = (role) => {
   if (!role) return [];
   const list = Array.isArray(role) ? role : [role];
-  return list.map((r) => (typeof r === 'string' ? r.trim().toUpperCase() : r));
+  return list.map(roleToLabel).filter(Boolean);
 };
 
-export const isAdmin = (state) => {
-  // Check both the stored user document role and the session role list, so a
-  // mismatch between the two never silently drops admin/edit rights.
-  const fromUser = normalizeRoles(state?.user?.user?.role);
-  if (fromUser.includes('ADMIN')) return true;
+/**
+ * Collect role labels from the logged-in user document and session.
+ * @param {Object} state - Redux state
+ * @returns {string[]}
+ */
+export const getUserRoleLabels = (state) => {
+  const userDoc = state?.user?.user;
+  const fromUser = [
+    ...normalizeRoles(userDoc?.role),
+    ...normalizeRoles(userDoc?.roles),
+  ];
   const fromSession = normalizeRoles(state?.user?.roles);
-  return fromSession.includes('ADMIN');
+  return [...new Set([...fromUser, ...fromSession])];
+};
+
+/**
+ * Check if user has ADMIN role.
+ * ADMIN bypasses module permission checks and sees all navigation.
+ * @param {Object} state - Redux state
+ * @returns {boolean}
+ */
+export const isAdmin = (state) => {
+  return getUserRoleLabels(state).includes('ADMIN');
 };
 
 /**

@@ -90,12 +90,14 @@ export const NAV_ITEMS = [
  * @param {boolean} [opts.debug]
  */
 export function filterNavItems({ isAdmin, canView, routePermissionModule, debug = false }) {
+  // ADMIN always gets the full sidebar (permissions + debug-only items).
+  if (isAdmin) return [...NAV_ITEMS];
+
   return NAV_ITEMS.filter(({ to, adminOnly, debugOnly }) => {
     if (debugOnly && !debug) return false;
-    if (adminOnly) return isAdmin;
+    if (adminOnly) return false;
     const moduleKey = routePermissionModule?.[to];
     if (moduleKey == null) return true;
-    if (isAdmin) return true;
     return canView(moduleKey);
   });
 }

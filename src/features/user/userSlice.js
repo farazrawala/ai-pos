@@ -54,9 +54,25 @@ const buildSessionFromUser = (userData) => {
     defaultAccounts,
     permissions:
       userData?.permissions && typeof userData.permissions === 'object' ? userData.permissions : {},
-    roles: Array.isArray(userData?.role) ? userData.role : userData?.role ? [userData.role] : [],
+    roles: collectUserRoles(userData),
   };
 };
+
+/** Prefer `role`, fall back to `roles` (API shape varies). */
+function collectUserRoles(userData) {
+  const fromRole = Array.isArray(userData?.role)
+    ? userData.role
+    : userData?.role
+      ? [userData.role]
+      : [];
+  if (fromRole.length) return fromRole;
+  const fromRoles = Array.isArray(userData?.roles)
+    ? userData.roles
+    : userData?.roles
+      ? [userData.roles]
+      : [];
+  return fromRoles;
+}
 
 const pickId = (doc) => {
   if (!doc || typeof doc !== 'object') return '';
