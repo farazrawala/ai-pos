@@ -27,7 +27,7 @@ import FetchProductsModal from '../../components/product/FetchProductsModal.jsx'
 import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
-import { productEditIdFromRecord, productIdFromRecord } from '../../components/product/productVariationUtils.js';
+import { productEditIdFromRecord, productIdFromRecord, parentProductIdFromRecord } from '../../components/product/productVariationUtils.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 import { fetchAllProductsForExportRequest } from '../../features/products/productsAPI.js';
@@ -864,7 +864,11 @@ const Product = () => {
                                   title="View sync"
                                   aria-label="View sync"
                                   onClick={() =>
-                                    setViewSyncProduct({ id: productId, name: productName })
+                                    setViewSyncProduct({
+                                      id: productId,
+                                      name: productName,
+                                      parentProductId: parentProductIdFromRecord(item),
+                                    })
                                   }
                                 >
                                   <NavIcon icon={FaArrowsRotate} size={14} />
@@ -925,6 +929,7 @@ const Product = () => {
         open={Boolean(viewSyncProduct?.id)}
         productId={viewSyncProduct?.id || ''}
         productName={viewSyncProduct?.name || ''}
+        parentProductId={viewSyncProduct?.parentProductId || ''}
         onClose={() => setViewSyncProduct(null)}
       />
 

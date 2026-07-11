@@ -42,6 +42,8 @@ const parentProductIdFromRecord = (item) => {
   return String(raw).trim();
 };
 
+export { parentProductIdFromRecord };
+
 const isSingleProductType = (item) => {
   const type = String(item?.product_type ?? item?.productType ?? 'Single').trim();
   return type.toLowerCase() === 'single';

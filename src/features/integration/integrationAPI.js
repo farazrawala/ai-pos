@@ -280,6 +280,54 @@ export const fetchIntegrationByIdRequest = async (integrationId) => {
   return extractIntegrationRecord(result) ?? result;
 };
 
+/** List remote store variations for a parent product (WooCommerce / Shopify). */
+export const fetchStoreProductVariationsRequest = async (
+  integrationId,
+  remoteProductId
+) => {
+  const id = String(integrationId || '').trim();
+  const remoteId = String(remoteProductId || '').trim();
+  if (!id) throw new Error('Integration id is required');
+  if (!remoteId) throw new Error('Remote product id is required');
+
+  const url = `${BASE_URL}integration/store-product-variations/${encodeURIComponent(id)}/${encodeURIComponent(remoteId)}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  } catch (err) {
+    logIntegrationModuleError('fetchStoreProductVariationsRequest network error', {
+      url,
+      integrationId: id,
+      remoteProductId: remoteId,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('fetchStoreProductVariationsRequest failed', {
+      status: response.status,
+      integrationId: id,
+      remoteProductId: remoteId,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+  const data = Array.isArray(result?.data) ? result.data : [];
+  return {
+    data,
+    parent: result?.parent || null,
+    store_type: result?.store_type || '',
+    message: result?.message || '',
+  };
+};
+
 export const createIntegrationRequest = async (integrationData) => {
   const url = `${BASE_URL}integration/create`;
   return postIntegrationRequest(url, integrationData);
