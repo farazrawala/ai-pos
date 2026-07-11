@@ -243,3 +243,31 @@
   min-width: 2.2rem;
   text-align: left;
 }
+
+.settings-row-nested {
+  background: #f8f9fc;
+  border-radius: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  margin-top: -0.15rem;
+  margin-bottom: 0.35rem;
+  border-top: none;
+}
+
+.settings-amount-input {
+  width: 8.5rem;
+  max-width: 40vw;
+}
+
+.settings-row-template {
+  align-items: flex-start;
+}
+
+.settings-sms-template {
+  width: 100%;
+  min-height: 9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  resize: vertical;
+}

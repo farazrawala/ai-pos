@@ -888,6 +888,10 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
   if (!fallback) return fetched;
   const printerRaw = readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
   const productRaw = readProductSettingsRaw(fetched) ?? readProductSettingsRaw(fallback) ?? null;
+  const smsRaw = readLocalSmsSettingsRaw(fetched) ?? readLocalSmsSettingsRaw(fallback) ?? null;
+  const apiSmsRaw = readApiSmsSettingsRaw(fetched) ?? readApiSmsSettingsRaw(fallback) ?? null;
+  const emailAlertsRaw =
+    readEmailAlertsSettingsRaw(fetched) ?? readEmailAlertsSettingsRaw(fallback) ?? null;
   const defaultPrinterRaw =
     readDefaultPrinterSettingsRaw(fetched) ?? readDefaultPrinterSettingsRaw(fallback) ?? null;
   return {
@@ -895,6 +899,11 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
     ...fetched,
     ...(printerRaw != null ? { printer_settings: printerRaw, printerSettings: printerRaw } : {}),
     ...(productRaw != null ? { product_settings: productRaw, productSettings: productRaw } : {}),
+    ...(smsRaw != null ? { local_sms: smsRaw, localSms: smsRaw } : {}),
+    ...(apiSmsRaw != null ? { api_sms: apiSmsRaw, apiSms: apiSmsRaw } : {}),
+    ...(emailAlertsRaw != null
+      ? { email_alerts: emailAlertsRaw, emailAlerts: emailAlertsRaw }
+      : {}),
     ...(defaultPrinterRaw != null
       ? { default_printer_settings: defaultPrinterRaw, defaultPrinterSettings: defaultPrinterRaw }
       : {}),
@@ -1068,6 +1077,418 @@ export function buildProductSettingsPayload(values) {
 export async function patchCompanyProductSettings(companyId, settingsObject) {
   return patchCompanyFormFields(companyId, {
     product_settings: JSON.stringify(settingsObject),
+  });
+}
+
+/** Local SMS alert settings saved on company as `local_sms`. */
+export const DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE = `Hi {name},
+
+Thank you for your order.
+Phone: {phone}
+Email: {email}
+Amount: {total_amount}
+Transaction #: {transaction_number}
+Date: {createdAt}`;
+
+export const LOCAL_SMS_SETTING_DEFS = [
+  {
+    key: 'send_sms_on_order',
+    label: 'Send SMS on order',
+    hint: 'Send a local SMS alert when an order is placed.',
+    type: 'toggle_template',
+    templateKey: 'send_sms_on_order_message',
+    defaultValue: false,
+  },
+  {
+    key: 'send_sms_greater_than',
+    label: 'Send SMS greater than',
+    hint: 'Only send when the order total is greater than the amount below.',
+    type: 'toggle_amount',
+    amountKey: 'send_sms_greater_than_amount',
+    defaultValue: false,
+    defaultAmount: 0,
+  },
+];
+
+export function defaultLocalSmsSettings() {
+  return {
+    send_sms_on_order: false,
+    send_sms_on_order_message: DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    send_sms_greater_than: false,
+    send_sms_greater_than_amount: 0,
+  };
+}
+
+function readLocalSmsSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw =
+    company.local_sms ??
+    company.localSms ??
+    company.local_sms_settings ??
+    company.localSmsSettings;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.local_sms != null) return parsed.local_sms;
+    if (parsed?.localSms != null) return parsed.localSms;
+    if (parsed?.local_sms_settings != null) return parsed.local_sms_settings;
+    if (parsed?.localSmsSettings != null) return parsed.localSmsSettings;
+    if (
+      parsed?.send_sms_on_order !== undefined ||
+      parsed?.send_sms_greater_than !== undefined
+    ) {
+      return parsed;
+    }
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw =
+      allFields.local_sms ??
+      allFields.localSms ??
+      allFields.local_sms_settings ??
+      allFields.localSmsSettings;
+    if (raw != null) return raw;
+    if (
+      allFields.send_sms_on_order !== undefined ||
+      allFields.send_sms_greater_than !== undefined
+    ) {
+      return allFields;
+    }
+  }
+
+  return null;
+}
+
+export function extractLocalSmsSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readLocalSmsSettingsRaw(company));
+}
+
+export function normalizeIncomingLocalSmsSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultLocalSmsSettings();
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (parsed[k] !== undefined && parsed[k] !== null) return parsed[k];
+    }
+    return undefined;
+  };
+  const amountRaw = get(
+    'send_sms_greater_than_amount',
+    'sendSmsGreaterThanAmount',
+    'sms_greater_than_amount'
+  );
+  const amount = Number(amountRaw);
+  const messageRaw = get(
+    'send_sms_on_order_message',
+    'sendSmsOnOrderMessage',
+    'sms_on_order_message'
+  );
+  const message =
+    messageRaw != null && String(messageRaw).trim()
+      ? String(messageRaw)
+      : defaults.send_sms_on_order_message;
+  return {
+    send_sms_on_order: coerceSettingBool(
+      get('send_sms_on_order', 'sendSmsOnOrder') ?? defaults.send_sms_on_order
+    ),
+    send_sms_on_order_message: message,
+    send_sms_greater_than: coerceSettingBool(
+      get('send_sms_greater_than', 'sendSmsGreaterThan') ?? defaults.send_sms_greater_than
+    ),
+    send_sms_greater_than_amount:
+      Number.isFinite(amount) && amount >= 0 ? amount : defaults.send_sms_greater_than_amount,
+  };
+}
+
+export function mergeLocalSmsSettings(parsed) {
+  return normalizeIncomingLocalSmsSettings(parsed) || defaultLocalSmsSettings();
+}
+
+export function buildLocalSmsSettingsPayload(values) {
+  const normalized = normalizeIncomingLocalSmsSettings(values) || defaultLocalSmsSettings();
+  return {
+    send_sms_on_order: Boolean(normalized.send_sms_on_order),
+    send_sms_on_order_message: String(
+      normalized.send_sms_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+    ),
+    send_sms_greater_than: Boolean(normalized.send_sms_greater_than),
+    send_sms_greater_than_amount: Math.max(
+      0,
+      Number(normalized.send_sms_greater_than_amount) || 0
+    ),
+  };
+}
+
+export async function patchCompanyLocalSmsSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    local_sms: JSON.stringify(settingsObject),
+  });
+}
+
+/** API SMS alert settings saved on company as `api_sms`. */
+export const API_SMS_SETTING_DEFS = [
+  {
+    key: 'send_sms_on_order',
+    label: 'Send SMS on order',
+    hint: 'Send an API SMS alert when an order is placed.',
+    type: 'toggle_template',
+    templateKey: 'send_sms_on_order_message',
+    defaultValue: false,
+  },
+  {
+    key: 'send_sms_greater_than',
+    label: 'Send SMS greater than',
+    hint: 'Only send when the order total is greater than the amount below.',
+    type: 'toggle_amount',
+    amountKey: 'send_sms_greater_than_amount',
+    defaultValue: false,
+    defaultAmount: 0,
+  },
+];
+
+export function defaultApiSmsSettings() {
+  return {
+    send_sms_on_order: false,
+    send_sms_on_order_message: DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    send_sms_greater_than: false,
+    send_sms_greater_than_amount: 0,
+    api_url: '',
+    api_key: '',
+    api_secret: '',
+  };
+}
+
+function readApiSmsSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw = company.api_sms ?? company.apiSms;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.api_sms != null) return parsed.api_sms;
+    if (parsed?.apiSms != null) return parsed.apiSms;
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw = allFields.api_sms ?? allFields.apiSms;
+    if (raw != null) return raw;
+  }
+
+  return null;
+}
+
+export function extractApiSmsSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readApiSmsSettingsRaw(company));
+}
+
+export function normalizeIncomingApiSmsSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultApiSmsSettings();
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (parsed[k] !== undefined && parsed[k] !== null) return parsed[k];
+    }
+    return undefined;
+  };
+  const amountRaw = get(
+    'send_sms_greater_than_amount',
+    'sendSmsGreaterThanAmount',
+    'sms_greater_than_amount'
+  );
+  const amount = Number(amountRaw);
+  const messageRaw = get(
+    'send_sms_on_order_message',
+    'sendSmsOnOrderMessage',
+    'sms_on_order_message'
+  );
+  const message =
+    messageRaw != null && String(messageRaw).trim()
+      ? String(messageRaw)
+      : defaults.send_sms_on_order_message;
+  return {
+    send_sms_on_order: coerceSettingBool(
+      get('send_sms_on_order', 'sendSmsOnOrder') ?? defaults.send_sms_on_order
+    ),
+    send_sms_on_order_message: message,
+    send_sms_greater_than: coerceSettingBool(
+      get('send_sms_greater_than', 'sendSmsGreaterThan') ?? defaults.send_sms_greater_than
+    ),
+    send_sms_greater_than_amount:
+      Number.isFinite(amount) && amount >= 0 ? amount : defaults.send_sms_greater_than_amount,
+    api_url: String(get('api_url', 'apiUrl') ?? defaults.api_url),
+    api_key: String(get('api_key', 'apiKey') ?? defaults.api_key),
+    api_secret: String(get('api_secret', 'apiSecret') ?? defaults.api_secret),
+  };
+}
+
+export function mergeApiSmsSettings(parsed) {
+  return normalizeIncomingApiSmsSettings(parsed) || defaultApiSmsSettings();
+}
+
+export function buildApiSmsSettingsPayload(values) {
+  const normalized = normalizeIncomingApiSmsSettings(values) || defaultApiSmsSettings();
+  return {
+    send_sms_on_order: Boolean(normalized.send_sms_on_order),
+    send_sms_on_order_message: String(
+      normalized.send_sms_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+    ),
+    send_sms_greater_than: Boolean(normalized.send_sms_greater_than),
+    send_sms_greater_than_amount: Math.max(
+      0,
+      Number(normalized.send_sms_greater_than_amount) || 0
+    ),
+    api_url: String(normalized.api_url || '').trim(),
+    api_key: String(normalized.api_key || '').trim(),
+    api_secret: String(normalized.api_secret || '').trim(),
+  };
+}
+
+export async function patchCompanyApiSmsSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    api_sms: JSON.stringify(settingsObject),
+  });
+}
+
+/** Email alert settings saved on company as `email_alerts`. */
+export const EMAIL_ALERT_SETTING_DEFS = [
+  {
+    key: 'send_email_on_order',
+    label: 'Send email on order',
+    hint: 'Send an email alert when an order is placed.',
+    type: 'toggle_template',
+    templateKey: 'send_email_on_order_message',
+    defaultValue: false,
+  },
+  {
+    key: 'send_email_greater_than',
+    label: 'Send email greater than',
+    hint: 'Only send when the order total is greater than the amount below.',
+    type: 'toggle_amount',
+    amountKey: 'send_email_greater_than_amount',
+    defaultValue: false,
+    defaultAmount: 0,
+  },
+];
+
+export function defaultEmailAlertsSettings() {
+  return {
+    send_email_on_order: false,
+    send_email_on_order_message: DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    send_email_greater_than: false,
+    send_email_greater_than_amount: 0,
+    gmail_email: '',
+    two_step_password: '',
+  };
+}
+
+function readEmailAlertsSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw = company.email_alerts ?? company.emailAlerts;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.email_alerts != null) return parsed.email_alerts;
+    if (parsed?.emailAlerts != null) return parsed.emailAlerts;
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw = allFields.email_alerts ?? allFields.emailAlerts;
+    if (raw != null) return raw;
+  }
+
+  return null;
+}
+
+export function extractEmailAlertsSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readEmailAlertsSettingsRaw(company));
+}
+
+export function normalizeIncomingEmailAlertsSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultEmailAlertsSettings();
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (parsed[k] !== undefined && parsed[k] !== null) return parsed[k];
+    }
+    return undefined;
+  };
+  const amountRaw = get(
+    'send_email_greater_than_amount',
+    'sendEmailGreaterThanAmount',
+    'email_greater_than_amount'
+  );
+  const amount = Number(amountRaw);
+  const messageRaw = get(
+    'send_email_on_order_message',
+    'sendEmailOnOrderMessage',
+    'email_on_order_message'
+  );
+  const message =
+    messageRaw != null && String(messageRaw).trim()
+      ? String(messageRaw)
+      : defaults.send_email_on_order_message;
+  return {
+    send_email_on_order: coerceSettingBool(
+      get('send_email_on_order', 'sendEmailOnOrder') ?? defaults.send_email_on_order
+    ),
+    send_email_on_order_message: message,
+    send_email_greater_than: coerceSettingBool(
+      get('send_email_greater_than', 'sendEmailGreaterThan') ?? defaults.send_email_greater_than
+    ),
+    send_email_greater_than_amount:
+      Number.isFinite(amount) && amount >= 0 ? amount : defaults.send_email_greater_than_amount,
+    gmail_email: String(get('gmail_email', 'gmailEmail') ?? defaults.gmail_email).trim(),
+    two_step_password: String(
+      get('two_step_password', 'twoStepPassword', 'app_password', 'appPassword') ??
+        defaults.two_step_password
+    ),
+  };
+}
+
+export function mergeEmailAlertsSettings(parsed) {
+  return normalizeIncomingEmailAlertsSettings(parsed) || defaultEmailAlertsSettings();
+}
+
+export function buildEmailAlertsSettingsPayload(values) {
+  const normalized = normalizeIncomingEmailAlertsSettings(values) || defaultEmailAlertsSettings();
+  return {
+    send_email_on_order: Boolean(normalized.send_email_on_order),
+    send_email_on_order_message: String(
+      normalized.send_email_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+    ),
+    send_email_greater_than: Boolean(normalized.send_email_greater_than),
+    send_email_greater_than_amount: Math.max(
+      0,
+      Number(normalized.send_email_greater_than_amount) || 0
+    ),
+    gmail_email: String(normalized.gmail_email || '').trim(),
+    two_step_password: String(normalized.two_step_password || '').trim(),
+  };
+}
+
+export async function patchCompanyEmailAlertsSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    email_alerts: JSON.stringify(settingsObject),
   });
 }
 

@@ -6,32 +6,44 @@ import {
   PRINTER_SETTING_DEFS,
   PRINTER_SETTING_SECTIONS,
   PRODUCT_SETTING_DEFS,
+  LOCAL_SMS_SETTING_DEFS,
+  API_SMS_SETTING_DEFS,
+  EMAIL_ALERT_SETTING_DEFS,
+  DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
   buildPrinterSettingsPayload,
   buildProductSettingsPayload,
+  buildLocalSmsSettingsPayload,
+  buildApiSmsSettingsPayload,
+  buildEmailAlertsSettingsPayload,
   defaultPrinterSettings,
   defaultProductSettings,
+  defaultLocalSmsSettings,
+  defaultApiSmsSettings,
+  defaultEmailAlertsSettings,
   extractPrinterSettingsFromCompanyBody,
   extractProductSettingsFromCompanyBody,
+  extractLocalSmsSettingsFromCompanyBody,
+  extractApiSmsSettingsFromCompanyBody,
+  extractEmailAlertsSettingsFromCompanyBody,
   fetchCompanyById,
   getCompanyFromApiBody,
   mergePrinterSettings,
   mergeProductSettings,
+  mergeLocalSmsSettings,
+  mergeApiSmsSettings,
+  mergeEmailAlertsSettings,
   normalizeIncomingPrinterSettings,
   normalizeIncomingProductSettings,
   patchCompanyPrinterSettings,
   patchCompanyProductSettings,
-  defaultDefaultPrinterSettings,
-  extractDefaultPrinterSettingsFromCompanyBody,
-  mergeDefaultPrinterSettings,
-  buildDefaultPrinterSettingsPayload,
-  validateDefaultPrinterSettingsPayload,
-  patchCompanyDefaultPrinterSettings,
+  patchCompanyLocalSmsSettings,
+  patchCompanyApiSmsSettings,
+  patchCompanyEmailAlertsSettings,
   pickCompanyLogoUrl,
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { showToast } from '../../utils/toast.js';
-import DefaultPrinterSettingsForm from './DefaultPrinterSettingsForm.jsx';
 
 function applyCompanyToForm(company, setters) {
   if (!company) return;
@@ -81,12 +93,22 @@ export default function CompanySettingsView() {
   const [togglingProductKey, setTogglingProductKey] = useState('');
   const [productSaveError, setProductSaveError] = useState('');
 
-  const [networkPrinterSettings, setNetworkPrinterSettings] = useState(() =>
-    defaultDefaultPrinterSettings()
+  const [smsSettings, setSmsSettings] = useState(() => defaultLocalSmsSettings());
+  const [togglingSmsKey, setTogglingSmsKey] = useState('');
+  const [smsAmountSaving, setSmsAmountSaving] = useState(false);
+  const [smsSaveError, setSmsSaveError] = useState('');
+
+  const [apiSmsSettings, setApiSmsSettings] = useState(() => defaultApiSmsSettings());
+  const [togglingApiSmsKey, setTogglingApiSmsKey] = useState('');
+  const [apiSmsFieldSaving, setApiSmsFieldSaving] = useState(false);
+  const [apiSmsSaveError, setApiSmsSaveError] = useState('');
+
+  const [emailAlertsSettings, setEmailAlertsSettings] = useState(() =>
+    defaultEmailAlertsSettings()
   );
-  const [networkPrinterErrors, setNetworkPrinterErrors] = useState({});
-  const [networkPrinterSaving, setNetworkPrinterSaving] = useState(false);
-  const [networkPrinterSaveError, setNetworkPrinterSaveError] = useState('');
+  const [togglingEmailAlertsKey, setTogglingEmailAlertsKey] = useState('');
+  const [emailAlertsFieldSaving, setEmailAlertsFieldSaving] = useState(false);
+  const [emailAlertsSaveError, setEmailAlertsSaveError] = useState('');
 
   const printerSettingByKey = useMemo(() => {
     const map = {};
@@ -124,8 +146,12 @@ export default function CompanySettingsView() {
     setPrinterSettings(mergePrinterSettings(parsed));
     const productParsed = extractProductSettingsFromCompanyBody(body ?? { data: company });
     setProductSettings(mergeProductSettings(productParsed));
-    const defaultPrinterParsed = extractDefaultPrinterSettingsFromCompanyBody(body ?? { data: company });
-    setNetworkPrinterSettings(mergeDefaultPrinterSettings(defaultPrinterParsed));
+    const smsParsed = extractLocalSmsSettingsFromCompanyBody(body ?? { data: company });
+    setSmsSettings(mergeLocalSmsSettings(smsParsed));
+    const apiSmsParsed = extractApiSmsSettingsFromCompanyBody(body ?? { data: company });
+    setApiSmsSettings(mergeApiSmsSettings(apiSmsParsed));
+    const emailAlertsParsed = extractEmailAlertsSettingsFromCompanyBody(body ?? { data: company });
+    setEmailAlertsSettings(mergeEmailAlertsSettings(emailAlertsParsed));
   }, []);
 
   useEffect(() => {
@@ -303,40 +329,6 @@ export default function CompanySettingsView() {
     setProductSettings(mergeProductSettings(parsed));
   };
 
-  const handleSaveDefaultPrinterSettings = async (e) => {
-    e.preventDefault();
-    if (!companyId || networkPrinterSaving) return;
-
-    const validationErrors = validateDefaultPrinterSettingsPayload(networkPrinterSettings);
-    if (Object.keys(validationErrors).length) {
-      setNetworkPrinterErrors(validationErrors);
-      return;
-    }
-
-    setNetworkPrinterSaving(true);
-    setNetworkPrinterSaveError('');
-    setNetworkPrinterErrors({});
-
-    try {
-      const payload = buildDefaultPrinterSettingsPayload(networkPrinterSettings);
-      await patchCompanyDefaultPrinterSettings(companyId, payload);
-      const merged = {
-        ...(authCompany || {}),
-        default_printer_settings: payload,
-        defaultPrinterSettings: payload,
-      };
-      dispatch(setCompany(merged));
-      setNetworkPrinterSettings(mergeDefaultPrinterSettings(payload));
-      showToast({ message: 'Default printer settings saved.', variant: 'success' });
-    } catch (err) {
-      const message = err?.message || 'Failed to save default printer settings';
-      setNetworkPrinterSaveError(message);
-      showToast({ message, variant: 'error' });
-    } finally {
-      setNetworkPrinterSaving(false);
-    }
-  };
-
   const handleToggleProductSetting = async (key) => {
     if (!companyId || togglingProductKey) return;
 
@@ -355,6 +347,386 @@ export default function CompanySettingsView() {
       showToast({ message, variant: 'error' });
     } finally {
       setTogglingProductKey('');
+    }
+  };
+
+  const persistSmsSettings = async (nextSettings) => {
+    const payload = buildLocalSmsSettingsPayload(nextSettings);
+    const updated = await patchCompanyLocalSmsSettings(companyId, payload);
+    const fromApi = getCompanyFromApiBody(updated);
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      local_sms: fromApi?.local_sms ?? fromApi?.localSms ?? payload,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractLocalSmsSettingsFromCompanyBody({ data: merged });
+    setSmsSettings(mergeLocalSmsSettings(parsed));
+  };
+
+  const handleToggleSmsSetting = async (key) => {
+    if (!companyId || togglingSmsKey || smsAmountSaving) return;
+
+    const previous = smsSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    if (
+      key === 'send_sms_on_order' &&
+      next.send_sms_on_order &&
+      !String(next.send_sms_on_order_message || '').trim()
+    ) {
+      next.send_sms_on_order_message = DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE;
+    }
+    setSmsSettings(next);
+    setSmsSaveError('');
+    setTogglingSmsKey(key);
+
+    try {
+      await persistSmsSettings(next);
+    } catch (err) {
+      setSmsSettings(previous);
+      const message = err?.message || 'Failed to update SMS setting';
+      setSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingSmsKey('');
+    }
+  };
+
+  const handleSmsAmountChange = (value) => {
+    const amount = value === '' ? '' : Math.max(0, Number(value));
+    setSmsSettings((prev) => ({
+      ...prev,
+      send_sms_greater_than_amount: amount === '' || Number.isNaN(amount) ? '' : amount,
+    }));
+  };
+
+  const handleSmsAmountBlur = async () => {
+    if (!companyId || togglingSmsKey || smsAmountSaving) return;
+
+    const previous = mergeLocalSmsSettings(smsSettings);
+    const next = {
+      ...smsSettings,
+      send_sms_greater_than_amount: Math.max(
+        0,
+        Number(smsSettings.send_sms_greater_than_amount) || 0
+      ),
+    };
+    setSmsSettings(next);
+    setSmsSaveError('');
+    setSmsAmountSaving(true);
+
+    try {
+      await persistSmsSettings(next);
+    } catch (err) {
+      setSmsSettings(previous);
+      const message = err?.message || 'Failed to update SMS amount';
+      setSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setSmsAmountSaving(false);
+    }
+  };
+
+  const handleSmsTemplateChange = (value) => {
+    setSmsSettings((prev) => ({
+      ...prev,
+      send_sms_on_order_message: value,
+    }));
+  };
+
+  const handleSmsTemplateBlur = async () => {
+    if (!companyId || togglingSmsKey || smsAmountSaving) return;
+
+    const previous = mergeLocalSmsSettings(smsSettings);
+    const next = {
+      ...smsSettings,
+      send_sms_on_order_message:
+        String(smsSettings.send_sms_on_order_message || '').trim() ||
+        DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    };
+    setSmsSettings(next);
+    setSmsSaveError('');
+    setSmsAmountSaving(true);
+
+    try {
+      await persistSmsSettings(next);
+    } catch (err) {
+      setSmsSettings(previous);
+      const message = err?.message || 'Failed to update SMS message';
+      setSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setSmsAmountSaving(false);
+    }
+  };
+
+  const persistApiSmsSettings = async (nextSettings) => {
+    const payload = buildApiSmsSettingsPayload(nextSettings);
+    const updated = await patchCompanyApiSmsSettings(companyId, payload);
+    const fromApi = getCompanyFromApiBody(updated);
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      api_sms: fromApi?.api_sms ?? fromApi?.apiSms ?? payload,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractApiSmsSettingsFromCompanyBody({ data: merged });
+    setApiSmsSettings(mergeApiSmsSettings(parsed));
+  };
+
+  const handleToggleApiSmsSetting = async (key) => {
+    if (!companyId || togglingApiSmsKey || apiSmsFieldSaving) return;
+
+    const previous = apiSmsSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    if (
+      key === 'send_sms_on_order' &&
+      next.send_sms_on_order &&
+      !String(next.send_sms_on_order_message || '').trim()
+    ) {
+      next.send_sms_on_order_message = DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE;
+    }
+    setApiSmsSettings(next);
+    setApiSmsSaveError('');
+    setTogglingApiSmsKey(key);
+
+    try {
+      await persistApiSmsSettings(next);
+    } catch (err) {
+      setApiSmsSettings(previous);
+      const message = err?.message || 'Failed to update API SMS setting';
+      setApiSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingApiSmsKey('');
+    }
+  };
+
+  const handleApiSmsAmountChange = (value) => {
+    const amount = value === '' ? '' : Math.max(0, Number(value));
+    setApiSmsSettings((prev) => ({
+      ...prev,
+      send_sms_greater_than_amount: amount === '' || Number.isNaN(amount) ? '' : amount,
+    }));
+  };
+
+  const handleApiSmsAmountBlur = async () => {
+    if (!companyId || togglingApiSmsKey || apiSmsFieldSaving) return;
+
+    const previous = mergeApiSmsSettings(apiSmsSettings);
+    const next = {
+      ...apiSmsSettings,
+      send_sms_greater_than_amount: Math.max(
+        0,
+        Number(apiSmsSettings.send_sms_greater_than_amount) || 0
+      ),
+    };
+    setApiSmsSettings(next);
+    setApiSmsSaveError('');
+    setApiSmsFieldSaving(true);
+
+    try {
+      await persistApiSmsSettings(next);
+    } catch (err) {
+      setApiSmsSettings(previous);
+      const message = err?.message || 'Failed to update API SMS amount';
+      setApiSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setApiSmsFieldSaving(false);
+    }
+  };
+
+  const handleApiSmsTemplateChange = (value) => {
+    setApiSmsSettings((prev) => ({
+      ...prev,
+      send_sms_on_order_message: value,
+    }));
+  };
+
+  const handleApiSmsTemplateBlur = async () => {
+    if (!companyId || togglingApiSmsKey || apiSmsFieldSaving) return;
+
+    const previous = mergeApiSmsSettings(apiSmsSettings);
+    const next = {
+      ...apiSmsSettings,
+      send_sms_on_order_message:
+        String(apiSmsSettings.send_sms_on_order_message || '').trim() ||
+        DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    };
+    setApiSmsSettings(next);
+    setApiSmsSaveError('');
+    setApiSmsFieldSaving(true);
+
+    try {
+      await persistApiSmsSettings(next);
+    } catch (err) {
+      setApiSmsSettings(previous);
+      const message = err?.message || 'Failed to update API SMS message';
+      setApiSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setApiSmsFieldSaving(false);
+    }
+  };
+
+  const handleApiSmsCredChange = (field, value) => {
+    setApiSmsSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleApiSmsCredBlur = async () => {
+    if (!companyId || togglingApiSmsKey || apiSmsFieldSaving) return;
+
+    const previous = mergeApiSmsSettings(apiSmsSettings);
+    const next = buildApiSmsSettingsPayload(apiSmsSettings);
+    setApiSmsSettings(next);
+    setApiSmsSaveError('');
+    setApiSmsFieldSaving(true);
+
+    try {
+      await persistApiSmsSettings(next);
+    } catch (err) {
+      setApiSmsSettings(previous);
+      const message = err?.message || 'Failed to update API SMS credentials';
+      setApiSmsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setApiSmsFieldSaving(false);
+    }
+  };
+
+  const persistEmailAlertsSettings = async (nextSettings) => {
+    const payload = buildEmailAlertsSettingsPayload(nextSettings);
+    const updated = await patchCompanyEmailAlertsSettings(companyId, payload);
+    const fromApi = getCompanyFromApiBody(updated);
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      email_alerts: fromApi?.email_alerts ?? fromApi?.emailAlerts ?? payload,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractEmailAlertsSettingsFromCompanyBody({ data: merged });
+    setEmailAlertsSettings(mergeEmailAlertsSettings(parsed));
+  };
+
+  const handleToggleEmailAlertsSetting = async (key) => {
+    if (!companyId || togglingEmailAlertsKey || emailAlertsFieldSaving) return;
+
+    const previous = emailAlertsSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    if (
+      key === 'send_email_on_order' &&
+      next.send_email_on_order &&
+      !String(next.send_email_on_order_message || '').trim()
+    ) {
+      next.send_email_on_order_message = DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE;
+    }
+    setEmailAlertsSettings(next);
+    setEmailAlertsSaveError('');
+    setTogglingEmailAlertsKey(key);
+
+    try {
+      await persistEmailAlertsSettings(next);
+    } catch (err) {
+      setEmailAlertsSettings(previous);
+      const message = err?.message || 'Failed to update email alert setting';
+      setEmailAlertsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingEmailAlertsKey('');
+    }
+  };
+
+  const handleEmailAlertsAmountChange = (value) => {
+    const amount = value === '' ? '' : Math.max(0, Number(value));
+    setEmailAlertsSettings((prev) => ({
+      ...prev,
+      send_email_greater_than_amount: amount === '' || Number.isNaN(amount) ? '' : amount,
+    }));
+  };
+
+  const handleEmailAlertsAmountBlur = async () => {
+    if (!companyId || togglingEmailAlertsKey || emailAlertsFieldSaving) return;
+
+    const previous = mergeEmailAlertsSettings(emailAlertsSettings);
+    const next = {
+      ...emailAlertsSettings,
+      send_email_greater_than_amount: Math.max(
+        0,
+        Number(emailAlertsSettings.send_email_greater_than_amount) || 0
+      ),
+    };
+    setEmailAlertsSettings(next);
+    setEmailAlertsSaveError('');
+    setEmailAlertsFieldSaving(true);
+
+    try {
+      await persistEmailAlertsSettings(next);
+    } catch (err) {
+      setEmailAlertsSettings(previous);
+      const message = err?.message || 'Failed to update email alert amount';
+      setEmailAlertsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setEmailAlertsFieldSaving(false);
+    }
+  };
+
+  const handleEmailAlertsTemplateChange = (value) => {
+    setEmailAlertsSettings((prev) => ({
+      ...prev,
+      send_email_on_order_message: value,
+    }));
+  };
+
+  const handleEmailAlertsTemplateBlur = async () => {
+    if (!companyId || togglingEmailAlertsKey || emailAlertsFieldSaving) return;
+
+    const previous = mergeEmailAlertsSettings(emailAlertsSettings);
+    const next = {
+      ...emailAlertsSettings,
+      send_email_on_order_message:
+        String(emailAlertsSettings.send_email_on_order_message || '').trim() ||
+        DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    };
+    setEmailAlertsSettings(next);
+    setEmailAlertsSaveError('');
+    setEmailAlertsFieldSaving(true);
+
+    try {
+      await persistEmailAlertsSettings(next);
+    } catch (err) {
+      setEmailAlertsSettings(previous);
+      const message = err?.message || 'Failed to update email alert message';
+      setEmailAlertsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setEmailAlertsFieldSaving(false);
+    }
+  };
+
+  const handleEmailAlertsCredChange = (field, value) => {
+    setEmailAlertsSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEmailAlertsCredBlur = async () => {
+    if (!companyId || togglingEmailAlertsKey || emailAlertsFieldSaving) return;
+
+    const previous = mergeEmailAlertsSettings(emailAlertsSettings);
+    const next = buildEmailAlertsSettingsPayload(emailAlertsSettings);
+    setEmailAlertsSettings(next);
+    setEmailAlertsSaveError('');
+    setEmailAlertsFieldSaving(true);
+
+    try {
+      await persistEmailAlertsSettings(next);
+    } catch (err) {
+      setEmailAlertsSettings(previous);
+      const message = err?.message || 'Failed to update email credentials';
+      setEmailAlertsSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setEmailAlertsFieldSaving(false);
     }
   };
 
@@ -627,59 +999,6 @@ export default function CompanySettingsView() {
       <div className="company-card">
         <div className="company-card-head">
           <span className="company-card-head-icon">
-            <i className="fas fa-network-wired" aria-hidden="true" />
-          </span>
-          <div>
-            <h5 className="company-card-title">Default printer settings</h5>
-            <p className="company-card-subtitle">
-              Default network printer for receipts — saved to{' '}
-              <code className="text-xs">default_printer_settings</code>.
-            </p>
-          </div>
-        </div>
-        <div className="company-card-body">
-          <form onSubmit={handleSaveDefaultPrinterSettings}>
-            <DefaultPrinterSettingsForm
-              form={networkPrinterSettings}
-              onChange={setNetworkPrinterSettings}
-              errors={networkPrinterErrors}
-              disabled={networkPrinterSaving || !companyId}
-            />
-
-            {networkPrinterSaveError ? (
-              <div className="alert alert-danger py-2 mt-3 mb-0">{networkPrinterSaveError}</div>
-            ) : null}
-
-            <div className="company-card-footer">
-              <button
-                type="submit"
-                className="btn btn-primary mb-0"
-                disabled={networkPrinterSaving || !companyId}
-              >
-                {networkPrinterSaving ? (
-                  <>
-                    <span
-                      className="spinner-border spinner-border-sm me-2"
-                      role="status"
-                      aria-hidden="true"
-                    />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-save me-2" aria-hidden="true" />
-                    Save default printer
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div className="company-card">
-        <div className="company-card-head">
-          <span className="company-card-head-icon">
             <i className="fas fa-box-open" aria-hidden="true" />
           </span>
           <div>
@@ -740,6 +1059,501 @@ export default function CompanySettingsView() {
 
           {productSaveError ? (
             <div className="alert alert-danger py-2 mt-3 mb-0">{productSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-sms" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Send Local SMS Alerts</h5>
+            <p className="company-card-subtitle">
+              Local SMS alerts for orders — saved to{' '}
+              <code className="text-xs">local_sms</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          {LOCAL_SMS_SETTING_DEFS.map((def) => {
+            const { key, label, hint, type, amountKey, templateKey } = def;
+            const isOn = Boolean(smsSettings[key]);
+            const busy = togglingSmsKey === key;
+            return (
+              <Fragment key={key}>
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-row-label">{label}</div>
+                    {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                  </div>
+                  <div className="settings-row-control">
+                    {busy ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                        style={{ width: '1rem', height: '1rem' }}
+                      >
+                        <span className="visually-hidden">Saving…</span>
+                      </span>
+                    ) : (
+                      <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                        {isOn ? 'On' : 'Off'}
+                      </span>
+                    )}
+                    <label
+                      className="form-check form-switch settings-switch"
+                      htmlFor={`sms-setting-${key}`}
+                      style={{
+                        cursor:
+                          togglingSmsKey || smsAmountSaving || !companyId
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
+                    >
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id={`sms-setting-${key}`}
+                        checked={isOn}
+                        onChange={() => handleToggleSmsSetting(key)}
+                        disabled={!!togglingSmsKey || smsAmountSaving || !companyId}
+                        aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {type === 'toggle_template' && isOn ? (
+                  <div className="settings-row settings-row-nested settings-row-template">
+                    <div className="w-100">
+                      <div className="settings-row-label mb-1">SMS message</div>
+                      <div className="settings-row-hint mb-2">
+                        Use placeholders:{' '}
+                        <code>{'{name}'}</code>, <code>{'{email}'}</code>,{' '}
+                        <code>{'{phone}'}</code>, <code>{'{total_amount}'}</code>,{' '}
+                        <code>{'{transaction_number}'}</code>, <code>{'{createdAt}'}</code>
+                      </div>
+                      <textarea
+                        id={`sms-setting-${templateKey}`}
+                        className="form-control company-control settings-sms-template"
+                        rows={7}
+                        value={smsSettings[templateKey] ?? DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE}
+                        onChange={(e) => handleSmsTemplateChange(e.target.value)}
+                        onBlur={handleSmsTemplateBlur}
+                        disabled={!companyId || !!togglingSmsKey || smsAmountSaving}
+                        aria-label="Send SMS on order message template"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {type === 'toggle_amount' ? (
+                  <div className="settings-row settings-row-nested">
+                    <div>
+                      <div className="settings-row-label">Amount</div>
+                      <div className="settings-row-hint">
+                        Send SMS when order total is greater than this amount.
+                      </div>
+                    </div>
+                    <div className="settings-row-control">
+                      {smsAmountSaving ? (
+                        <span
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                          style={{ width: '1rem', height: '1rem' }}
+                        >
+                          <span className="visually-hidden">Saving…</span>
+                        </span>
+                      ) : null}
+                      <input
+                        id={`sms-setting-${amountKey}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control company-control settings-amount-input"
+                        value={smsSettings[amountKey] ?? 0}
+                        onChange={(e) => handleSmsAmountChange(e.target.value)}
+                        onBlur={handleSmsAmountBlur}
+                        disabled={!companyId || !!togglingSmsKey || smsAmountSaving || !isOn}
+                        aria-label="Send SMS greater than amount"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
+
+          {smsSaveError ? (
+            <div className="alert alert-danger py-2 mt-3 mb-0">{smsSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-cloud" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Send Api SMS Alerts</h5>
+            <p className="company-card-subtitle">
+              API SMS gateway for orders — saved to <code className="text-xs">api_sms</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          <div className="settings-section-label">API credentials</div>
+          <div className="row g-3 mb-3">
+            <div className="col-12">
+              <label className="company-label d-block" htmlFor="api-sms-url">
+                API URL
+              </label>
+              <input
+                id="api-sms-url"
+                type="url"
+                className="form-control company-control"
+                value={apiSmsSettings.api_url}
+                onChange={(e) => handleApiSmsCredChange('api_url', e.target.value)}
+                onBlur={handleApiSmsCredBlur}
+                placeholder="https://api.example.com/sms/send"
+                disabled={!companyId || !!togglingApiSmsKey || apiSmsFieldSaving}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="company-label d-block" htmlFor="api-sms-key">
+                API key
+              </label>
+              <input
+                id="api-sms-key"
+                type="text"
+                className="form-control company-control"
+                value={apiSmsSettings.api_key}
+                onChange={(e) => handleApiSmsCredChange('api_key', e.target.value)}
+                onBlur={handleApiSmsCredBlur}
+                placeholder="Your API key"
+                autoComplete="off"
+                disabled={!companyId || !!togglingApiSmsKey || apiSmsFieldSaving}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="company-label d-block" htmlFor="api-sms-secret">
+                API secret
+              </label>
+              <input
+                id="api-sms-secret"
+                type="password"
+                className="form-control company-control"
+                value={apiSmsSettings.api_secret}
+                onChange={(e) => handleApiSmsCredChange('api_secret', e.target.value)}
+                onBlur={handleApiSmsCredBlur}
+                placeholder="Your API secret"
+                autoComplete="new-password"
+                disabled={!companyId || !!togglingApiSmsKey || apiSmsFieldSaving}
+              />
+            </div>
+          </div>
+
+          <div className="settings-section-label">Alert options</div>
+          {API_SMS_SETTING_DEFS.map((def) => {
+            const { key, label, hint, type, amountKey, templateKey } = def;
+            const isOn = Boolean(apiSmsSettings[key]);
+            const busy = togglingApiSmsKey === key;
+            return (
+              <Fragment key={`api-${key}`}>
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-row-label">{label}</div>
+                    {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                  </div>
+                  <div className="settings-row-control">
+                    {busy ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                        style={{ width: '1rem', height: '1rem' }}
+                      >
+                        <span className="visually-hidden">Saving…</span>
+                      </span>
+                    ) : (
+                      <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                        {isOn ? 'On' : 'Off'}
+                      </span>
+                    )}
+                    <label
+                      className="form-check form-switch settings-switch"
+                      htmlFor={`api-sms-setting-${key}`}
+                      style={{
+                        cursor:
+                          togglingApiSmsKey || apiSmsFieldSaving || !companyId
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
+                    >
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id={`api-sms-setting-${key}`}
+                        checked={isOn}
+                        onChange={() => handleToggleApiSmsSetting(key)}
+                        disabled={!!togglingApiSmsKey || apiSmsFieldSaving || !companyId}
+                        aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {type === 'toggle_template' && isOn ? (
+                  <div className="settings-row settings-row-nested settings-row-template">
+                    <div className="w-100">
+                      <div className="settings-row-label mb-1">SMS message</div>
+                      <div className="settings-row-hint mb-2">
+                        Use placeholders:{' '}
+                        <code>{'{name}'}</code>, <code>{'{email}'}</code>,{' '}
+                        <code>{'{phone}'}</code>, <code>{'{total_amount}'}</code>,{' '}
+                        <code>{'{transaction_number}'}</code>, <code>{'{createdAt}'}</code>
+                      </div>
+                      <textarea
+                        id={`api-sms-setting-${templateKey}`}
+                        className="form-control company-control settings-sms-template"
+                        rows={7}
+                        value={
+                          apiSmsSettings[templateKey] ?? DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+                        }
+                        onChange={(e) => handleApiSmsTemplateChange(e.target.value)}
+                        onBlur={handleApiSmsTemplateBlur}
+                        disabled={!companyId || !!togglingApiSmsKey || apiSmsFieldSaving}
+                        aria-label="API Send SMS on order message template"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {type === 'toggle_amount' ? (
+                  <div className="settings-row settings-row-nested">
+                    <div>
+                      <div className="settings-row-label">Amount</div>
+                      <div className="settings-row-hint">
+                        Send SMS when order total is greater than this amount.
+                      </div>
+                    </div>
+                    <div className="settings-row-control">
+                      {apiSmsFieldSaving ? (
+                        <span
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                          style={{ width: '1rem', height: '1rem' }}
+                        >
+                          <span className="visually-hidden">Saving…</span>
+                        </span>
+                      ) : null}
+                      <input
+                        id={`api-sms-setting-${amountKey}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control company-control settings-amount-input"
+                        value={apiSmsSettings[amountKey] ?? 0}
+                        onChange={(e) => handleApiSmsAmountChange(e.target.value)}
+                        onBlur={handleApiSmsAmountBlur}
+                        disabled={
+                          !companyId || !!togglingApiSmsKey || apiSmsFieldSaving || !isOn
+                        }
+                        aria-label="API Send SMS greater than amount"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
+
+          {apiSmsSaveError ? (
+            <div className="alert alert-danger py-2 mt-3 mb-0">{apiSmsSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-envelope" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Email alerts</h5>
+            <p className="company-card-subtitle">
+              Gmail alerts for orders — saved to <code className="text-xs">email_alerts</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          <div className="settings-section-label">Gmail credentials</div>
+          <div className="row g-3 mb-3">
+            <div className="col-md-6">
+              <label className="company-label d-block" htmlFor="email-alerts-gmail">
+                Gmail email
+              </label>
+              <input
+                id="email-alerts-gmail"
+                type="email"
+                className="form-control company-control"
+                value={emailAlertsSettings.gmail_email}
+                onChange={(e) => handleEmailAlertsCredChange('gmail_email', e.target.value)}
+                onBlur={handleEmailAlertsCredBlur}
+                placeholder="you@gmail.com"
+                autoComplete="off"
+                disabled={!companyId || !!togglingEmailAlertsKey || emailAlertsFieldSaving}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="company-label d-block" htmlFor="email-alerts-two-step">
+                2-step password
+              </label>
+              <input
+                id="email-alerts-two-step"
+                type="password"
+                className="form-control company-control"
+                value={emailAlertsSettings.two_step_password}
+                onChange={(e) => handleEmailAlertsCredChange('two_step_password', e.target.value)}
+                onBlur={handleEmailAlertsCredBlur}
+                placeholder="Gmail app password"
+                autoComplete="new-password"
+                disabled={!companyId || !!togglingEmailAlertsKey || emailAlertsFieldSaving}
+              />
+            </div>
+          </div>
+
+          <div className="settings-section-label">Alert options</div>
+          {EMAIL_ALERT_SETTING_DEFS.map((def) => {
+            const { key, label, hint, type, amountKey, templateKey } = def;
+            const isOn = Boolean(emailAlertsSettings[key]);
+            const busy = togglingEmailAlertsKey === key;
+            return (
+              <Fragment key={`email-${key}`}>
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-row-label">{label}</div>
+                    {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                  </div>
+                  <div className="settings-row-control">
+                    {busy ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                        style={{ width: '1rem', height: '1rem' }}
+                      >
+                        <span className="visually-hidden">Saving…</span>
+                      </span>
+                    ) : (
+                      <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                        {isOn ? 'On' : 'Off'}
+                      </span>
+                    )}
+                    <label
+                      className="form-check form-switch settings-switch"
+                      htmlFor={`email-alert-setting-${key}`}
+                      style={{
+                        cursor:
+                          togglingEmailAlertsKey || emailAlertsFieldSaving || !companyId
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
+                    >
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id={`email-alert-setting-${key}`}
+                        checked={isOn}
+                        onChange={() => handleToggleEmailAlertsSetting(key)}
+                        disabled={
+                          !!togglingEmailAlertsKey || emailAlertsFieldSaving || !companyId
+                        }
+                        aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {type === 'toggle_template' && isOn ? (
+                  <div className="settings-row settings-row-nested settings-row-template">
+                    <div className="w-100">
+                      <div className="settings-row-label mb-1">Email message</div>
+                      <div className="settings-row-hint mb-2">
+                        Use placeholders:{' '}
+                        <code>{'{name}'}</code>, <code>{'{email}'}</code>,{' '}
+                        <code>{'{phone}'}</code>, <code>{'{total_amount}'}</code>,{' '}
+                        <code>{'{transaction_number}'}</code>, <code>{'{createdAt}'}</code>
+                      </div>
+                      <textarea
+                        id={`email-alert-setting-${templateKey}`}
+                        className="form-control company-control settings-sms-template"
+                        rows={7}
+                        value={
+                          emailAlertsSettings[templateKey] ?? DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+                        }
+                        onChange={(e) => handleEmailAlertsTemplateChange(e.target.value)}
+                        onBlur={handleEmailAlertsTemplateBlur}
+                        disabled={
+                          !companyId || !!togglingEmailAlertsKey || emailAlertsFieldSaving
+                        }
+                        aria-label="Send email on order message template"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {type === 'toggle_amount' ? (
+                  <div className="settings-row settings-row-nested">
+                    <div>
+                      <div className="settings-row-label">Amount</div>
+                      <div className="settings-row-hint">
+                        Send email when order total is greater than this amount.
+                      </div>
+                    </div>
+                    <div className="settings-row-control">
+                      {emailAlertsFieldSaving ? (
+                        <span
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                          style={{ width: '1rem', height: '1rem' }}
+                        >
+                          <span className="visually-hidden">Saving…</span>
+                        </span>
+                      ) : null}
+                      <input
+                        id={`email-alert-setting-${amountKey}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control company-control settings-amount-input"
+                        value={emailAlertsSettings[amountKey] ?? 0}
+                        onChange={(e) => handleEmailAlertsAmountChange(e.target.value)}
+                        onBlur={handleEmailAlertsAmountBlur}
+                        disabled={
+                          !companyId ||
+                          !!togglingEmailAlertsKey ||
+                          emailAlertsFieldSaving ||
+                          !isOn
+                        }
+                        aria-label="Send email greater than amount"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
+
+          {emailAlertsSaveError ? (
+            <div className="alert alert-danger py-2 mt-3 mb-0">{emailAlertsSaveError}</div>
           ) : null}
         </div>
       </div>
