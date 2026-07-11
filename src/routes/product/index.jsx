@@ -223,6 +223,10 @@ const Product = () => {
     dispatch(fetchProducts(buildListParams()));
   }, [dispatch, buildListParams]);
 
+  const handleRetryFetch = useCallback(() => {
+    dispatch(fetchProducts(buildListParams()));
+  }, [dispatch, buildListParams]);
+
   const handleCategoryFilterChange = useCallback(
     (e) => {
       setCategoryFilter(e.target.value);
@@ -627,6 +631,7 @@ const Product = () => {
                 loading={loading}
                 loadingLabel="Loading products…"
                 error={error}
+                onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
                 onLimitChange={handleLimitChange}
