@@ -49,11 +49,10 @@ export class EscPosBuilder {
   }
 
   cut({ partial = true, feedDots = 3 } = {}) {
-    // Advance paper past the print head so the cutter can reach the last lines.
-    this.blank(4);
+    // Small advance so last lines clear the cutter; GS V 65/66 also feeds `feedDots`.
+    this.blank(2);
     const n = Math.max(0, Math.min(255, Number(feedDots) || 3));
     // GS V 65 n = feed then full cut; GS V 66 n = feed then partial cut.
-    // Black Copper BC-85A and most 80mm POS printers use a partial cutter.
     const mode = partial ? 0x42 : 0x41;
     return this.raw([0x1d, 0x56, mode, n]);
   }

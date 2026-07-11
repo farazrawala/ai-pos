@@ -281,14 +281,20 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 12px;
     font-weight: 700;
     line-height: 1.4;
-    padding: 8px 10px 14px;
+    padding: 4px 8px 8px;
     width: 72mm;
     max-width: 72mm;
-    min-width: 260px;
     color: #000;
     background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  @media print {
+    body {
+      min-width: 0;
+      width: 72mm;
+      max-width: 72mm;
+    }
   }
   .receipt-badge {
     text-align: center;
@@ -451,27 +457,6 @@ export function buildThermalReceiptHtml(data, options = {}) {
     margin-top: 8px;
     font-size: 10px;
   }
-  /* Extra feed so USB/driver cutters clear the last line before cutting */
-  .cut-feed {
-    height: 14mm;
-    margin: 0;
-    padding: 0;
-  }
-  /* Forces an end-of-page boundary; many Windows thermal drivers cut between pages */
-  .cut-mark {
-    height: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    page-break-after: always;
-    break-after: page;
-  }
-  @media print {
-    html, body {
-      height: auto !important;
-      overflow: visible !important;
-    }
-  }
 </style></head><body>
   <div class="receipt-badge">RECEIPT</div>
   ${logoBlock}
@@ -490,8 +475,6 @@ export function buildThermalReceiptHtml(data, options = {}) {
     ${footerThanksCompany ? `<div class="foot-company">${escapeHtml(footerThanksCompany)}</div>` : ''}
     <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
-  <div class="cut-feed" aria-hidden="true"></div>
-  <div class="cut-mark" aria-hidden="true"></div>
 </body></html>`;
 }
 
@@ -527,8 +510,6 @@ export async function openThermalReceiptPrint(data, options = {}) {
     printDelayMs = 400,
     fallbackPrintDelayMs = 1500,
     onBlocked,
-    autoCut = true,
-    cutPrinter = null,
   } = options;
 
   const qrDataUrl = await resolveQrDataUrl(data, options);
@@ -552,30 +533,6 @@ export async function openThermalReceiptPrint(data, options = {}) {
       URL.revokeObjectURL(blobUrl);
     } catch (_) {
       /* ignore */
-    }
-  };
-
-  const sendBridgeCut = async () => {
-    if (!autoCut) return;
-    const ip = String(cutPrinter?.ip_address || cutPrinter?.ipAddress || '').trim();
-    if (!ip) return;
-    try {
-      const { buildCutEscPos } = await import('../../services/printing/EscPosBuilder.js');
-      const { LocalPrintBridgeClient, loadBridgeUrl } = await import(
-        '../../services/printing/LocalPrintBridgeClient.js'
-      );
-      const bridgeUrl = loadBridgeUrl();
-      if (!bridgeUrl) return;
-      const bridge = new LocalPrintBridgeClient(bridgeUrl);
-      await bridge.healthCheck();
-      await bridge.printRaw({
-        ip,
-        port: cutPrinter.port ?? 9100,
-        data: buildCutEscPos({ partial: true, feedDots: 3 }),
-        copies: 1,
-      });
-    } catch (err) {
-      console.warn('[ThermalReceiptPrint] Auto-cut via print bridge failed', err);
     }
   };
 
@@ -609,7 +566,6 @@ export async function openThermalReceiptPrint(data, options = {}) {
     w.addEventListener(
       'afterprint',
       () => {
-        void sendBridgeCut();
         revoke();
         setTimeout(() => {
           try {
@@ -623,13 +579,6 @@ export async function openThermalReceiptPrint(data, options = {}) {
     );
   } else {
     w.addEventListener('beforeunload', revoke, { once: true });
-    w.addEventListener(
-      'afterprint',
-      () => {
-        void sendBridgeCut();
-      },
-      { once: true }
-    );
   }
 
   setTimeout(() => {
