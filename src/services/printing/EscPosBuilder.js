@@ -88,6 +88,8 @@ export function buildCutEscPos({ partial = true, feedDots = 3 } = {}) {
   return b.build();
 }
 
+/** Standard test page content per product spec. */
+export function buildTestPageEscPos(options = {}) {
   const { paperWidth = '80mm', autoCut = true, openDrawer = false } = options;
   const b = new EscPosBuilder({ paperWidth });
   const now = new Date();
