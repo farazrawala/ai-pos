@@ -65,6 +65,44 @@ export const fetchSyncProductsRequest = async (params = {}) => {
   };
 };
 
+export const createSyncProductRequest = async (syncProductData = {}) => {
+  const url = `${BASE_URL}sync_product/create`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(syncProductData),
+    });
+  } catch (err) {
+    logSyncProductModuleError('createSyncProductRequest network error', {
+      url,
+      syncProductData,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logSyncProductModuleError('createSyncProductRequest failed', {
+      status: response.status,
+      syncProductData,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
 export const updateSyncProductRequest = async (syncProductId, syncProductData = {}) => {
   const id = String(syncProductId || '').trim();
   if (!id) throw new Error('Sync product id is required');

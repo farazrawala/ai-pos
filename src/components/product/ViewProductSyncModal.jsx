@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncProductProcessRequest } from '../../features/process/processAPI.js';
 import {
+  createSyncProductRequest,
   fetchSyncProductsRequest,
   updateSyncProductRequest,
 } from '../../features/syncProduct/syncProductAPI.js';
+import { parseStoreProductLink } from '../../utils/parseStoreProductUrl.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -58,6 +60,11 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
   const [syncError, setSyncError] = useState(null);
   const [syncSuccess, setSyncSuccess] = useState(null);
 
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkStatus, setLinkStatus] = useState('idle');
+  const [linkError, setLinkError] = useState(null);
+  const [linkSuccess, setLinkSuccess] = useState(null);
+
   const loadSyncRecords = useCallback(() => {
     if (!productId) return undefined;
 
@@ -104,6 +111,10 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
     setSyncError(null);
     setSyncSuccess(null);
     setSelectedIntegrationId('');
+    setLinkUrl('');
+    setLinkStatus('idle');
+    setLinkError(null);
+    setLinkSuccess(null);
 
     fetchIntegrationsRequest()
       .then((result) => {
@@ -128,6 +139,11 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
     };
   }, [open]);
 
+  const parsedLink = useMemo(
+    () => parseStoreProductLink(linkUrl, integrations),
+    [linkUrl, integrations]
+  );
+
   const handleSyncProduct = async () => {
     if (!productId) {
       setSyncError('Product id is missing.');
@@ -141,6 +157,8 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
     setSyncStatus('loading');
     setSyncError(null);
     setSyncSuccess(null);
+    setLinkError(null);
+    setLinkSuccess(null);
 
     try {
       await createBulkSyncProductProcessRequest(selectedIntegrationId, [productId]);
@@ -153,6 +171,72 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
       console.error('[Sync product module] Failed to queue single product sync', {
         productId,
         integrationId: selectedIntegrationId,
+        error: err,
+      });
+    }
+  };
+
+  const handleLinkExistingProduct = async () => {
+    if (!productId) {
+      setLinkError('Product id is missing.');
+      return;
+    }
+    if (!linkUrl.trim()) {
+      setLinkError('Please paste a store product URL.');
+      return;
+    }
+    if (!parsedLink.externalProductId) {
+      setLinkError(
+        'Could not extract a product id from this URL. Use a WordPress edit URL (?post=231) or Shopify product URL.'
+      );
+      return;
+    }
+    if (!parsedLink.integrationId) {
+      setLinkError(
+        'No integration matches this URL domain. Check that the store URL is saved on the integration.'
+      );
+      return;
+    }
+
+    const alreadyLinked = list.some((item) => {
+      const rowIntegrationId =
+        item?.integration_id?._id ||
+        item?.integration_id?.id ||
+        item?.integration_id ||
+        '';
+      return String(rowIntegrationId) === String(parsedLink.integrationId);
+    });
+    if (alreadyLinked) {
+      setLinkError('This product is already linked to that integration.');
+      return;
+    }
+
+    setLinkStatus('loading');
+    setLinkError(null);
+    setLinkSuccess(null);
+    setSyncError(null);
+    setSyncSuccess(null);
+
+    try {
+      await createSyncProductRequest({
+        product_id: productId,
+        integration_id: parsedLink.integrationId,
+        refference_id: parsedLink.externalProductId,
+        status: 'active',
+      });
+      setLinkStatus('succeeded');
+      setLinkSuccess(
+        `Linked to ${integrationOptionLabel(parsedLink.integration)} (ID ${parsedLink.externalProductId}).`
+      );
+      setLinkUrl('');
+      loadSyncRecords();
+    } catch (err) {
+      setLinkStatus('failed');
+      setLinkError(err?.message || 'Failed to link existing store product');
+      console.error('[Sync product module] Failed to link existing product', {
+        productId,
+        integrationId: parsedLink.integrationId,
+        refference_id: parsedLink.externalProductId,
         error: err,
       });
     }
@@ -286,6 +370,89 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
                   {syncError && <div className="alert alert-danger py-2 mt-3 mb-0">{syncError}</div>}
                   {syncSuccess && (
                     <div className="alert alert-success py-2 mt-3 mb-0">{syncSuccess}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="card border mb-4">
+                <div className="card-body py-3">
+                  <h6 className="mb-2">Link existing store product</h6>
+                  <p className="text-sm text-muted mb-3">
+                    Paste a WordPress or Shopify product edit URL. Integration and product id are
+                    detected automatically — no push, only a sync mapping.
+                  </p>
+
+                  {integrationsStatus === 'succeeded' && integrations.length > 0 && (
+                    <>
+                      <div className="row g-2 align-items-end">
+                        <div className="col-md-9">
+                          <label htmlFor="viewProductSyncLinkUrl" className="form-label mb-1">
+                            Store product URL <span className="text-danger">*</span>
+                          </label>
+                          <input
+                            id="viewProductSyncLinkUrl"
+                            type="url"
+                            className="form-control"
+                            placeholder="https://example.com/wp-admin/post.php?post=231&action=edit"
+                            value={linkUrl}
+                            onChange={(e) => {
+                              setLinkUrl(e.target.value);
+                              if (linkError) setLinkError(null);
+                              if (linkSuccess) setLinkSuccess(null);
+                            }}
+                            disabled={linkStatus === 'loading'}
+                          />
+                        </div>
+                        <div className="col-md-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary w-100 mb-0"
+                            onClick={handleLinkExistingProduct}
+                            disabled={linkStatus === 'loading' || !linkUrl.trim() || !productId}
+                          >
+                            {linkStatus === 'loading' ? (
+                              <>
+                                <span
+                                  className="spinner-border spinner-border-sm me-2"
+                                  role="status"
+                                  aria-hidden="true"
+                                />
+                                Linking…
+                              </>
+                            ) : (
+                              'Submit'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {linkUrl.trim() ? (
+                        <div className="text-sm text-muted mt-2 mb-0">
+                          {parsedLink.integration ? (
+                            <span>
+                              Detected:{' '}
+                              <strong>{integrationOptionLabel(parsedLink.integration)}</strong>
+                              {parsedLink.externalProductId
+                                ? ` · Product ID ${parsedLink.externalProductId}`
+                                : ' · product id not found in URL'}
+                            </span>
+                          ) : (
+                            <span>No matching integration for this domain yet.</span>
+                          )}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+
+                  {integrationsStatus === 'succeeded' && integrations.length === 0 && (
+                    <div className="alert alert-warning py-2 mb-0">
+                      No active integrations found. Add one under Integrations first.
+                    </div>
+                  )}
+
+                  {linkError && <div className="alert alert-danger py-2 mt-3 mb-0">{linkError}</div>}
+                  {linkSuccess && (
+                    <div className="alert alert-success py-2 mt-3 mb-0">{linkSuccess}</div>
                   )}
                 </div>
               </div>
