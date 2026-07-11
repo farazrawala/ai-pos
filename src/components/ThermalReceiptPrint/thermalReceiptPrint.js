@@ -273,27 +273,37 @@ export function buildThermalReceiptHtml(data, options = {}) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
-  @page { size: 80mm auto; margin: 2mm; }
+  @page { size: 80mm auto; margin: 0; }
   * { box-sizing: border-box; font-weight: 700; color: #000; }
-  html, body { margin: 0; padding: 0; }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0;
+    height: auto;
+  }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
     font-size: 12px;
     font-weight: 700;
-    line-height: 1.4;
-    padding: 4px 8px 8px;
-    width: 72mm;
-    max-width: 72mm;
+    line-height: 1.35;
+    padding: 1mm 2mm 2mm !important;
+    width: 76mm;
+    max-width: 76mm;
     color: #000;
     background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   @media print {
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     body {
+      padding: 1mm 2mm 2mm !important;
+      width: 76mm;
+      max-width: 76mm;
       min-width: 0;
-      width: 72mm;
-      max-width: 72mm;
     }
   }
   .receipt-badge {
@@ -301,29 +311,29 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.22em;
-    margin-bottom: 8px;
+    margin: 0 0 4px;
   }
   .logo-block {
     text-align: center;
-    margin-bottom: 6px;
+    margin: 0 0 4px;
   }
   .logo-wrap { display: inline-block; }
   .logo {
     display: block;
-    max-width: 72px;
-    max-height: 72px;
+    max-width: 64px;
+    max-height: 64px;
     object-fit: contain;
     border-radius: 6px;
     margin: 0 auto;
   }
   .logo-fallback {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
     margin: 0 auto;
     border-radius: 8px;
     background: #fff;
     border: 2px solid #000;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -475,6 +485,33 @@ export function buildThermalReceiptHtml(data, options = {}) {
     ${footerThanksCompany ? `<div class="foot-company">${escapeHtml(footerThanksCompany)}</div>` : ''}
     <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
+  <script>
+    (function () {
+      function fitThermalPage() {
+        var body = document.body;
+        if (!body) return;
+        var px = Math.ceil(Math.max(body.scrollHeight, body.offsetHeight));
+        var mm = Math.max(50, Math.ceil((px * 25.4) / 96) + 3);
+        var style = document.getElementById('thermal-page-fit');
+        if (!style) {
+          style = document.createElement('style');
+          style.id = 'thermal-page-fit';
+          document.head.appendChild(style);
+        }
+        style.textContent = '@page{size:80mm ' + mm + 'mm;margin:0}';
+      }
+      function run() {
+        fitThermalPage();
+        setTimeout(fitThermalPage, 80);
+        setTimeout(fitThermalPage, 250);
+      }
+      if (document.readyState === 'complete') run();
+      else window.addEventListener('load', run);
+      document.querySelectorAll('img').forEach(function (img) {
+        if (!img.complete) img.addEventListener('load', fitThermalPage);
+      });
+    })();
+  </script>
 </body></html>`;
 }
 
@@ -537,17 +574,36 @@ export async function openThermalReceiptPrint(data, options = {}) {
   };
 
   let printScheduled = false;
+  const fitThenPrint = () => {
+    try {
+      const doc = w.document;
+      const body = doc?.body;
+      if (body) {
+        const px = Math.ceil(Math.max(body.scrollHeight, body.offsetHeight));
+        const mm = Math.max(50, Math.ceil((px * 25.4) / 96) + 3);
+        let style = doc.getElementById('thermal-page-fit');
+        if (!style) {
+          style = doc.createElement('style');
+          style.id = 'thermal-page-fit';
+          doc.head.appendChild(style);
+        }
+        style.textContent = `@page{size:80mm ${mm}mm;margin:0}`;
+      }
+    } catch (_) {
+      /* cross-origin / closed */
+    }
+    try {
+      w.focus();
+      w.print();
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
   const schedulePrint = () => {
     if (printScheduled) return;
     printScheduled = true;
-    setTimeout(() => {
-      try {
-        w.focus();
-        w.print();
-      } catch (_) {
-        /* ignore */
-      }
-    }, printDelayMs);
+    setTimeout(fitThenPrint, printDelayMs);
   };
 
   try {
