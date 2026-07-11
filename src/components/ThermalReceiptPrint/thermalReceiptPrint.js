@@ -273,37 +273,54 @@ export function buildThermalReceiptHtml(data, options = {}) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  /* Match common thermal roll sizes; content pinned to top (avoids Chrome centering blank). */
+  @page { size: 80mm 210mm; margin: 0; }
   * { box-sizing: border-box; font-weight: 700; color: #000; }
   html, body {
     margin: 0 !important;
     padding: 0 !important;
     border: 0;
-    height: auto;
+    width: 80mm;
+    background: #fff;
   }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
     font-size: 12px;
     font-weight: 700;
     line-height: 1.35;
-    padding: 1mm 2mm 2mm !important;
-    width: 76mm;
-    max-width: 76mm;
     color: #000;
-    background: #fff;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .receipt-root {
+    display: block;
+    width: 76mm;
+    max-width: 76mm;
+    margin: 0;
+    padding: 1mm 2mm 2mm;
   }
   @media print {
     html, body {
       margin: 0 !important;
       padding: 0 !important;
+      width: 80mm !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
     body {
+      position: relative !important;
+    }
+    .receipt-root {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: 76mm !important;
+      max-width: 76mm !important;
+      margin: 0 !important;
       padding: 1mm 2mm 2mm !important;
-      width: 76mm;
-      max-width: 76mm;
-      min-width: 0;
+      transform: none !important;
     }
   }
   .receipt-badge {
@@ -468,6 +485,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 10px;
   }
 </style></head><body>
+<div class="receipt-root">
   <div class="receipt-badge">RECEIPT</div>
   ${logoBlock}
   ${detailsRow}
@@ -485,20 +503,34 @@ export function buildThermalReceiptHtml(data, options = {}) {
     ${footerThanksCompany ? `<div class="foot-company">${escapeHtml(footerThanksCompany)}</div>` : ''}
     <div class="foot-contact">${escapeHtml(THERMAL_RECEIPT_SOFTWARE_CONTACT)}</div>
   </div>
+</div>
   <script>
     (function () {
+      function pinTop() {
+        var root = document.querySelector('.receipt-root');
+        if (!root) return;
+        root.style.position = 'absolute';
+        root.style.top = '0';
+        root.style.left = '0';
+        root.style.margin = '0';
+        root.style.transform = 'none';
+      }
       function fitThermalPage() {
-        var body = document.body;
-        if (!body) return;
-        var px = Math.ceil(Math.max(body.scrollHeight, body.offsetHeight));
-        var mm = Math.max(50, Math.ceil((px * 25.4) / 96) + 3);
+        pinTop();
+        var root = document.querySelector('.receipt-root');
+        if (!root) return;
+        var px = Math.ceil(Math.max(root.scrollHeight, root.offsetHeight));
+        var mm = Math.min(210, Math.max(60, Math.ceil((px * 25.4) / 96) + 4));
         var style = document.getElementById('thermal-page-fit');
         if (!style) {
           style = document.createElement('style');
           style.id = 'thermal-page-fit';
           document.head.appendChild(style);
         }
-        style.textContent = '@page{size:80mm ' + mm + 'mm;margin:0}';
+        /* Prefer content-height page; Chrome may still use dialog paper size. */
+        style.textContent =
+          '@page{size:80mm ' + mm + 'mm;margin:0}' +
+          '@media print{.receipt-root{position:absolute!important;top:0!important;left:0!important;margin:0!important;transform:none!important}}';
       }
       function run() {
         fitThermalPage();
@@ -577,17 +609,24 @@ export async function openThermalReceiptPrint(data, options = {}) {
   const fitThenPrint = () => {
     try {
       const doc = w.document;
-      const body = doc?.body;
-      if (body) {
-        const px = Math.ceil(Math.max(body.scrollHeight, body.offsetHeight));
-        const mm = Math.max(50, Math.ceil((px * 25.4) / 96) + 3);
+      const root = doc?.querySelector?.('.receipt-root');
+      if (root) {
+        root.style.position = 'absolute';
+        root.style.top = '0';
+        root.style.left = '0';
+        root.style.margin = '0';
+        root.style.transform = 'none';
+        const px = Math.ceil(Math.max(root.scrollHeight, root.offsetHeight));
+        const mm = Math.min(210, Math.max(60, Math.ceil((px * 25.4) / 96) + 4));
         let style = doc.getElementById('thermal-page-fit');
         if (!style) {
           style = doc.createElement('style');
           style.id = 'thermal-page-fit';
           doc.head.appendChild(style);
         }
-        style.textContent = `@page{size:80mm ${mm}mm;margin:0}`;
+        style.textContent =
+          `@page{size:80mm ${mm}mm;margin:0}` +
+          `@media print{.receipt-root{position:absolute!important;top:0!important;left:0!important;margin:0!important;transform:none!important}}`;
       }
     } catch (_) {
       /* cross-origin / closed */
