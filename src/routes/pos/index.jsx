@@ -1121,6 +1121,8 @@ const Pos = () => {
               amount_received: payment?.paid ?? 0,
               change_given: payment?.change ?? 0,
             },
+            autoCut: defaultPrinterSettings?.auto_cut !== false,
+            cutPrinter: defaultPrinterSettings,
           });
           if (!printed) {
             toast.error('Allow pop-ups to print the thermal receipt, or configure the print bridge in Printer Settings.', { delay: 6000 });

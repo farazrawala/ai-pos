@@ -1,4 +1,4 @@
-export { EscPosBuilder, buildTestPageEscPos } from './EscPosBuilder.js';
+export { EscPosBuilder, buildTestPageEscPos, buildCutEscPos } from './EscPosBuilder.js';
 export { LocalPrintBridgeClient, loadBridgeUrl, saveBridgeUrl } from './LocalPrintBridgeClient.js';
 export { ReceiptRenderer } from './ReceiptRenderer.js';
 export {

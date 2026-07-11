@@ -1008,6 +1008,7 @@ const PosInvoice = () => {
         printerSettings: settings,
         companyBrand: brand,
         sourceOrder,
+        autoCut: true,
       }
     );
   }, [

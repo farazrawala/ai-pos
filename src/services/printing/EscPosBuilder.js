@@ -48,8 +48,14 @@ export class EscPosBuilder {
     return this.text(String(char).repeat(cols));
   }
 
-  cut() {
-    return this.raw([0x1d, 0x56, 0x00]);
+  cut({ partial = true, feedDots = 3 } = {}) {
+    // Advance paper past the print head so the cutter can reach the last lines.
+    this.blank(4);
+    const n = Math.max(0, Math.min(255, Number(feedDots) || 3));
+    // GS V 65 n = feed then full cut; GS V 66 n = feed then partial cut.
+    // Black Copper BC-85A and most 80mm POS printers use a partial cutter.
+    const mode = partial ? 0x42 : 0x41;
+    return this.raw([0x1d, 0x56, mode, n]);
   }
 
   openDrawer() {
@@ -75,8 +81,13 @@ export class EscPosBuilder {
   }
 }
 
-/** Standard test page content per product spec. */
-export function buildTestPageEscPos(options = {}) {
+/** Minimal ESC/POS payload that only feeds and cuts (for after browser print). */
+export function buildCutEscPos({ partial = true, feedDots = 3 } = {}) {
+  const b = new EscPosBuilder();
+  b.init().cut({ partial, feedDots });
+  return b.build();
+}
+
   const { paperWidth = '80mm', autoCut = true, openDrawer = false } = options;
   const b = new EscPosBuilder({ paperWidth });
   const now = new Date();
