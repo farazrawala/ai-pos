@@ -55,42 +55,98 @@ export const extractShopifyStoreHandle = (rawUrl) => {
 };
 
 /**
- * Extract an external product id from a store admin / product URL.
- * Supports WordPress/WooCommerce (?post=231) and Shopify (/products/123).
+ * Parse product / variant ids from a store URL.
+ * Shopify variants become productId:variantId (matches sync_product refference_id).
  */
-export const extractExternalProductIdFromUrl = (rawUrl) => {
+export const extractExternalIdsFromUrl = (rawUrl) => {
   const value = String(rawUrl || '').trim();
-  if (!value) return '';
+  if (!value) {
+    return { productId: '', variantId: '', referenceId: '' };
+  }
 
-  if (/^\d+$/.test(value)) return value;
+  if (/^\d+:\d+$/.test(value)) {
+    const [productId, variantId] = value.split(':');
+    return { productId, variantId, referenceId: value };
+  }
+
+  if (/^\d+$/.test(value)) {
+    return { productId: value, variantId: '', referenceId: value };
+  }
+
+  let productId = '';
+  let variantId = '';
 
   try {
     const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     const parsed = new URL(withProtocol);
 
     const postId = parsed.searchParams.get('post');
-    if (postId && /^\d+$/.test(postId)) return postId;
+    if (postId && /^\d+$/.test(postId)) {
+      productId = postId;
+    }
 
     const idParam = parsed.searchParams.get('id');
-    if (idParam && /^\d+$/.test(idParam)) return idParam;
+    if (!productId && idParam && /^\d+$/.test(idParam)) {
+      productId = idParam;
+    }
 
-    const shopifyMatch = parsed.pathname.match(/\/products\/(\d+)/i);
-    if (shopifyMatch?.[1]) return shopifyMatch[1];
+    const shopifyVariantMatch = parsed.pathname.match(/\/products\/(\d+)\/variants\/(\d+)/i);
+    if (shopifyVariantMatch) {
+      productId = shopifyVariantMatch[1];
+      variantId = shopifyVariantMatch[2];
+    } else {
+      const shopifyProductMatch = parsed.pathname.match(/\/products\/(\d+)/i);
+      if (shopifyProductMatch?.[1]) {
+        productId = shopifyProductMatch[1];
+      } else {
+        const productIdMatch = parsed.pathname.match(/\/product(?:s)?\/(?:edit\/)?(\d+)/i);
+        if (productIdMatch?.[1]) productId = productIdMatch[1];
+      }
 
-    const productIdMatch = parsed.pathname.match(/\/product(?:s)?\/(?:edit\/)?(\d+)/i);
-    if (productIdMatch?.[1]) return productIdMatch[1];
+      const variantQuery = parsed.searchParams.get('variant');
+      if (variantQuery && /^\d+$/.test(variantQuery)) {
+        variantId = variantQuery;
+      }
+    }
   } catch {
-    // fall through
+    // fall through to regex
   }
 
-  const postMatch = value.match(/[?&]post=(\d+)/i);
-  if (postMatch?.[1]) return postMatch[1];
+  if (!productId) {
+    const postMatch = value.match(/[?&]post=(\d+)/i);
+    if (postMatch?.[1]) productId = postMatch[1];
+  }
 
-  const productsMatch = value.match(/\/products\/(\d+)/i);
-  if (productsMatch?.[1]) return productsMatch[1];
+  if (!productId || !variantId) {
+    const pathVariantMatch = value.match(/\/products\/(\d+)\/variants\/(\d+)/i);
+    if (pathVariantMatch) {
+      productId = productId || pathVariantMatch[1];
+      variantId = variantId || pathVariantMatch[2];
+    }
+  }
 
-  return '';
+  if (!productId) {
+    const productsMatch = value.match(/\/products\/(\d+)/i);
+    if (productsMatch?.[1]) productId = productsMatch[1];
+  }
+
+  if (!variantId) {
+    const variantQueryMatch = value.match(/[?&]variant=(\d+)/i);
+    if (variantQueryMatch?.[1]) variantId = variantQueryMatch[1];
+  }
+
+  const referenceId =
+    productId && variantId ? `${productId}:${variantId}` : productId || '';
+
+  return { productId, variantId, referenceId };
 };
+
+/**
+ * Extract an external product / reference id from a store admin / product URL.
+ * Supports WordPress (?post=231), Shopify product, and Shopify variant URLs.
+ */
+export const extractExternalProductIdFromUrl = (rawUrl) =>
+  extractExternalIdsFromUrl(rawUrl).referenceId;
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -150,16 +206,18 @@ export const matchIntegrationFromUrl = (rawUrl, integrations = []) => {
 };
 
 /**
- * Parse a pasted store product URL into integration + external product id.
+ * Parse a pasted store product URL into integration + external reference id.
  */
 export const parseStoreProductLink = (rawUrl, integrations = []) => {
   const url = String(rawUrl || '').trim();
-  const externalProductId = extractExternalProductIdFromUrl(url);
+  const ids = extractExternalIdsFromUrl(url);
   const matched = matchIntegrationFromUrl(url, integrations);
 
   return {
     url,
-    externalProductId,
+    productId: ids.productId,
+    variantId: ids.variantId,
+    externalProductId: ids.referenceId,
     integration: matched?.integration || null,
     integrationId: matched?.integrationId || '',
   };

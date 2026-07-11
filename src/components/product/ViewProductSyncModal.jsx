@@ -187,7 +187,7 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
     }
     if (!parsedLink.externalProductId) {
       setLinkError(
-        'Could not extract a product id from this URL. Use a WordPress edit URL (?post=231) or Shopify product URL.'
+        'Could not extract a product id from this URL. Use a WordPress edit URL (?post=231) or Shopify product/variant URL.'
       );
       return;
     }
@@ -378,8 +378,8 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
                 <div className="card-body py-3">
                   <h6 className="mb-2">Link existing store product</h6>
                   <p className="text-sm text-muted mb-3">
-                    Paste a WordPress or Shopify product edit URL. Integration and product id are
-                    detected automatically — no push, only a sync mapping.
+                    Paste a WordPress or Shopify product/variant URL. Integration and reference id
+                    are detected automatically — no push, only a sync mapping.
                   </p>
 
                   {integrationsStatus === 'succeeded' && integrations.length > 0 && (
@@ -393,7 +393,7 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
                             id="viewProductSyncLinkUrl"
                             type="url"
                             className="form-control"
-                            placeholder="https://example.com/wp-admin/post.php?post=231&action=edit"
+                            placeholder="https://admin.shopify.com/store/.../products/123/variants/456"
                             value={linkUrl}
                             onChange={(e) => {
                               setLinkUrl(e.target.value);
@@ -433,7 +433,9 @@ export default function ViewProductSyncModal({ open, productId, productName, onC
                               Detected:{' '}
                               <strong>{integrationOptionLabel(parsedLink.integration)}</strong>
                               {parsedLink.externalProductId
-                                ? ` · Product ID ${parsedLink.externalProductId}`
+                                ? parsedLink.variantId
+                                  ? ` · Reference ${parsedLink.externalProductId} (product + variant)`
+                                  : ` · Product ID ${parsedLink.externalProductId}`
                                 : ' · product id not found in URL'}
                             </span>
                           ) : (
