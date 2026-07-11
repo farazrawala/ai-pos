@@ -21,8 +21,42 @@ export const normalizeStoreUrl = (raw) => {
 };
 
 /**
+ * Extract Shopify store handle from admin.shopify.com or *.myshopify.com URLs.
+ * e.g. admin.shopify.com/store/my-shop/... → my-shop
+ *      my-shop.myshopify.com → my-shop
+ */
+export const extractShopifyStoreHandle = (rawUrl) => {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+
+  try {
+    const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    const parsed = new URL(withProtocol);
+    const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+    if (host === 'admin.shopify.com') {
+      const match = parsed.pathname.match(/^\/store\/([^/]+)/i);
+      return match?.[1]?.toLowerCase() || '';
+    }
+
+    const myshopifyMatch = host.match(/^([a-z0-9][a-z0-9-]*)\.myshopify\.com$/i);
+    if (myshopifyMatch?.[1]) return myshopifyMatch[1].toLowerCase();
+  } catch {
+    // fall through
+  }
+
+  const adminMatch = value.match(/admin\.shopify\.com\/store\/([^/?#]+)/i);
+  if (adminMatch?.[1]) return adminMatch[1].toLowerCase();
+
+  const myshopifyMatch = value.match(/([a-z0-9][a-z0-9-]*)\.myshopify\.com/i);
+  if (myshopifyMatch?.[1]) return myshopifyMatch[1].toLowerCase();
+
+  return '';
+};
+
+/**
  * Extract an external product id from a store admin / product URL.
- * Supports WordPress/WooCommerce (?post=231) and Shopify (/admin/products/123).
+ * Supports WordPress/WooCommerce (?post=231) and Shopify (/products/123).
  */
 export const extractExternalProductIdFromUrl = (rawUrl) => {
   const value = String(rawUrl || '').trim();
@@ -64,6 +98,7 @@ const integrationIdFromRecord = (item) =>
 /**
  * Find the best matching integration for a pasted store URL by domain/path.
  * Prefers the longest path match (e.g. /testing2 over /testing1 on same host).
+ * Also matches Shopify admin.shopify.com ↔ *.myshopify.com by store handle.
  */
 export const matchIntegrationFromUrl = (rawUrl, integrations = []) => {
   const pasted = normalizeStoreUrl(rawUrl);
@@ -71,23 +106,35 @@ export const matchIntegrationFromUrl = (rawUrl, integrations = []) => {
     return null;
   }
 
+  const pastedShopifyHandle = extractShopifyStoreHandle(rawUrl);
+
   let best = null;
   let bestScore = -1;
 
   for (const integration of integrations) {
     const storeUrl = integration?.url || integration?.store_url || '';
     const normalized = normalizeStoreUrl(storeUrl);
-    if (!normalized) continue;
+    if (!normalized && !storeUrl) continue;
 
-    const matches =
-      pasted === normalized ||
-      pasted.startsWith(`${normalized}/`) ||
-      pasted.startsWith(normalized) ||
-      normalized.startsWith(pasted);
+    let score = -1;
 
-    if (!matches) continue;
+    if (normalized) {
+      const matches =
+        pasted === normalized ||
+        pasted.startsWith(`${normalized}/`) ||
+        pasted.startsWith(normalized) ||
+        normalized.startsWith(pasted);
 
-    const score = normalized.length;
+      if (matches) score = normalized.length;
+    }
+
+    if (score < 0 && pastedShopifyHandle) {
+      const integrationHandle = extractShopifyStoreHandle(storeUrl);
+      if (integrationHandle && integrationHandle === pastedShopifyHandle) {
+        score = 1000 + integrationHandle.length;
+      }
+    }
+
     if (score > bestScore) {
       bestScore = score;
       best = integration;
