@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
-import { FaTrash, FaCalculator } from 'react-icons/fa6';
+import { FaTrash, FaCalculator, FaFloppyDisk, FaListUl, FaFolderOpen } from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
   fetchUsersListRequest,
@@ -33,6 +33,10 @@ import {
   extractDefaultPrinterSettingsFromCompanyBody,
   pickCompanyLogoUrl,
   getWarehouseIdFromCompany,
+  normalizeCompanyDraftOrders,
+  addCompanyDraftOrder,
+  updateCompanyDraftOrder,
+  removeCompanyDraftOrder,
 } from '../../features/company/companyAPI.js';
 import { setCompany } from '../../features/user/userSlice.js';
 import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
@@ -61,6 +65,72 @@ import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
+
+function defaultDraftLabel(total = 0) {
+  const amount = Number(total);
+  const totalLabel = Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
+  return `Draft ${moment().format('D MMM YYYY, h:mm a')} — PKR ${totalLabel}`;
+}
+
+function countDraftPayloadItems(payload) {
+  const lines = payload?.cartLines;
+  return Array.isArray(lines) ? lines.length : 0;
+}
+
+function draftPayloadGrandTotal(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.grandTotal != null) {
+    const n = Number(payload.grandTotal);
+    return Number.isFinite(n) ? Math.max(0, n) : null;
+  }
+  const lines = Array.isArray(payload.cartLines) ? payload.cartLines : [];
+  const subtotal = lines.reduce((sum, line) => {
+    const qty = parsePosQty(line?.quantity);
+    const price = Number(line?.unitPrice) || 0;
+    return sum + qty * price;
+  }, 0);
+  const shipping = Number(payload.shipping) || 0;
+  const discount = Number(payload.extraDiscount) || 0;
+  const total = subtotal + shipping - discount;
+  return Number.isFinite(total) ? Math.max(0, total) : null;
+}
+
+function formatDraftMoney(amount) {
+  if (amount == null || !Number.isFinite(Number(amount))) return null;
+  return `PKR ${Number(amount).toFixed(2)}`;
+}
+
+function formatDraftUpdatedAt(value) {
+  if (!value) return '—';
+  const m = moment(value);
+  return m.isValid() ? m.format('D MMM YYYY, h:mm a') : '—';
+}
+
+/** Prefer a short title; amount is shown separately in the drafts list. */
+function draftDisplayTitle(label) {
+  const raw = String(label || '').trim() || 'Draft';
+  return raw.replace(/\s*[—–-]\s*PKR\s*[\d,]+\.?\d*\s*$/i, '').trim() || raw;
+}
+
+function openPosDraftsModal() {
+  const el = document.getElementById(POS_DRAFTS_MODAL_ID);
+  if (el && window.bootstrap?.Modal) {
+    const M = window.bootstrap.Modal;
+    const instance =
+      typeof M.getOrCreateInstance === 'function'
+        ? M.getOrCreateInstance(el)
+        : M.getInstance(el) || new M(el);
+    instance.show();
+  }
+}
+
+function closePosDraftsModal() {
+  const el = document.getElementById(POS_DRAFTS_MODAL_ID);
+  if (el && window.bootstrap?.Modal) {
+    window.bootstrap.Modal.getInstance(el)?.hide();
+  }
+}
 
 function pickOrderFromSaveResult(result) {
   if (!result || typeof result !== 'object') return null;
@@ -421,6 +491,9 @@ const Pos = () => {
   const [extraDiscountPercent, setExtraDiscountPercent] = useState('');
   const discountEditSourceRef = useRef(null);
   const [cartLines, setCartLines] = useState([]);
+  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftDeletingId, setDraftDeletingId] = useState(null);
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
@@ -1012,7 +1085,163 @@ const Pos = () => {
     setExtraDiscount('');
     setExtraDiscountPercent('');
     discountEditSourceRef.current = null;
+    setActiveDraftId(null);
   }, []);
+
+  const draftOrders = useMemo(
+    () => normalizeCompanyDraftOrders(authCompany),
+    [authCompany]
+  );
+
+  const refreshCompanyAfterDraftMutate = useCallback(
+    async (apiBody) => {
+      const fromResponse = getCompanyFromApiBody(apiBody);
+      if (fromResponse) {
+        dispatch(setCompany(mergeCompanyRecordForSettings(fromResponse, authCompanyRef.current)));
+        return fromResponse;
+      }
+      if (!companyId) return null;
+      const body = await fetchCompanyById(companyId);
+      const fetched = getCompanyFromApiBody(body);
+      if (fetched) {
+        dispatch(setCompany(mergeCompanyRecordForSettings(fetched, authCompanyRef.current)));
+      }
+      return fetched;
+    },
+    [companyId, dispatch]
+  );
+
+  const buildDraftPayload = useCallback(
+    () => ({
+      cartLines,
+      selectedCustomerId,
+      shipping,
+      extraDiscount,
+      extraDiscountPercent,
+      grandTotal,
+      savedAt: new Date().toISOString(),
+    }),
+    [cartLines, selectedCustomerId, shipping, extraDiscount, extraDiscountPercent, grandTotal]
+  );
+
+  const handleSaveDraft = useCallback(async () => {
+    if (!isOnline) {
+      toast.error('Connect to the internet to save drafts');
+      return;
+    }
+    if (!companyId) {
+      toast.error('Company not found — cannot save draft');
+      return;
+    }
+    if (cartLines.length === 0) {
+      toast.warning('Cart is empty — add items before saving a draft');
+      return;
+    }
+
+    const suggested = defaultDraftLabel(grandTotal);
+    const entered = window.prompt('Draft label', suggested);
+    if (entered === null) return;
+    const label = String(entered).trim() || suggested;
+    const payload = buildDraftPayload();
+
+    setDraftSaving(true);
+    try {
+      let result;
+      if (activeDraftId) {
+        result = await updateCompanyDraftOrder(companyId, activeDraftId, { payload, label });
+      } else {
+        result = await addCompanyDraftOrder(companyId, { payload, label });
+      }
+      await refreshCompanyAfterDraftMutate(result);
+      clearCartAfterSale();
+      toast.success(activeDraftId ? 'Draft updated' : 'Draft saved');
+    } catch (err) {
+      console.error('[POS] Failed to save draft', err);
+      toast.error(err?.message || 'Failed to save draft');
+    } finally {
+      setDraftSaving(false);
+    }
+  }, [
+    isOnline,
+    companyId,
+    cartLines.length,
+    grandTotal,
+    buildDraftPayload,
+    activeDraftId,
+    refreshCompanyAfterDraftMutate,
+    clearCartAfterSale,
+  ]);
+
+  const applyDraftPayload = useCallback((payload) => {
+    const data = payload && typeof payload === 'object' ? payload : {};
+    setCartLines(Array.isArray(data.cartLines) ? data.cartLines : []);
+    if (data.selectedCustomerId != null && data.selectedCustomerId !== '') {
+      setSelectedCustomerId(String(data.selectedCustomerId));
+    }
+    setShipping(data.shipping != null ? String(data.shipping) : '');
+    setExtraDiscount(data.extraDiscount != null ? String(data.extraDiscount) : '');
+    setExtraDiscountPercent(
+      data.extraDiscountPercent != null ? String(data.extraDiscountPercent) : ''
+    );
+    discountEditSourceRef.current = null;
+  }, []);
+
+  const handleOpenDrafts = useCallback(() => {
+    if (!isOnline) {
+      toast.error('Connect to the internet to load drafts');
+      return;
+    }
+    openPosDraftsModal();
+  }, [isOnline]);
+
+  const handleLoadDraft = useCallback(
+    (draft) => {
+      if (!isOnline) {
+        toast.error('Connect to the internet to load drafts');
+        return;
+      }
+      if (!draft) return;
+      if (cartLines.length > 0) {
+        const ok = window.confirm(
+          'Replace the current cart with this draft? Unsaved cart changes will be lost.'
+        );
+        if (!ok) return;
+      }
+      applyDraftPayload(draft.payload);
+      setActiveDraftId(String(draft._id));
+      closePosDraftsModal();
+      toast.success(`Loaded draft "${draft.label || 'Draft'}"`);
+    },
+    [isOnline, cartLines.length, applyDraftPayload]
+  );
+
+  const handleDeleteDraft = useCallback(
+    async (draft) => {
+      if (!isOnline) {
+        toast.error('Connect to the internet to delete drafts');
+        return;
+      }
+      if (!companyId || !draft?._id) return;
+      const ok = window.confirm(`Delete draft "${draft.label || 'Draft'}"?`);
+      if (!ok) return;
+
+      setDraftDeletingId(String(draft._id));
+      try {
+        const result = await removeCompanyDraftOrder(companyId, draft._id);
+        await refreshCompanyAfterDraftMutate(result);
+        if (activeDraftId && String(activeDraftId) === String(draft._id)) {
+          setActiveDraftId(null);
+        }
+        toast.success('Draft deleted');
+      } catch (err) {
+        console.error('[POS] Failed to delete draft', err);
+        toast.error(err?.message || 'Failed to delete draft');
+      } finally {
+        setDraftDeletingId(null);
+      }
+    },
+    [isOnline, companyId, activeDraftId, refreshCompanyAfterDraftMutate]
+  );
 
   const handlePaymentComplete = useCallback(
     async (payment) => {
@@ -1442,7 +1671,24 @@ const Pos = () => {
                 })()}
               </div>
 
-              <div className="pos-section-label">Cart</div>
+              <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
+                <div className="pos-section-label mb-0">Cart</div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary pos-drafts-btn"
+                  onClick={handleOpenDrafts}
+                  disabled={!isOnline}
+                  title={
+                    isOnline
+                      ? 'View saved draft orders'
+                      : 'Connect to the internet to load drafts'
+                  }
+                >
+                  <NavIcon icon={FaListUl} size={12} className="me-1" />
+                  Drafts
+                  {draftOrders.length > 0 ? ` (${draftOrders.length})` : ''}
+                </button>
+              </div>
               <div className="pos-cart-header">
                 <div className="text-center">Sr</div>
                 <div>Product</div>
@@ -1611,6 +1857,9 @@ const Pos = () => {
           warehouseId={defaultWarehouseId}
           onAddToCart={addToCart}
           onPaymentClick={handlePaymentClick}
+          onSaveDraft={handleSaveDraft}
+          cartLineCount={cartLines.length}
+          draftSaving={draftSaving}
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}
@@ -1738,6 +1987,129 @@ const Pos = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="modal fade"
+        id={POS_DRAFTS_MODAL_ID}
+        tabIndex="-1"
+        aria-labelledby="posDraftsModalLabel"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+          <div className="modal-content pos-drafts-modal">
+            <div className="modal-header pos-drafts-modal__header">
+              <div>
+                <h5 className="modal-title mb-0" id="posDraftsModalLabel">
+                  Draft orders
+                </h5>
+                <p className="pos-drafts-modal__subtitle mb-0">
+                  {isOnline
+                    ? draftOrders.length === 0
+                      ? 'Saved carts appear here for later checkout'
+                      : `${draftOrders.length} saved draft${draftOrders.length === 1 ? '' : 's'}`
+                    : 'Drafts require an internet connection'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div className="modal-body pos-drafts-modal__body">
+              {!isOnline ? (
+                <div className="pos-drafts-empty">
+                  <p className="mb-0">Connect to the internet to manage drafts.</p>
+                </div>
+              ) : draftOrders.length === 0 ? (
+                <div className="pos-drafts-empty">
+                  <NavIcon icon={FaFloppyDisk} size={28} className="pos-drafts-empty__icon" />
+                  <p className="pos-drafts-empty__title mb-1">No drafts yet</p>
+                  <p className="mb-0">
+                    Add items to the cart and tap <strong>Draft</strong> to save an order for later.
+                  </p>
+                </div>
+              ) : (
+                <ul className="pos-drafts-list list-unstyled mb-0">
+                  {draftOrders.map((draft) => {
+                    const itemCount = countDraftPayloadItems(draft.payload);
+                    const total = draftPayloadGrandTotal(draft.payload);
+                    const totalLabel = formatDraftMoney(total);
+                    const deleting = draftDeletingId === String(draft._id);
+                    const isActive = activeDraftId === String(draft._id);
+                    return (
+                      <li
+                        key={draft._id}
+                        className={`pos-drafts-item${isActive ? ' pos-drafts-item--active' : ''}`}
+                      >
+                        <div className="pos-drafts-item__main">
+                          <div className="pos-drafts-item__title-row">
+                            <span className="pos-drafts-item__title" title={draft.label}>
+                              {draftDisplayTitle(draft.label)}
+                            </span>
+                            {isActive ? (
+                              <span className="pos-drafts-item__badge">Active</span>
+                            ) : null}
+                          </div>
+                          <div className="pos-drafts-item__meta">
+                            <span>{formatDraftUpdatedAt(draft.updated_at)}</span>
+                            <span className="pos-drafts-item__dot" aria-hidden="true">
+                              ·
+                            </span>
+                            <span>
+                              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pos-drafts-item__side">
+                          {totalLabel ? (
+                            <div className="pos-drafts-item__amount">{totalLabel}</div>
+                          ) : null}
+                          <div className="pos-drafts-item__actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm pos-drafts-item__load"
+                              onClick={() => handleLoadDraft(draft)}
+                              disabled={deleting}
+                            >
+                              <NavIcon icon={FaFolderOpen} size={12} className="me-1" />
+                              Load
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-link text-danger pos-drafts-item__delete"
+                              onClick={() => handleDeleteDraft(draft)}
+                              disabled={deleting}
+                              aria-label={`Delete ${draft.label}`}
+                              title="Delete draft"
+                            >
+                              {deleting ? (
+                                <span
+                                  className="spinner-border spinner-border-sm"
+                                  role="status"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <NavIcon icon={FaTrash} size={14} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="modal-footer pos-drafts-modal__footer">
+              <button type="button" className="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>

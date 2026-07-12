@@ -1590,3 +1590,104 @@ export async function patchCompanyDefaultPrinterSettings(companyId, settingsObje
     default_printer_settings: JSON.stringify(settingsObject),
   });
 }
+
+/** Normalize `draft_orders` from a company doc (newest first by `updated_at`). */
+export function normalizeCompanyDraftOrders(companyOrBody) {
+  const company =
+    companyOrBody && typeof companyOrBody === 'object'
+      ? extractCompanyRecord(companyOrBody) || companyOrBody
+      : null;
+  const raw = company?.draft_orders ?? company?.draftOrders;
+  if (!Array.isArray(raw)) return [];
+  return [...raw]
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const id = row._id ?? row.id;
+      return {
+        ...row,
+        _id: id != null ? String(id) : '',
+        label: String(row.label ?? '').trim() || 'Draft',
+        updated_at: row.updated_at ?? row.updatedAt ?? null,
+        payload: row.payload && typeof row.payload === 'object' ? row.payload : {},
+      };
+    })
+    .filter((row) => row && row._id)
+    .sort((a, b) => {
+      const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return tb - ta;
+    });
+}
+
+/** Read draft_orders from company store / GET company body. */
+export async function fetchCompanyDraftOrders(companyId) {
+  if (!companyId) return [];
+  const body = await fetchCompanyById(companyId);
+  return normalizeCompanyDraftOrders(body);
+}
+
+/**
+ * POST `company/draft-orders/:companyId` — push `{ payload, label }` onto draft_orders.
+ */
+export async function addCompanyDraftOrder(companyId, { payload, label } = {}) {
+  const token = getAuthToken();
+  const url = `${API_BASE_URL}/company/draft-orders/${encodeURIComponent(companyId)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ payload, label }),
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return data;
+}
+
+/**
+ * PATCH `company/draft-orders/:companyId/:draftId` — update payload (and optional label).
+ */
+export async function updateCompanyDraftOrder(companyId, draftId, { payload, label } = {}) {
+  const token = getAuthToken();
+  const url = `${API_BASE_URL}/company/draft-orders/${encodeURIComponent(companyId)}/${encodeURIComponent(draftId)}`;
+  const body = { payload };
+  if (label !== undefined) body.label = label;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return data;
+}
+
+/**
+ * DELETE `company/draft-orders/:companyId/:draftId` — `$pull` by subdoc `_id`.
+ */
+export async function removeCompanyDraftOrder(companyId, draftId) {
+  const token = getAuthToken();
+  const url = `${API_BASE_URL}/company/draft-orders/${encodeURIComponent(companyId)}/${encodeURIComponent(draftId)}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return data;
+}

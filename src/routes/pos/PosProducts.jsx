@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { FaBarcode, FaCreditCard, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
+import { FaBarcode, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
 import {
   fetchProductsRequest,
   fetchProductActiveRequest,
@@ -84,6 +84,9 @@ const PosProducts = ({
   onAddToCart,
   warehouseId = '',
   onPaymentClick,
+  onSaveDraft,
+  cartLineCount = 0,
+  draftSaving = false,
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
@@ -421,6 +424,22 @@ const PosProducts = ({
           </div>
 
           <div className="pos-footer-actions">
+            <button
+              type="button"
+              className="btn btn-draft"
+              onClick={() => onSaveDraft?.()}
+              disabled={draftSaving || cartLineCount < 1 || !isOnline}
+              title={
+                !isOnline
+                  ? 'Connect to the internet to save drafts'
+                  : cartLineCount < 1
+                    ? 'Add items to the cart before saving a draft'
+                    : 'Save current cart as a draft'
+              }
+            >
+              <NavIcon icon={FaFloppyDisk} size={14} className="me-2" />
+              {draftSaving ? 'Saving…' : 'Draft'}
+            </button>
             <button type="button" className="btn btn-pay" onClick={() => onPaymentClick?.()}>
               <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
               Payment

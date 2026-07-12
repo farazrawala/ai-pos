@@ -14,9 +14,23 @@ import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+
+/** Logs table columns. `sno` and `action` are always visible. */
+const LOG_COLUMNS = [
+  { key: 'sno', label: 'S.No', alwaysVisible: true },
+  { key: 'user', label: 'User' },
+  { key: 'action', label: 'Action', alwaysVisible: true },
+  { key: 'url', label: 'URL' },
+  { key: 'human_readable_description', label: 'Human readable description' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'status', label: 'Status' },
+  { key: 'createdAt', label: 'Created at' },
+];
 
 const productId = (p) => String(p?._id || p?.id || p?.product_id || '');
 const productName = (p) => p?.name || p?.product_name || 'Product';
@@ -284,6 +298,8 @@ const Logs = () => {
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('logs', LOG_COLUMNS);
+
   usePermissions('logs');
   useRequireModuleAccess('logs');
 
@@ -472,6 +488,13 @@ const Logs = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={LOG_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="logsColumnVisibilityMenu"
+                    />
                   </div>
                 </div>
               </div>
@@ -514,7 +537,7 @@ const Logs = () => {
                   <thead>
                     <tr>
                       <th>S.No</th>
-                      <th>User</th>
+                      {isVisible('user') ? <th>User</th> : null}
                       <th
                         style={{ cursor: 'pointer', userSelect: 'none' }}
                         onClick={() => handleSort('action')}
@@ -523,45 +546,56 @@ const Logs = () => {
                         Action
                         {renderSortIcon('action')}
                       </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('url')}
-                        onDoubleClick={() => handleSort('url', true)}
-                      >
-                        URL
-                        {renderSortIcon('url')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('human_readable_description')}
-                        onDoubleClick={() => handleSort('human_readable_description', true)}
-                      >
-                        Human readable description
-                        {renderSortIcon('human_readable_description')}
-                      </th>
-                      <th>Tags</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('status')}
-                        onDoubleClick={() => handleSort('status', true)}
-                      >
-                        Status
-                        {renderSortIcon('status')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('createdAt')}
-                        onDoubleClick={() => handleSort('createdAt', true)}
-                      >
-                        Created at
-                        {renderSortIcon('createdAt')}
-                      </th>
+                      {isVisible('url') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('url')}
+                          onDoubleClick={() => handleSort('url', true)}
+                        >
+                          URL
+                          {renderSortIcon('url')}
+                        </th>
+                      ) : null}
+                      {isVisible('human_readable_description') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('human_readable_description')}
+                          onDoubleClick={() => handleSort('human_readable_description', true)}
+                        >
+                          Human readable description
+                          {renderSortIcon('human_readable_description')}
+                        </th>
+                      ) : null}
+                      {isVisible('tags') ? <th>Tags</th> : null}
+                      {isVisible('status') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('status')}
+                          onDoubleClick={() => handleSort('status', true)}
+                        >
+                          Status
+                          {renderSortIcon('status')}
+                        </th>
+                      ) : null}
+                      {isVisible('createdAt') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('createdAt')}
+                          onDoubleClick={() => handleSort('createdAt', true)}
+                        >
+                          Created at
+                          {renderSortIcon('createdAt')}
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center text-sm font-weight-normal p-4">
+                        <td
+                          colSpan={visibleCount}
+                          className="text-center text-sm font-weight-normal p-4"
+                        >
                           No log entries found
                         </td>
                       </tr>
@@ -582,56 +616,68 @@ const Logs = () => {
                         return (
                           <tr key={item._id || index}>
                             <td className="text-sm font-weight-normal">{seriesNumber}</td>
-                            <td className="text-sm font-weight-normal">{creatorName}</td>
+                            {isVisible('user') ? (
+                              <td className="text-sm font-weight-normal">{creatorName}</td>
+                            ) : null}
                             <td className="text-sm font-weight-normal align-middle">
                               <LogDescriptionCell
                                 text={item.action ?? item.title ?? item.event}
                                 maxWidth="min(16rem, 28vw)"
                               />
                             </td>
-                            <td className="text-sm font-weight-normal text-break">
-                              <LogUrlCell url={item.url} />
-                            </td>
-                            <td className="text-sm font-weight-normal align-middle">
-                              <LogHumanReadablePreviewCell
-                                fullText={getLogHumanReadableDescription(item)}
-                                onOpen={setLogDetailsText}
-                              />
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              <div className="d-flex flex-wrap gap-1">
-                                {tags.length === 0 ? (
-                                  <span className="text-muted">—</span>
-                                ) : (
-                                  tags.map((t) => (
-                                    <span key={t} className="badge bg-gradient-secondary">
-                                      {t}
-                                    </span>
-                                  ))
-                                )}
-                              </div>
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              <span
-                                className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
+                            {isVisible('url') ? (
+                              <td className="text-sm font-weight-normal text-break">
+                                <LogUrlCell url={item.url} />
+                              </td>
+                            ) : null}
+                            {isVisible('human_readable_description') ? (
+                              <td className="text-sm font-weight-normal align-middle">
+                                <LogHumanReadablePreviewCell
+                                  fullText={getLogHumanReadableDescription(item)}
+                                  onOpen={setLogDetailsText}
+                                />
+                              </td>
+                            ) : null}
+                            {isVisible('tags') ? (
+                              <td className="text-sm font-weight-normal">
+                                <div className="d-flex flex-wrap gap-1">
+                                  {tags.length === 0 ? (
+                                    <span className="text-muted">—</span>
+                                  ) : (
+                                    tags.map((t) => (
+                                      <span key={t} className="badge bg-gradient-secondary">
+                                        {t}
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+                            ) : null}
+                            {isVisible('status') ? (
+                              <td className="text-sm font-weight-normal">
+                                <span
+                                  className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
+                                >
+                                  {item.status || '—'}
+                                </span>
+                              </td>
+                            ) : null}
+                            {isVisible('createdAt') ? (
+                              <td
+                                className="text-sm font-weight-normal"
+                                title={
+                                  item.createdAt || item.created_at
+                                    ? moment(item.createdAt || item.created_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
                               >
-                                {item.status || '—'}
-                              </span>
-                            </td>
-                            <td
-                              className="text-sm font-weight-normal"
-                              title={
-                                item.createdAt || item.created_at
-                                  ? moment(item.createdAt || item.created_at).format(
-                                      'MM-DD-YYYY h:mm a'
-                                    )
-                                  : undefined
-                              }
-                            >
-                              {item.createdAt || item.created_at
-                                ? moment(item.createdAt || item.created_at).fromNow()
-                                : '—'}
-                            </td>
+                                {item.createdAt || item.created_at
+                                  ? moment(item.createdAt || item.created_at).fromNow()
+                                  : '—'}
+                              </td>
+                            ) : null}
                           </tr>
                         );
                       })
