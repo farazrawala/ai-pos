@@ -553,6 +553,7 @@ const PosInvoice = () => {
       setSourceOrder(refreshed);
       setView(mapOrderToInvoiceView(refreshed, { origin: window.location.origin }));
       setInvoiceSaveMessage({ type: 'success', text: 'Invoice updated successfully.' });
+      toast.success('Invoice updated successfully.');
     } catch (e) {
       console.error('[POS invoice] Failed to update invoice', e);
       const cartLines = invoiceDraftLines.map((line) => ({

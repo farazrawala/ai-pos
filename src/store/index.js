@@ -10,6 +10,7 @@ import logsReducer from '../features/logs/logsSlice.js';
 import usersReducer from '../features/users/usersSlice.js';
 import warehouseReducer from '../features/warehouse/warehouseSlice.js';
 import branchReducer from '../features/branch/branchSlice.js';
+import courierReducer from '../features/courier/courierSlice.js';
 import accountsReducer from '../features/accounts/accountsSlice.js';
 import ordersReducer from '../features/orders/ordersSlice.js';
 import purchaseOrdersReducer from '../features/purchaseOrders/purchaseOrdersSlice.js';
@@ -45,6 +46,7 @@ const store = configureStore({
     users: usersReducer,
     warehouse: warehouseReducer,
     branch: branchReducer,
+    courier: courierReducer,
     accounts: accountsReducer,
     orders: ordersReducer,
     purchaseOrders: purchaseOrdersReducer,

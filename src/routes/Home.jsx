@@ -334,7 +334,7 @@ const Home = () => {
             <PosAvgOrderValueCard />
           </div>
           <div className="col-lg-4">
-            <PosSalesByCategoryCard />
+            <PosExpenseSummaryCard />
           </div>
         </div>
         <div className="row g-4 mb-4">
@@ -349,13 +349,15 @@ const Home = () => {
           </div>
         </div>
         <div className="row g-4 mb-4">
-          <div className="col-lg-4">
-            <PosExpenseSummaryCard />
+          <div className="col-lg-6">
+            <PosSalesByCategoryCard />
           </div>
-          <div className="col-lg-4">
+          <div className="col-lg-6">
             <PosExpensesByAccountCard />
           </div>
-          <div className="col-lg-4">
+        </div>
+        <div className="row g-4 mb-4">
+          <div className="col-lg-6">
             <PosExpenseVsRevenueCard />
           </div>
         </div>

@@ -88,7 +88,7 @@ export default function PosExpensesByAccountCard() {
   return (
     <div className="card h-100">
       <div className="card-header pb-0 pt-3 bg-transparent">
-        <h6 className="text-capitalize">Expenses by account</h6>
+        <h6 className="text-capitalize">Expense Distribution</h6>
         <p className="text-sm mb-0">
           {loading ? (
             <span className="text-secondary">Loading…</span>

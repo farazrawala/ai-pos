@@ -52,6 +52,7 @@ export const NAV_ITEMS = [
   { to: '/categories', label: 'Categories', icon: FaFolder },
   { to: '/brands', label: 'Brands', icon: FaTrademark },
   { to: '/integration', label: 'Integrations', icon: FaGlobe },
+  { to: '/courier-integration', label: 'Courier Integration', icon: FaTruck },
   { to: '/processes', label: 'Processes', icon: FaArrowsRotate },
   { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
   { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },

@@ -88,6 +88,9 @@ import AmountTransferEdit from './routes/amount_transfer/edit.jsx';
 import Integration from './routes/integration/index.jsx';
 import IntegrationAdd from './routes/integration/add.jsx';
 import IntegrationEdit from './routes/integration/edit.jsx';
+import CourierIntegration from './routes/courier-integration/index.jsx';
+import CourierIntegrationAdd from './routes/courier-integration/add.jsx';
+import CourierIntegrationEdit from './routes/courier-integration/edit.jsx';
 import ProcessIndex from './routes/process/index.jsx';
 import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
@@ -169,6 +172,9 @@ const App = () => {
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
+          <Route path="/courier-integration" element={<CourierIntegration />} />
+          <Route path="/courier-integration/add" element={<CourierIntegrationAdd />} />
+          <Route path="/courier-integration/edit/:id" element={<CourierIntegrationEdit />} />
           <Route path="/processes" element={<ProcessIndex />} />
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
@@ -299,6 +305,9 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/integration" element={<Integration />} />
           <Route path="/integration/add" element={<IntegrationAdd />} />
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
+          <Route path="/courier-integration" element={<CourierIntegration />} />
+          <Route path="/courier-integration/add" element={<CourierIntegrationAdd />} />
+          <Route path="/courier-integration/edit/:id" element={<CourierIntegrationEdit />} />
           <Route path="/processes" element={<ProcessIndex />} />
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />

@@ -253,13 +253,8 @@ function OrderIntegrationMergedCell({
   }
 
   return (
-    <div className="d-flex align-items-center gap-2 flex-wrap">
+    <div className="d-flex flex-column align-items-start gap-1 min-width-0">
       {identityNode}
-      {identityNode && orderIdNode ? (
-        <span className="text-muted text-xs" aria-hidden="true">
-          ·
-        </span>
-      ) : null}
       {orderIdNode}
     </div>
   );
@@ -278,6 +273,7 @@ const ORDER_COLUMNS = [
   { key: 'total', label: 'Total' },
   { key: 'status', label: 'Status' },
   { key: 'created', label: 'Created' },
+  { key: 'updated', label: 'Last updated' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
@@ -960,6 +956,9 @@ export default function OrdersListPage({ config }) {
                       {isVisible('created')
                         ? sortableTh('createdAt', 'Created', 'list-col-date')
                         : null}
+                      {isVisible('updated')
+                        ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
+                        : null}
                       <th className="text-end list-col-actions">Actions</th>
                     </tr>
                   </thead>
@@ -1063,15 +1062,20 @@ export default function OrdersListPage({ config }) {
                               </td>
                             ) : null}
                             {isVisible('created') ? (
+                              <td className="text-sm text-nowrap list-col-date">
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('updated') ? (
                               <td
                                 className="text-sm text-nowrap list-col-date"
                                 title={
                                   updated
-                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    ? moment(updated).format('DD MMM YYYY h:mm a')
                                     : undefined
                                 }
                               >
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                                {updated ? moment(updated).fromNow() : '—'}
                               </td>
                             ) : null}
                             <td className="text-end">
