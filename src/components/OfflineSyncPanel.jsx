@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import moment from 'moment';
+import AppModal from './AppModal.jsx';
 import { useSyncStatus } from '../hooks/useSyncStatus.js';
 import { useOnlineStatus } from '../hooks/useOnlineStatus.js';
 import { listAllPendingOrders } from '../offline/repositories/ordersRepo.js';
@@ -7,10 +8,11 @@ import { refreshSyncStatusCounts } from '../offline/syncStatus.js';
 import { processSyncQueue, retryFailedOrders } from '../offline/syncOrders.js';
 import { toast } from '../utils/toast.js';
 
-const MODAL_ID = 'posOfflineSyncModal';
-
 /** Auto-retry failed offline orders this long after the last attempt. */
 const AUTO_RETRY_MS = 60_000;
+
+/** Module-level opener so callers can keep `openOfflineSyncPanel()` without Bootstrap. */
+let openPanelHandler = null;
 
 /** Format remaining seconds as `m:ss` for the countdown. */
 function formatCountdown(totalSeconds) {
@@ -75,20 +77,13 @@ function RetryCountdown({ hasQueue, isOnline, busy, nextRetryAt }) {
 }
 
 export function openOfflineSyncPanel() {
-  const el = document.getElementById(MODAL_ID);
-  if (el && window.bootstrap?.Modal) {
-    const M = window.bootstrap.Modal;
-    const instance =
-      typeof M.getOrCreateInstance === 'function'
-        ? M.getOrCreateInstance(el)
-        : M.getInstance(el) || new M(el);
-    instance.show();
-  }
+  openPanelHandler?.();
 }
 
 export default function OfflineSyncPanel() {
   const isOnline = useOnlineStatus();
   const syncStatus = useSyncStatus();
+  const [open, setOpen] = useState(false);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState('');
@@ -109,17 +104,21 @@ export default function OfflineSyncPanel() {
     }
   }, []);
 
+  const handleOpen = useCallback(() => {
+    setOpen(true);
+    loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    openPanelHandler = handleOpen;
+    return () => {
+      if (openPanelHandler === handleOpen) openPanelHandler = null;
+    };
+  }, [handleOpen]);
+
   useEffect(() => {
     loadOrders();
   }, [loadOrders, syncStatus.pending, syncStatus.failed, syncStatus.syncing]);
-
-  useEffect(() => {
-    const el = document.getElementById(MODAL_ID);
-    if (!el) return undefined;
-    const onShow = () => loadOrders();
-    el.addEventListener('show.bs.modal', onShow);
-    return () => el.removeEventListener('show.bs.modal', onShow);
-  }, [loadOrders]);
 
   const pendingRows = useMemo(
     () => orders.filter((row) => row.status === 'pending' || row.status === 'syncing'),
@@ -285,77 +284,72 @@ export default function OfflineSyncPanel() {
   );
 
   return (
-    <div className="modal fade" id={MODAL_ID} tabIndex="-1" aria-labelledby="posOfflineSyncModalLabel" aria-hidden="true">
-      <div className="modal-dialog modal-xl modal-dialog-scrollable">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title" id="posOfflineSyncModalLabel">
-              Pending sync
-            </h5>
-            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" />
-          </div>
-          <div className="modal-body">
-            <div className="d-flex flex-wrap gap-2 mb-3">
-              <button
-                type="button"
-                className="btn btn-sm btn-primary"
-                onClick={handleSyncNow}
-                disabled={!isOnline || syncStatus.syncing || action !== ''}
-              >
-                {action === 'sync' ? 'Syncing…' : 'Sync now'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-warning"
-                onClick={handleRetryFailed}
-                disabled={!isOnline || syncStatus.syncing || action !== '' || failedRows.length === 0}
-              >
-                {action === 'retry'
-                  ? 'Retrying…'
-                  : retrySecondsLeft != null
-                    ? `Retry failed (${formatCountdown(retrySecondsLeft)})`
-                    : 'Retry failed'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary"
-                onClick={loadOrders}
-                disabled={loading}
-              >
-                Refresh
-              </button>
-              <div className="ms-auto d-flex align-items-center">
-                <RetryCountdown
-                  hasQueue={hasQueue}
-                  isOnline={isOnline}
-                  busy={syncStatus.syncing || action !== ''}
-                  nextRetryAt={syncStatus.nextRetryAt}
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="text-muted small py-3">Loading pending orders…</div>
-            ) : (
-              <>
-                <h6 className="mb-2">Pending / syncing ({pendingRows.length})</h6>
-                {renderTable(pendingRows)}
-                <h6 className="mt-4 mb-2">
-                  Failed ({failedRows.length})
-                  {action === 'retry' && retrySecondsLeft === 0 ? (
-                    <span className="text-muted small ms-2 fw-normal">· retrying now…</span>
-                  ) : retrySecondsLeft != null ? (
-                    <span className="text-muted small ms-2 fw-normal">
-                      · auto-retry in {formatCountdown(retrySecondsLeft)}
-                    </span>
-                  ) : null}
-                </h6>
-                {renderTable(failedRows, { highlightFailed: true })}
-              </>
-            )}
-          </div>
+    <AppModal
+      open={open}
+      onClose={() => setOpen(false)}
+      title="Pending sync"
+      subtitle="Offline orders waiting to upload when you are online"
+      size="xl"
+      ariaLabelledBy="posOfflineSyncModalLabel"
+    >
+      <div className="d-flex flex-wrap gap-2 mb-3">
+        <button
+          type="button"
+          className="btn btn-sm btn-primary mb-0"
+          onClick={handleSyncNow}
+          disabled={!isOnline || syncStatus.syncing || action !== ''}
+        >
+          {action === 'sync' ? 'Syncing…' : 'Sync now'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-warning mb-0"
+          onClick={handleRetryFailed}
+          disabled={!isOnline || syncStatus.syncing || action !== '' || failedRows.length === 0}
+        >
+          {action === 'retry'
+            ? 'Retrying…'
+            : retrySecondsLeft != null
+              ? `Retry failed (${formatCountdown(retrySecondsLeft)})`
+              : 'Retry failed'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary mb-0"
+          onClick={loadOrders}
+          disabled={loading}
+        >
+          Refresh
+        </button>
+        <div className="ms-auto d-flex align-items-center">
+          <RetryCountdown
+            hasQueue={hasQueue}
+            isOnline={isOnline}
+            busy={syncStatus.syncing || action !== ''}
+            nextRetryAt={syncStatus.nextRetryAt}
+          />
         </div>
       </div>
-    </div>
+
+      {loading ? (
+        <div className="text-muted small py-3">Loading pending orders…</div>
+      ) : (
+        <>
+          <h6 className="mb-2">Pending / syncing ({pendingRows.length})</h6>
+          {renderTable(pendingRows)}
+          <h6 className="mt-4 mb-2">
+            Failed ({failedRows.length})
+            {action === 'retry' && retrySecondsLeft === 0 ? (
+              <span className="text-muted small ms-2 fw-normal">· retrying now…</span>
+            ) : retrySecondsLeft != null ? (
+              <span className="text-muted small ms-2 fw-normal">
+                · auto-retry in {formatCountdown(retrySecondsLeft)}
+              </span>
+            ) : null}
+          </h6>
+          {renderTable(failedRows, { highlightFailed: true })}
+        </>
+      )}
+    </AppModal>
   );
 }
