@@ -651,7 +651,7 @@ export default function OrdersListPage({ config }) {
     }
   };
 
-  const refreshOrderList = () => {
+  const refreshOrderList = useCallback(() => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (listPath) params.listPath = listPath;
     if (searchTerm) params.search = searchTerm;
@@ -662,7 +662,21 @@ export default function OrdersListPage({ config }) {
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchOrders(params));
-  };
+  }, [
+    dispatch,
+    listPath,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    filters.startDate,
+    filters.endDate,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
+
+  const handleRetryFetch = useCallback(() => {
+    refreshOrderList();
+  }, [refreshOrderList]);
 
   const handleFetchOrdersSaved = () => {
     toast.success('Order fetch process queued successfully!');
@@ -918,6 +932,8 @@ export default function OrdersListPage({ config }) {
                 loading={loading}
                 loadingLabel={`Loading ${pageTitle.toLowerCase()}…`}
                 error={error}
+                errorPrefix={`Error loading ${pageTitle.toLowerCase()}`}
+                onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
                 onLimitChange={handleLimitChange}
