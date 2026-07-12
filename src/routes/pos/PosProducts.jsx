@@ -7,6 +7,7 @@ import {
 } from '../../features/products/productsAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import NavIcon from '../../components/NavIcon.jsx';
+import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
 import { withBase } from '../../config/appBase.js';
 import {
   formatProductNameWithStock,
@@ -15,6 +16,7 @@ import {
 } from '../../utils/productStock.js';
 import { toast } from '../../utils/toast.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
+import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
 import {
   countProducts,
   lookupProductsForScan,
@@ -22,9 +24,6 @@ import {
 } from '../../offline/repositories/productsRepo.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
-
-/** Auto-retry delay for a failed product load (e.g. backend/DB outage). */
-const POS_PRODUCTS_RETRY_DELAY_MS = 60_000;
 
 const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
 
@@ -160,16 +159,19 @@ const PosProducts = ({
     loadProducts();
   }, [loadProducts]);
 
-  // If the product load fails (e.g. backend or MongoDB is down), retry once a
-  // minute until it succeeds. Only while online — an offline failure means the
-  // local catalog is empty, which retrying can't resolve.
-  useEffect(() => {
-    if (!isOnline || productsStatus !== 'failed') return undefined;
-    const timer = setTimeout(() => {
-      loadProducts();
-    }, POS_PRODUCTS_RETRY_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isOnline, productsStatus, loadProducts]);
+  const handleRetryProducts = useCallback(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Same as products list: 5→1 countdown then auto-retry while online.
+  // Offline failures mean an empty local catalog — retrying can't fix that.
+  const { countdown: productsRetryCountdown, isRetrying: isRetryingProducts } =
+    useFetchRetryCountdown({
+      isFailed: productsStatus === 'failed',
+      onRetry: handleRetryProducts,
+      seconds: 5,
+      enabled: isOnline,
+    });
 
   const visibleProducts = useMemo(() => {
     if (!hideLowStock) return products;
@@ -341,15 +343,24 @@ const PosProducts = ({
                 Loading products…
               </div>
             )}
-            {productsStatus !== 'loading' && productsError && (
+            {productsStatus !== 'loading' && isRetryingProducts && (
+              <FetchRetryStatus countdown={productsRetryCountdown} />
+            )}
+            {productsStatus !== 'loading' && productsError && !isRetryingProducts && (
               <div className="alert alert-warning py-2 small mb-2" role="alert">
                 {productsError}
-                {isOnline && productsStatus === 'failed' && (
-                  <div className="text-muted mt-1">Retrying automatically every minute…</div>
-                )}
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-warning mb-0"
+                    onClick={handleRetryProducts}
+                  >
+                    Retry now
+                  </button>
+                </div>
               </div>
             )}
-            {productsStatus !== 'loading' && !productsError && visibleProducts.length === 0 && (
+            {productsStatus !== 'loading' && !productsError && !isRetryingProducts && visibleProducts.length === 0 && (
               <div className="text-center text-muted py-5">
                 No products found
                 {hideLowStock && products.length > 0 ? (

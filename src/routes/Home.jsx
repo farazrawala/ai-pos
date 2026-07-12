@@ -22,6 +22,12 @@ import PosReceivablesAgingCard from '../components/dashboard/PosReceivablesAging
 import PosExpenseSummaryCard from '../components/dashboard/PosExpenseSummaryCard.jsx';
 import PosExpensesByAccountCard from '../components/dashboard/PosExpensesByAccountCard.jsx';
 import PosExpenseVsRevenueCard from '../components/dashboard/PosExpenseVsRevenueCard.jsx';
+import PosGrossMarginTrendCard from '../components/dashboard/PosGrossMarginTrendCard.jsx';
+import PosCogsVsSalesCard from '../components/dashboard/PosCogsVsSalesCard.jsx';
+import PosInventoryValueCard from '../components/dashboard/PosInventoryValueCard.jsx';
+import PosDiscountTotalsCard from '../components/dashboard/PosDiscountTotalsCard.jsx';
+import PosLedgerDebitCreditCard from '../components/dashboard/PosLedgerDebitCreditCard.jsx';
+import DashboardChartErrorBoundary from '../components/dashboard/DashboardChartErrorBoundary.jsx';
 import LowStockAlertsTable from '../components/dashboard/LowStockAlertsTable.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
@@ -270,6 +276,43 @@ const Home = () => {
           </div>
           <div className="col-lg-5">
             <PosPurchasesSummaryCard />
+          </div>
+        </div>
+        <div className="row mt-1 mb-2">
+          <div className="col-12">
+            <h5 className="mb-1">Profit, inventory &amp; ledger</h5>
+            <p className="text-sm text-secondary mb-0">
+              Gross margin, COGS vs sales, inventory value, discounts, and ledger debit/credit
+            </p>
+          </div>
+        </div>
+        <div className="row g-4 mb-4">
+          <div className="col-lg-7">
+            <DashboardChartErrorBoundary title="Gross profit / margin trend">
+              <PosGrossMarginTrendCard />
+            </DashboardChartErrorBoundary>
+          </div>
+          <div className="col-lg-5">
+            <DashboardChartErrorBoundary title="COGS vs sales">
+              <PosCogsVsSalesCard />
+            </DashboardChartErrorBoundary>
+          </div>
+        </div>
+        <div className="row g-4 mb-4">
+          <div className="col-lg-4">
+            <DashboardChartErrorBoundary title="Inventory value (COGA)">
+              <PosInventoryValueCard />
+            </DashboardChartErrorBoundary>
+          </div>
+          <div className="col-lg-4">
+            <DashboardChartErrorBoundary title="Discount totals">
+              <PosDiscountTotalsCard />
+            </DashboardChartErrorBoundary>
+          </div>
+          <div className="col-lg-4">
+            <DashboardChartErrorBoundary title="Ledger debit / credit">
+              <PosLedgerDebitCreditCard />
+            </DashboardChartErrorBoundary>
           </div>
         </div>
         <div className="row g-4 mb-4">

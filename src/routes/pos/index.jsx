@@ -38,6 +38,7 @@ import { setCompany } from '../../features/user/userSlice.js';
 import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { printPosOrderViaBridge } from '../../services/printing/posPrintIntegration.js';
+import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
@@ -341,9 +342,6 @@ function isLikelyNetworkError(err) {
 }
 
 const OFFLINE_RECEIPT_FOOTER = 'Offline invoice — will sync when online';
-
-/** Auto-retry delay for failed data loads (e.g. backend/DB outage like a Mongoose buffering timeout). */
-const POS_RETRY_DELAY_MS = 60_000;
 
 const Pos = () => {
   useRequireModuleAccess('pos');
@@ -651,20 +649,19 @@ const Pos = () => {
     loadCategories();
   }, [loadCategories]);
 
-  // If loading customers/categories fails (e.g. backend or MongoDB is down),
-  // automatically retry once a minute until it succeeds. Only while online —
-  // offline failures mean an empty local catalog, which a retry can't fix.
-  useEffect(() => {
-    if (!isOnline) return undefined;
-    if (usersStatus !== 'failed' && categoriesStatus !== 'failed') return undefined;
+  const handleRetryLookups = useCallback(() => {
+    if (usersStatus === 'failed') loadUsers();
+    if (categoriesStatus === 'failed') loadCategories();
+  }, [usersStatus, categoriesStatus, loadUsers, loadCategories]);
 
-    const timer = setTimeout(() => {
-      if (usersStatus === 'failed') loadUsers();
-      if (categoriesStatus === 'failed') loadCategories();
-    }, POS_RETRY_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [isOnline, usersStatus, categoriesStatus, loadUsers, loadCategories]);
+  // Same as products list: 5→1 countdown then auto-retry while online.
+  const { countdown: lookupsRetryCountdown, isRetrying: isRetryingLookups } =
+    useFetchRetryCountdown({
+      isFailed: usersStatus === 'failed' || categoriesStatus === 'failed',
+      onRetry: handleRetryLookups,
+      seconds: 5,
+      enabled: isOnline,
+    });
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -1400,12 +1397,30 @@ const Pos = () => {
                   Loading customers…
                 </p>
               )}
-              {usersError && (
+              {usersStatus !== 'loading' && isRetryingLookups && usersStatus === 'failed' && (
+                <p className="text-xs text-muted mb-2" role="status" aria-live="polite">
+                  we are trying to load please wait.{' '}
+                  {lookupsRetryCountdown != null && lookupsRetryCountdown > 0
+                    ? `Retrying in ${lookupsRetryCountdown}…`
+                    : 'Retrying…'}
+                </p>
+              )}
+              {usersError && !(isRetryingLookups && usersStatus === 'failed') && (
                 <p className="text-xs text-warning mb-2" role="alert">
                   {usersError}.{' '}
-                  {isOnline && usersStatus === 'failed'
-                    ? 'Retrying automatically every minute…'
-                    : <>Check API route in <code className="text-xs">usersAPI.js</code>.</>}
+                  {isOnline ? (
+                    <button
+                      type="button"
+                      className="btn btn-link btn-sm text-warning p-0 align-baseline"
+                      onClick={handleRetryLookups}
+                    >
+                      Retry now
+                    </button>
+                  ) : (
+                    <>
+                      Check API route in <code className="text-xs">usersAPI.js</code>.
+                    </>
+                  )}
                 </p>
               )}
               <div className="pos-customer-selected mb-3">
