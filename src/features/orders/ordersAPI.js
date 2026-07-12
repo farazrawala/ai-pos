@@ -173,7 +173,11 @@ const SALES_BY_CATEGORY_PATH = 'order/sales-by-category';
 
 /** Paginated order list (no id in path). Single-order invoice uses `ORDER_BY_ORDER_NO_PATH`. */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
+/** OMS / online-channel orders (Woo, Shopify, etc.). */
+export const ONLINE_ORDER_BY_ORDER_ITEM_PATH = 'order/get-online-order-by-order-item';
 const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
+
+export const DEFAULT_ORDER_LIST_PATH = ORDER_BY_ORDER_ITEM_PATH;
 
 function parseOrderSalesTotals(result) {
   const raw = result?.total_amount ?? result?.totalAmount ?? result?.sales;
@@ -933,20 +937,22 @@ const normalizeOrdersPayload = (result) => {
 };
 
 export async function fetchOrdersRequest(params = {}) {
+  const { listPath = DEFAULT_ORDER_LIST_PATH, ...listParams } = params;
   const queryParams = new URLSearchParams();
-  if (params.page && params.limit) {
-    const skip = (params.page - 1) * params.limit;
+  if (listParams.page && listParams.limit) {
+    const skip = (listParams.page - 1) * listParams.limit;
     queryParams.append('skip', String(skip));
   }
-  if (params.limit) queryParams.append('limit', String(params.limit));
-  if (params.search) queryParams.append('search', String(params.search));
-  if (params.startDate) queryParams.append('startDate', String(params.startDate));
-  if (params.endDate) queryParams.append('endDate', String(params.endDate));
-  if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
-  if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
+  if (listParams.limit) queryParams.append('limit', String(listParams.limit));
+  if (listParams.search) queryParams.append('search', String(listParams.search));
+  if (listParams.startDate) queryParams.append('startDate', String(listParams.startDate));
+  if (listParams.endDate) queryParams.append('endDate', String(listParams.endDate));
+  if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
+  if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}${ORDER_BY_ORDER_ITEM_PATH}${queryString ? `?${queryString}` : ''}`;
+  const path = String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '');
+  const url = `${BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
 
   if (!response.ok) {
@@ -963,18 +969,18 @@ export async function fetchOrdersRequest(params = {}) {
       data: Array.isArray(data) ? data : [],
       total: pagination.total || 0,
       page,
-      limit: pagination.limit || params.limit || 10,
+      limit: pagination.limit || listParams.limit || 10,
       totalPages,
     };
   }
 
   const data = normalizeOrdersPayload(result);
   const total = result.total || data.length;
-  const limit = result.limit || params.limit || 10;
+  const limit = result.limit || listParams.limit || 10;
   return {
     data,
     total,
-    page: result.page || params.page || 1,
+    page: result.page || listParams.page || 1,
     limit,
     totalPages: Math.ceil(total / limit),
   };

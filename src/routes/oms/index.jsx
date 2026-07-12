@@ -1,4 +1,5 @@
 import OrdersListPage from '../orders/OrdersListPage.jsx';
+import { ONLINE_ORDER_BY_ORDER_ITEM_PATH } from '../../features/orders/ordersAPI.js';
 import {
   FaClockRotateLeft,
   FaListCheck,
@@ -87,6 +88,7 @@ const OMS_PAGE_CONFIG = {
   exportFilePrefix: 'oms',
   exportSheetTitle: 'OMS',
   exportPdfTitle: 'OMS (with line items)',
+  listPath: ONLINE_ORDER_BY_ORDER_ITEM_PATH,
   showFetchSyncToolbar: true,
   showRowSyncButton: true,
   showIntegrationColumn: true,

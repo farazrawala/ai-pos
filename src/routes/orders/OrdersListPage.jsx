@@ -306,6 +306,7 @@ const statusBadgeClass = (status) => {
  *     showFetchSyncToolbar?: boolean,
  *     showRowSyncButton?: boolean,
  *     showIntegrationColumn?: boolean,
+ *     listPath?: string,
  *   },
  * }} props
  */
@@ -323,6 +324,7 @@ export default function OrdersListPage({ config }) {
     showIntegrationColumn = false,
     topSummaryName = '',
     topTiles = null,
+    listPath,
   } = config;
   const logLabel = pageTitle;
 
@@ -369,6 +371,7 @@ export default function OrdersListPage({ config }) {
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
+    if (listPath) params.listPath = listPath;
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
@@ -379,6 +382,7 @@ export default function OrdersListPage({ config }) {
     dispatch(fetchOrders(params));
   }, [
     dispatch,
+    listPath,
     pagination.page,
     pagination.limit,
     searchTerm,
@@ -445,6 +449,7 @@ export default function OrdersListPage({ config }) {
 
   const buildExportParams = () => {
     const params = {};
+    if (listPath) params.listPath = listPath;
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
@@ -594,6 +599,7 @@ export default function OrdersListPage({ config }) {
 
   const refreshOrderList = () => {
     const params = { page: pagination.page, limit: pagination.limit };
+    if (listPath) params.listPath = listPath;
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
