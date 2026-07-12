@@ -269,6 +269,7 @@ function OrderIntegrationMergedCell({
 const ORDER_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
   { key: 'order_no', label: 'Order no', alwaysVisible: true },
+  { key: 'channel', label: 'Online/Offline' },
   { key: 'integration', label: 'Integration' },
   { key: 'name', label: 'Customer' },
   { key: 'email', label: 'Email' },
@@ -282,6 +283,63 @@ const ORDER_COLUMNS = [
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
+
+/** True when the order came from an online channel (Woo/Shopify/etc.), else POS/offline. */
+function isOnlineOrder(row) {
+  if (!row || typeof row !== 'object') return false;
+
+  const explicit = row.is_online ?? row.isOnline ?? row.online;
+  if (explicit === true || explicit === 1 || explicit === '1') return true;
+  if (explicit === false || explicit === 0 || explicit === '0') return false;
+  const explicitStr = String(explicit ?? '')
+    .trim()
+    .toLowerCase();
+  if (explicitStr === 'true' || explicitStr === 'online') return true;
+  if (explicitStr === 'false' || explicitStr === 'offline') return false;
+
+  const channel = String(
+    row.order_channel ?? row.channel ?? row.source ?? row.order_source ?? row.order_type ?? ''
+  )
+    .trim()
+    .toLowerCase();
+  if (
+    channel === 'online' ||
+    channel === 'web' ||
+    channel === 'ecommerce' ||
+    channel === 'e-commerce'
+  ) {
+    return true;
+  }
+  if (
+    channel === 'offline' ||
+    channel === 'pos' ||
+    channel === 'in_store' ||
+    channel === 'instore' ||
+    channel === 'in-store'
+  ) {
+    return false;
+  }
+
+  const integration = row.integration_id ?? row.integrationId;
+  if (integration && typeof integration === 'object' && !Array.isArray(integration)) {
+    if (integration._id || integration.id) return true;
+  }
+  if (typeof integration === 'string' && integration.trim()) return true;
+
+  const integrationOrderId = row.integration_order_id ?? row.integrationOrderId;
+  if (
+    integrationOrderId != null &&
+    String(integrationOrderId).trim() !== '' &&
+    String(integrationOrderId).trim() !== '—'
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+const channelBadgeClass = (online) =>
+  online ? 'bg-gradient-info' : 'bg-gradient-secondary';
 
 const statusBadgeClass = (status) => {
   const s = String(status || '').toLowerCase();
@@ -875,6 +933,11 @@ export default function OrdersListPage({ config }) {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('order_no', 'Order no')}
+                      {isVisible('channel') ? (
+                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Online/Offline
+                        </th>
+                      ) : null}
                       {showIntegrationColumn && isVisible('integration')
                         ? sortableTh('integration_order_id', 'Integration', 'list-col-truncate')
                         : null}
@@ -921,6 +984,7 @@ export default function OrdersListPage({ config }) {
                           integrationOrderId
                         );
                         const statusVal = orderDisplayStatus(item);
+                        const onlineChannel = isOnlineOrder(item);
                         const rowKey = String(orderId || item._id || item.id || index);
                         const isRowLoading = editLoadingId === rowKey;
                         const isSyncing = syncingOrderId === rowKey;
@@ -948,6 +1012,13 @@ export default function OrdersListPage({ config }) {
                                 orderNo
                               )}
                             </td>
+                            {isVisible('channel') ? (
+                              <td className="text-sm">
+                                <span className={`badge text-xxs ${channelBadgeClass(onlineChannel)}`}>
+                                  {onlineChannel ? 'Online' : 'Offline'}
+                                </span>
+                              </td>
+                            ) : null}
                             {showIntegrationColumn && isVisible('integration') ? (
                               <td className="text-sm">
                                 <OrderIntegrationMergedCell
