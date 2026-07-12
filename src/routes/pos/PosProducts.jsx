@@ -288,7 +288,7 @@ const PosProducts = ({
                   ref={searchInputRef}
                   type="search"
                   className="form-control"
-                  placeholder="Product name, code, SKU, or barcode — scan + Enter"
+                  placeholder="Search or scan barcode — press Enter to add"
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
                   onKeyDown={handleSearchKeyDown}

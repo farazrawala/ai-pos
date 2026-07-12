@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
-import { FaTrash, FaCalculator, FaFloppyDisk, FaListUl, FaFolderOpen } from 'react-icons/fa6';
+import {
+  FaTrash,
+  FaCalculator,
+  FaFloppyDisk,
+  FaListUl,
+  FaFolderOpen,
+  FaCloudArrowUp,
+  FaArrowsRotate,
+} from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
   fetchUsersListRequest,
@@ -1484,8 +1492,8 @@ const Pos = () => {
   return (
     <div className="pos-page container-fluid py-4 px-3 px-lg-4">
       <OfflineSyncPanel />
-      <div className="pos-page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div className="pos-master-sync-status text-sm text-muted">
+      <div className="pos-page-header">
+        <div className="pos-master-sync-status">
           {masterSyncProgress?.message ? (
             <span role="status" aria-live="polite">
               {masterSyncRunning && (
@@ -1498,24 +1506,30 @@ const Pos = () => {
               {masterSyncProgress.message}
             </span>
           ) : (
-            <span className="text-muted">Offline catalog sync</span>
+            <span>Offline catalog ready</span>
           )}
         </div>
-        <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+        <div className="pos-page-header__actions">
           <button
             type="button"
-            className="btn btn-sm btn-outline-primary"
+            className="pos-toolbar-btn pos-toolbar-btn--accent"
             onClick={() => openOfflineSyncPanel()}
           >
+            <NavIcon icon={FaCloudArrowUp} size={12} />
             Pending sync
           </button>
           <button
             type="button"
-            className="btn btn-sm btn-outline-secondary pos-refresh-catalog-btn"
+            className="pos-toolbar-btn"
             onClick={handleRefreshCatalog}
             disabled={masterSyncRunning || !isOnline}
             title={isOnline ? 'Download latest catalog for offline use' : 'Go online to refresh catalog'}
           >
+            <NavIcon
+              icon={FaArrowsRotate}
+              size={12}
+              className={masterSyncRunning ? 'pos-toolbar-btn__spin' : undefined}
+            />
             {masterSyncRunning ? 'Downloading…' : 'Refresh catalog'}
           </button>
           <OfflineStatusBadge />

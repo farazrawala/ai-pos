@@ -12,28 +12,98 @@
   max-width: 100%;
 }
 
+/* Toolbar sits on the dark Argon header band — light-on-dark controls */
 .pos-page .pos-page-header {
-  min-height: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  min-height: 2.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
 }
 
 .pos-page .pos-master-sync-status {
   min-height: 1.25rem;
-  color: var(--pos-muted);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-.pos-page .pos-offline-status-badge--failed {
-  color: #9a3412;
-  background: rgba(251, 99, 64, 0.14);
-  border-color: rgba(251, 99, 64, 0.35);
+.pos-page .pos-page-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
-.pos-page .pos-offline-status-badge--failed .pos-offline-status-badge__dot {
-  background: var(--pos-warning);
-}
-
-.pos-page .pos-refresh-catalog-btn {
+.pos-page .pos-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pos-page .pos-toolbar-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.38);
+  color: #fff;
+}
+
+.pos-page .pos-toolbar-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.15rem rgba(255, 255, 255, 0.22);
+}
+
+.pos-page .pos-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pos-page .pos-toolbar-btn--accent {
+  border-color: rgba(165, 180, 252, 0.45);
+  background: rgba(94, 114, 228, 0.28);
+  color: #e0e7ff;
+}
+
+.pos-page .pos-toolbar-btn--accent:hover:not(:disabled) {
+  background: rgba(94, 114, 228, 0.42);
+  border-color: rgba(199, 210, 254, 0.55);
+  color: #fff;
+}
+
+.pos-page .pos-toolbar-btn__spin {
+  animation: pos-toolbar-spin 0.9s linear infinite;
+}
+
+@keyframes pos-toolbar-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .pos-page .pos-offline-status-badge {
@@ -44,7 +114,7 @@
   font-weight: 700;
   line-height: 1;
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
+  padding: 0.45rem 0.8rem;
   border: 1px solid transparent;
   user-select: none;
 }
@@ -56,35 +126,47 @@
   flex-shrink: 0;
 }
 
-.pos-page .pos-offline-status-badge--online {
-  color: #1a7f55;
-  background: rgba(45, 206, 137, 0.12);
-  border-color: rgba(45, 206, 137, 0.35);
+/* Status badges tuned for the dark toolbar surface */
+.pos-page .pos-page-header .pos-offline-status-badge--online {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(110, 231, 183, 0.35);
 }
 
-.pos-page .pos-offline-status-badge--online .pos-offline-status-badge__dot {
-  background: var(--pos-success);
+.pos-page .pos-page-header .pos-offline-status-badge--online .pos-offline-status-badge__dot {
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
 }
 
-.pos-page .pos-offline-status-badge--offline {
-  color: #9a6700;
-  background: rgba(245, 166, 35, 0.14);
-  border-color: rgba(245, 166, 35, 0.4);
+.pos-page .pos-page-header .pos-offline-status-badge--offline {
+  color: #fcd34d;
+  background: rgba(245, 166, 35, 0.18);
+  border-color: rgba(252, 211, 77, 0.35);
 }
 
-.pos-page .pos-offline-status-badge--offline .pos-offline-status-badge__dot {
+.pos-page .pos-page-header .pos-offline-status-badge--offline .pos-offline-status-badge__dot {
   background: var(--pos-offline-amber);
 }
 
-.pos-page .pos-offline-status-badge--syncing {
-  color: #3d4ea8;
-  background: rgba(94, 114, 228, 0.12);
-  border-color: rgba(94, 114, 228, 0.35);
+.pos-page .pos-page-header .pos-offline-status-badge--syncing {
+  color: #c7d2fe;
+  background: rgba(94, 114, 228, 0.28);
+  border-color: rgba(165, 180, 252, 0.4);
 }
 
-.pos-page .pos-offline-status-badge--syncing .pos-offline-status-badge__dot {
-  background: var(--pos-primary);
+.pos-page .pos-page-header .pos-offline-status-badge--syncing .pos-offline-status-badge__dot {
+  background: #a5b4fc;
   animation: pos-offline-status-pulse 1.2s ease-in-out infinite;
+}
+
+.pos-page .pos-page-header .pos-offline-status-badge--failed {
+  color: #fda4af;
+  background: rgba(251, 99, 64, 0.22);
+  border-color: rgba(253, 164, 175, 0.4);
+}
+
+.pos-page .pos-page-header .pos-offline-status-badge--failed .pos-offline-status-badge__dot {
+  background: #fb7185;
 }
 
 @keyframes pos-offline-status-pulse {
@@ -100,21 +182,24 @@
 
 .pos-page .pos-panel-card {
   border: 1px solid var(--pos-border);
-  border-radius: 0.75rem;
+  border-radius: 0.85rem;
   overflow: hidden;
-}
-
-.pos-page .pos-panel-header {
-  padding: 1rem 1.25rem 0.75rem;
-  border-bottom: 1px solid var(--pos-border);
+  box-shadow: 0 0.25rem 1.25rem rgba(52, 71, 103, 0.08);
   background: #fff;
 }
 
+.pos-page .pos-panel-header {
+  padding: 1.05rem 1.35rem 0.9rem;
+  border-bottom: 1px solid var(--pos-border);
+  background: linear-gradient(180deg, #fff 0%, #fafbfd 100%);
+}
+
 .pos-page .pos-panel-header h5 {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--pos-ink);
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.2rem;
+  letter-spacing: -0.01em;
 }
 
 .pos-page .pos-panel-header p {
@@ -124,7 +209,13 @@
 }
 
 .pos-page .pos-panel-body {
-  padding: 1.25rem;
+  padding: 1.25rem 1.35rem;
+}
+
+.pos-page .pos-search-bar .form-control,
+.pos-page .pos-search-bar .form-select,
+.pos-page .pos-search-bar .input-group-text {
+  min-height: 2.5rem;
 }
 
 .pos-page .pos-section-label {
