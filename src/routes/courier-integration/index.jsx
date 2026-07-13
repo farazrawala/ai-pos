@@ -173,6 +173,14 @@ const CourierIntegration = () => {
                       <th>S.No</th>
                       <th
                         style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('name')}
+                        onDoubleClick={() => handleSort('name', true)}
+                      >
+                        Name
+                        {renderSortIcon('name')}
+                      </th>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
                         onClick={() => handleSort('type')}
                         onDoubleClick={() => handleSort('type', true)}
                       >
@@ -210,7 +218,7 @@ const CourierIntegration = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan="8" className="text-center text-sm font-weight-normal p-4">
                           No courier integrations found
                         </td>
                       </tr>
@@ -221,6 +229,7 @@ const CourierIntegration = () => {
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
+                            <td className="text-sm">{item.name || '—'}</td>
                             <td>
                               <span className="badge bg-gradient-info text-xxs mb-0">
                                 {typeLabel(item.type)}
@@ -266,7 +275,10 @@ const CourierIntegration = () => {
                                     type="button"
                                     className="btn btn-sm btn-danger mb-0"
                                     onClick={() =>
-                                      handleDelete(id, `${typeLabel(item.type)} · ${item.login || id}`)
+                                      handleDelete(
+                                        id,
+                                        item.name || `${typeLabel(item.type)} · ${item.login || id}`
+                                      )
                                     }
                                     disabled={deleteStatus === 'loading'}
                                   >

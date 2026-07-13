@@ -15,10 +15,12 @@ const CourierIntegrationAdd = () => {
   const navigate = useNavigate();
   const { canCreate } = usePermissions('courier-integration');
   const [form, setForm] = useState({
+    name: '',
     type: 'tcs',
     url: '',
     login: '',
     password: '',
+    token: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -30,6 +32,7 @@ const CourierIntegrationAdd = () => {
 
   const validateForm = () => {
     const nextErrors = {};
+    if (!form.name.trim()) nextErrors.name = 'Name is required';
     if (!form.type) nextErrors.type = 'Courier type is required';
     if (!form.url.trim()) nextErrors.url = 'API URL is required';
     if (!form.login.trim()) nextErrors.login = 'Login is required';
@@ -45,10 +48,12 @@ const CourierIntegrationAdd = () => {
     try {
       await dispatch(
         createCourier({
+          name: form.name.trim(),
           type: form.type,
           url: form.url.trim(),
           login: form.login.trim(),
           password: form.password,
+          ...(form.token.trim() ? { token: form.token.trim() } : {}),
           status: form.status,
         })
       ).unwrap();
@@ -85,6 +90,21 @@ const CourierIntegrationAdd = () => {
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-name">
+                    Name <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="courier-name"
+                    type="text"
+                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                    placeholder="e.g. TCS Main Account"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                </div>
                 <div className="mb-3">
                   <label className="form-label" htmlFor="courier-type">
                     Type <span className="text-danger">*</span>
@@ -147,6 +167,21 @@ const CourierIntegrationAdd = () => {
                     autoComplete="new-password"
                   />
                   {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-token">
+                    Token
+                  </label>
+                  <input
+                    id="courier-token"
+                    type="password"
+                    className="form-control"
+                    value={form.token}
+                    onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value }))}
+                    disabled={isSubmitting}
+                    autoComplete="off"
+                    placeholder="Optional API / bearer token"
+                  />
                 </div>
                 <div className="mb-4">
                   <label className="form-label" htmlFor="courier-status">

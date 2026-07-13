@@ -30,6 +30,21 @@ export const formatInvoiceDate = (iso) => {
   return `${datePart}, ${timePart}`;
 };
 
+/** Build a single-line address note from order shipping fields. */
+export const formatOrderAddressNote = (order) => {
+  if (!order || typeof order !== 'object') return '';
+  const parts = [
+    order.address,
+    order.city,
+    order.state,
+    order.zip,
+    order.country,
+  ]
+    .map((v) => (v != null ? String(v).trim() : ''))
+    .filter(Boolean);
+  return parts.length ? `Address: ${parts.join(', ')}` : '';
+};
+
 const paymentMethodIdFromOrder = (order) => {
   if (!order || typeof order !== 'object') return '';
   const rawPayAccount = order.payment_method_accounts_id;
@@ -222,6 +237,11 @@ export function mapOrderToInvoiceView(order, options = {}) {
       name: order.name || '—',
       phone: order.phone || '—',
       email: order.email || '—',
+      address: order.address || '',
+      city: order.city || '',
+      state: order.state || '',
+      zip: order.zip || '',
+      country: order.country || '',
     },
     invoiceDate: formatInvoiceDate(order.createdAt),
     dueDate: formatInvoiceDate(order.updatedAt || order.createdAt),
@@ -239,7 +259,7 @@ export function mapOrderToInvoiceView(order, options = {}) {
     },
     paymentStatus: order.status || order.order_status || '—',
     paymentMethod: resolvePaymentMethodLabel(order, [], '', company),
-    note: order.address ? `Address: ${order.address}` : '',
+    note: formatOrderAddressNote(order),
     authorizedPerson: { name: '—', title: 'Authorized signatory' },
     creditRows: [],
     publicToken,

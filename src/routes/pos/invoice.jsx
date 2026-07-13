@@ -274,6 +274,11 @@ const PosInvoice = () => {
   const [invoiceShippingInput, setInvoiceShippingInput] = useState('');
   const discountEditSourceRef = useRef(null);
   const [invoiceCustomerId, setInvoiceCustomerId] = useState('');
+  const [invoiceAddress, setInvoiceAddress] = useState('');
+  const [invoiceCity, setInvoiceCity] = useState('');
+  const [invoiceState, setInvoiceState] = useState('');
+  const [invoiceZip, setInvoiceZip] = useState('');
+  const [invoiceCountry, setInvoiceCountry] = useState('');
   const [invoicePosPayMethod, setInvoicePosPayMethod] = useState('');
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
@@ -322,6 +327,11 @@ const PosInvoice = () => {
     setInvoiceShippingInput(String(Number.isFinite(s) ? s : 0));
     const cid = sourceOrder.customer_id ?? sourceOrder.customerId ?? '';
     setInvoiceCustomerId(cid != null && String(cid).trim() !== '' ? String(cid).trim() : '');
+    setInvoiceAddress(sourceOrder.address != null ? String(sourceOrder.address) : '');
+    setInvoiceCity(sourceOrder.city != null ? String(sourceOrder.city) : '');
+    setInvoiceState(sourceOrder.state != null ? String(sourceOrder.state) : '');
+    setInvoiceZip(sourceOrder.zip != null ? String(sourceOrder.zip) : '');
+    setInvoiceCountry(sourceOrder.country != null ? String(sourceOrder.country) : '');
     const rawPm = sourceOrder.payment_method_accounts_id;
     const pm =
       (rawPm && typeof rawPm === 'object' ? (rawPm._id ?? rawPm.id) : rawPm) ??
@@ -404,6 +414,11 @@ const PosInvoice = () => {
     setInvoiceSaveMessage({ type: null, text: '' });
     setInvoiceDraftLines([]);
     setInvoiceCustomerId('');
+    setInvoiceAddress('');
+    setInvoiceCity('');
+    setInvoiceState('');
+    setInvoiceZip('');
+    setInvoiceCountry('');
     setInvoicePosPayMethod('');
     setInvoiceDiscountInput('');
     setInvoiceDiscountPercentInput('');
@@ -463,6 +478,10 @@ const PosInvoice = () => {
         email: '',
         phone: '',
         address: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: '',
         lines: [],
         discount: 0,
         discount_percentage: 0,
@@ -501,6 +520,10 @@ const PosInvoice = () => {
       email: order.email ?? '',
       phone: order.phone ?? '',
       address: order.address ?? '',
+      city: order.city ?? '',
+      state: order.state ?? '',
+      zip: order.zip ?? '',
+      country: order.country ?? '',
       lines,
       discount,
       discount_percentage,
@@ -539,6 +562,11 @@ const PosInvoice = () => {
         name: customer?.name || customer?.fullName || customer?.username || base.name,
         email: customer?.email || base.email,
         phone: customer?.mobile || customer?.phone || customer?.phoneNumber || base.phone,
+        address: invoiceAddress.trim(),
+        city: invoiceCity.trim(),
+        state: invoiceState.trim(),
+        zip: invoiceZip.trim(),
+        country: invoiceCountry.trim(),
         discount,
         discount_percentage,
         shipping,
@@ -581,6 +609,11 @@ const PosInvoice = () => {
     invoiceDiscountPercentInput,
     invoiceShippingInput,
     invoiceCustomerId,
+    invoiceAddress,
+    invoiceCity,
+    invoiceState,
+    invoiceZip,
+    invoiceCountry,
     invoicePosPayMethod,
     users,
   ]);
@@ -608,6 +641,13 @@ const PosInvoice = () => {
     const fallback =
       view?.billTo && typeof view.billTo === 'object' ? view.billTo : DEMO_INVOICE.billTo;
     if (!canUpdateInvoice) return fallback;
+    const addressFields = {
+      address: invoiceAddress || '',
+      city: invoiceCity || '',
+      state: invoiceState || '',
+      zip: invoiceZip || '',
+      country: invoiceCountry || '',
+    };
     if (!invoiceCustomerId) {
       const o = sourceOrder;
       if (o) {
@@ -615,18 +655,31 @@ const PosInvoice = () => {
           name: o.name || '—',
           phone: o.phone || '—',
           email: o.email || '—',
+          ...addressFields,
         };
       }
-      return fallback;
+      return { ...fallback, ...addressFields };
     }
     const u = users.find((row) => getUserOptionValue(row) === invoiceCustomerId);
-    if (!u) return fallback;
+    if (!u) return { ...fallback, ...addressFields };
     return {
       name: u.name || u.fullName || u.username || fallback.name,
       phone: u.mobile || u.phone || u.phoneNumber || fallback.phone,
       email: u.email || fallback.email,
+      ...addressFields,
     };
-  }, [canUpdateInvoice, invoiceCustomerId, users, sourceOrder, view]);
+  }, [
+    canUpdateInvoice,
+    invoiceCustomerId,
+    invoiceAddress,
+    invoiceCity,
+    invoiceState,
+    invoiceZip,
+    invoiceCountry,
+    users,
+    sourceOrder,
+    view,
+  ]);
 
   const invoiceHasSaveableLines = useMemo(
     () => invoiceDraftLines.some((d) => String(d?.productId ?? '').trim()),
@@ -1206,6 +1259,87 @@ const PosInvoice = () => {
                     {printerSettings.show_customer_email && billToDisplay.email ? (
                       <div className="pos-inv-billto-meta">{billToDisplay.email}</div>
                     ) : null}
+                    {canUpdateInvoice ? (
+                      <div className="row g-2 mt-2 pos-inv-no-print">
+                        <div className="col-12">
+                          <label className="form-label" htmlFor="posInvAddress">
+                            Address
+                          </label>
+                          <textarea
+                            id="posInvAddress"
+                            className="form-control form-control-sm"
+                            rows={2}
+                            value={invoiceAddress}
+                            onChange={(e) => setInvoiceAddress(e.target.value)}
+                            placeholder="Street address"
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvCity">
+                            City
+                          </label>
+                          <input
+                            id="posInvCity"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceCity}
+                            onChange={(e) => setInvoiceCity(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvState">
+                            State
+                          </label>
+                          <input
+                            id="posInvState"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceState}
+                            onChange={(e) => setInvoiceState(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvZip">
+                            Zip
+                          </label>
+                          <input
+                            id="posInvZip"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceZip}
+                            onChange={(e) => setInvoiceZip(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvCountry">
+                            Country
+                          </label>
+                          <input
+                            id="posInvCountry"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceCountry}
+                            onChange={(e) => setInvoiceCountry(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                    {[
+                      billToDisplay.address,
+                      [billToDisplay.city, billToDisplay.state, billToDisplay.zip]
+                        .filter(Boolean)
+                        .join(', '),
+                      billToDisplay.country,
+                    ]
+                      .filter(Boolean)
+                      .map((line) => (
+                        <div
+                          key={line}
+                          className={`pos-inv-billto-meta${canUpdateInvoice ? ' pos-inv-print-only' : ''}`}
+                        >
+                          {line}
+                        </div>
+                      ))}
                   </div>
                   <div className="col-lg-6 text-lg-end">
                     <div className="pos-inv-section-title">Invoice details</div>

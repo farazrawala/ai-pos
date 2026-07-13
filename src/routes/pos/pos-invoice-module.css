@@ -395,9 +395,17 @@
   min-width: 7rem;
 }
 
+.pos-inv-print-only {
+  display: none;
+}
+
 @media print {
   .pos-inv-no-print {
     display: none !important;
+  }
+
+  .pos-inv-print-only {
+    display: block !important;
   }
 
   .pos-invoice-page {

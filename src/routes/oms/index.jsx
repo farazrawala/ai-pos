@@ -92,6 +92,7 @@ const OMS_PAGE_CONFIG = {
   showFetchSyncToolbar: true,
   showRowSyncButton: true,
   showIntegrationColumn: true,
+  showTrackingColumn: true,
 };
 
 const OMS = () => <OrdersListPage config={OMS_PAGE_CONFIG} />;

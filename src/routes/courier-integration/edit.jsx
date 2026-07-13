@@ -24,10 +24,12 @@ const CourierIntegrationEdit = () => {
   );
   const { canEdit } = usePermissions('courier-integration');
   const [form, setForm] = useState({
+    name: '',
     type: 'tcs',
     url: '',
     login: '',
     password: '',
+    token: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -48,16 +50,19 @@ const CourierIntegrationEdit = () => {
   useEffect(() => {
     if (!currentCourier) return;
     setForm({
+      name: currentCourier.name || '',
       type: currentCourier.type || 'tcs',
       url: currentCourier.url || '',
       login: currentCourier.login || '',
       password: '',
+      token: '',
       status: currentCourier.status || 'active',
     });
   }, [currentCourier]);
 
   const validateForm = () => {
     const nextErrors = {};
+    if (!form.name.trim()) nextErrors.name = 'Name is required';
     if (!form.type) nextErrors.type = 'Courier type is required';
     if (!form.url.trim()) nextErrors.url = 'API URL is required';
     if (!form.login.trim()) nextErrors.login = 'Login is required';
@@ -69,6 +74,7 @@ const CourierIntegrationEdit = () => {
     e.preventDefault();
     if (!validateForm()) return;
     const payload = {
+      name: form.name.trim(),
       type: form.type,
       url: form.url.trim(),
       login: form.login.trim(),
@@ -76,6 +82,9 @@ const CourierIntegrationEdit = () => {
     };
     if (form.password.trim()) {
       payload.password = form.password;
+    }
+    if (form.token.trim()) {
+      payload.token = form.token.trim();
     }
     try {
       await dispatch(updateCourier({ courierId: id, courierData: payload })).unwrap();
@@ -123,6 +132,21 @@ const CourierIntegrationEdit = () => {
             </div>
             <div className="card-body pt-0">
               <form onSubmit={handleSubmit}>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-edit-name">
+                    Name <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="courier-edit-name"
+                    type="text"
+                    className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                    placeholder="e.g. TCS Main Account"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                  {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                </div>
                 <div className="mb-3">
                   <label className="form-label" htmlFor="courier-edit-type">
                     Type <span className="text-danger">*</span>
@@ -186,6 +210,24 @@ const CourierIntegrationEdit = () => {
                   />
                   <p className="text-xs text-muted mb-0 mt-1">
                     Leave blank to keep the existing password.
+                  </p>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-edit-token">
+                    Token
+                  </label>
+                  <input
+                    id="courier-edit-token"
+                    type="password"
+                    className="form-control"
+                    value={form.token}
+                    onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value }))}
+                    disabled={isSubmitting}
+                    autoComplete="off"
+                    placeholder="Leave blank to keep current token"
+                  />
+                  <p className="text-xs text-muted mb-0 mt-1">
+                    Leave blank to keep the existing token.
                   </p>
                 </div>
                 <div className="mb-4">

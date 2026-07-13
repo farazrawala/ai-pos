@@ -1435,6 +1435,10 @@ export async function createPosOrderRequest(payload = {}) {
   if (payload.email != null) form.append('email', String(payload.email));
   if (payload.phone != null) form.append('phone', String(payload.phone));
   if (payload.address != null) form.append('address', String(payload.address));
+  if (payload.city != null) form.append('city', String(payload.city));
+  if (payload.state != null) form.append('state', String(payload.state));
+  if (payload.zip != null) form.append('zip', String(payload.zip));
+  if (payload.country != null) form.append('country', String(payload.country));
 
   const lines = Array.isArray(payload.lines) ? payload.lines : [];
   lines.forEach((line, idx) => {
@@ -1531,6 +1535,10 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
   if (payload.email != null) form.append('email', String(payload.email));
   if (payload.phone != null) form.append('phone', String(payload.phone));
   if (payload.address != null) form.append('address', String(payload.address));
+  if (payload.city != null) form.append('city', String(payload.city));
+  if (payload.state != null) form.append('state', String(payload.state));
+  if (payload.zip != null) form.append('zip', String(payload.zip));
+  if (payload.country != null) form.append('country', String(payload.country));
 
   const lines = Array.isArray(payload.lines) ? payload.lines : [];
   lines.forEach((line, idx) => {

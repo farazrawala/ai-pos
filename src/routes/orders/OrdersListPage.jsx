@@ -58,9 +58,13 @@ import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
+import CreateShipmentModal from '../../components/order/CreateShipmentModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
+import {
+  resolveOrderTrackingInfo,
+} from '../../features/courier/courierAPI.js';
 import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
@@ -272,6 +276,7 @@ const ORDER_COLUMNS = [
   { key: 'items', label: 'Items' },
   { key: 'total', label: 'Total' },
   { key: 'status', label: 'Status' },
+  { key: 'tracking', label: 'Tracking' },
   { key: 'created', label: 'Created' },
   { key: 'updated', label: 'Last updated' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
@@ -360,6 +365,7 @@ const statusBadgeClass = (status) => {
  *     showFetchSyncToolbar?: boolean,
  *     showRowSyncButton?: boolean,
  *     showIntegrationColumn?: boolean,
+ *     showTrackingColumn?: boolean,
  *     listPath?: string,
  *   },
  * }} props
@@ -376,6 +382,7 @@ export default function OrdersListPage({ config }) {
     showFetchSyncToolbar = false,
     showRowSyncButton = false,
     showIntegrationColumn = false,
+    showTrackingColumn = false,
     topSummaryName = '',
     topTiles = null,
     listPath,
@@ -403,18 +410,19 @@ export default function OrdersListPage({ config }) {
   const [editLoadingId, setEditLoadingId] = useState('');
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
+  const [shipmentModal, setShipmentModal] = useState({ open: false, orderId: '', orderNo: '' });
+  const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
   const searchTimeoutRef = useRef(null);
 
-  const orderColumns = useMemo(
-    () =>
-      showIntegrationColumn
-        ? ORDER_COLUMNS
-        : ORDER_COLUMNS.filter((col) => col.key !== 'integration'),
-    [showIntegrationColumn]
-  );
+  const orderColumns = useMemo(() => {
+    let cols = ORDER_COLUMNS;
+    if (!showIntegrationColumn) cols = cols.filter((col) => col.key !== 'integration');
+    if (!showTrackingColumn) cols = cols.filter((col) => col.key !== 'tracking');
+    return cols;
+  }, [showIntegrationColumn, showTrackingColumn]);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     permissionModule,
@@ -673,6 +681,44 @@ export default function OrdersListPage({ config }) {
     sort.sortBy,
     sort.sortOrder,
   ]);
+
+  const handleOpenShipmentModal = (orderId, orderNo) => {
+    if (!orderId) {
+      toast.error('Could not add tracking: missing order id.');
+      return;
+    }
+    setShipmentModal({ open: true, orderId: String(orderId), orderNo: orderNo || '' });
+  };
+
+  const handleShipmentCreated = ({ orderId, provider, result } = {}) => {
+    const trackingId = result?.tracking_id || result?.tracking_number || '';
+    const trackingUrl = result?.tracking_url || '';
+    const courier = result?.courier || provider || '';
+
+    if (!trackingId) {
+      toast.error('Shipment response did not include a tracking id.');
+      return;
+    }
+
+    toast.success(
+      courier ? `Shipment created via ${courier}. Tracking ID: ${trackingId}` : `Shipment created. Tracking ID: ${trackingId}`
+    );
+
+    if (orderId) {
+      setShipmentOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: {
+          tracking_id: trackingId,
+          tracking_number: trackingId,
+          tracking_url: trackingUrl,
+          courier,
+          provider: courier,
+        },
+      }));
+    }
+
+    refreshOrderList();
+  };
 
   const handleRetryFetch = useCallback(() => {
     refreshOrderList();
@@ -969,6 +1015,11 @@ export default function OrdersListPage({ config }) {
                         ? sortableTh('order_items_total', 'Total', 'text-end list-col-amount')
                         : null}
                       {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                      {showTrackingColumn && isVisible('tracking') ? (
+                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Tracking
+                        </th>
+                      ) : null}
                       {isVisible('created')
                         ? sortableTh('createdAt', 'Created', 'list-col-date')
                         : null}
@@ -1009,6 +1060,12 @@ export default function OrdersListPage({ config }) {
                         const email = item.email || '—';
                         const phone = item.phone || '—';
                         const total = getOrderItemsTotalDisplay(item);
+                        const trackingInfo = showTrackingColumn
+                          ? resolveOrderTrackingInfo(
+                              item,
+                              orderId ? shipmentOverrides[String(orderId)] : null
+                            )
+                          : null;
                         return (
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
@@ -1075,6 +1132,49 @@ export default function OrdersListPage({ config }) {
                                 <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
                                   {String(statusVal)}
                                 </span>
+                              </td>
+                            ) : null}
+                            {showTrackingColumn && isVisible('tracking') ? (
+                              <td className="text-sm">
+                                {trackingInfo?.hasTracking ? (
+                                  <div className="d-flex flex-column align-items-start gap-1 min-width-0">
+                                    {trackingInfo.trackingId ? (
+                                      <div className="text-nowrap" title={trackingInfo.trackingId}>
+                                        <span className="text-xs text-muted d-block">Tracking ID</span>
+                                        <span className="font-weight-bold text-dark text-sm">
+                                          {trackingInfo.trackingId}
+                                        </span>
+                                      </div>
+                                    ) : null}
+                                    {trackingInfo.trackingUrl ? (
+                                      <div className="min-width-0 w-100">
+                                        <span className="text-xs text-muted d-block">Tracking URL</span>
+                                        <a
+                                          href={trackingInfo.trackingUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary text-decoration-underline text-break"
+                                          title={trackingInfo.trackingUrl}
+                                        >
+                                          {trackingInfo.trackingUrl}
+                                        </a>
+                                      </div>
+                                    ) : null}
+                                    {trackingInfo.provider ? (
+                                      <span className="text-xs text-muted">{trackingInfo.provider}</span>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary mb-0 px-2"
+                                    title="Add tracking"
+                                    disabled={!orderId}
+                                    onClick={() => handleOpenShipmentModal(orderId, orderNo)}
+                                  >
+                                    Add tracking
+                                  </button>
+                                )}
                               </td>
                             ) : null}
                             {isVisible('created') ? (
@@ -1164,6 +1264,16 @@ export default function OrdersListPage({ config }) {
             onSaved={handleSyncOrdersSaved}
           />
         </>
+      ) : null}
+
+      {showTrackingColumn ? (
+        <CreateShipmentModal
+          open={shipmentModal.open}
+          orderId={shipmentModal.orderId}
+          orderNo={shipmentModal.orderNo}
+          onClose={() => setShipmentModal({ open: false, orderId: '', orderNo: '' })}
+          onSaved={handleShipmentCreated}
+        />
       ) : null}
     </div>
   );
