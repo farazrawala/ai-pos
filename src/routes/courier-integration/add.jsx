@@ -21,6 +21,7 @@ const CourierIntegrationAdd = () => {
     login: '',
     password: '',
     token: '',
+    account_no: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -54,6 +55,7 @@ const CourierIntegrationAdd = () => {
           login: form.login.trim(),
           password: form.password,
           ...(form.token.trim() ? { token: form.token.trim() } : {}),
+          ...(form.account_no.trim() ? { account_no: form.account_no.trim() } : {}),
           status: form.status,
         })
       ).unwrap();
@@ -181,6 +183,20 @@ const CourierIntegrationAdd = () => {
                     disabled={isSubmitting}
                     autoComplete="off"
                     placeholder="Optional API / bearer token"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-account-no">
+                    Account No
+                  </label>
+                  <input
+                    id="courier-account-no"
+                    type="text"
+                    className="form-control"
+                    value={form.account_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, account_no: e.target.value }))}
+                    disabled={isSubmitting}
+                    placeholder="Optional TCS account number"
                   />
                 </div>
                 <div className="mb-4">

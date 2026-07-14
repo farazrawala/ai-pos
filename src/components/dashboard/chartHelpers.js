@@ -28,7 +28,26 @@ const DASHBOARD_PERIOD_LABELS = {
   last_30_days: 'Last 30 days',
   last_90_days: 'Last 90 days',
   current_month: 'Current month',
+  last_month: 'Last month',
+  current_year: 'Current year',
+  last_year: 'Last year',
+  last_12_months: 'Last 12 months',
 };
+
+/** @param {string} monthKey YYYY-MM */
+export function monthLabelFromKey(monthKey, { includeYear = false } = {}) {
+  const parts = String(monthKey || '').split('-');
+  const year = parseInt(parts[0] ?? '', 10);
+  const month = parseInt(parts[1] ?? '', 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return String(monthKey || '');
+  }
+  const d = new Date(year, month - 1, 1);
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    ...(includeYear ? { year: 'numeric' } : {}),
+  });
+}
 
 /** @param {{ label?: string, from?: string, to?: string } | null} period */
 export function periodLabelFromPeakApi(period) {
@@ -44,6 +63,14 @@ export function periodLabelFromPeakApi(period) {
     }
   }
   return key || DASHBOARD_PERIOD_LABELS.last_30_days;
+}
+
+/** @param {{ label?: string, from?: string, to?: string } | null} period */
+export function periodLabelFromMonthWiseApi(period) {
+  if (!period) return DASHBOARD_PERIOD_LABELS.current_year;
+  const key = String(period.label ?? '').trim();
+  if (key && DASHBOARD_PERIOD_LABELS[key]) return DASHBOARD_PERIOD_LABELS[key];
+  return periodLabelFromPeakApi(period) || DASHBOARD_PERIOD_LABELS.current_year;
 }
 
 /** @param {string} name @param {number} [maxLen] */

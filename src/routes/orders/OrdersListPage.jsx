@@ -59,6 +59,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
 import CreateShipmentModal from '../../components/order/CreateShipmentModal.jsx';
+import ParcelBarcodePrintModal from '../../components/order/ParcelBarcodePrintModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
@@ -412,6 +413,15 @@ export default function OrdersListPage({ config }) {
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
   const [shipmentModal, setShipmentModal] = useState({ open: false, orderId: '', orderNo: '' });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
+  const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
+    open: false,
+    orderId: '',
+    trackingId: '',
+    orderNo: '',
+    provider: '',
+    customerName: '',
+    city: '',
+  });
   const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
@@ -690,21 +700,57 @@ export default function OrdersListPage({ config }) {
     setShipmentModal({ open: true, orderId: String(orderId), orderNo: orderNo || '' });
   };
 
+  const handleOpenParcelBarcode = ({
+    orderId,
+    trackingId,
+    orderNo,
+    provider,
+    customerName,
+    city,
+  } = {}) => {
+    const cn = String(trackingId || '').trim();
+    const oid = String(orderId || '').trim();
+    if (!cn && !oid) {
+      toast.error('No tracking id / order to print.');
+      return;
+    }
+    setParcelBarcodeModal({
+      open: true,
+      orderId: oid,
+      trackingId: cn,
+      orderNo: orderNo || '',
+      provider: provider || '',
+      customerName: customerName || '',
+      city: city || '',
+    });
+  };
+
   const handleShipmentCreated = ({ orderId, provider, result } = {}) => {
     const trackingId = result?.tracking_id || result?.tracking_number || '';
     const trackingUrl = result?.tracking_url || '';
     const courier = result?.courier || provider || '';
+    const apiSaysSuccess =
+      result?.success === true ||
+      String(result?.message || '')
+        .trim()
+        .toLowerCase() === 'success';
 
-    if (!trackingId) {
+    if (!trackingId && !apiSaysSuccess) {
       toast.error('Shipment response did not include a tracking id.');
       return;
     }
 
-    toast.success(
-      courier ? `Shipment created via ${courier}. Tracking ID: ${trackingId}` : `Shipment created. Tracking ID: ${trackingId}`
-    );
+    if (trackingId) {
+      toast.success(
+        courier
+          ? `Shipment created via ${courier}. Tracking ID: ${trackingId}`
+          : `Shipment created. Tracking ID: ${trackingId}`
+      );
+    } else {
+      toast.success(courier ? `Shipment created via ${courier}.` : 'Shipment created successfully.');
+    }
 
-    if (orderId) {
+    if (orderId && trackingId) {
       setShipmentOverrides((prev) => ({
         ...prev,
         [String(orderId)]: {
@@ -715,6 +761,18 @@ export default function OrdersListPage({ config }) {
           provider: courier,
         },
       }));
+
+      const orderRow = Array.isArray(data)
+        ? data.find((row) => String(pickOrderDocumentId(row)) === String(orderId))
+        : null;
+      handleOpenParcelBarcode({
+        orderId,
+        trackingId,
+        orderNo: shipmentModal.orderNo || orderRow?.order_no || orderRow?.orderNo || '',
+        provider: courier,
+        customerName: orderRow?.name || '',
+        city: orderRow?.city || '',
+      });
     }
 
     refreshOrderList();
@@ -1163,6 +1221,26 @@ export default function OrdersListPage({ config }) {
                                     {trackingInfo.provider ? (
                                       <span className="text-xs text-muted">{trackingInfo.provider}</span>
                                     ) : null}
+                                    {trackingInfo.trackingId ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-dark mb-0 px-2"
+                                        title="Print barcode for parcel"
+                                        onClick={() =>
+                                          handleOpenParcelBarcode({
+                                            orderId,
+                                            trackingId: trackingInfo.trackingId,
+                                            orderNo,
+                                            provider: trackingInfo.provider,
+                                            customerName:
+                                              customerName !== '—' ? customerName : '',
+                                            city: item.city || '',
+                                          })
+                                        }
+                                      >
+                                        Print barcode
+                                      </button>
+                                    ) : null}
                                   </div>
                                 ) : (
                                   <button
@@ -1267,13 +1345,35 @@ export default function OrdersListPage({ config }) {
       ) : null}
 
       {showTrackingColumn ? (
-        <CreateShipmentModal
-          open={shipmentModal.open}
-          orderId={shipmentModal.orderId}
-          orderNo={shipmentModal.orderNo}
-          onClose={() => setShipmentModal({ open: false, orderId: '', orderNo: '' })}
-          onSaved={handleShipmentCreated}
-        />
+        <>
+          <CreateShipmentModal
+            open={shipmentModal.open}
+            orderId={shipmentModal.orderId}
+            orderNo={shipmentModal.orderNo}
+            onClose={() => setShipmentModal({ open: false, orderId: '', orderNo: '' })}
+            onSaved={handleShipmentCreated}
+          />
+          <ParcelBarcodePrintModal
+            open={parcelBarcodeModal.open}
+            orderId={parcelBarcodeModal.orderId}
+            trackingId={parcelBarcodeModal.trackingId}
+            orderNo={parcelBarcodeModal.orderNo}
+            provider={parcelBarcodeModal.provider}
+            customerName={parcelBarcodeModal.customerName}
+            city={parcelBarcodeModal.city}
+            onClose={() =>
+              setParcelBarcodeModal({
+                open: false,
+                orderId: '',
+                trackingId: '',
+                orderNo: '',
+                provider: '',
+                customerName: '',
+                city: '',
+              })
+            }
+          />
+        </>
       ) : null}
     </div>
   );

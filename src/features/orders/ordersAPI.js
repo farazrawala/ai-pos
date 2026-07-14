@@ -164,6 +164,7 @@ export async function getErrorMessageFromResponse(response) {
 
 const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
 const SALES_LAST_30_DAYS_PATH = 'orders/sales-last-30-days';
+const SALES_MONTH_WISE_PATH = 'order/sales-month-wise';
 const PEAK_SALES_HOURS_PATH = 'order/peak-sales-hours';
 const TOP_SELLING_PRODUCTS_PATH = 'order/top-selling-products';
 const PRODUCT_TOP_SELLING_PATH = 'product/top-selling';
@@ -281,6 +282,78 @@ export async function fetchSalesDayWiseRequest() {
   return {
     days,
     summary,
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+  };
+}
+
+function parseSalesMonthEntry(row) {
+  if (!row || typeof row !== 'object') {
+    return { month: '', totalAmount: 0, orderCount: 0, averageOrderValue: 0 };
+  }
+  const amountRaw = row.total_amount ?? row.totalAmount ?? 0;
+  const totalAmount =
+    typeof amountRaw === 'number' && Number.isFinite(amountRaw)
+      ? amountRaw
+      : parseFloat(String(amountRaw ?? '').replace(/,/g, '').trim());
+  const countRaw = row.order_count ?? row.orderCount ?? 0;
+  const orderCount =
+    typeof countRaw === 'number' && Number.isFinite(countRaw)
+      ? countRaw
+      : parseInt(String(countRaw ?? ''), 10);
+  const avgRaw =
+    row.average_order_value ?? row.averageOrderValue ?? row.avg_order_value;
+  let averageOrderValue =
+    typeof avgRaw === 'number' && Number.isFinite(avgRaw)
+      ? avgRaw
+      : parseFloat(String(avgRaw ?? '').replace(/,/g, '').trim());
+  const safeAmount = Number.isFinite(totalAmount) ? totalAmount : 0;
+  const safeCount = Number.isFinite(orderCount) ? orderCount : 0;
+  if (!Number.isFinite(averageOrderValue) && safeCount > 0) {
+    averageOrderValue = safeAmount / safeCount;
+  }
+  return {
+    month: String(row.month ?? ''),
+    totalAmount: safeAmount,
+    orderCount: safeCount,
+    averageOrderValue: Number.isFinite(averageOrderValue) ? averageOrderValue : 0,
+  };
+}
+
+function parseSalesMonthWiseSummary(raw) {
+  const totals = parseOrderSalesTotals(raw ?? {});
+  const avgRaw =
+    raw?.average_order_value ?? raw?.averageOrderValue ?? raw?.avg_order_value;
+  let averageOrderValue =
+    typeof avgRaw === 'number' && Number.isFinite(avgRaw)
+      ? avgRaw
+      : parseFloat(String(avgRaw ?? '').replace(/,/g, '').trim());
+  if (!Number.isFinite(averageOrderValue) && totals.orderCount > 0) {
+    averageOrderValue = totals.totalAmount / totals.orderCount;
+  }
+  return {
+    ...totals,
+    averageOrderValue: Number.isFinite(averageOrderValue) ? averageOrderValue : 0,
+  };
+}
+
+/**
+ * GET `order/sales-month-wise` (alias `orders/sales-month-wise`)
+ * @param {{
+ *   period?: string,
+ *   from?: string,
+ *   to?: string,
+ *   order_status?: string,
+ *   timezone?: string,
+ * }} [params]
+ */
+export async function fetchSalesMonthWiseRequest(params = {}) {
+  const query = buildReportPeriodQuery(params, 'current_year');
+  if (params.order_status) query.set('order_status', String(params.order_status));
+  const result = await fetchOrderReportJson(SALES_MONTH_WISE_PATH, query);
+  const months = Array.isArray(result.months) ? result.months.map(parseSalesMonthEntry) : [];
+  return {
+    months,
+    summary: parseSalesMonthWiseSummary(result.summary ?? result),
     period: result?.period && typeof result.period === 'object' ? result.period : null,
   };
 }

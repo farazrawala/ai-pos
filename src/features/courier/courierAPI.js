@@ -181,6 +181,114 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
   return normalizeCreateShipmentResult(payload, trimmed);
 };
 
+/**
+ * TCS CNPrint label types (Swagger printtype on /ecom/api/print/label).
+ * @see https://devconnect.tcscourier.com/ecom/index.html
+ */
+export const TCS_LABEL_PRINT_TYPES = [
+  { value: 6, label: 'Shipment Label' },
+  { value: 7, label: 'Shipment Label 6×4' },
+  { value: 3, label: '6×4 Label' },
+  { value: 2, label: 'Single copy per page' },
+  { value: 1, label: '3 copies per page' },
+  { value: 4, label: '3 labels per page' },
+  { value: 5, label: "Shipper's Copy" },
+];
+
+/**
+ * Fetch official courier label PDF (TCS CNPrint via backend).
+ * GET /courier/label/:orderId?printtype=&shipperDetails=&accounttype=
+ */
+export const fetchCourierLabelRequest = async (orderId, options = {}) => {
+  if (!orderId) throw new Error('Order id is required');
+
+  const query = new URLSearchParams();
+  if (options.printtype != null && options.printtype !== '') {
+    query.set('printtype', String(options.printtype));
+  }
+  if (options.shipperDetails != null) {
+    query.set('shipperDetails', options.shipperDetails ? 'true' : 'false');
+  }
+  if (options.accounttype != null && options.accounttype !== '') {
+    query.set('accounttype', String(options.accounttype));
+  }
+
+  const qs = query.toString();
+  const url = `${BASE_URL}courier/label/${encodeURIComponent(orderId)}${qs ? `?${qs}` : ''}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error || payload.message || `HTTP error! status: ${response.status}`
+    );
+  }
+
+  return {
+    success: payload.success !== false,
+    label_url: payload.label_url || payload.labelUrl || null,
+    label_base64: payload.label_base64 || payload.labelBase64 || null,
+    content_type: payload.content_type || payload.contentType || 'application/pdf',
+    tracking_number: payload.tracking_number || payload.trackingNumber || null,
+    printtype: payload.printtype ?? options.printtype ?? null,
+    raw: payload,
+  };
+};
+
+/** Open a label URL or base64 PDF in a new tab / print dialog. */
+export const openCourierLabelForPrint = (label = {}) => {
+  const url = label.label_url || label.labelUrl || '';
+  const b64 = label.label_base64 || label.labelBase64 || '';
+  const contentType = label.content_type || label.contentType || 'application/pdf';
+
+  if (url && /^https?:\/\//i.test(String(url))) {
+    const win = window.open(String(url), '_blank', 'noopener,noreferrer');
+    if (!win) throw new Error('Popup blocked — allow popups to open the TCS label.');
+    return { mode: 'url', url: String(url) };
+  }
+
+  if (b64) {
+    const clean = String(b64).replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+    if (!clean || clean.length < 32) {
+      throw new Error('TCS returned an empty label PDF. Try another print layout (e.g. 6×4).');
+    }
+
+    let bytes;
+    try {
+      const binary = atob(clean);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    } catch {
+      throw new Error('TCS label PDF could not be decoded. Try again or use another printtype.');
+    }
+
+    // PDF magic header — reject blank/corrupt blobs that render as empty pages
+    const head = String.fromCharCode(...bytes.slice(0, 5));
+    if (head !== '%PDF-') {
+      throw new Error(
+        'TCS label response was not a valid PDF (blank page). Try Shipment Label 6×4 or Single copy.'
+      );
+    }
+
+    const blob = new Blob([bytes], { type: contentType || 'application/pdf' });
+    if (blob.size < 100) {
+      throw new Error('TCS label PDF is empty. Check the consignment number and try again.');
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const win = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      URL.revokeObjectURL(objectUrl);
+      throw new Error('Popup blocked — allow popups to open the TCS label.');
+    }
+    // Give the PDF viewer time to load before revoking
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+    return { mode: 'blob', url: objectUrl, bytes: bytes.length };
+  }
+
+  throw new Error('No TCS label PDF returned from the courier API.');
+};
+
 /** Pull tracking id / url / courier from create-shipment API payloads. */
 export const normalizeCreateShipmentResult = (payload = {}, fallbackProvider = '') => {
   const shipment =

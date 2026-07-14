@@ -15,6 +15,13 @@ const courierLabel = (item) => {
   return pickCourierId(item) || 'Courier';
 };
 
+const isSuccessMessage = (value) => {
+  const msg = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  return msg === 'success' || msg === 'ok' || msg === 'succeeded';
+};
+
 /**
  * Select a saved courier integration and create a shipment for an order.
  */
@@ -25,6 +32,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   const [selectedCourierId, setSelectedCourierId] = useState('');
   const [saveStatus, setSaveStatus] = useState('idle');
   const [saveError, setSaveError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -33,6 +41,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     setCouriersStatus('loading');
     setCouriersError(null);
     setSaveError(null);
+    setSaveSuccess(null);
     setSaveStatus('idle');
     setSelectedCourierId('');
     setCouriers([]);
@@ -81,6 +90,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
 
     setSaveStatus('loading');
     setSaveError(null);
+    setSaveSuccess(null);
 
     try {
       const result = await createCourierShipmentRequest(orderId, {
@@ -93,23 +103,47 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
             'Shipment was queued but no tracking id was returned. Check courier credentials and try again.'
         );
       }
-      if (!result?.tracking_id && !result?.tracking_number) {
+
+      const trackingId = result?.tracking_id || result?.tracking_number || '';
+      const apiSaysSuccess =
+        result?.success === true ||
+        isSuccessMessage(result?.message) ||
+        isSuccessMessage(result?.status);
+
+      if (!trackingId && !apiSaysSuccess) {
         throw new Error(
-          result?.message ||
-            result?.error ||
+          result?.error ||
+            result?.message ||
             'Courier booking succeeded without a tracking id. Check the courier API response.'
         );
       }
+
+      const successText = trackingId
+        ? `Shipment created. Tracking ID: ${trackingId}`
+        : isSuccessMessage(result?.message)
+          ? 'SUCCESS'
+          : result?.message || 'Shipment created successfully.';
+
       setSaveStatus('succeeded');
+      setSaveSuccess(successText);
       onSaved?.({
         orderId,
         provider: result?.courier || provider,
         result,
       });
-      onClose?.();
+      window.setTimeout(() => onClose?.(), 900);
     } catch (err) {
+      const msg = err?.message || 'Failed to create shipment';
+      // Provider sometimes returns "SUCCESS" as the only message — show green, not red.
+      if (isSuccessMessage(msg)) {
+        setSaveStatus('succeeded');
+        setSaveSuccess('SUCCESS');
+        onSaved?.({ orderId, provider, result: { message: msg, courier: provider } });
+        window.setTimeout(() => onClose?.(), 900);
+        return;
+      }
       setSaveStatus('failed');
-      setSaveError(err?.message || 'Failed to create shipment');
+      setSaveError(msg);
     }
   };
 
@@ -160,6 +194,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                   onChange={(e) => {
                     setSelectedCourierId(e.target.value);
                     if (saveError) setSaveError(null);
+                    if (saveSuccess) setSaveSuccess(null);
                   }}
                   disabled={isSaving || isLoadingCouriers || couriers.length === 0}
                 >
@@ -190,6 +225,9 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 <div className="alert alert-danger py-2 mt-3 mb-0">{couriersError}</div>
               ) : null}
               {saveError ? <div className="alert alert-danger py-2 mt-3 mb-0">{saveError}</div> : null}
+              {saveSuccess ? (
+                <div className="alert alert-success py-2 mt-3 mb-0">{saveSuccess}</div>
+              ) : null}
             </div>
             <div className="modal-footer">
               <button
@@ -204,7 +242,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 type="button"
                 className="btn btn-primary mb-0"
                 onClick={handleSave}
-                disabled={isSaving || isLoadingCouriers || !selectedCourierId}
+                disabled={isSaving || isLoadingCouriers || !selectedCourierId || Boolean(saveSuccess)}
               >
                 {isSaving ? (
                   <>

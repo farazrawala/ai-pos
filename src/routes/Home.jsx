@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from '../components/NavIcon.jsx';
 import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
+import PosSalesMonthWiseCard from '../components/dashboard/PosSalesMonthWiseCard.jsx';
 import PosPurchasesSummaryCard from '../components/dashboard/PosPurchasesSummaryCard.jsx';
 import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
 import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
@@ -276,6 +277,13 @@ const Home = () => {
           </div>
           <div className="col-lg-5">
             <PosPurchasesSummaryCard />
+          </div>
+        </div>
+        <div className="row g-4 mb-4">
+          <div className="col-12">
+            <DashboardChartErrorBoundary title="Sales by month">
+              <PosSalesMonthWiseCard />
+            </DashboardChartErrorBoundary>
           </div>
         </div>
         <div className="row mt-1 mb-2">

@@ -30,6 +30,7 @@ const CourierIntegrationEdit = () => {
     login: '',
     password: '',
     token: '',
+    account_no: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -56,6 +57,7 @@ const CourierIntegrationEdit = () => {
       login: currentCourier.login || '',
       password: '',
       token: '',
+      account_no: currentCourier.account_no || '',
       status: currentCourier.status || 'active',
     });
   }, [currentCourier]);
@@ -78,6 +80,7 @@ const CourierIntegrationEdit = () => {
       type: form.type,
       url: form.url.trim(),
       login: form.login.trim(),
+      account_no: form.account_no.trim(),
       status: form.status,
     };
     if (form.password.trim()) {
@@ -229,6 +232,20 @@ const CourierIntegrationEdit = () => {
                   <p className="text-xs text-muted mb-0 mt-1">
                     Leave blank to keep the existing token.
                   </p>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-edit-account-no">
+                    Account No
+                  </label>
+                  <input
+                    id="courier-edit-account-no"
+                    type="text"
+                    className="form-control"
+                    value={form.account_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, account_no: e.target.value }))}
+                    disabled={isSubmitting}
+                    placeholder="Optional TCS account number"
+                  />
                 </div>
                 <div className="mb-4">
                   <label className="form-label" htmlFor="courier-edit-status">
