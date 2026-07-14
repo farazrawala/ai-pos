@@ -104,7 +104,7 @@ export function resolveCategoryMediaUrl(raw) {
   }
   const s = String(value);
   if (!s || /^\[object\s/i.test(s)) return '';
-  if (/^https?:\/\//i.test(s)) return s;
+  if (/^(https?:|data:|blob:)/i.test(s)) return s;
   const path = s.startsWith('/') ? s : `/${s.replace(/^\//, '')}`;
   if (path.startsWith('/api/')) {
     return buildApiUrl(path.slice(5));

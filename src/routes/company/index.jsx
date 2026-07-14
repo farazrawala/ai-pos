@@ -12,7 +12,8 @@ const CompanyPage = () => {
           </span>
           <h4 className="company-page-title">Company</h4>
           <p className="company-page-subtitle">
-            Manage your company profile, invoice printer options, and POS product behavior.
+            Manage your company profile, Big Commerce marketplace, invoice printer options, and
+            POS product behavior.
           </p>
         </div>
         <CompanySettingsView />

@@ -695,10 +695,13 @@ async function patchCompanyFormFields(companyId, fields = {}, fileField = null) 
   const token = getAuthToken();
   const fd = new FormData();
   appendCompanyFieldsToFormData(fd, fields);
-  if (fileField?.file && isUserUploadFilePart(fileField.file)) {
-    const fileName = fileField.file.name || 'upload';
-    fd.append(fileField.name, fileField.file, fileName);
-  }
+  const fileEntries = Array.isArray(fileField) ? fileField : fileField ? [fileField] : [];
+  fileEntries.forEach((entry) => {
+    if (entry?.file && isUserUploadFilePart(entry.file) && entry.name) {
+      const fileName = entry.file.name || 'upload';
+      fd.append(entry.name, entry.file, fileName);
+    }
+  });
 
   const url = `${API_BASE_URL}/company/update/${encodeURIComponent(companyId)}`;
   const res = await fetch(url, {
@@ -1078,6 +1081,249 @@ export async function patchCompanyProductSettings(companyId, settingsObject) {
   return patchCompanyFormFields(companyId, {
     product_settings: JSON.stringify(settingsObject),
   });
+}
+
+/** Big Commerce marketplace branding + visibility — single String field on company. */
+export const BIGCOMMERCE_SETTINGS_FIELD = 'bigcommerce_settings';
+/** Multipart file field names merged into `bigcommerce_settings` (logo / banner URLs). */
+export const BIGCOMMERCE_LOGO_FIELD = 'logo';
+export const BIGCOMMERCE_BANNER_FIELD = 'banner';
+
+const BIGCOMMERCE_SETTING_META = {
+  show_store_for_listing: {
+    label: 'Show store for listing',
+    hint: 'When on, this company appears in the Big Commerce company listing.',
+    defaultValue: true,
+  },
+  show_store_for_request: {
+    label: 'Show store for request',
+    hint: 'When on, visitors can submit store / quote requests from the marketplace.',
+    defaultValue: false,
+  },
+};
+
+export const BIGCOMMERCE_SETTING_DEFS = Object.entries(BIGCOMMERCE_SETTING_META).map(
+  ([key, meta]) => ({
+    key,
+    ...meta,
+  })
+);
+
+export function defaultBigCommerceSettings() {
+  const out = {
+    logo: '',
+    banner: '',
+  };
+  BIGCOMMERCE_SETTING_DEFS.forEach(({ key, defaultValue }) => {
+    out[key] = defaultValue;
+  });
+  return out;
+}
+
+const BIGCOMMERCE_SETTING_ALT_KEYS = {
+  show_store_for_listing: ['showStoreForListing', 'show_products', 'showProducts', 'show_product'],
+  show_store_for_request: ['showStoreForRequest', 'show_store_request'],
+};
+
+function readBigCommerceSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw =
+    company.bigcommerce_settings ??
+    company.bigcommerceSettings ??
+    company.big_commerce_settings ??
+    company.bigCommerceSettings;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.bigcommerce_settings != null) return parsed.bigcommerce_settings;
+    if (parsed?.bigcommerceSettings != null) return parsed.bigcommerceSettings;
+    if (
+      parsed?.show_store_for_listing !== undefined ||
+      parsed?.show_products !== undefined ||
+      parsed?.show_store_for_request !== undefined ||
+      parsed?.logo !== undefined ||
+      parsed?.banner !== undefined
+    ) {
+      return parsed;
+    }
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw =
+      allFields.bigcommerce_settings ??
+      allFields.bigcommerceSettings ??
+      allFields.big_commerce_settings ??
+      allFields.bigCommerceSettings;
+    if (raw != null) return raw;
+    if (
+      allFields.show_store_for_listing !== undefined ||
+      allFields.show_products !== undefined ||
+      allFields.show_store_for_request !== undefined
+    ) {
+      return allFields;
+    }
+  }
+
+  return null;
+}
+
+export function extractBigCommerceSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readBigCommerceSettingsRaw(company));
+}
+
+function pickMediaString(parsed, keys) {
+  if (!parsed || typeof parsed !== 'object') return '';
+  for (const key of keys) {
+    const raw = parsed[key];
+    if (raw == null || raw === '') continue;
+    if (typeof File !== 'undefined' && raw instanceof File) continue;
+    if (typeof Blob !== 'undefined' && raw instanceof Blob) continue;
+    if (typeof raw === 'object' && raw !== null && 'url' in raw) {
+      const url = String(raw.url || '').trim();
+      if (url) return url;
+      continue;
+    }
+    const s = String(raw).trim();
+    if (s && !/^\[object\s/i.test(s)) return s;
+  }
+  return '';
+}
+
+export function normalizeIncomingBigCommerceSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultBigCommerceSettings();
+  const out = { ...defaults };
+  BIGCOMMERCE_SETTING_DEFS.forEach(({ key }) => {
+    const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const candidates = [key, camel, ...(BIGCOMMERCE_SETTING_ALT_KEYS[key] || [])];
+    for (const candidate of candidates) {
+      if (parsed[candidate] !== undefined) {
+        out[key] = coerceSettingBool(parsed[candidate]);
+        break;
+      }
+    }
+  });
+  out.logo = pickMediaString(parsed, ['logo', 'bigcommerce_logo', 'bigcommerceLogo']) || '';
+  out.banner =
+    pickMediaString(parsed, ['banner', 'bigcommerce_banner', 'bigcommerceBanner', 'cover']) || '';
+  return out;
+}
+
+export function mergeBigCommerceSettings(parsed) {
+  return normalizeIncomingBigCommerceSettings(parsed) || defaultBigCommerceSettings();
+}
+
+/**
+ * Full object stored as JSON in company `bigcommerce_settings` (String field).
+ * @param {object} values
+ */
+export function buildBigCommerceSettingsPayload(values = {}) {
+  const out = {
+    show_store_for_listing: Boolean(
+      values.show_store_for_listing ?? values.show_products
+    ),
+    show_store_for_request: Boolean(values.show_store_for_request),
+  };
+  const logo = values.logo != null ? String(values.logo).trim() : '';
+  const banner = values.banner != null ? String(values.banner).trim() : '';
+  out.logo = logo;
+  out.banner = banner;
+  return out;
+}
+
+/** Resolve logo URL from `bigcommerce_settings` JSON (preferred) or legacy root fields. */
+export function pickBigCommerceLogoUrl(company) {
+  if (!company || typeof company !== 'object') return '';
+  const fromSettings = mergeBigCommerceSettings(extractBigCommerceSettingsFromCompanyBody({ data: company }));
+  if (fromSettings.logo) return resolveCategoryMediaUrl(fromSettings.logo);
+  const raw =
+    company.bigcommerce_logo ??
+    company.bigcommerceLogo ??
+    company.big_commerce_logo ??
+    '';
+  return resolveCategoryMediaUrl(raw);
+}
+
+/** Resolve banner URL from `bigcommerce_settings` JSON (preferred) or legacy root fields. */
+export function pickBigCommerceBannerUrl(company) {
+  if (!company || typeof company !== 'object') return '';
+  const fromSettings = mergeBigCommerceSettings(extractBigCommerceSettingsFromCompanyBody({ data: company }));
+  if (fromSettings.banner) return resolveCategoryMediaUrl(fromSettings.banner);
+  const raw =
+    company.bigcommerce_banner ??
+    company.bigcommerceBanner ??
+    company.big_commerce_banner ??
+    company.company_cover ??
+    company.cover_image ??
+    '';
+  return resolveCategoryMediaUrl(raw);
+}
+
+/**
+ * Read an image File as a data URL for embedding in `bigcommerce_settings` (String field).
+ * Max ~1.8MB raw file to keep the JSON payload within typical body limits.
+ */
+async function readImageFileAsDataUrl(file, { maxBytes = 1_800_000 } = {}) {
+  if (!isUserUploadFilePart(file)) {
+    throw new Error('Please choose a valid image file.');
+  }
+  if (file.size > maxBytes) {
+    throw new Error(
+      `Image is too large (${Math.round(file.size / 1024)} KB). Use a file under ${Math.round(maxBytes / 1024)} KB.`
+    );
+  }
+  if (file.type && !String(file.type).startsWith('image/')) {
+    throw new Error('Please choose an image file.');
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      if (!result.startsWith('data:')) {
+        reject(new Error('Failed to read image file.'));
+        return;
+      }
+      resolve(result);
+    };
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function sanitizeSettingsMediaUrl(value) {
+  const s = String(value || '').trim();
+  if (!s || s.startsWith('blob:')) return '';
+  return s;
+}
+
+/**
+ * PATCH company `bigcommerce_settings` (String JSON).
+ * Logo/banner Files are embedded as data URLs inside the JSON (schema has no separate file fields).
+ * @returns {Promise<{ company: object, settings: object }>}
+ */
+export async function patchCompanyBigCommerceSettings(companyId, settingsObject, files = {}) {
+  const payload = buildBigCommerceSettingsPayload(settingsObject);
+  payload.logo = sanitizeSettingsMediaUrl(payload.logo);
+  payload.banner = sanitizeSettingsMediaUrl(payload.banner);
+
+  if (isUserUploadFilePart(files.logo)) {
+    payload.logo = await readImageFileAsDataUrl(files.logo);
+  }
+  if (isUserUploadFilePart(files.banner)) {
+    payload.banner = await readImageFileAsDataUrl(files.banner);
+  }
+
+  const company = await patchCompanyFormFields(companyId, {
+    [BIGCOMMERCE_SETTINGS_FIELD]: JSON.stringify(payload),
+  });
+  return { company, settings: payload };
 }
 
 /** Local SMS alert settings saved on company as `local_sms`. */

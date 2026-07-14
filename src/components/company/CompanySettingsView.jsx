@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setCompany, selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
 import {
   COMPANY_LOGO_FIELD,
+  BIGCOMMERCE_SETTINGS_FIELD,
+  BIGCOMMERCE_SETTING_DEFS,
   PRINTER_SETTING_DEFS,
   PRINTER_SETTING_SECTIONS,
   PRODUCT_SETTING_DEFS,
@@ -12,16 +14,19 @@ import {
   DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
   buildPrinterSettingsPayload,
   buildProductSettingsPayload,
+  buildBigCommerceSettingsPayload,
   buildLocalSmsSettingsPayload,
   buildApiSmsSettingsPayload,
   buildEmailAlertsSettingsPayload,
   defaultPrinterSettings,
   defaultProductSettings,
+  defaultBigCommerceSettings,
   defaultLocalSmsSettings,
   defaultApiSmsSettings,
   defaultEmailAlertsSettings,
   extractPrinterSettingsFromCompanyBody,
   extractProductSettingsFromCompanyBody,
+  extractBigCommerceSettingsFromCompanyBody,
   extractLocalSmsSettingsFromCompanyBody,
   extractApiSmsSettingsFromCompanyBody,
   extractEmailAlertsSettingsFromCompanyBody,
@@ -29,6 +34,7 @@ import {
   getCompanyFromApiBody,
   mergePrinterSettings,
   mergeProductSettings,
+  mergeBigCommerceSettings,
   mergeLocalSmsSettings,
   mergeApiSmsSettings,
   mergeEmailAlertsSettings,
@@ -36,10 +42,13 @@ import {
   normalizeIncomingProductSettings,
   patchCompanyPrinterSettings,
   patchCompanyProductSettings,
+  patchCompanyBigCommerceSettings,
   patchCompanyLocalSmsSettings,
   patchCompanyApiSmsSettings,
   patchCompanyEmailAlertsSettings,
   pickCompanyLogoUrl,
+  pickBigCommerceLogoUrl,
+  pickBigCommerceBannerUrl,
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
@@ -93,6 +102,19 @@ export default function CompanySettingsView() {
   const [togglingProductKey, setTogglingProductKey] = useState('');
   const [productSaveError, setProductSaveError] = useState('');
 
+  const [bigCommerceSettings, setBigCommerceSettings] = useState(() => defaultBigCommerceSettings());
+  const [togglingBigCommerceKey, setTogglingBigCommerceKey] = useState('');
+  const [bigCommerceSaveError, setBigCommerceSaveError] = useState('');
+  const [bigCommerceSaving, setBigCommerceSaving] = useState(false);
+  const [bcLogoFile, setBcLogoFile] = useState(null);
+  const [bcLogoPreview, setBcLogoPreview] = useState(null);
+  const [existingBcLogoUrl, setExistingBcLogoUrl] = useState('');
+  const bcLogoInputRef = useRef(null);
+  const [bcBannerFile, setBcBannerFile] = useState(null);
+  const [bcBannerPreview, setBcBannerPreview] = useState(null);
+  const [existingBcBannerUrl, setExistingBcBannerUrl] = useState('');
+  const bcBannerInputRef = useRef(null);
+
   const [smsSettings, setSmsSettings] = useState(() => defaultLocalSmsSettings());
   const [togglingSmsKey, setTogglingSmsKey] = useState('');
   const [smsAmountSaving, setSmsAmountSaving] = useState(false);
@@ -126,6 +148,14 @@ export default function CompanySettingsView() {
     return map;
   }, []);
 
+  const bigCommerceSettingByKey = useMemo(() => {
+    const map = {};
+    BIGCOMMERCE_SETTING_DEFS.forEach((def) => {
+      map[def.key] = def;
+    });
+    return map;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (logoPreview && logoPreview.startsWith('blob:')) {
@@ -133,6 +163,22 @@ export default function CompanySettingsView() {
       }
     };
   }, [logoPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (bcLogoPreview && bcLogoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(bcLogoPreview);
+      }
+    };
+  }, [bcLogoPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (bcBannerPreview && bcBannerPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(bcBannerPreview);
+      }
+    };
+  }, [bcBannerPreview]);
 
   const hydrateFromCompany = useCallback((company, body) => {
     applyCompanyToForm(company, {
@@ -146,6 +192,23 @@ export default function CompanySettingsView() {
     setPrinterSettings(mergePrinterSettings(parsed));
     const productParsed = extractProductSettingsFromCompanyBody(body ?? { data: company });
     setProductSettings(mergeProductSettings(productParsed));
+    const bigCommerceParsed = extractBigCommerceSettingsFromCompanyBody(body ?? { data: company });
+    const bcSettings = mergeBigCommerceSettings(bigCommerceParsed);
+    setBigCommerceSettings(bcSettings);
+    setExistingBcLogoUrl(pickBigCommerceLogoUrl(company));
+    setBcLogoFile(null);
+    setBcLogoPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (bcLogoInputRef.current) bcLogoInputRef.current.value = '';
+    setExistingBcBannerUrl(pickBigCommerceBannerUrl(company));
+    setBcBannerFile(null);
+    setBcBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (bcBannerInputRef.current) bcBannerInputRef.current.value = '';
     const smsParsed = extractLocalSmsSettingsFromCompanyBody(body ?? { data: company });
     setSmsSettings(mergeLocalSmsSettings(smsParsed));
     const apiSmsParsed = extractApiSmsSettingsFromCompanyBody(body ?? { data: company });
@@ -347,6 +410,146 @@ export default function CompanySettingsView() {
       showToast({ message, variant: 'error' });
     } finally {
       setTogglingProductKey('');
+    }
+  };
+
+  const applyBigCommerceCompanyUpdate = (updated, settingsPayload) => {
+    const fromApi = getCompanyFromApiBody(updated) || (updated && !updated.company ? updated : null);
+    const payloadObject =
+      settingsPayload && typeof settingsPayload === 'object' ? settingsPayload : null;
+    const settingsForStore = payloadObject
+      ? JSON.stringify(payloadObject)
+      : typeof settingsPayload === 'string'
+        ? settingsPayload
+        : '{}';
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      bigcommerce_settings:
+        fromApi?.bigcommerce_settings ?? fromApi?.bigcommerceSettings ?? settingsForStore,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractBigCommerceSettingsFromCompanyBody({ data: merged });
+    const nextSettings = mergeBigCommerceSettings({
+      ...(parsed || {}),
+      ...(payloadObject || {}),
+    });
+    setBigCommerceSettings(nextSettings);
+    setExistingBcLogoUrl(pickBigCommerceLogoUrl({ bigcommerce_settings: nextSettings }) || '');
+    setExistingBcBannerUrl(pickBigCommerceBannerUrl({ bigcommerce_settings: nextSettings }) || '');
+    return merged;
+  };
+
+  const persistBigCommerceSettings = async (nextSettings, files = {}) => {
+    const payload = buildBigCommerceSettingsPayload({
+      ...nextSettings,
+      logo:
+        nextSettings.logo ||
+        (existingBcLogoUrl && !existingBcLogoUrl.startsWith('blob:') ? existingBcLogoUrl : '') ||
+        '',
+      banner:
+        nextSettings.banner ||
+        (existingBcBannerUrl && !existingBcBannerUrl.startsWith('blob:')
+          ? existingBcBannerUrl
+          : '') ||
+        '',
+    });
+    const { company, settings } = await patchCompanyBigCommerceSettings(companyId, payload, files);
+    return applyBigCommerceCompanyUpdate(company, settings);
+  };
+
+  const handleToggleBigCommerceSetting = async (key) => {
+    if (!companyId || togglingBigCommerceKey || bigCommerceSaving) return;
+
+    const previous = bigCommerceSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    setBigCommerceSettings(next);
+    setBigCommerceSaveError('');
+    setTogglingBigCommerceKey(key);
+
+    try {
+      await persistBigCommerceSettings(next);
+    } catch (err) {
+      setBigCommerceSettings(previous);
+      const message = err?.message || 'Failed to update Big Commerce setting';
+      setBigCommerceSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingBigCommerceKey('');
+    }
+  };
+
+  const handleBcLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      setBigCommerceSaveError('Please choose an image file for the logo.');
+      return;
+    }
+    setBigCommerceSaveError('');
+    setBcLogoPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setBcLogoFile(file);
+  };
+
+  const handleBcBannerChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      setBigCommerceSaveError('Please choose an image file for the banner.');
+      return;
+    }
+    setBigCommerceSaveError('');
+    setBcBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setBcBannerFile(file);
+  };
+
+  const clearBcLogoSelection = () => {
+    setBcLogoFile(null);
+    setBcLogoPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (bcLogoInputRef.current) bcLogoInputRef.current.value = '';
+  };
+
+  const clearBcBannerSelection = () => {
+    setBcBannerFile(null);
+    setBcBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (bcBannerInputRef.current) bcBannerInputRef.current.value = '';
+  };
+
+  const handleSaveBigCommerceMedia = async () => {
+    if (!companyId || bigCommerceSaving) return;
+    if (!isUserUploadFilePart(bcLogoFile) && !isUserUploadFilePart(bcBannerFile)) {
+      setBigCommerceSaveError('Choose a logo or banner image to upload.');
+      return;
+    }
+
+    setBigCommerceSaving(true);
+    setBigCommerceSaveError('');
+    try {
+      await persistBigCommerceSettings(bigCommerceSettings, {
+        logo: bcLogoFile,
+        banner: bcBannerFile,
+      });
+      if (isUserUploadFilePart(bcLogoFile)) clearBcLogoSelection();
+      if (isUserUploadFilePart(bcBannerFile)) clearBcBannerSelection();
+      showToast({ message: 'Big Commerce images saved.', variant: 'success' });
+    } catch (err) {
+      const message = err?.message || 'Failed to save Big Commerce images';
+      setBigCommerceSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setBigCommerceSaving(false);
     }
   };
 
@@ -1059,6 +1262,195 @@ export default function CompanySettingsView() {
 
           {productSaveError ? (
             <div className="alert alert-danger py-2 mt-3 mb-0">{productSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fas fa-store" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Big Commerce</h5>
+            <p className="company-card-subtitle">
+              Marketplace branding and visibility — settings save to{' '}
+              <code className="text-xs">bigcommerce_settings</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          <div className="row g-4 mb-3">
+            <div className="col-md-6">
+              <div className="company-logo-panel">
+                <div className="company-label mb-2">Logo</div>
+                <div className="company-logo-frame">
+                  {bcLogoPreview || existingBcLogoUrl ? (
+                    <img src={bcLogoPreview || existingBcLogoUrl} alt="Big Commerce logo" />
+                  ) : (
+                    <div className="company-logo-empty">
+                      <i className="fas fa-image" aria-hidden="true" />
+                      <span>No logo</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={bcLogoInputRef}
+                  id="bigcommerce-logo"
+                  type="file"
+                  className="d-none"
+                  accept="image/*"
+                  onChange={handleBcLogoChange}
+                  disabled={bigCommerceSaving || !companyId}
+                />
+                <div className="d-flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary mb-0"
+                    onClick={() => bcLogoInputRef.current?.click()}
+                    disabled={bigCommerceSaving || !companyId}
+                  >
+                    <i className="fas fa-upload me-1" aria-hidden="true" />
+                    {bcLogoPreview || existingBcLogoUrl ? 'Change logo' : 'Upload logo'}
+                  </button>
+                  {bcLogoPreview ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary mb-0"
+                      onClick={clearBcLogoSelection}
+                      disabled={bigCommerceSaving}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <p className="company-logo-hint">
+                  Stored as <code className="text-xs">logo</code> inside{' '}
+                  <code className="text-xs">{BIGCOMMERCE_SETTINGS_FIELD}</code>. Use a file under
+                  ~1.8&nbsp;MB.
+                </p>
+              </div>
+            </div>
+
+            <div className="col-md-6">
+              <div className="company-logo-panel">
+                <div className="company-label mb-2">Banner</div>
+                <div className="company-banner-frame">
+                  {bcBannerPreview || existingBcBannerUrl ? (
+                    <img src={bcBannerPreview || existingBcBannerUrl} alt="Big Commerce banner" />
+                  ) : (
+                    <div className="company-logo-empty">
+                      <i className="fas fa-image" aria-hidden="true" />
+                      <span>No banner</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={bcBannerInputRef}
+                  id="bigcommerce-banner"
+                  type="file"
+                  className="d-none"
+                  accept="image/*"
+                  onChange={handleBcBannerChange}
+                  disabled={bigCommerceSaving || !companyId}
+                />
+                <div className="d-flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary mb-0"
+                    onClick={() => bcBannerInputRef.current?.click()}
+                    disabled={bigCommerceSaving || !companyId}
+                  >
+                    <i className="fas fa-upload me-1" aria-hidden="true" />
+                    {bcBannerPreview || existingBcBannerUrl ? 'Change banner' : 'Upload banner'}
+                  </button>
+                  {bcBannerPreview ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary mb-0"
+                      onClick={clearBcBannerSelection}
+                      disabled={bigCommerceSaving}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <p className="company-logo-hint">
+                  Stored as <code className="text-xs">banner</code> inside{' '}
+                  <code className="text-xs">{BIGCOMMERCE_SETTINGS_FIELD}</code>. Use a file under
+                  ~1.8&nbsp;MB.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="company-card-footer pt-0 border-0 mt-0 mb-3">
+            <button
+              type="button"
+              className="btn btn-primary mb-0"
+              onClick={handleSaveBigCommerceMedia}
+              disabled={
+                bigCommerceSaving ||
+                !companyId ||
+                (!isUserUploadFilePart(bcLogoFile) && !isUserUploadFilePart(bcBannerFile))
+              }
+            >
+              {bigCommerceSaving ? 'Saving…' : 'Save images'}
+            </button>
+          </div>
+
+          {BIGCOMMERCE_SETTING_DEFS.map(({ key }) => {
+            const { label, hint } = bigCommerceSettingByKey[key] || { label: key };
+            const isOn = Boolean(bigCommerceSettings[key]);
+            const busy = togglingBigCommerceKey === key;
+            return (
+              <div className="settings-row" key={key}>
+                <div>
+                  <div className="settings-row-label">{label}</div>
+                  {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                </div>
+                <div className="settings-row-control">
+                  {busy ? (
+                    <span
+                      className="spinner-border spinner-border-sm text-primary"
+                      role="status"
+                      style={{ width: '1rem', height: '1rem' }}
+                    >
+                      <span className="visually-hidden">Saving…</span>
+                    </span>
+                  ) : (
+                    <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                      {isOn ? 'On' : 'Off'}
+                    </span>
+                  )}
+                  <label
+                    className="form-check form-switch settings-switch"
+                    htmlFor={`bigcommerce-setting-${key}`}
+                    style={{
+                      cursor:
+                        togglingBigCommerceKey || bigCommerceSaving || !companyId
+                          ? 'not-allowed'
+                          : 'pointer',
+                    }}
+                  >
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id={`bigcommerce-setting-${key}`}
+                      checked={isOn}
+                      onChange={() => handleToggleBigCommerceSetting(key)}
+                      disabled={!!togglingBigCommerceKey || bigCommerceSaving || !companyId}
+                      aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                    />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+
+          {bigCommerceSaveError ? (
+            <div className="alert alert-danger py-2 mt-3 mb-0">{bigCommerceSaveError}</div>
           ) : null}
         </div>
       </div>

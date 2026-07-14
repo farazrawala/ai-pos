@@ -124,6 +124,25 @@
   object-fit: contain;
 }
 
+.company-banner-frame {
+  width: 100%;
+  height: 130px;
+  border-radius: 1rem;
+  border: 1px solid #e6eaf2;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.company-banner-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .company-logo-empty {
   display: flex;
   flex-direction: column;

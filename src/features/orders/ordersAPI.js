@@ -1,9 +1,6 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import { createOrderSaveError } from '../../utils/posOrderErrors.js';
-import {
-  fetchAccountByIdRequest,
-  fetchPublicAccountByIdRequest,
-} from '../accounts/accountsAPI.js';
+import { fetchAccountByIdRequest, fetchPublicAccountByIdRequest } from '../accounts/accountsAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -73,11 +70,7 @@ async function readOrderSaveFailure(response) {
     if (typeof json.message === 'string' && json.message) {
       throwWithStatus(json.message, json);
     }
-    if (
-      json.error &&
-      typeof json.error === 'object' &&
-      typeof json.error.message === 'string'
-    ) {
+    if (json.error && typeof json.error === 'object' && typeof json.error.message === 'string') {
       throwWithStatus(json.error.message, json);
     }
     if (typeof json.error === 'string' && json.error) {
@@ -185,7 +178,11 @@ function parseOrderSalesTotals(result) {
   const totalAmount =
     typeof raw === 'number' && Number.isFinite(raw)
       ? raw
-      : parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+      : parseFloat(
+          String(raw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
 
   const orderCountRaw = result?.order_count ?? result?.orderCount;
   const orderCount =
@@ -243,7 +240,11 @@ function parseSalesDayEntry(day) {
   const totalAmount =
     typeof amountRaw === 'number' && Number.isFinite(amountRaw)
       ? amountRaw
-      : parseFloat(String(amountRaw ?? '').replace(/,/g, '').trim());
+      : parseFloat(
+          String(amountRaw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
   const countRaw = day.order_count ?? day.orderCount ?? 0;
   const orderCount =
     typeof countRaw === 'number' && Number.isFinite(countRaw)
@@ -294,18 +295,25 @@ function parseSalesMonthEntry(row) {
   const totalAmount =
     typeof amountRaw === 'number' && Number.isFinite(amountRaw)
       ? amountRaw
-      : parseFloat(String(amountRaw ?? '').replace(/,/g, '').trim());
+      : parseFloat(
+          String(amountRaw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
   const countRaw = row.order_count ?? row.orderCount ?? 0;
   const orderCount =
     typeof countRaw === 'number' && Number.isFinite(countRaw)
       ? countRaw
       : parseInt(String(countRaw ?? ''), 10);
-  const avgRaw =
-    row.average_order_value ?? row.averageOrderValue ?? row.avg_order_value;
+  const avgRaw = row.average_order_value ?? row.averageOrderValue ?? row.avg_order_value;
   let averageOrderValue =
     typeof avgRaw === 'number' && Number.isFinite(avgRaw)
       ? avgRaw
-      : parseFloat(String(avgRaw ?? '').replace(/,/g, '').trim());
+      : parseFloat(
+          String(avgRaw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
   const safeAmount = Number.isFinite(totalAmount) ? totalAmount : 0;
   const safeCount = Number.isFinite(orderCount) ? orderCount : 0;
   if (!Number.isFinite(averageOrderValue) && safeCount > 0) {
@@ -321,12 +329,15 @@ function parseSalesMonthEntry(row) {
 
 function parseSalesMonthWiseSummary(raw) {
   const totals = parseOrderSalesTotals(raw ?? {});
-  const avgRaw =
-    raw?.average_order_value ?? raw?.averageOrderValue ?? raw?.avg_order_value;
+  const avgRaw = raw?.average_order_value ?? raw?.averageOrderValue ?? raw?.avg_order_value;
   let averageOrderValue =
     typeof avgRaw === 'number' && Number.isFinite(avgRaw)
       ? avgRaw
-      : parseFloat(String(avgRaw ?? '').replace(/,/g, '').trim());
+      : parseFloat(
+          String(avgRaw ?? '')
+            .replace(/,/g, '')
+            .trim()
+        );
   if (!Number.isFinite(averageOrderValue) && totals.orderCount > 0) {
     averageOrderValue = totals.totalAmount / totals.orderCount;
   }
@@ -685,10 +696,7 @@ export async function fetchDailyOrdersRequest(params = {}) {
 function parseAvgOrderValueDayEntry(day) {
   const base = parseSalesDayEntry(day);
   const avgRaw =
-    day?.avg_order_value ??
-    day?.average_order_value ??
-    day?.averageOrderValue ??
-    day?.aov;
+    day?.avg_order_value ?? day?.average_order_value ?? day?.averageOrderValue ?? day?.aov;
   let averageOrderValue = parseReportNumber(avgRaw, NaN);
   if (!Number.isFinite(averageOrderValue) && base.orderCount > 0) {
     averageOrderValue = base.totalAmount / base.orderCount;
@@ -722,9 +730,7 @@ export async function fetchAverageOrderValueRequest(params = {}) {
   const query = buildReportPeriodQuery(params, 'current_month');
   const result = await fetchOrderReportJson(AVERAGE_ORDER_VALUE_PATH, query);
 
-  let days = Array.isArray(result.days)
-    ? result.days.map(parseAvgOrderValueDayEntry)
-    : [];
+  let days = Array.isArray(result.days) ? result.days.map(parseAvgOrderValueDayEntry) : [];
 
   if (Array.isArray(result.data)) {
     days = result.data.map(parseAvgOrderValueDayEntry);
@@ -773,9 +779,7 @@ function parseSalesByCategoryEntry(raw) {
 
   const categoryIdRaw = raw.category_id ?? raw.categoryId ?? raw._id;
   const categoryId =
-    categoryIdRaw == null || categoryIdRaw === ''
-      ? ''
-      : String(categoryIdRaw).trim();
+    categoryIdRaw == null || categoryIdRaw === '' ? '' : String(categoryIdRaw).trim();
 
   const totalRevenue = parseReportNumber(
     raw.total_revenue ?? raw.totalRevenue ?? raw.total_amount ?? raw.totalAmount ?? raw.amount
@@ -807,10 +811,7 @@ function parseSalesByCategorySummary(raw, categories = []) {
   }
 
   const totalRevenue = parseReportNumber(
-    raw.total_revenue ??
-      raw.totalRevenue ??
-      raw.total_amount ??
-      raw.totalAmount,
+    raw.total_revenue ?? raw.totalRevenue ?? raw.total_amount ?? raw.totalAmount,
     categories.reduce((sum, row) => sum + row.totalRevenue, 0)
   );
   const totalQty = parseReportNumber(
@@ -1237,11 +1238,7 @@ function pickPaymentAccountIdFromOrder(order) {
     if (nested != null && String(nested).trim() !== '') return String(nested).trim();
   }
   return String(
-    payRef ??
-      order.payment_method_id ??
-      order.posPayMethod ??
-      order.account_id ??
-      ''
+    payRef ?? order.payment_method_id ?? order.posPayMethod ?? order.account_id ?? ''
   ).trim();
 }
 
@@ -1458,7 +1455,9 @@ export function pickOrderInvoiceNoFromSaveResponse(result) {
   const fromOrder = pickOrderInvoiceNo(order);
   if (fromOrder) return fromOrder;
 
-  const roots = [result.data, result].filter((r) => r && typeof r === 'object' && !Array.isArray(r));
+  const roots = [result.data, result].filter(
+    (r) => r && typeof r === 'object' && !Array.isArray(r)
+  );
   for (const root of roots) {
     const direct = pickOrderInvoiceNo(root);
     if (direct) return direct;
