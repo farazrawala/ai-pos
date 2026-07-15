@@ -884,6 +884,7 @@ const PosInvoice = () => {
   const invoiceLineTotals = useMemo(() => {
     let subTotal = 0;
     let taxTotal = 0;
+    let totalQty = 0;
     invoiceDraftLines.forEach((d) => {
       if (!String(d?.productId ?? '').trim()) return;
       const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
@@ -895,8 +896,9 @@ const PosInvoice = () => {
       const taxAmount = (lineSub * taxPct) / 100;
       subTotal += lineSub;
       taxTotal += taxAmount;
+      totalQty += qty;
     });
-    return { subTotal, taxTotal, totalBeforeAdjust: subTotal + taxTotal };
+    return { subTotal, taxTotal, totalQty, totalBeforeAdjust: subTotal + taxTotal };
   }, [invoiceDraftLines]);
 
   useEffect(() => {
@@ -1024,6 +1026,25 @@ const PosInvoice = () => {
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
   const grossDisplay = liveSummaryFromDraft != null ? liveSummaryFromDraft.total : data.grossAmount;
+
+  const totalQtyDisplay = useMemo(() => {
+    if (canUpdateInvoice) {
+      return Number(invoiceLineTotals.totalQty) || 0;
+    }
+    const lines = Array.isArray(data?.lines) ? data.lines : [];
+    return lines.reduce((sum, line) => {
+      const raw = line?.qtyLabel ?? line?.qty ?? line?.quantity ?? 0;
+      const n = parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+      return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  }, [canUpdateInvoice, invoiceLineTotals.totalQty, data?.lines]);
+
+  const formatTotalQty = useCallback((n) => {
+    const qty = Number(n) || 0;
+    if (!Number.isFinite(qty)) return '0';
+    const rounded = Math.round(qty * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+  }, []);
 
   const originalTotal = useMemo(() => {
     const base = data?.summary?.total ?? data?.grossAmount ?? 0;
@@ -1756,6 +1777,15 @@ const PosInvoice = () => {
                           ))
                         )}
                       </tbody>
+                      <tfoot>
+                        <tr className="pos-inv-total-qty-row">
+                          <td colSpan={3} className="text-end text-muted">
+                            Total Qty
+                          </td>
+                          <td className="text-end fw-bold">{formatTotalQty(totalQtyDisplay)}</td>
+                          <td colSpan={canUpdateInvoice ? 2 : 1} />
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </div>

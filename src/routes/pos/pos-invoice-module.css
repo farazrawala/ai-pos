@@ -272,6 +272,14 @@
   background: #fafbfc;
 }
 
+.pos-invoice-page .pos-inv-total-qty-row td {
+  border-top: 1px solid var(--inv-border);
+  background: var(--inv-surface);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8125rem;
+  vertical-align: middle;
+}
+
 .pos-invoice-page .pos-inv-table .form-control {
   font-size: 0.8125rem;
   padding: 0.35rem 0.5rem;
