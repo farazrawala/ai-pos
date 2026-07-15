@@ -297,34 +297,12 @@ const Product = () => {
         })
       ).unwrap();
 
-      dispatch(fetchProducts(buildListParams()));
+      toast.success(
+        newStatus ? 'Product activated successfully.' : 'Product deactivated successfully.'
+      );
     } catch (error) {
       console.error('Toggle status error:', error);
-      const toastElement = document.getElementById('dangerToast');
-      if (toastElement) {
-        const timeElement = toastElement.querySelector('.toast-time');
-        if (timeElement) {
-          timeElement.textContent = moment().format('h:mm A');
-        }
-        const toastBody = toastElement.querySelector('.toast-body');
-        if (toastBody) {
-          toastBody.textContent = error?.message || 'Failed to update product status';
-        }
-        if (window.bootstrap && window.bootstrap.Toast) {
-          const toast = new window.bootstrap.Toast(toastElement, {
-            autohide: true,
-            delay: 5000,
-          });
-          toast.show();
-        } else {
-          toastElement.classList.remove('hide');
-          toastElement.classList.add('show');
-          setTimeout(() => {
-            toastElement.classList.remove('show');
-            toastElement.classList.add('hide');
-          }, 5000);
-        }
-      }
+      toast.error(error?.message || 'Failed to update product status');
     } finally {
       setTogglingProductId(null);
     }

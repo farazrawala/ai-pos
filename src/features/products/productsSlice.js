@@ -280,7 +280,15 @@ const productsSlice = createSlice({
           (item) => (item._id || item.id || item.product_id) === productId
         );
         if (index !== -1) {
-          state.list[index] = { ...state.list[index], ...action.payload.response.data };
+          const responseData =
+            action.payload.response?.data && typeof action.payload.response.data === 'object'
+              ? action.payload.response.data
+              : {};
+          const submitted =
+            action.meta?.arg?.productData && typeof action.meta.arg.productData === 'object'
+              ? action.meta.arg.productData
+              : {};
+          state.list[index] = { ...state.list[index], ...responseData, ...submitted };
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
