@@ -49,7 +49,7 @@ export const showToast = ({
   if (!container) return;
 
   const toastEl = document.createElement('div');
-  toastEl.className = 'toast fade p-2 mt-2 bg-white position-relative';
+  toastEl.className = 'toast fade p-2 mt-2 bg-white';
   toastEl.setAttribute('role', 'alert');
   toastEl.setAttribute('aria-live', 'assertive');
   toastEl.setAttribute('aria-atomic', 'true');
@@ -65,21 +65,8 @@ export const showToast = ({
     toastEl.remove();
   };
 
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className =
-    'btn btn-link text-secondary p-0 position-absolute top-0 end-0 m-2 lh-1 app-toast-close';
-  closeBtn.style.zIndex = '2';
-  closeBtn.setAttribute('aria-label', 'Close');
-  closeBtn.innerHTML = '<i class="fas fa-times text-sm"></i>';
-  closeBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dismissToast();
-  });
-
   const header = document.createElement('div');
-  header.className = 'toast-header border-0 pe-4';
+  header.className = 'toast-header border-0';
 
   const icon = document.createElement('i');
   icon.className = `${config.icon} ${config.iconClass} me-2`;
@@ -95,9 +82,28 @@ export const showToast = ({
   timeEl.className = 'text-body ms-2';
   timeEl.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+  const closeEl = document.createElement('i');
+  closeEl.className = 'fas fa-times text-md ms-3 cursor-pointer';
+  closeEl.setAttribute('data-bs-dismiss', 'toast');
+  closeEl.setAttribute('role', 'button');
+  closeEl.setAttribute('aria-label', 'Close');
+  closeEl.setAttribute('tabindex', '0');
+  closeEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dismissToast();
+  });
+  closeEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      dismissToast();
+    }
+  });
+
   header.appendChild(icon);
   header.appendChild(titleEl);
   header.appendChild(timeEl);
+  header.appendChild(closeEl);
 
   const hr = document.createElement('hr');
   hr.className = 'horizontal dark m-0';
@@ -111,7 +117,6 @@ export const showToast = ({
     body.textContent = String(message || '');
   }
 
-  toastEl.appendChild(closeBtn);
   toastEl.appendChild(header);
   toastEl.appendChild(hr);
   toastEl.appendChild(body);
