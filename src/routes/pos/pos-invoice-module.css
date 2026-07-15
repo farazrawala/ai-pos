@@ -205,6 +205,22 @@
   line-height: 1.45;
 }
 
+.pos-invoice-page .pos-inv-add-customer-btn {
+  background: #5e72e4;
+  border-color: #5e72e4;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pos-invoice-page .pos-inv-add-customer-btn:hover,
+.pos-invoice-page .pos-inv-add-customer-btn:focus {
+  background: #4c63d2;
+  border-color: #4c63d2;
+  color: #fff;
+}
+
 .pos-invoice-page .pos-inv-product-search .input-group-text {
   background: #fff;
   border-color: var(--inv-border);

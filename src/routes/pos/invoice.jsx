@@ -19,6 +19,11 @@ import {
   fetchUsersListRequest,
   formatUserOptionLabel,
   getUserOptionValue,
+  createCustomerUserRequest,
+  pickCreatedUserFromResponse,
+  POS_DEFAULT_CUSTOMER_PASSWORD,
+  resolvePosCustomerEmail,
+  digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import {
@@ -110,6 +115,9 @@ const DEMO_INVOICE = {
 };
 
 const fmt = formatInvoiceMoney;
+
+const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+const INVOICE_ADD_CUSTOMER_MODAL_ID = 'posInvoiceAddCustomerModal';
 
 function parseInvoiceMoneyInput(raw) {
   const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
@@ -288,6 +296,10 @@ const PosInvoice = () => {
   const [invoiceZip, setInvoiceZip] = useState('');
   const [invoiceCountry, setInvoiceCountry] = useState('');
   const [invoicePosPayMethod, setInvoicePosPayMethod] = useState('');
+  const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
+  const [addCustomerErrors, setAddCustomerErrors] = useState({});
+  const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
+  const [createCustomerError, setCreateCustomerError] = useState('');
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
@@ -644,6 +656,114 @@ const PosInvoice = () => {
       });
     return [walkIn, ...rows];
   }, [users]);
+
+  const openAddCustomerModal = useCallback(() => {
+    setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+    setAddCustomerErrors({});
+    setCreateCustomerError('');
+    const el = document.getElementById(INVOICE_ADD_CUSTOMER_MODAL_ID);
+    if (el && window.bootstrap?.Modal) {
+      const M = window.bootstrap.Modal;
+      const instance =
+        typeof M.getOrCreateInstance === 'function'
+          ? M.getOrCreateInstance(el)
+          : M.getInstance(el) || new M(el);
+      instance.show();
+    }
+  }, []);
+
+  const closeAddCustomerModal = useCallback(() => {
+    const el = document.getElementById(INVOICE_ADD_CUSTOMER_MODAL_ID);
+    if (el && window.bootstrap?.Modal) {
+      const instance = window.bootstrap.Modal.getInstance(el);
+      instance?.hide();
+    }
+  }, []);
+
+  const validateAddCustomer = useCallback(() => {
+    const next = {};
+    if (!addCustomerForm.name.trim()) {
+      next.name = 'Name is required';
+    }
+    const emailTrim = addCustomerForm.email.trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      next.email = 'Enter a valid email';
+    }
+    if (!addCustomerForm.phone.trim()) {
+      next.phone = 'Phone is required';
+    } else {
+      const phoneDigits = digitsOnlyFromPhone(addCustomerForm.phone);
+      if (phoneDigits.length < 7) {
+        next.phone = 'Enter a valid phone number (at least 7 digits)';
+      } else if (phoneDigits.length > 11) {
+        next.phone = 'Phone number must be 11 digits or less';
+      }
+    }
+    setAddCustomerErrors(next);
+    return Object.keys(next).length === 0;
+  }, [addCustomerForm]);
+
+  const handleAddCustomerFieldChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      const nextValue = name === 'phone' ? digitsOnlyFromPhone(value).slice(0, 11) : value;
+      setAddCustomerForm((prev) => ({ ...prev, [name]: nextValue }));
+      if (addCustomerErrors[name]) {
+        setAddCustomerErrors((prev) => ({ ...prev, [name]: '' }));
+      }
+      setCreateCustomerError('');
+    },
+    [addCustomerErrors]
+  );
+
+  const handleAddCustomerSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setCreateCustomerError('');
+      if (!validateAddCustomer()) return;
+      setCreateCustomerSubmitting(true);
+      try {
+        const resolvedEmail = resolvePosCustomerEmail(addCustomerForm.email, addCustomerForm.phone);
+        const json = await createCustomerUserRequest({
+          name: addCustomerForm.name,
+          email: addCustomerForm.email,
+          phone: addCustomerForm.phone,
+          password: POS_DEFAULT_CUSTOMER_PASSWORD,
+          role: ['CUSTOMER'],
+        });
+        const created = pickCreatedUserFromResponse(json);
+        const newId = getUserOptionValue(created);
+        let list = [];
+        try {
+          list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
+        } catch {
+          list = Array.isArray(users) ? [...users] : [];
+          if (created && newId) list = [created, ...list];
+        }
+        setUsers(Array.isArray(list) ? list : []);
+        setUsersStatus('succeeded');
+        setUsersError(null);
+
+        let selectedId = newId || '';
+        if (!selectedId && resolvedEmail) {
+          const match = (Array.isArray(list) ? list : []).find(
+            (u) => String(u?.email || '').trim().toLowerCase() === resolvedEmail.toLowerCase()
+          );
+          selectedId = getUserOptionValue(match) || '';
+        }
+        if (selectedId) setInvoiceCustomerId(selectedId);
+
+        setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+        closeAddCustomerModal();
+        toast.success('Customer added successfully.');
+      } catch (err) {
+        setCreateCustomerError(err?.message || 'Could not create customer');
+      } finally {
+        setCreateCustomerSubmitting(false);
+      }
+    },
+    [addCustomerForm, closeAddCustomerModal, users, validateAddCustomer]
+  );
 
   const billToDisplay = useMemo(() => {
     const fallback =
@@ -1296,14 +1416,24 @@ const PosInvoice = () => {
                         <label className="form-label" htmlFor="posInvCustomer">
                           Customer
                         </label>
-                        <div className="pos-inv-no-print mb-2">
-                          <SearchableSelect
-                            options={customerOptions}
-                            value={invoiceCustomerId}
-                            placeholder="Walk in (no customer)"
-                            disabled={usersStatus === 'loading'}
-                            onChange={setInvoiceCustomerId}
-                          />
+                        <div className="d-flex gap-2 align-items-start mb-2 pos-inv-no-print">
+                          <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                            <SearchableSelect
+                              options={customerOptions}
+                              value={invoiceCustomerId}
+                              placeholder="Walk in (no customer)"
+                              disabled={usersStatus === 'loading'}
+                              onChange={setInvoiceCustomerId}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm pos-inv-add-customer-btn px-3"
+                            title="Add new customer"
+                            onClick={openAddCustomerModal}
+                          >
+                            Add
+                          </button>
                         </div>
                         {usersError ? (
                           <div className="small text-danger mb-2 pos-inv-no-print">
@@ -1898,6 +2028,124 @@ const PosInvoice = () => {
           </div>
         </div>
       </div>
+
+      {canUpdateInvoice ? (
+        <div
+          className="modal fade"
+          id={INVOICE_ADD_CUSTOMER_MODAL_ID}
+          tabIndex="-1"
+          aria-labelledby={`${INVOICE_ADD_CUSTOMER_MODAL_ID}Label`}
+          aria-hidden="true"
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title" id={`${INVOICE_ADD_CUSTOMER_MODAL_ID}Label`}>
+                  Add customer
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"
+                />
+              </div>
+              <form onSubmit={handleAddCustomerSubmit}>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label htmlFor="pos_inv_customer_name" className="form-label">
+                      Name <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      id="pos_inv_customer_name"
+                      name="name"
+                      type="text"
+                      className={`form-control ${addCustomerErrors.name ? 'is-invalid' : ''}`}
+                      value={addCustomerForm.name}
+                      onChange={handleAddCustomerFieldChange}
+                      autoComplete="name"
+                    />
+                    {addCustomerErrors.name ? (
+                      <div className="invalid-feedback">{addCustomerErrors.name}</div>
+                    ) : null}
+                  </div>
+                  <div className="mb-3">
+                    <label htmlFor="pos_inv_customer_phone" className="form-label">
+                      Phone <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      id="pos_inv_customer_phone"
+                      name="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={11}
+                      className={`form-control ${addCustomerErrors.phone ? 'is-invalid' : ''}`}
+                      value={addCustomerForm.phone}
+                      onChange={handleAddCustomerFieldChange}
+                      autoComplete="tel"
+                      placeholder="Digits only"
+                    />
+                    {addCustomerErrors.phone ? (
+                      <div className="invalid-feedback">{addCustomerErrors.phone}</div>
+                    ) : null}
+                  </div>
+                  <div className="mb-0">
+                    <label htmlFor="pos_inv_customer_email" className="form-label">
+                      Email <span className="text-muted font-weight-normal">(optional)</span>
+                    </label>
+                    <input
+                      id="pos_inv_customer_email"
+                      name="email"
+                      type="email"
+                      className={`form-control ${addCustomerErrors.email ? 'is-invalid' : ''}`}
+                      value={addCustomerForm.email}
+                      onChange={handleAddCustomerFieldChange}
+                      autoComplete="email"
+                      placeholder="Leave empty to use phone@gmail.com"
+                    />
+                    <small className="text-muted text-xs">
+                      If empty, the saved email is your phone digits + @gmail.com (e.g.
+                      03001234567@gmail.com).
+                    </small>
+                    {addCustomerErrors.email ? (
+                      <div className="invalid-feedback d-block">{addCustomerErrors.email}</div>
+                    ) : null}
+                  </div>
+                  {createCustomerError ? (
+                    <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">
+                      {createCustomerError}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn pos-inv-add-customer-btn"
+                    disabled={createCustomerSubmitting}
+                  >
+                    {createCustomerSubmitting ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                        Saving…
+                      </>
+                    ) : (
+                      'Add customer'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
