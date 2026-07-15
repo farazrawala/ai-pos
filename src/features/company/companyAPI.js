@@ -898,6 +898,8 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
   const printerRaw = readPrinterSettingsRaw(fetched) ?? readPrinterSettingsRaw(fallback) ?? null;
   const productRaw = readProductSettingsRaw(fetched) ?? readProductSettingsRaw(fallback) ?? null;
   const smsRaw = readLocalSmsSettingsRaw(fetched) ?? readLocalSmsSettingsRaw(fallback) ?? null;
+  const whatsappRaw =
+    readLocalWhatsappSettingsRaw(fetched) ?? readLocalWhatsappSettingsRaw(fallback) ?? null;
   const apiSmsRaw = readApiSmsSettingsRaw(fetched) ?? readApiSmsSettingsRaw(fallback) ?? null;
   const emailAlertsRaw =
     readEmailAlertsSettingsRaw(fetched) ?? readEmailAlertsSettingsRaw(fallback) ?? null;
@@ -909,6 +911,12 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
     ...(printerRaw != null ? { printer_settings: printerRaw, printerSettings: printerRaw } : {}),
     ...(productRaw != null ? { product_settings: productRaw, productSettings: productRaw } : {}),
     ...(smsRaw != null ? { local_sms: smsRaw, localSms: smsRaw } : {}),
+    ...(whatsappRaw != null
+      ? {
+          whatsapp_local_settings: whatsappRaw,
+          whatsappLocalSettings: whatsappRaw,
+        }
+      : {}),
     ...(apiSmsRaw != null ? { api_sms: apiSmsRaw, apiSms: apiSmsRaw } : {}),
     ...(emailAlertsRaw != null
       ? { email_alerts: emailAlertsRaw, emailAlerts: emailAlertsRaw }
@@ -1512,6 +1520,153 @@ export function buildLocalSmsSettingsPayload(values) {
 export async function patchCompanyLocalSmsSettings(companyId, settingsObject) {
   return patchCompanyFormFields(companyId, {
     local_sms: JSON.stringify(settingsObject),
+  });
+}
+
+/** Local WhatsApp alert settings saved on company as `whatsapp_local_settings`. */
+export const LOCAL_WHATSAPP_SETTING_DEFS = [
+  {
+    key: 'send_whatsapp_on_order',
+    label: 'Send WhatsApp on order',
+    hint: 'Send a local WhatsApp alert when an order is placed.',
+    type: 'toggle_template',
+    templateKey: 'send_whatsapp_on_order_message',
+    defaultValue: false,
+  },
+  {
+    key: 'send_whatsapp_greater_than',
+    label: 'Send WhatsApp greater than',
+    hint: 'Only send when the order total is greater than the amount below.',
+    type: 'toggle_amount',
+    amountKey: 'send_whatsapp_greater_than_amount',
+    defaultValue: false,
+    defaultAmount: 0,
+  },
+];
+
+export function defaultLocalWhatsappSettings() {
+  return {
+    send_whatsapp_on_order: false,
+    send_whatsapp_on_order_message: DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    send_whatsapp_greater_than: false,
+    send_whatsapp_greater_than_amount: 0,
+  };
+}
+
+function readLocalWhatsappSettingsRaw(company) {
+  if (!company || typeof company !== 'object') return null;
+  let raw =
+    company.whatsapp_local_settings ??
+    company.whatsappLocalSettings ??
+    company.local_whatsapp ??
+    company.localWhatsapp;
+  if (raw != null) return raw;
+
+  const allFields = company.all_fields ?? company.allFields;
+  if (allFields == null) return null;
+
+  if (typeof allFields === 'string') {
+    const parsed = parseBarcodeSettings(allFields);
+    if (parsed?.whatsapp_local_settings != null) return parsed.whatsapp_local_settings;
+    if (parsed?.whatsappLocalSettings != null) return parsed.whatsappLocalSettings;
+    if (parsed?.local_whatsapp != null) return parsed.local_whatsapp;
+    if (parsed?.localWhatsapp != null) return parsed.localWhatsapp;
+    if (
+      parsed?.send_whatsapp_on_order !== undefined ||
+      parsed?.send_whatsapp_greater_than !== undefined
+    ) {
+      return parsed;
+    }
+    return null;
+  }
+
+  if (typeof allFields === 'object') {
+    raw =
+      allFields.whatsapp_local_settings ??
+      allFields.whatsappLocalSettings ??
+      allFields.local_whatsapp ??
+      allFields.localWhatsapp;
+    if (raw != null) return raw;
+    if (
+      allFields.send_whatsapp_on_order !== undefined ||
+      allFields.send_whatsapp_greater_than !== undefined
+    ) {
+      return allFields;
+    }
+  }
+
+  return null;
+}
+
+export function extractLocalWhatsappSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseBarcodeSettings(readLocalWhatsappSettingsRaw(company));
+}
+
+export function normalizeIncomingLocalWhatsappSettings(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const defaults = defaultLocalWhatsappSettings();
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (parsed[k] !== undefined && parsed[k] !== null) return parsed[k];
+    }
+    return undefined;
+  };
+  const amountRaw = get(
+    'send_whatsapp_greater_than_amount',
+    'sendWhatsappGreaterThanAmount',
+    'whatsapp_greater_than_amount'
+  );
+  const amount = Number(amountRaw);
+  const messageRaw = get(
+    'send_whatsapp_on_order_message',
+    'sendWhatsappOnOrderMessage',
+    'whatsapp_on_order_message'
+  );
+  const message =
+    messageRaw != null && String(messageRaw).trim()
+      ? String(messageRaw)
+      : defaults.send_whatsapp_on_order_message;
+  return {
+    send_whatsapp_on_order: coerceSettingBool(
+      get('send_whatsapp_on_order', 'sendWhatsappOnOrder') ?? defaults.send_whatsapp_on_order
+    ),
+    send_whatsapp_on_order_message: message,
+    send_whatsapp_greater_than: coerceSettingBool(
+      get('send_whatsapp_greater_than', 'sendWhatsappGreaterThan') ??
+        defaults.send_whatsapp_greater_than
+    ),
+    send_whatsapp_greater_than_amount:
+      Number.isFinite(amount) && amount >= 0
+        ? amount
+        : defaults.send_whatsapp_greater_than_amount,
+  };
+}
+
+export function mergeLocalWhatsappSettings(parsed) {
+  return normalizeIncomingLocalWhatsappSettings(parsed) || defaultLocalWhatsappSettings();
+}
+
+export function buildLocalWhatsappSettingsPayload(values) {
+  const normalized =
+    normalizeIncomingLocalWhatsappSettings(values) || defaultLocalWhatsappSettings();
+  return {
+    send_whatsapp_on_order: Boolean(normalized.send_whatsapp_on_order),
+    send_whatsapp_on_order_message: String(
+      normalized.send_whatsapp_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+    ),
+    send_whatsapp_greater_than: Boolean(normalized.send_whatsapp_greater_than),
+    send_whatsapp_greater_than_amount: Math.max(
+      0,
+      Number(normalized.send_whatsapp_greater_than_amount) || 0
+    ),
+  };
+}
+
+export async function patchCompanyLocalWhatsappSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    whatsapp_local_settings: JSON.stringify(settingsObject),
   });
 }
 

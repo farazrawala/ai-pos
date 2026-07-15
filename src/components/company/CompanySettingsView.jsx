@@ -9,6 +9,7 @@ import {
   PRINTER_SETTING_SECTIONS,
   PRODUCT_SETTING_DEFS,
   LOCAL_SMS_SETTING_DEFS,
+  LOCAL_WHATSAPP_SETTING_DEFS,
   API_SMS_SETTING_DEFS,
   EMAIL_ALERT_SETTING_DEFS,
   DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
@@ -16,18 +17,21 @@ import {
   buildProductSettingsPayload,
   buildBigCommerceSettingsPayload,
   buildLocalSmsSettingsPayload,
+  buildLocalWhatsappSettingsPayload,
   buildApiSmsSettingsPayload,
   buildEmailAlertsSettingsPayload,
   defaultPrinterSettings,
   defaultProductSettings,
   defaultBigCommerceSettings,
   defaultLocalSmsSettings,
+  defaultLocalWhatsappSettings,
   defaultApiSmsSettings,
   defaultEmailAlertsSettings,
   extractPrinterSettingsFromCompanyBody,
   extractProductSettingsFromCompanyBody,
   extractBigCommerceSettingsFromCompanyBody,
   extractLocalSmsSettingsFromCompanyBody,
+  extractLocalWhatsappSettingsFromCompanyBody,
   extractApiSmsSettingsFromCompanyBody,
   extractEmailAlertsSettingsFromCompanyBody,
   fetchCompanyById,
@@ -36,6 +40,7 @@ import {
   mergeProductSettings,
   mergeBigCommerceSettings,
   mergeLocalSmsSettings,
+  mergeLocalWhatsappSettings,
   mergeApiSmsSettings,
   mergeEmailAlertsSettings,
   normalizeIncomingPrinterSettings,
@@ -44,6 +49,7 @@ import {
   patchCompanyProductSettings,
   patchCompanyBigCommerceSettings,
   patchCompanyLocalSmsSettings,
+  patchCompanyLocalWhatsappSettings,
   patchCompanyApiSmsSettings,
   patchCompanyEmailAlertsSettings,
   pickCompanyLogoUrl,
@@ -119,6 +125,11 @@ export default function CompanySettingsView() {
   const [togglingSmsKey, setTogglingSmsKey] = useState('');
   const [smsAmountSaving, setSmsAmountSaving] = useState(false);
   const [smsSaveError, setSmsSaveError] = useState('');
+
+  const [whatsappSettings, setWhatsappSettings] = useState(() => defaultLocalWhatsappSettings());
+  const [togglingWhatsappKey, setTogglingWhatsappKey] = useState('');
+  const [whatsappAmountSaving, setWhatsappAmountSaving] = useState(false);
+  const [whatsappSaveError, setWhatsappSaveError] = useState('');
 
   const [apiSmsSettings, setApiSmsSettings] = useState(() => defaultApiSmsSettings());
   const [togglingApiSmsKey, setTogglingApiSmsKey] = useState('');
@@ -211,6 +222,8 @@ export default function CompanySettingsView() {
     if (bcBannerInputRef.current) bcBannerInputRef.current.value = '';
     const smsParsed = extractLocalSmsSettingsFromCompanyBody(body ?? { data: company });
     setSmsSettings(mergeLocalSmsSettings(smsParsed));
+    const whatsappParsed = extractLocalWhatsappSettingsFromCompanyBody(body ?? { data: company });
+    setWhatsappSettings(mergeLocalWhatsappSettings(whatsappParsed));
     const apiSmsParsed = extractApiSmsSettingsFromCompanyBody(body ?? { data: company });
     setApiSmsSettings(mergeApiSmsSettings(apiSmsParsed));
     const emailAlertsParsed = extractEmailAlertsSettingsFromCompanyBody(body ?? { data: company });
@@ -660,6 +673,117 @@ export default function CompanySettingsView() {
       showToast({ message, variant: 'error' });
     } finally {
       setSmsAmountSaving(false);
+    }
+  };
+
+  const persistWhatsappSettings = async (nextSettings) => {
+    const payload = buildLocalWhatsappSettingsPayload(nextSettings);
+    const updated = await patchCompanyLocalWhatsappSettings(companyId, payload);
+    const fromApi = getCompanyFromApiBody(updated);
+    const merged = {
+      ...(authCompany || {}),
+      ...(fromApi || {}),
+      whatsapp_local_settings:
+        fromApi?.whatsapp_local_settings ?? fromApi?.whatsappLocalSettings ?? payload,
+    };
+    dispatch(setCompany(merged));
+    const parsed = extractLocalWhatsappSettingsFromCompanyBody({ data: merged });
+    setWhatsappSettings(mergeLocalWhatsappSettings(parsed));
+  };
+
+  const handleToggleWhatsappSetting = async (key) => {
+    if (!companyId || togglingWhatsappKey || whatsappAmountSaving) return;
+
+    const previous = whatsappSettings;
+    const next = { ...previous, [key]: !previous[key] };
+    if (
+      key === 'send_whatsapp_on_order' &&
+      next.send_whatsapp_on_order &&
+      !String(next.send_whatsapp_on_order_message || '').trim()
+    ) {
+      next.send_whatsapp_on_order_message = DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE;
+    }
+    setWhatsappSettings(next);
+    setWhatsappSaveError('');
+    setTogglingWhatsappKey(key);
+
+    try {
+      await persistWhatsappSettings(next);
+    } catch (err) {
+      setWhatsappSettings(previous);
+      const message = err?.message || 'Failed to update WhatsApp setting';
+      setWhatsappSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingWhatsappKey('');
+    }
+  };
+
+  const handleWhatsappAmountChange = (value) => {
+    const amount = value === '' ? '' : Math.max(0, Number(value));
+    setWhatsappSettings((prev) => ({
+      ...prev,
+      send_whatsapp_greater_than_amount: amount === '' || Number.isNaN(amount) ? '' : amount,
+    }));
+  };
+
+  const handleWhatsappAmountBlur = async () => {
+    if (!companyId || togglingWhatsappKey || whatsappAmountSaving) return;
+
+    const previous = mergeLocalWhatsappSettings(whatsappSettings);
+    const next = {
+      ...whatsappSettings,
+      send_whatsapp_greater_than_amount: Math.max(
+        0,
+        Number(whatsappSettings.send_whatsapp_greater_than_amount) || 0
+      ),
+    };
+    setWhatsappSettings(next);
+    setWhatsappSaveError('');
+    setWhatsappAmountSaving(true);
+
+    try {
+      await persistWhatsappSettings(next);
+    } catch (err) {
+      setWhatsappSettings(previous);
+      const message = err?.message || 'Failed to update WhatsApp amount';
+      setWhatsappSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setWhatsappAmountSaving(false);
+    }
+  };
+
+  const handleWhatsappTemplateChange = (value) => {
+    setWhatsappSettings((prev) => ({
+      ...prev,
+      send_whatsapp_on_order_message: value,
+    }));
+  };
+
+  const handleWhatsappTemplateBlur = async () => {
+    if (!companyId || togglingWhatsappKey || whatsappAmountSaving) return;
+
+    const previous = mergeLocalWhatsappSettings(whatsappSettings);
+    const next = {
+      ...whatsappSettings,
+      send_whatsapp_on_order_message:
+        String(whatsappSettings.send_whatsapp_on_order_message || '').trim() ||
+        DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE,
+    };
+    setWhatsappSettings(next);
+    setWhatsappSaveError('');
+    setWhatsappAmountSaving(true);
+
+    try {
+      await persistWhatsappSettings(next);
+    } catch (err) {
+      setWhatsappSettings(previous);
+      const message = err?.message || 'Failed to update WhatsApp message';
+      setWhatsappSaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setWhatsappAmountSaving(false);
     }
   };
 
@@ -1582,6 +1706,141 @@ export default function CompanySettingsView() {
 
           {smsSaveError ? (
             <div className="alert alert-danger py-2 mt-3 mb-0">{smsSaveError}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="company-card">
+        <div className="company-card-head">
+          <span className="company-card-head-icon">
+            <i className="fab fa-whatsapp" aria-hidden="true" />
+          </span>
+          <div>
+            <h5 className="company-card-title">Send Local WhatsApp Alerts</h5>
+            <p className="company-card-subtitle">
+              Local WhatsApp alerts for orders — saved to{' '}
+              <code className="text-xs">whatsapp_local_settings</code>.
+            </p>
+          </div>
+        </div>
+        <div className="company-card-body">
+          {LOCAL_WHATSAPP_SETTING_DEFS.map((def) => {
+            const { key, label, hint, type, amountKey, templateKey } = def;
+            const isOn = Boolean(whatsappSettings[key]);
+            const busy = togglingWhatsappKey === key;
+            return (
+              <Fragment key={key}>
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-row-label">{label}</div>
+                    {hint ? <div className="settings-row-hint">{hint}</div> : null}
+                  </div>
+                  <div className="settings-row-control">
+                    {busy ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                        style={{ width: '1rem', height: '1rem' }}
+                      >
+                        <span className="visually-hidden">Saving…</span>
+                      </span>
+                    ) : (
+                      <span className={`settings-state ${isOn ? 'text-success' : 'text-muted'}`}>
+                        {isOn ? 'On' : 'Off'}
+                      </span>
+                    )}
+                    <label
+                      className="form-check form-switch settings-switch"
+                      htmlFor={`whatsapp-setting-${key}`}
+                      style={{
+                        cursor:
+                          togglingWhatsappKey || whatsappAmountSaving || !companyId
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
+                    >
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id={`whatsapp-setting-${key}`}
+                        checked={isOn}
+                        onChange={() => handleToggleWhatsappSetting(key)}
+                        disabled={!!togglingWhatsappKey || whatsappAmountSaving || !companyId}
+                        aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {type === 'toggle_template' && isOn ? (
+                  <div className="settings-row settings-row-nested settings-row-template">
+                    <div className="w-100">
+                      <div className="settings-row-label mb-1">WhatsApp message</div>
+                      <div className="settings-row-hint mb-2">
+                        Use placeholders:{' '}
+                        <code>{'{name}'}</code>, <code>{'{email}'}</code>,{' '}
+                        <code>{'{phone}'}</code>, <code>{'{total_amount}'}</code>,{' '}
+                        <code>{'{transaction_number}'}</code>, <code>{'{createdAt}'}</code>
+                      </div>
+                      <textarea
+                        id={`whatsapp-setting-${templateKey}`}
+                        className="form-control company-control settings-sms-template"
+                        rows={7}
+                        value={
+                          whatsappSettings[templateKey] ?? DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
+                        }
+                        onChange={(e) => handleWhatsappTemplateChange(e.target.value)}
+                        onBlur={handleWhatsappTemplateBlur}
+                        disabled={!companyId || !!togglingWhatsappKey || whatsappAmountSaving}
+                        aria-label="Send WhatsApp on order message template"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {type === 'toggle_amount' ? (
+                  <div className="settings-row settings-row-nested">
+                    <div>
+                      <div className="settings-row-label">Amount</div>
+                      <div className="settings-row-hint">
+                        Send WhatsApp when order total is greater than this amount.
+                      </div>
+                    </div>
+                    <div className="settings-row-control">
+                      {whatsappAmountSaving ? (
+                        <span
+                          className="spinner-border spinner-border-sm text-primary"
+                          role="status"
+                          style={{ width: '1rem', height: '1rem' }}
+                        >
+                          <span className="visually-hidden">Saving…</span>
+                        </span>
+                      ) : null}
+                      <input
+                        id={`whatsapp-setting-${amountKey}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control company-control settings-amount-input"
+                        value={whatsappSettings[amountKey] ?? 0}
+                        onChange={(e) => handleWhatsappAmountChange(e.target.value)}
+                        onBlur={handleWhatsappAmountBlur}
+                        disabled={
+                          !companyId || !!togglingWhatsappKey || whatsappAmountSaving || !isOn
+                        }
+                        aria-label="Send WhatsApp greater than amount"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
+
+          {whatsappSaveError ? (
+            <div className="alert alert-danger py-2 mt-3 mb-0">{whatsappSaveError}</div>
           ) : null}
         </div>
       </div>
