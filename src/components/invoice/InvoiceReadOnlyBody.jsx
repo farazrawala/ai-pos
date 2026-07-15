@@ -15,6 +15,7 @@ export default function InvoiceReadOnlyBody({
   grossAmount,
   paymentMethod,
   sourceOrder = null,
+  currentUserName = '',
   showPublicUrl = false,
   showQrCode = true,
 }) {
@@ -99,6 +100,12 @@ export default function InvoiceReadOnlyBody({
             <div className="small mb-2">
               <span className="text-muted me-2">Invoice Date:</span>
               <span className="fw-semibold">{data?.invoiceDate}</span>
+            </div>
+          ) : null}
+          {ps.show_current_user && currentUserName ? (
+            <div className="small mb-2">
+              <span className="text-muted me-2">User:</span>
+              <span className="fw-semibold">{currentUserName}</span>
             </div>
           ) : null}
           <div className="small">

@@ -769,6 +769,11 @@ const PRINTER_SETTING_META = {
   show_invoice_date: { label: 'Show invoice date', defaultValue: true },
   show_change_return: { label: 'Show change / return', defaultValue: true },
   show_payment_method: { label: 'Show payment method', defaultValue: true },
+  show_current_user: {
+    label: 'Show current user name on bill',
+    hint: 'Prints the logged-in user who created or reprinted the bill',
+    defaultValue: true,
+  },
   show_customer_phone: { label: 'Show customer phone', defaultValue: true },
   show_customer_email: { label: 'Show customer email', defaultValue: true },
   show_gross_amount: { label: 'Show gross amount', defaultValue: true },
@@ -794,6 +799,7 @@ export const PRINTER_SETTING_SECTIONS = [
       'show_invoice_date',
       'show_change_return',
       'show_payment_method',
+      'show_current_user',
       'show_customer_phone',
       'show_customer_email',
       'show_gross_amount',
@@ -953,6 +959,37 @@ export function normalizeIncomingInvoicePrintSettings(parsed) {
 
 export function mergePrinterSettings(parsed) {
   return normalizeIncomingPrinterSettings(parsed) || defaultPrinterSettings();
+}
+
+/**
+ * Display name for "current user on bill" — prefers logged-in user, then order creator.
+ * @param {object|string|null|undefined} user Auth user object, or a display-name string
+ * @param {object|null|undefined} [order]
+ * @param {string} [fallbackName] e.g. Redux session `name` / localStorage userName
+ */
+export function resolveBillCurrentUserName(user, order, fallbackName = '') {
+  if (typeof user === 'string') {
+    const direct = String(user).trim();
+    if (direct) return direct;
+  }
+  const fromUser =
+    user && typeof user === 'object'
+      ? String(user.name || user.fullName || user.username || user.email || '').trim()
+      : '';
+  if (fromUser) return fromUser;
+
+  const sessionName = String(fallbackName || '').trim();
+  if (sessionName) return sessionName;
+
+  const created = order?.created_by;
+  if (created && typeof created === 'object') {
+    const fromCreated = String(
+      created.name || created.fullName || created.username || created.email || ''
+    ).trim();
+    if (fromCreated) return fromCreated;
+  }
+  const byName = String(order?.created_by_name || order?.cashier || '').trim();
+  return byName;
 }
 
 /** @deprecated use mergePrinterSettings */

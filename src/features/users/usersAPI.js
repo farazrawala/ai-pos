@@ -188,30 +188,37 @@ export function pickCreatedUserFromResponse(result) {
 }
 
 /**
- * Create a user with role CUSTOMER (POS). Expects auth like other management APIs.
- * Sends `role: ['CUSTOMER']` (backend `role[0]`).
+ * Create a tenant customer (role CUSTOMER) for POS / sales forms.
+ * Uses FormData `role[0]` so the backend multiselect parser applies CUSTOMER
+ * (JSON `role: []` alone can be ignored and Mongoose then defaults to USER).
  */
 export async function createCustomerUserRequest({ name, email, phone, password, role }) {
   const token = getAuthToken();
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {};
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const roleList = Array.isArray(role) ? role : role ? [role] : ['CUSTOMER'];
-  const body = {
-    name: String(name || '').trim(),
-    email: resolvePosCustomerEmail(email, phone),
-    phone: String(phone || '').trim(),
-    password: String(password || POS_DEFAULT_CUSTOMER_PASSWORD),
-    role: roleList.map((r) => String(r)),
-  };
+  const roleList = (Array.isArray(role) ? role : role ? [role] : ['CUSTOMER'])
+    .map((r) => String(r || '').trim().toUpperCase())
+    .filter(Boolean);
+  const roles = roleList.length > 0 ? roleList : ['CUSTOMER'];
+
+  const formData = new FormData();
+  formData.append('name', String(name || '').trim());
+  formData.append('email', resolvePosCustomerEmail(email, phone));
+  formData.append('phone', String(phone || '').trim());
+  formData.append('password', String(password || POS_DEFAULT_CUSTOMER_PASSWORD));
+  formData.append('status', 'active');
+  roles.forEach((r, index) => {
+    formData.append(`role[${index}]`, r);
+  });
 
   const url = `${BASE_URL}${USER_CREATE_PATH}`;
   const response = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: formData,
   });
 
   if (!response.ok) {

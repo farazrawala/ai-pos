@@ -36,6 +36,8 @@ const THERMAL_RECEIPT_SOFTWARE_CONTACT = 'For Software Contact : 03361225588';
  * @property {string} [terms]
  * @property {number} [grossAmount]
  * @property {string} [publicUrl]
+ * @property {string} [currentUserName]
+ * @property {string} [cashier]
  */
 
 /**
@@ -98,6 +100,8 @@ function normalizeData(data) {
     terms: data.terms ?? '',
     grossAmount: Number(data.grossAmount) || Number(summary.total) || 0,
     publicUrl: String(data.publicUrl ?? '').trim(),
+    currentUserName: String(data.currentUserName ?? data.cashier ?? '').trim(),
+    cashier: String(data.cashier ?? data.currentUserName ?? '').trim(),
     lines: lines.map((line) => ({
       description: line.description ?? '',
       qtyLabel: line.qtyLabel ?? String(line.qty ?? ''),
@@ -201,6 +205,12 @@ export function buildThermalReceiptHtml(data, options = {}) {
           <div class="details-left">${companyLines.join('')}</div>
           <div class="details-right">${invoiceLines.join('')}</div>
         </div>`
+      : '';
+
+  const currentUserName = String(d.currentUserName || d.cashier || '').trim();
+  const currentUserBlock =
+    ps.show_current_user && hasDisplayValue(currentUserName)
+      ? `<div class="meta-line user-line">User: ${escapeHtml(currentUserName)}</div>`
       : '';
 
   const billToLines = [`<div class="bill-name">${escapeHtml(d.billTo.name)}</div>`];
@@ -411,6 +421,10 @@ export function buildThermalReceiptHtml(data, options = {}) {
     letter-spacing: 0.08em;
   }
   .meta-line { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .user-line { text-align: right; margin: 0; padding: 0; line-height: 1.2; }
+  .divider-after-header {
+    margin-bottom: 0;
+  }
   .pay-method { font-weight: 800; }
   .section-label {
     font-size: 9px;
@@ -489,7 +503,12 @@ export function buildThermalReceiptHtml(data, options = {}) {
   <div class="receipt-badge">RECEIPT</div>
   ${logoBlock}
   ${detailsRow}
-  ${logoBlock || detailsRow ? '<hr class="divider" />' : ''}
+  ${
+    logoBlock || detailsRow
+      ? `<hr class="divider${currentUserBlock ? ' divider-after-header' : ''}" />`
+      : ''
+  }
+  ${currentUserBlock}
   <div class="section-label">Bill to</div>
   ${billToLines.join('')}
   <hr class="divider-bold" />

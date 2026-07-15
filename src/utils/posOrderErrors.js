@@ -86,6 +86,26 @@ export function formatPosOrderErrorMessage(message, context = {}) {
     productName = String(cartLines[0]?.name ?? '').trim();
   }
 
+  if (/product not found for this company/i.test(raw)) {
+    if (productName) {
+      return `"${productName}" is not available for sale (inactive, deleted, or wrong company). Turn Status on under Products for this variation, remove it from the cart, then add it again.`;
+    }
+    if (cartLines.length > 0) {
+      const names = cartLines
+        .map((l) => String(l?.name ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (names.length === 1) {
+        return `"${names[0]}" is not available for sale (inactive, deleted, or wrong company). Turn Status on under Products, then add it again.`;
+      }
+      if (names.length > 1) {
+        return `A cart product is not available for sale. Check: ${names
+          .map((n) => `"${n}"`)
+          .join(', ')}. Turn Status on under Products for each variation, then add again.`;
+      }
+    }
+  }
+
   if (!productName || raw.toLowerCase().includes(productName.toLowerCase())) {
     return raw;
   }

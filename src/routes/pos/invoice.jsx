@@ -28,8 +28,9 @@ import {
   mergeCompanyRecordForSettings,
   mergePrinterSettings,
   pickCompanyLogoUrl,
+  resolveBillCurrentUserName,
 } from '../../features/company/companyAPI.js';
-import { selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
+import { selectAuthUser, selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
 import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
@@ -207,6 +208,8 @@ const PosInvoice = () => {
   const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
   const authCompany = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
+  const authUser = useSelector(selectAuthUser);
+  const authUserName = useSelector((state) => state.user?.name || '');
   const [invoiceCompany, setInvoiceCompany] = useState(null);
 
   useEffect(() => {
@@ -261,6 +264,10 @@ const PosInvoice = () => {
   const [fetchStatus, setFetchStatus] = useState(() => (invoiceId ? 'loading' : 'succeeded'));
   const [fetchError, setFetchError] = useState(null);
   const [sourceOrder, setSourceOrder] = useState(null);
+  const billCurrentUserName = useMemo(
+    () => resolveBillCurrentUserName(authUser, sourceOrder, authUserName),
+    [authUser, sourceOrder, authUserName]
+  );
   const [invoiceSaving, setInvoiceSaving] = useState(false);
   const [invoiceSaveMessage, setInvoiceSaveMessage] = useState({ type: null, text: '' });
   /** Editable invoice lines: qty, rate, optional add/remove; synced from order on load. */
@@ -1005,6 +1012,7 @@ const PosInvoice = () => {
         paymentMethod: paymentMethodDisplay,
         amountReceived: sourceOrder?.amount_received,
         changeGiven: sourceOrder?.change_given,
+        currentUserName: billCurrentUserName,
       },
       { documentTitlePrefix: 'Invoice POS' }
     );
@@ -1021,6 +1029,7 @@ const PosInvoice = () => {
     grossDisplay,
     paymentMethodDisplay,
     sourceOrder,
+    billCurrentUserName,
   ]);
 
   const handleShareWhatsApp = useCallback(() => {
@@ -1090,6 +1099,8 @@ const PosInvoice = () => {
         grossAmount: grossDisplay,
         terms: data.terms,
         publicUrl: data.publicUrl,
+        currentUserName: billCurrentUserName,
+        cashier: billCurrentUserName,
       },
       {
         documentTitlePrefix: 'Receipt POS',
@@ -1112,6 +1123,7 @@ const PosInvoice = () => {
     summaryDisplay,
     grossDisplay,
     sourceOrder,
+    billCurrentUserName,
   ]);
 
   if (fetchStatus === 'loading') {
@@ -1395,6 +1407,12 @@ const PosInvoice = () => {
                       <div className="small mb-2">
                         <span className="text-muted me-2">Date:</span>
                         <span className="fw-semibold">{data.invoiceDate}</span>
+                      </div>
+                    ) : null}
+                    {printerSettings.show_current_user && billCurrentUserName ? (
+                      <div className="small mb-2">
+                        <span className="text-muted me-2">User:</span>
+                        <span className="fw-semibold">{billCurrentUserName}</span>
                       </div>
                     ) : null}
                     {data.transactionNumber ? (

@@ -10,6 +10,7 @@ import {
   extractPrinterSettingsFromCompanyBody,
   mergePrinterSettings,
   pickCompanyLogoUrl,
+  resolveBillCurrentUserName,
 } from '../../features/company/companyAPI.js';
 import { buildPublicInvoiceUrl } from '../../utils/publicInvoiceUrl.js';
 import PublicInvoiceView from '../../components/invoice/PublicInvoiceView.jsx';
@@ -588,6 +589,11 @@ export default function PublicInvoice() {
     [order, company]
   );
 
+  const billCurrentUserName = useMemo(
+    () => resolveBillCurrentUserName(null, order),
+    [order]
+  );
+
   const handlePrint = () => {
     if (!view) return;
     openNormalInvoicePrint(
@@ -602,6 +608,7 @@ export default function PublicInvoice() {
         publicUrl: view.publicUrl,
         billTo: view.billTo,
         lines: view.lines,
+        currentUserName: billCurrentUserName,
         summary: view.summary,
         grossAmount: view.grossAmount,
         paymentMethod: paymentMethodDisplay,
@@ -659,6 +666,7 @@ export default function PublicInvoice() {
           grossAmount={view.grossAmount}
           paymentMethod={paymentMethodDisplay}
           sourceOrder={order}
+          currentUserName={billCurrentUserName}
           showQrCode
         />
 

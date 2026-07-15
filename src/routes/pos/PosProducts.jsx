@@ -14,6 +14,7 @@ import {
   getProductAvailableStock,
   isProductStockBelowMinimum,
 } from '../../utils/productStock.js';
+import { isVariableParentProduct, sellablePosProductId } from '../../components/product/productVariationUtils.js';
 import { toast } from '../../utils/toast.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
@@ -25,7 +26,7 @@ import {
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 
-const getProductId = (p) => String(p._id ?? p.id ?? p.product_id ?? '');
+const getProductId = (p) => sellablePosProductId(p);
 
 const getProductName = (p) => p.name || p.product_name || 'Product';
 
@@ -177,10 +178,11 @@ const PosProducts = ({
     });
 
   const visibleProducts = useMemo(() => {
-    if (!hideLowStock) return products;
-    return products.filter(
-      (p) => !isProductStockBelowMinimum(p, { warehouseId, minimum: 1 })
-    );
+    let list = products.filter((p) => !isVariableParentProduct(p));
+    if (hideLowStock) {
+      list = list.filter((p) => !isProductStockBelowMinimum(p, { warehouseId, minimum: 1 }));
+    }
+    return list;
   }, [products, hideLowStock, warehouseId]);
 
   const clearSearchAndRefocus = useCallback(() => {
@@ -194,6 +196,12 @@ const PosProducts = ({
       if (!q) return false;
 
       const tryAdd = (product) => {
+        if (isVariableParentProduct(product)) {
+          toast.warning(
+            'This is a variable product. Scan or select a size/color variation instead.'
+          );
+          return false;
+        }
         if (
           hideLowStock &&
           isProductStockBelowMinimum(product, { warehouseId, minimum: 1 })

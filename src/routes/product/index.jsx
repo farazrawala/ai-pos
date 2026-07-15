@@ -324,67 +324,65 @@ const Product = () => {
 
       let cascadedCount = 0;
 
-      // Turning a Variable parent off should also deactivate all variations
-      if (!newStatus) {
-        const product =
-          (Array.isArray(data) ? data : []).find(
-            (item) => String(productIdFromRecord(item)) === String(productId)
-          ) || null;
+      // Variable parent status should cascade to all variations (on and off)
+      const product =
+        (Array.isArray(data) ? data : []).find(
+          (item) => String(productIdFromRecord(item)) === String(productId)
+        ) || null;
 
-        const listChildIds = (Array.isArray(data) ? data : [])
-          .filter((item) => String(parentProductIdFromRecord(item)) === String(productId))
-          .map((item) => String(productIdFromRecord(item)))
-          .filter(Boolean);
+      const listChildIds = (Array.isArray(data) ? data : [])
+        .filter((item) => String(parentProductIdFromRecord(item)) === String(productId))
+        .map((item) => String(productIdFromRecord(item)))
+        .filter(Boolean);
 
-        let childIds = collectVariationIds(product);
-        const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
+      let childIds = collectVariationIds(product);
+      const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
 
-        if (looksVariable && childIds.length === 0) {
-          try {
-            const result = await fetchProductVariationRequest(productId);
-            const detail = result?.data ?? result;
-            childIds = collectVariationIds(detail);
-          } catch (err) {
-            console.error('Failed to load variations for status cascade:', err);
-          }
+      if (looksVariable && childIds.length === 0) {
+        try {
+          const result = await fetchProductVariationRequest(productId);
+          const detail = result?.data ?? result;
+          childIds = collectVariationIds(detail);
+        } catch (err) {
+          console.error('Failed to load variations for status cascade:', err);
         }
+      }
 
-        childIds = [...new Set([...childIds, ...listChildIds])].filter(
-          (id) => String(id) !== String(productId)
+      childIds = [...new Set([...childIds, ...listChildIds])].filter(
+        (id) => String(id) !== String(productId)
+      );
+
+      if (childIds.length > 0) {
+        const results = await Promise.allSettled(
+          childIds.map((childId) => updateProductRequest(childId, { status: statusValue }, []))
+        );
+        const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+        const failed = results.length - succeeded;
+        cascadedCount = succeeded;
+
+        dispatch(
+          setListProductsStatus({
+            ids: childIds,
+            parentId: productId,
+            status: statusValue,
+          })
         );
 
-        if (childIds.length > 0) {
-          const results = await Promise.allSettled(
-            childIds.map((childId) => updateProductRequest(childId, { status: 'inactive' }, []))
+        if (failed > 0) {
+          toast.warning(
+            succeeded > 0
+              ? `Product ${newStatus ? 'activated' : 'deactivated'}. ${failed} of ${childIds.length} variation(s) could not be updated.`
+              : `Product ${newStatus ? 'activated' : 'deactivated'}, but variations could not be updated.`
           );
-          const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-          const failed = results.length - succeeded;
-          cascadedCount = succeeded;
-
-          dispatch(
-            setListProductsStatus({
-              ids: childIds,
-              parentId: productId,
-              status: 'inactive',
-            })
-          );
-
-          if (failed > 0) {
-            toast.warning(
-              succeeded > 0
-                ? `Product deactivated. ${failed} of ${childIds.length} variation(s) could not be updated.`
-                : 'Product deactivated, but variations could not be updated.'
-            );
-            return;
-          }
+          return;
         }
       }
 
       toast.success(
-        newStatus
-          ? 'Product activated successfully.'
-          : cascadedCount > 0
-            ? `Product and ${cascadedCount} variation(s) deactivated successfully.`
+        cascadedCount > 0
+          ? `Product and ${cascadedCount} variation(s) ${newStatus ? 'activated' : 'deactivated'} successfully.`
+          : newStatus
+            ? 'Product activated successfully.'
             : 'Product deactivated successfully.'
       );
     } catch (error) {

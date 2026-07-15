@@ -138,6 +138,12 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     ? `<div class="meta-row"><span class="muted">${escapeHtml(dateLabel)}</span> <strong>${escapeHtml(payload.invoiceDate || '')}</strong></div>`
     : '';
 
+  const currentUserName = String(payload.currentUserName || payload.cashier || '').trim();
+  const userBlock =
+    ps.show_current_user && hasValue(currentUserName)
+      ? `<div class="meta-row"><span class="muted">User:</span> <strong>${escapeHtml(currentUserName)}</strong></div>`
+      : '';
+
   const grossBlock =
     ps.show_gross_amount && payload.grossAmount != null
       ? `<div class="gross-row"><strong>Gross Amount: ${escapeHtml(fmt(payload.grossAmount))}</strong></div>`
@@ -430,6 +436,7 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
       </div>
       <div class="section-col right-col">
         ${dateBlock}
+        ${userBlock}
         <div class="meta-row"><span class="muted">Terms:</span> <strong>${escapeHtml(payload.terms || '')}</strong></div>
       </div>
     </div>

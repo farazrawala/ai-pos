@@ -23,7 +23,7 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
-import { fetchProductByIdRequest } from '../../features/products/productsAPI.js';
+import { fetchProductByIdRequest, fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   createPosOrderRequest,
   pickOrderInvoiceNoFromSaveResponse,
@@ -45,9 +45,15 @@ import {
   addCompanyDraftOrder,
   updateCompanyDraftOrder,
   removeCompanyDraftOrder,
+  resolveBillCurrentUserName,
 } from '../../features/company/companyAPI.js';
 import { setCompany } from '../../features/user/userSlice.js';
 import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
+import {
+  isVariableParentProduct,
+  isProductInactive,
+  sellablePosProductId,
+} from '../../components/product/productVariationUtils.js';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { printPosOrderViaBridge } from '../../services/printing/posPrintIntegration.js';
 import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
@@ -356,12 +362,12 @@ function normalizeCartLinesForCheckout(cartLines) {
   return { error: null, lines: normalized };
 }
 
-function collectCartStockIssues(cartLines) {
+function collectCartStockIssues(cartLines, { allowWhenInsufficient = false } = {}) {
   if (!Array.isArray(cartLines)) return [];
   const issues = [];
   for (const line of cartLines) {
     const msg = posStockBlocksQty({
-      allowWhenInsufficient: false,
+      allowWhenInsufficient,
       availableStock: line.availableStock,
       requestedQty: parsePosQty(line.quantity),
       productName: line.name,
@@ -375,26 +381,123 @@ async function refreshCartLineStock(cartLines, warehouseId) {
   const uniqueIds = [
     ...new Set(cartLines.map((line) => String(line.productId || '').trim()).filter(Boolean)),
   ];
-  if (uniqueIds.length === 0) return cartLines;
+  if (uniqueIds.length === 0) {
+    return { lines: cartLines, missingIds: [], variableParentIds: [], inactiveIds: [] };
+  }
 
   const stockById = {};
+  const missingIds = [];
+  const variableParentIds = [];
+  const inactiveIds = [];
+
   await Promise.all(
     uniqueIds.map(async (productId) => {
       try {
         const result = await fetchProductByIdRequest(productId);
         const product = pickProductFromApiBody(result);
+        if (!product) {
+          // Don't hard-block — order_save is authoritative; list may still sell this SKU
+          stockById[productId] = null;
+          return;
+        }
+        if (isVariableParentProduct(product)) {
+          variableParentIds.push(productId);
+        }
+        if (isProductInactive(product)) {
+          inactiveIds.push(productId);
+        }
         stockById[productId] = getProductAvailableStock(product, { warehouseId });
       } catch (err) {
         console.warn('[POS] Could not refresh stock before payment', productId, err);
+        // Soft-fail stock refresh; keep previous availableStock from catalog
         stockById[productId] = null;
       }
     })
   );
 
-  return cartLines.map((line) => ({
-    ...line,
-    availableStock: stockById[line.productId] ?? line.availableStock,
-  }));
+  return {
+    lines: cartLines.map((line) => ({
+      ...line,
+      availableStock: stockById[line.productId] ?? line.availableStock,
+    })),
+    missingIds,
+    variableParentIds,
+    inactiveIds,
+  };
+}
+
+/** If product/get fails or id is stale, rebind to a live get-all-active-pos match by name. */
+async function rebindCartLinesToLiveCatalog(cartLines) {
+  if (!Array.isArray(cartLines) || cartLines.length === 0) return cartLines;
+
+  const nextLines = [];
+  for (const line of cartLines) {
+    const currentId = String(line?.productId || '').trim();
+    const rawName = String(line?.name || '')
+      .replace(/\s*\[\d+(?:\.\d+)?\]\s*$/, '')
+      .trim();
+
+    let resolvedId = currentId;
+    let resolvedName = line?.name;
+    let availableStock = line?.availableStock;
+
+    try {
+      const result = await fetchProductByIdRequest(currentId);
+      const product = pickProductFromApiBody(result);
+      if (product && !isVariableParentProduct(product) && !isProductInactive(product)) {
+        resolvedId = sellablePosProductId(product) || currentId;
+        nextLines.push({
+          ...line,
+          productId: resolvedId,
+          name: product.product_name || product.name || resolvedName,
+          availableStock: getProductAvailableStock(product) ?? availableStock,
+        });
+        continue;
+      }
+      if (product && isProductInactive(product)) {
+        nextLines.push({ ...line, __inactive: true });
+        continue;
+      }
+    } catch {
+      // fall through to catalog search
+    }
+
+    if (rawName) {
+      try {
+        const listed = await fetchProductActiveRequest({
+          search: rawName,
+          searchFields: 'product_name',
+          page: 1,
+          limit: 50,
+        });
+        const rows = Array.isArray(listed?.data) ? listed.data : [];
+        const exact =
+          rows.find((p) => {
+            const n = String(p?.product_name || p?.name || '').trim();
+            return n.toLowerCase() === rawName.toLowerCase();
+          }) ||
+          rows.find((p) => sellablePosProductId(p) === currentId) ||
+          null;
+
+        if (exact && !isVariableParentProduct(exact) && !isProductInactive(exact)) {
+          resolvedId = sellablePosProductId(exact);
+          resolvedName = exact.product_name || exact.name || resolvedName;
+          availableStock = getProductAvailableStock(exact) ?? availableStock;
+        }
+      } catch (err) {
+        console.warn('[POS] Could not rebind cart line from live catalog', currentId, err);
+      }
+    }
+
+    nextLines.push({
+      ...line,
+      productId: resolvedId,
+      name: resolvedName,
+      availableStock,
+    });
+  }
+
+  return nextLines;
 }
 
 function formatCartStockIssueToast(issues) {
@@ -405,6 +508,61 @@ function formatCartStockIssueToast(issues) {
 
 function showStockErrorToast(message, opts = {}) {
   toast.error(boldQuotedNamesInMessage(message), { ...opts, html: true });
+}
+
+function cartLineNamesForIds(cartLines, ids) {
+  const idSet = new Set((ids || []).map((id) => String(id)));
+  return (cartLines || [])
+    .filter((line) => idSet.has(String(line?.productId ?? '')))
+    .map((line) => String(line?.name ?? '').trim() || 'Product');
+}
+
+function toastCartProductValidationErrors({
+  missingIds,
+  variableParentIds,
+  inactiveIds,
+  cartLines,
+}) {
+  const variableNames = cartLineNamesForIds(cartLines, variableParentIds);
+  if (variableNames.length) {
+    showStockErrorToast(
+      variableNames.length === 1
+        ? `"${variableNames[0]}" is a variable parent and cannot be sold. Add a size/color variation instead.`
+        : `These variable parents cannot be sold: ${variableNames
+            .map((n) => `"${n}"`)
+            .join(', ')}. Add size/color variations instead.`,
+      { delay: 8000 }
+    );
+    return true;
+  }
+
+  const inactiveNames = cartLineNamesForIds(cartLines, inactiveIds);
+  if (inactiveNames.length) {
+    showStockErrorToast(
+      inactiveNames.length === 1
+        ? `"${inactiveNames[0]}" is inactive. Turn its Status on under Products, then add it again.`
+        : `These products are inactive: ${inactiveNames
+            .map((n) => `"${n}"`)
+            .join(', ')}. Turn Status on under Products, then add them again.`,
+      { delay: 8000 }
+    );
+    return true;
+  }
+
+  const missingNames = cartLineNamesForIds(cartLines, missingIds);
+  if (missingNames.length) {
+    showStockErrorToast(
+      missingNames.length === 1
+        ? `Product not available: "${missingNames[0]}". Remove it and add it again from the product grid.`
+        : `Products not available: ${missingNames
+            .map((n) => `"${n}"`)
+            .join(', ')}. Remove them and add again from the product grid.`,
+      { delay: 8000 }
+    );
+    return true;
+  }
+
+  return false;
 }
 
 function isLikelyNetworkError(err) {
@@ -426,6 +584,7 @@ const Pos = () => {
   const isOnline = useOnlineStatus();
   const dispatch = useDispatch();
   const authUser = useSelector((state) => state.user.user);
+  const authUserName = useSelector((state) => state.user.name);
   const authCompany = useSelector((state) => state.user.company);
 
   const companyId = useMemo(
@@ -786,7 +945,13 @@ const Pos = () => {
   const addToCart = useCallback(
     (product) => {
       if (!product || typeof product !== 'object') return;
-      const productId = String(product._id ?? product.id ?? product.product_id ?? '');
+      if (isVariableParentProduct(product)) {
+        toast.warning(
+          'This is a variable product. Add a size/color variation from the product list instead.'
+        );
+        return;
+      }
+      const productId = sellablePosProductId(product);
       if (!productId) return;
       const name = product.name || product.product_name || 'Product';
       const unitPrice = parsePosUnitPrice(product);
@@ -794,44 +959,82 @@ const Pos = () => {
         warehouseId: defaultWarehouseId,
       });
 
-      // Quantity above available stock is always allowed into the cart.
       setCartLines((prev) => {
         const i = prev.findIndex((l) => l.productId === productId);
+        const currentQty = i >= 0 ? parsePosQty(prev[i].quantity) : 0;
+        const nextQty = currentQty + 1;
+        const stockInCart = i >= 0 ? (prev[i].availableStock ?? availableStock) : availableStock;
+
+        const blockMsg = posStockBlocksQty({
+          allowWhenInsufficient: allowAddWhenStockInsufficient,
+          availableStock: stockInCart,
+          requestedQty: nextQty,
+          productName: name,
+        });
+        if (blockMsg) {
+          queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
+          return prev;
+        }
+
         if (i >= 0) {
-          const nextQty = parsePosQty(prev[i].quantity) + 1;
           const next = [...prev];
           next[i] = {
             ...next[i],
             quantity: formatPosQtyLabel(nextQty),
-            availableStock: next[i].availableStock ?? availableStock,
+            availableStock: stockInCart,
           };
           return next;
         }
-        return [...prev, {
-          productId,
-          name,
-          unitPrice,
-          quantity: '1',
-          availableStock,
-          category_id: String(
-            product.category_id ?? product.categoryId ?? product.category?._id ?? product.category?.id ?? ''
-          ).trim() || undefined,
-        }];
+        return [
+          ...prev,
+          {
+            productId,
+            name,
+            unitPrice,
+            quantity: '1',
+            availableStock,
+            category_id:
+              String(
+                product.category_id ??
+                  product.categoryId ??
+                  product.category?._id ??
+                  product.category?.id ??
+                  ''
+              ).trim() || undefined,
+          },
+        ];
       });
     },
-    [defaultWarehouseId]
+    [defaultWarehouseId, allowAddWhenStockInsufficient]
   );
 
-  const bumpCartQty = useCallback((productId, delta) => {
-    setCartLines((prev) =>
-      prev.flatMap((l) => {
-        if (l.productId !== productId) return [l];
-        const next = roundPosQty(parsePosQty(l.quantity) + delta);
-        if (next < POS_QTY_MIN) return [];
-        return [{ ...l, quantity: formatPosQtyLabel(next) }];
-      })
-    );
-  }, []);
+  const bumpCartQty = useCallback(
+    (productId, delta) => {
+      setCartLines((prev) =>
+        prev.flatMap((l) => {
+          if (l.productId !== productId) return [l];
+          const next = roundPosQty(parsePosQty(l.quantity) + delta);
+          if (next < POS_QTY_MIN) return [];
+
+          if (delta > 0) {
+            const blockMsg = posStockBlocksQty({
+              allowWhenInsufficient: allowAddWhenStockInsufficient,
+              availableStock: l.availableStock,
+              requestedQty: next,
+              productName: l.name,
+            });
+            if (blockMsg) {
+              queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
+              return [l];
+            }
+          }
+
+          return [{ ...l, quantity: formatPosQtyLabel(next) }];
+        })
+      );
+    },
+    [allowAddWhenStockInsufficient]
+  );
 
   const removeCartLine = useCallback((productId) => {
     setCartLines((prev) => prev.filter((l) => l.productId !== productId));
@@ -844,16 +1047,38 @@ const Pos = () => {
     );
   }, []);
 
-  const commitCartQty = useCallback((productId) => {
-    setCartLines((prev) =>
-      prev.flatMap((l) => {
-        if (l.productId !== productId) return [l];
-        const q = parsePosQty(l.quantity);
-        if (q < POS_QTY_MIN) return [];
-        return [{ ...l, quantity: formatPosQtyLabel(q) }];
-      })
-    );
-  }, []);
+  const commitCartQty = useCallback(
+    (productId) => {
+      setCartLines((prev) =>
+        prev.flatMap((l) => {
+          if (l.productId !== productId) return [l];
+          const q = parsePosQty(l.quantity);
+          if (q < POS_QTY_MIN) return [];
+
+          const blockMsg = posStockBlocksQty({
+            allowWhenInsufficient: allowAddWhenStockInsufficient,
+            availableStock: l.availableStock,
+            requestedQty: q,
+            productName: l.name,
+          });
+          if (blockMsg) {
+            queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
+            if (
+              l.availableStock != null &&
+              Number.isFinite(l.availableStock) &&
+              l.availableStock >= POS_QTY_MIN
+            ) {
+              return [{ ...l, quantity: formatPosQtyLabel(Math.min(q, l.availableStock)) }];
+            }
+            return [];
+          }
+
+          return [{ ...l, quantity: formatPosQtyLabel(q) }];
+        })
+      );
+    },
+    [allowAddWhenStockInsufficient]
+  );
 
   const setCartUnitPrice = useCallback((productId, raw) => {
     const n = parseFloat(String(raw).replace(/,/g, ''));
@@ -947,16 +1172,46 @@ const Pos = () => {
       let linesForSave = normalized.lines;
       if (isOnline) {
         try {
-          linesForSave = await refreshCartLineStock(linesForSave, defaultWarehouseId);
+          linesForSave = await rebindCartLinesToLiveCatalog(linesForSave);
+          const inactiveFromRebind = linesForSave
+            .filter((l) => l.__inactive)
+            .map((l) => String(l.productId || ''));
+          linesForSave = linesForSave
+            .filter((l) => !l.__inactive)
+            .map(({ __inactive, ...rest }) => rest);
+
+          if (inactiveFromRebind.length) {
+            toastCartProductValidationErrors({
+              missingIds: [],
+              variableParentIds: [],
+              inactiveIds: inactiveFromRebind,
+              cartLines: normalized.lines,
+            });
+            return null;
+          }
+
+          const refreshed = await refreshCartLineStock(linesForSave, defaultWarehouseId);
+          linesForSave = refreshed.lines;
           setCartLines(linesForSave);
+          if (
+            toastCartProductValidationErrors({
+              missingIds: refreshed.missingIds,
+              variableParentIds: refreshed.variableParentIds,
+              inactiveIds: refreshed.inactiveIds,
+              cartLines: linesForSave,
+            })
+          ) {
+            return null;
+          }
         } catch (err) {
           console.warn('[POS] Could not refresh stock before saving order', err);
         }
 
-        // When "Add to cart when stock is insufficient" is OFF, stock was already
-        // enforced at add-to-cart time, so saving does not re-check quantity.
-        if (allowAddWhenStockInsufficient) {
-          const stockIssues = collectCartStockIssues(linesForSave);
+        // When allow is ON, insufficient stock may be sold. When OFF, enforce before save.
+        if (!allowAddWhenStockInsufficient) {
+          const stockIssues = collectCartStockIssues(linesForSave, {
+            allowWhenInsufficient: false,
+          });
           if (stockIssues.length) {
             showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 5000 });
             return null;
@@ -1067,16 +1322,46 @@ const Pos = () => {
 
     if (isOnline) {
       try {
-        linesForPayment = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+        linesForPayment = await rebindCartLinesToLiveCatalog(linesForPayment);
+        const inactiveFromRebind = linesForPayment
+          .filter((l) => l.__inactive)
+          .map((l) => String(l.productId || ''));
+        linesForPayment = linesForPayment
+          .filter((l) => !l.__inactive)
+          .map(({ __inactive, ...rest }) => rest);
+
+        if (inactiveFromRebind.length) {
+          toastCartProductValidationErrors({
+            missingIds: [],
+            variableParentIds: [],
+            inactiveIds: inactiveFromRebind,
+            cartLines: normalized.lines,
+          });
+          return;
+        }
+
+        const refreshed = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+        linesForPayment = refreshed.lines;
         setCartLines(linesForPayment);
+        if (
+          toastCartProductValidationErrors({
+            missingIds: refreshed.missingIds,
+            variableParentIds: refreshed.variableParentIds,
+            inactiveIds: refreshed.inactiveIds,
+            cartLines: linesForPayment,
+          })
+        ) {
+          return;
+        }
       } catch (err) {
         console.warn('[POS] Could not refresh stock before payment', err);
       }
 
-      // When "Add to cart when stock is insufficient" is OFF, stock was already
-      // enforced at add-to-cart time, so the payment step does not re-check quantity.
-      if (allowAddWhenStockInsufficient) {
-        const stockIssues = collectCartStockIssues(linesForPayment);
+      // When allow is ON, insufficient stock may be sold. When OFF, enforce before payment.
+      if (!allowAddWhenStockInsufficient) {
+        const stockIssues = collectCartStockIssues(linesForPayment, {
+          allowWhenInsufficient: false,
+        });
         if (stockIssues.length) {
           showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
           return;
@@ -1330,6 +1615,11 @@ const Pos = () => {
           publicUrl,
           companyName: brand.name,
         });
+        const cashierName = resolveBillCurrentUserName(authUser, null, authUserName);
+        if (cashierName) {
+          receipt.cashier = cashierName;
+          receipt.currentUserName = cashierName;
+        }
         if (saved.offline) {
           receipt.terms = OFFLINE_RECEIPT_FOOTER;
         }
@@ -1393,6 +1683,7 @@ const Pos = () => {
       defaultPrinterSettings,
       companyBrand,
       authUser,
+      authUserName,
       authCompany,
       isOnline,
     ]
@@ -1472,6 +1763,7 @@ const Pos = () => {
         email: addCustomerForm.email,
         phone: addCustomerForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
+        role: ['CUSTOMER'],
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);

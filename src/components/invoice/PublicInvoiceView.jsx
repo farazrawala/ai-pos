@@ -12,6 +12,7 @@ export default function PublicInvoiceView({
   grossAmount,
   paymentMethod,
   sourceOrder = null,
+  currentUserName = '',
   showQrCode = false,
 }) {
   const ps = printerSettings || {};
@@ -81,6 +82,12 @@ export default function PublicInvoiceView({
               <div className="pub-inv-meta-row">
                 <span>Invoice date</span>
                 <strong>{data?.invoiceDate}</strong>
+              </div>
+            ) : null}
+            {ps.show_current_user && currentUserName ? (
+              <div className="pub-inv-meta-row">
+                <span>User</span>
+                <strong>{currentUserName}</strong>
               </div>
             ) : null}
             <div className="pub-inv-meta-row">
