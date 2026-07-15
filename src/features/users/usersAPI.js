@@ -124,6 +124,11 @@ export async function markUserAsDefaultVendorRequest(userId) {
   return patchUserFieldsRequest(userId, { mark_as_default_vendor: true });
 }
 
+export async function updateUserStatusRequest(userId, status) {
+  const normalized = String(status || '').trim().toLowerCase() === 'active' ? 'active' : 'inactive';
+  return patchUserFieldsRequest(userId, { status: normalized });
+}
+
 /** Must match user add/edit forms (`PERMISSION_MODULE_KEYS` / `PERMISSION_ACTIONS`). */
 
 function clonePlainJson(obj) {

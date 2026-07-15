@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchUsers,
+  updateUserStatus,
   setSearch,
   setPage,
   setLimit,
@@ -22,6 +23,7 @@ import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import { DEBUG } from '../../config/env.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
+import { showToast } from '../../utils/toast.js';
 import './users-module.css';
 
 const userOpeningBalance = (user) =>
@@ -63,6 +65,7 @@ const Users = () => {
   useRequireModuleAccess('users');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [togglingUserId, setTogglingUserId] = useState(null);
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -139,6 +142,26 @@ const Users = () => {
 
   const handleRoleTabChange = (tabId) => {
     dispatch(setRoleFilter(tabId));
+  };
+
+  const handleToggleStatus = async (userId, isCurrentlyActive) => {
+    if (!userId || !canEdit || togglingUserId) return;
+    const nextStatus = isCurrentlyActive ? 'inactive' : 'active';
+    setTogglingUserId(userId);
+    try {
+      await dispatch(updateUserStatus({ userId, status: nextStatus })).unwrap();
+      showToast({
+        message:
+          nextStatus === 'active' ? 'User activated successfully.' : 'User deactivated successfully.',
+        variant: 'success',
+      });
+    } catch (err) {
+      const message =
+        typeof err === 'string' ? err : err?.message || 'Failed to update user status';
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingUserId(null);
+    }
   };
 
   const emptyMessage = useMemo(() => {
@@ -264,8 +287,7 @@ const Users = () => {
                       data.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const key = item._id || item.id || index;
-                        const statusVal = item.status || '—';
-                        const isActive = String(statusVal).toLowerCase() === 'active';
+                        const isActive = String(item.status || '').toLowerCase() === 'active';
                         const openingBalance = userOpeningBalance(item);
                         const profileUrl = userProfileImageUrl(item);
                         const userId = item._id || item.id;
@@ -339,13 +361,39 @@ const Users = () => {
                               <UsersPermissionsCell permissions={item.permissions} />
                             </td>
                             <td className="text-sm">
-                              <span
-                                className={`badge text-xxs mb-0 ${
-                                  isActive ? 'bg-gradient-success' : 'bg-gradient-secondary'
-                                }`}
-                              >
-                                {statusVal}
-                              </span>
+                              {canEdit ? (
+                                <div className="d-flex align-items-center gap-2">
+                                  <div className="form-check form-switch mb-0">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`user-status-${userId || index}`}
+                                      checked={isActive}
+                                      onChange={() => handleToggleStatus(userId, isActive)}
+                                      disabled={togglingUserId === userId}
+                                      aria-label={`${displayName} status ${isActive ? 'active' : 'inactive'}`}
+                                      style={{
+                                        width: '2.5rem',
+                                        height: '1.25rem',
+                                        cursor:
+                                          togglingUserId === userId ? 'not-allowed' : 'pointer',
+                                      }}
+                                    />
+                                  </div>
+                                  {togglingUserId === userId ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm text-primary"
+                                      role="status"
+                                      style={{ width: '1rem', height: '1rem' }}
+                                    >
+                                      <span className="visually-hidden">Saving…</span>
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span className="text-muted text-sm">—</span>
+                              )}
                             </td>
                             <td
                               className="text-sm text-nowrap list-col-date"

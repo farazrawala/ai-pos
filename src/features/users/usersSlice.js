@@ -4,6 +4,7 @@ import {
   fetchUserByIdRequest,
   createUserRequest,
   updateUserRequest,
+  updateUserStatusRequest,
   deleteUserRequest,
 } from './usersAPI.js';
 
@@ -49,6 +50,18 @@ export const updateUser = createAsyncThunk(
       return { userId, response };
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to update user');
+    }
+  }
+);
+
+export const updateUserStatus = createAsyncThunk(
+  'users/updateUserStatus',
+  async ({ userId, status }, { rejectWithValue }) => {
+    try {
+      const response = await updateUserStatusRequest(userId, status);
+      return { userId, status, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to update user status');
     }
   }
 );
@@ -228,6 +241,36 @@ const usersSlice = createSlice({
       .addCase(updateUser.rejected, (state, action) => {
         state.updateStatus = 'failed';
         state.updateError = action.payload || action.error.message || 'Failed to update user';
+      })
+      .addCase(updateUserStatus.fulfilled, (state, action) => {
+        const userId = action.payload.userId;
+        const nextStatus = action.payload.status;
+        const index = state.list.findIndex((item) => String(item._id || item.id) === String(userId));
+        if (index !== -1) {
+          const fromApi =
+            action.payload.response && typeof action.payload.response === 'object'
+              ? action.payload.response
+              : {};
+          state.list[index] = {
+            ...state.list[index],
+            ...fromApi,
+            status: fromApi.status ?? nextStatus,
+          };
+        }
+        if (
+          state.currentUser &&
+          String(state.currentUser._id || state.currentUser.id) === String(userId)
+        ) {
+          const fromApi =
+            action.payload.response && typeof action.payload.response === 'object'
+              ? action.payload.response
+              : {};
+          state.currentUser = {
+            ...state.currentUser,
+            ...fromApi,
+            status: fromApi.status ?? nextStatus,
+          };
+        }
       })
       .addCase(deleteUser.pending, (state) => {
         state.deleteStatus = 'loading';
