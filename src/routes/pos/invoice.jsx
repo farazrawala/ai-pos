@@ -36,7 +36,8 @@ import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
-import { FaTrash } from 'react-icons/fa6';
+import { FaTrash, FaWhatsapp } from 'react-icons/fa6';
+import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import './pos-invoice-module.css';
 
@@ -1022,6 +1023,39 @@ const PosInvoice = () => {
     sourceOrder,
   ]);
 
+  const handleShareWhatsApp = useCallback(() => {
+    const publicUrl = String(data?.publicUrl || '').trim();
+    if (!publicUrl) {
+      toast.error('Public invoice link is not available yet.');
+      return;
+    }
+
+    const clientName = String(billToDisplay?.name || '').trim();
+    const clientPhone = String(billToDisplay?.phone || '').trim();
+    const invoiceLabel = data?.invoiceNo ? `POS# ${data.invoiceNo}` : 'your invoice';
+    const companyLabel = companyBrand?.name || shopName;
+    const totalLabel = fmt(grossDisplay);
+
+    const greeting =
+      clientName && clientName !== '—' ? `Hello ${clientName},` : 'Hello,';
+    const message = [
+      greeting,
+      '',
+      `Here is ${invoiceLabel} from ${companyLabel}.`,
+      `Total: ${totalLabel}`,
+      '',
+      publicUrl,
+    ].join('\n');
+
+    const url = buildWhatsAppUrl(clientPhone !== '—' ? clientPhone : '', message);
+    if (!url) {
+      toast.error('Could not open WhatsApp.');
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [data, billToDisplay, companyBrand, grossDisplay]);
+
   const handleThermalPrint = useCallback(async () => {
     if (!view) return;
 
@@ -1161,6 +1195,20 @@ const PosInvoice = () => {
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
                       Print
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success"
+                      onClick={handleShareWhatsApp}
+                      disabled={!data?.publicUrl}
+                      title={
+                        data?.publicUrl
+                          ? 'Share invoice link on client WhatsApp'
+                          : 'Public invoice link unavailable'
+                      }
+                    >
+                      <NavIcon icon={FaWhatsapp} size={14} className="me-1" />
+                      WhatsApp
                     </button>
                   </div>
                 </div>
@@ -1776,12 +1824,23 @@ const PosInvoice = () => {
                 {data.publicUrl ? (
                   <>
                     <div className="pos-inv-section-title mt-3">Public access</div>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm pos-inv-public-url"
-                      readOnly
-                      value={data.publicUrl}
-                    />
+                    <div className="d-flex flex-wrap gap-2 align-items-center pos-inv-no-print">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm pos-inv-public-url flex-grow-1"
+                        readOnly
+                        value={data.publicUrl}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-success text-nowrap"
+                        onClick={handleShareWhatsApp}
+                        title="Share invoice link on client WhatsApp"
+                      >
+                        <NavIcon icon={FaWhatsapp} size={14} className="me-1" />
+                        Share on WhatsApp
+                      </button>
+                    </div>
                   </>
                 ) : null}
               </div>

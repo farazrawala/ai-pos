@@ -1,3 +1,5 @@
+import { withBase } from '../config/appBase.js';
+
 /** Resolve the token used in `/invoice/view/:token` from an order document. */
 export function pickPublicInvoiceToken(order) {
   if (!order || typeof order !== 'object') return '';
@@ -21,14 +23,20 @@ export function pickPublicInvoiceToken(order) {
   return '';
 }
 
-/** Build the shareable public invoice URL for QR codes and copy fields. */
+/**
+ * Build the shareable public invoice URL for QR codes and copy fields.
+ * Includes app base (e.g. `/pos`) so deploy-at-subdir installs open correctly.
+ */
 export function buildPublicInvoiceUrl(token, origin) {
   const t = String(token ?? '').trim();
   if (!t) return '';
+
+  const path = withBase(`/invoice/view/${encodeURIComponent(t)}`);
   const base =
     origin ||
     (typeof window !== 'undefined' ? window.location.origin : '') ||
     '';
-  if (!base) return `/invoice/view/${encodeURIComponent(t)}`;
-  return `${base.replace(/\/$/, '')}/invoice/view/${encodeURIComponent(t)}`;
+
+  if (!base) return path;
+  return `${String(base).replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
 }

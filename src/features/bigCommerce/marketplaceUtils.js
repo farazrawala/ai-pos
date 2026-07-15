@@ -466,15 +466,24 @@ export function renderStars(rating, { max = 5 } = {}) {
 
 /** Digits-only phone for WhatsApp `wa.me` links. */
 export function toWhatsAppPhoneDigits(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
+  let digits = String(phone || '').replace(/\D/g, '');
+  // Local PK mobiles (03XXXXXXXXX) → international 92…
+  if (digits.length === 11 && digits.startsWith('0')) {
+    digits = `92${digits.slice(1)}`;
+  }
   return digits.length >= 7 ? digits : '';
 }
 
+/**
+ * WhatsApp deep link.
+ * - With phone: opens chat with that number
+ * - Phone omitted but message set: opens WhatsApp so the user can pick a contact
+ */
 export function buildWhatsAppUrl(phone, message = '') {
   const digits = toWhatsAppPhoneDigits(phone);
-  if (!digits) return '';
-  const base = `https://wa.me/${digits}`;
   const text = String(message || '').trim();
-  if (!text) return base;
-  return `${base}?text=${encodeURIComponent(text)}`;
+  if (!digits && !text) return '';
+  if (!digits) return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if (!text) return `https://wa.me/${digits}`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
