@@ -12,6 +12,7 @@ import {
   setLimit,
   setSort,
   clearDeleteStatus,
+  setListProductsStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { withBase } from '../../config/appBase.js';
@@ -30,7 +31,11 @@ import NavIcon from '../../components/NavIcon.jsx';
 import { productEditIdFromRecord, productIdFromRecord, parentProductIdFromRecord } from '../../components/product/productVariationUtils.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
-import { fetchAllProductsForExportRequest } from '../../features/products/productsAPI.js';
+import {
+  fetchAllProductsForExportRequest,
+  fetchProductVariationRequest,
+  updateProductRequest,
+} from '../../features/products/productsAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import {
   mapProductsToExportRows,
@@ -139,6 +144,25 @@ const PRODUCT_COLUMNS = [
 ];
 
 const productIsActive = (item) => item?.status === 'active' || item?.isActive || item?.status === 1;
+
+const collectVariationIds = (product) => {
+  if (!product || typeof product !== 'object') return [];
+  const kids = product.childproducts ?? product.child_products ?? product.variations;
+  if (!Array.isArray(kids) || kids.length === 0) return [];
+  const ids = [];
+  for (const child of kids) {
+    const id = String(child?._id ?? child?.id ?? child?.product_id ?? '').trim();
+    if (id) ids.push(id);
+  }
+  return ids;
+};
+
+const isVariableProduct = (product) => {
+  if (!product) return false;
+  const type = String(product.product_type ?? product.productType ?? '').trim().toLowerCase();
+  if (type === 'variable') return true;
+  return collectVariationIds(product).length > 0;
+};
 
 const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
 
@@ -286,19 +310,82 @@ const Product = () => {
   // Handle toggle status
   const handleToggleStatus = async (productId, currentStatus) => {
     const newStatus = !currentStatus;
+    const statusValue = newStatus ? 'active' : 'inactive';
     setTogglingProductId(productId);
 
     try {
       await dispatch(
         updateProduct({
           productId,
-          productData: { status: newStatus ? 'active' : 'inactive' },
+          productData: { status: statusValue },
           images: [],
         })
       ).unwrap();
 
+      let cascadedCount = 0;
+
+      // Turning a Variable parent off should also deactivate all variations
+      if (!newStatus) {
+        const product =
+          (Array.isArray(data) ? data : []).find(
+            (item) => String(productIdFromRecord(item)) === String(productId)
+          ) || null;
+
+        const listChildIds = (Array.isArray(data) ? data : [])
+          .filter((item) => String(parentProductIdFromRecord(item)) === String(productId))
+          .map((item) => String(productIdFromRecord(item)))
+          .filter(Boolean);
+
+        let childIds = collectVariationIds(product);
+        const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
+
+        if (looksVariable && childIds.length === 0) {
+          try {
+            const result = await fetchProductVariationRequest(productId);
+            const detail = result?.data ?? result;
+            childIds = collectVariationIds(detail);
+          } catch (err) {
+            console.error('Failed to load variations for status cascade:', err);
+          }
+        }
+
+        childIds = [...new Set([...childIds, ...listChildIds])].filter(
+          (id) => String(id) !== String(productId)
+        );
+
+        if (childIds.length > 0) {
+          const results = await Promise.allSettled(
+            childIds.map((childId) => updateProductRequest(childId, { status: 'inactive' }, []))
+          );
+          const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+          const failed = results.length - succeeded;
+          cascadedCount = succeeded;
+
+          dispatch(
+            setListProductsStatus({
+              ids: childIds,
+              parentId: productId,
+              status: 'inactive',
+            })
+          );
+
+          if (failed > 0) {
+            toast.warning(
+              succeeded > 0
+                ? `Product deactivated. ${failed} of ${childIds.length} variation(s) could not be updated.`
+                : 'Product deactivated, but variations could not be updated.'
+            );
+            return;
+          }
+        }
+      }
+
       toast.success(
-        newStatus ? 'Product activated successfully.' : 'Product deactivated successfully.'
+        newStatus
+          ? 'Product activated successfully.'
+          : cascadedCount > 0
+            ? `Product and ${cascadedCount} variation(s) deactivated successfully.`
+            : 'Product deactivated successfully.'
       );
     } catch (error) {
       console.error('Toggle status error:', error);

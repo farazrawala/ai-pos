@@ -198,6 +198,48 @@ const productsSlice = createSlice({
       state.uploadImageStatus = 'idle';
       state.uploadImageError = null;
     },
+    /** Patch status on matching list rows (and nested childproducts) without refetch. */
+    setListProductsStatus: (state, action) => {
+      const { ids = [], parentId = '', status } = action.payload || {};
+      if (!status) return;
+      const idSet = new Set((Array.isArray(ids) ? ids : []).map((id) => String(id).trim()).filter(Boolean));
+      const parent = String(parentId || '').trim();
+
+      const parentIdOf = (item) => {
+        const raw = item?.parent_product_id ?? item?.parentProductId;
+        if (raw == null || raw === '') return '';
+        if (typeof raw === 'object' && !Array.isArray(raw)) {
+          return String(raw._id ?? raw.id ?? '').trim();
+        }
+        return String(raw).trim();
+      };
+
+      state.list = state.list.map((item) => {
+        const id = String(item?._id ?? item?.id ?? item?.product_id ?? '').trim();
+        const matches =
+          (id && idSet.has(id)) || (parent && (id === parent || parentIdOf(item) === parent));
+
+        let next = item;
+        if (matches) {
+          next = { ...item, status };
+        }
+
+        const kids = next.childproducts ?? next.child_products ?? next.variations;
+        if (parent && id === parent && Array.isArray(kids) && kids.length > 0) {
+          const updatedKids = kids.map((child) => {
+            const childId = String(child?._id ?? child?.id ?? child?.product_id ?? '').trim();
+            if (childId && idSet.has(childId)) return { ...child, status };
+            if (parent) return { ...child, status };
+            return child;
+          });
+          if (next.childproducts) next = { ...next, childproducts: updatedKids };
+          else if (next.child_products) next = { ...next, child_products: updatedKids };
+          else next = { ...next, variations: updatedKids };
+        }
+
+        return next;
+      });
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -353,5 +395,6 @@ export const {
   clearUpdateStatus,
   clearCurrentProduct,
   clearUploadImageStatus,
+  setListProductsStatus,
 } = productsSlice.actions;
 export default productsSlice.reducer;
