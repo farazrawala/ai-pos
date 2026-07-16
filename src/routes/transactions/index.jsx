@@ -50,11 +50,14 @@ const Transactions = () => {
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
-  /** 'journal' | 'lines' | 'deleted' */
+  /** 'journal' | 'lines' — layout for both active and deleted data */
   const [viewMode, setViewMode] = useState('journal');
+  const [showDeleted, setShowDeleted] = useState(false);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
-  const isDeletedView = viewMode === 'deleted';
+  const isDeletedView = showDeleted;
+  const isJournalView = viewMode === 'journal';
+  const isLinesView = viewMode === 'lines';
 
   const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
@@ -88,11 +91,12 @@ const Transactions = () => {
 
   const handleViewModeChange = (mode) => {
     if (mode === viewMode) return;
-    const switchingDeleted = mode === 'deleted' || viewMode === 'deleted';
     setViewMode(mode);
-    if (switchingDeleted) {
-      dispatch(setPage(1));
-    }
+  };
+
+  const handleDeletedToggle = () => {
+    setShowDeleted((prev) => !prev);
+    dispatch(setPage(1));
   };
 
   useEffect(() => {
@@ -271,26 +275,27 @@ const Transactions = () => {
                     >
                       <button
                         type="button"
-                        className={`btn mb-0 ${viewMode === 'journal' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        className={`btn mb-0 ${isJournalView ? 'btn-primary' : 'btn-outline-primary'}`}
                         onClick={() => handleViewModeChange('journal')}
                       >
                         Journal view
                       </button>
                       <button
                         type="button"
-                        className={`btn mb-0 ${viewMode === 'lines' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        className={`btn mb-0 ${isLinesView ? 'btn-primary' : 'btn-outline-primary'}`}
                         onClick={() => handleViewModeChange('lines')}
                       >
                         All lines
                       </button>
-                      <button
-                        type="button"
-                        className={`btn mb-0 ${viewMode === 'deleted' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => handleViewModeChange('deleted')}
-                      >
-                        Deleted Transactions
-                      </button>
                     </div>
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 ${showDeleted ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={handleDeletedToggle}
+                      aria-pressed={showDeleted}
+                    >
+                      Deleted Transactions
+                    </button>
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -394,10 +399,12 @@ const Transactions = () => {
                   {error}
                 </div>
               )}
-              {!loading && !error && viewMode === 'journal' && (
+              {!loading && !error && isJournalView && (
                 <div className="w-100 d-flex flex-column gap-3">
                   {journals.length === 0 ? (
-                    <p className="text-center text-sm text-muted p-4 mb-0">No transactions found</p>
+                    <p className="text-center text-sm text-muted p-4 mb-0">
+                      {isDeletedView ? 'No deleted transactions found' : 'No transactions found'}
+                    </p>
                   ) : (
                     journals.map((lines, jIndex) => {
                       const meta = journalMeta(lines);
@@ -410,7 +417,7 @@ const Transactions = () => {
                           <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-start gap-2 bg-gray-100">
                             <div>
                               <span className="text-xs text-uppercase text-muted d-block">
-                                Journal entry
+                                {isDeletedView ? 'Deleted journal entry' : 'Journal entry'}
                               </span>
                               <strong className="text-sm">Ref. {meta.ref}</strong>
                               <span className="text-sm text-muted ms-2">
@@ -448,7 +455,7 @@ const Transactions = () => {
                             <table className="table table-sm table-flush mb-0 w-100">
                               <thead>
                                 <tr>
-                                  {isAdmin ? (
+                                  {isAdmin && !isDeletedView ? (
                                     <th className="text-xs text-uppercase" style={{ width: '40px' }} />
                                   ) : null}
                                   <th className="text-xs text-uppercase">Account</th>
@@ -462,7 +469,7 @@ const Transactions = () => {
                                   const rowKey = item._id || item.id || idx;
                                   return (
                                     <tr key={rowKey}>
-                                      {isAdmin ? (
+                                      {isAdmin && !isDeletedView ? (
                                         <td>
                                           <button
                                             type="button"
@@ -487,7 +494,7 @@ const Transactions = () => {
                               </tbody>
                               <tfoot>
                                 <tr className="font-weight-bold">
-                                  {isAdmin ? <td className="pt-2" /> : null}
+                                  {isAdmin && !isDeletedView ? <td className="pt-2" /> : null}
                                   <td className="text-sm pt-2">Totals</td>
                                   <td className="text-sm text-end pt-2">
                                     {formatTransactionAmount(sums.debit)}
@@ -506,7 +513,7 @@ const Transactions = () => {
                 </div>
               )}
 
-              {!loading && !error && (viewMode === 'lines' || viewMode === 'deleted') && (
+              {!loading && !error && isLinesView && (
                 <div className="list-data-table mx-3 mb-3">
                   <div className="list-data-table-scroll">
                     <table className="table align-items-center mb-0 w-100">
@@ -665,7 +672,7 @@ const Transactions = () => {
                 </div>
               )}
 
-              {!loading && !error && viewMode === 'journal' && pagination.total > 0 && (
+              {!loading && !error && isJournalView && pagination.total > 0 && (
                 <div className="mx-3 mb-3">
                   <TablePagination
                     selectId="transactions-journal-page-size"
