@@ -530,24 +530,42 @@ const ProductEdit = () => {
   };
 
   const applyBarcodeToEmptyVariations = () => {
-    const barcode = (form.barcode || '').trim();
-    if (!barcode || variations.length === 0) return;
+    if (variations.length === 0) return;
+
+    const existingMain = (form.barcode || '').trim();
+    const barcode = existingMain || generateBarcode();
+    const mainWasEmpty = !existingMain;
+
+    if (mainWasEmpty) {
+      setForm((prev) => ({ ...prev, barcode }));
+      if (errors.barcode) {
+        setErrors((prev) => ({ ...prev, barcode: '' }));
+      }
+    }
 
     const emptyIds = new Set(
       variations.filter((v) => !v.barcode || String(v.barcode).trim() === '').map((v) => v.id)
     );
 
-    if (emptyIds.size === 0) {
-      toast.info('All variants already have a barcode');
+    if (emptyIds.size === 0 && !mainWasEmpty) {
+      toast.info('Main product and all variants already have a barcode');
       return;
     }
 
-    setVariations((prev) =>
-      prev.map((v) => (emptyIds.has(v.id) ? { ...v, barcode } : v))
-    );
-    toast.success(
-      `Applied barcode to ${emptyIds.size} empty variant${emptyIds.size === 1 ? '' : 's'}`
-    );
+    if (emptyIds.size > 0) {
+      setVariations((prev) =>
+        prev.map((v) => (emptyIds.has(v.id) ? { ...v, barcode } : v))
+      );
+    }
+
+    const parts = [];
+    if (mainWasEmpty) parts.push('main product');
+    if (emptyIds.size > 0) {
+      parts.push(
+        `${emptyIds.size} empty variant${emptyIds.size === 1 ? '' : 's'}`
+      );
+    }
+    toast.success(`Applied barcode to ${parts.join(' and ')}`);
   };
 
   // Handle variation image change
@@ -1312,8 +1330,8 @@ const ProductEdit = () => {
                           type="button"
                           className="btn btn-sm btn-outline-primary mb-0 py-0 px-2"
                           onClick={applyBarcodeToEmptyVariations}
-                          disabled={isSubmitting || !(form.barcode || '').trim()}
-                          title="Copy this barcode to variants that have no barcode"
+                          disabled={isSubmitting}
+                          title="Fill main product barcode if empty, and copy to variants with no barcode"
                         >
                           <i className="fas fa-copy me-1" aria-hidden="true" />
                           Apply to empty variants
