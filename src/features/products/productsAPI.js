@@ -49,10 +49,26 @@ const buildApiErrorMessage = (errorData, status) => {
 
 /**
  * POS flat list (parents + child variants as rows).
- * Supported query params: skip, limit, search, sort, category_id, product_type.
- * `include_inactive` and `status` have no effect on this endpoint — do not send them.
+ * Supported filters: product_type, status / include_inactive (+ pagination/search/sort/category).
+ * Default (no status params) = active only.
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
+
+/** Append POS status query params per backend contract. */
+const appendPosStatusParams = (queryParams, params = {}) => {
+  if (params.includeInactive) {
+    queryParams.append('include_inactive', 'true');
+    return;
+  }
+  const status = String(params.status ?? '').trim().toLowerCase();
+  if (status === 'all') {
+    queryParams.append('include_inactive', 'true');
+    return;
+  }
+  if (status === 'inactive' || status === 'active') {
+    queryParams.append('status', status);
+  }
+};
 
 /** Shared shape: `{ data, total, page, limit, totalPages }` */
 const normalizeProductsListResponse = (result, params = {}) => {
@@ -142,6 +158,7 @@ export const fetchProductsRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
+  appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
 
@@ -165,8 +182,8 @@ export const fetchProductsRequest = async (params = {}) => {
 export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode';
 
 /**
- * POS / search: `GET product/get-all-active-pos?search=...&searchFields=...&product_type=Single|Variable`
- * Only product_type (+ pagination/search) is supported for filtering; status params are ignored by API.
+ * POS / search: `GET product/get-all-active-pos?...&status=active|inactive&include_inactive=true&product_type=Single|Variable`
+ * Default (no status params) = active only. Pagination.total matches the status filter.
  */
 export const fetchProductActiveRequest = async (params = {}) => {
   const token = getAuthToken();
@@ -197,6 +214,7 @@ export const fetchProductActiveRequest = async (params = {}) => {
   if (params.limit) queryParams.append('limit', params.limit);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
+  appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
 

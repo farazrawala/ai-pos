@@ -142,6 +142,12 @@ const PosProducts = ({
     setProductsStatus('loading');
     setProductsError(null);
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+    const statusParams =
+      statusFilter === 'all'
+        ? { includeInactive: true }
+        : statusFilter === 'inactive'
+          ? { status: 'inactive' }
+          : { status: 'active' };
 
     if (!isOnline) {
       await loadProductsFromCache();
@@ -156,11 +162,13 @@ const PosProducts = ({
             page: 1,
             limit: 2000,
             ...(categoryId ? { categoryId } : {}),
+            ...statusParams,
           })
         : await fetchProductsRequest({
             page: 1,
             limit: 2000,
             ...(categoryId ? { categoryId } : {}),
+            ...statusParams,
           });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setProducts(arr);

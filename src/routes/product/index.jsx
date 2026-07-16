@@ -216,7 +216,13 @@ const Product = () => {
     };
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
-    // Status is client-side only — include_inactive/status have no effect on POS list.
+    if (statusFilter === 'all') {
+      params.includeInactive = true;
+    } else if (statusFilter === 'inactive') {
+      params.status = 'inactive';
+    } else if (statusFilter === 'active') {
+      params.status = 'active';
+    }
     if (typeFilter === 'single') {
       params.productType = 'Single';
     } else if (typeFilter === 'variant') {
@@ -232,6 +238,7 @@ const Product = () => {
     pagination.limit,
     searchTerm,
     categoryFilter,
+    statusFilter,
     typeFilter,
     sort.sortBy,
     sort.sortOrder,
@@ -321,16 +328,9 @@ const Product = () => {
   };
 
   const filteredData = useMemo(() => {
-    const rows = Array.isArray(data) ? data : [];
-    // API returns active + inactive for product_type filters; status is UI-only.
-    if (statusFilter === 'inactive') {
-      return rows.filter((item) => !productIsActive(item));
-    }
-    if (statusFilter === 'active') {
-      return rows.filter((item) => productIsActive(item));
-    }
-    return rows;
-  }, [data, statusFilter]);
+    // Status + type are filtered server-side on get-all-active-pos.
+    return Array.isArray(data) ? data : [];
+  }, [data]);
 
   // Handle sort change
   const handleSort = (column, isDoubleClick = false) => {
@@ -579,6 +579,13 @@ const Product = () => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
+    if (statusFilter === 'all') {
+      params.includeInactive = true;
+    } else if (statusFilter === 'inactive') {
+      params.status = 'inactive';
+    } else if (statusFilter === 'active') {
+      params.status = 'active';
+    }
     if (typeFilter === 'single') {
       params.productType = 'Single';
     } else if (typeFilter === 'variant') {
@@ -595,17 +602,11 @@ const Product = () => {
     setExporting(true);
     try {
       const records = await fetchAllProductsForExportRequest(buildExportParams());
-      const filtered =
-        statusFilter === 'inactive'
-          ? records.filter((item) => !productIsActive(item))
-          : statusFilter === 'active'
-            ? records.filter((item) => productIsActive(item))
-            : records;
-      if (!filtered.length) {
+      if (!records.length) {
         toast.info('No products to export.');
         return;
       }
-      const mapped = mapProductsToExportRows(filtered);
+      const mapped = mapProductsToExportRows(records);
       const stamp = moment().format('YYYY-MM-DD-HHmm');
       const filename = `products-with-stock-${stamp}`;
       if (format === 'csv') {
