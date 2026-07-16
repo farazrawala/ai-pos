@@ -522,6 +522,34 @@ const ProductEdit = () => {
     setVariations((prev) => prev.map((v) => (v.id === variationId ? { ...v, [field]: value } : v)));
   };
 
+  const applyRetailPriceToAllVariations = () => {
+    if (variations.length === 0) return;
+    const retailPrice = form.price === '' || form.price == null ? '' : String(form.price);
+    setVariations((prev) => prev.map((v) => ({ ...v, price: retailPrice })));
+    toast.success(`Applied retail price to ${variations.length} variant${variations.length === 1 ? '' : 's'}`);
+  };
+
+  const applyBarcodeToEmptyVariations = () => {
+    const barcode = (form.barcode || '').trim();
+    if (!barcode || variations.length === 0) return;
+
+    const emptyIds = new Set(
+      variations.filter((v) => !v.barcode || String(v.barcode).trim() === '').map((v) => v.id)
+    );
+
+    if (emptyIds.size === 0) {
+      toast.info('All variants already have a barcode');
+      return;
+    }
+
+    setVariations((prev) =>
+      prev.map((v) => (emptyIds.has(v.id) ? { ...v, barcode } : v))
+    );
+    toast.success(
+      `Applied barcode to ${emptyIds.size} empty variant${emptyIds.size === 1 ? '' : 's'}`
+    );
+  };
+
   // Handle variation image change
   const handleVariationImageChange = (variationId, file) => {
     if (file) {
@@ -1192,6 +1220,20 @@ const ProductEdit = () => {
                     />
                     {errors.price && <div className="invalid-feedback">{errors.price}</div>}
                   </div>
+                  {form.product_type === 'Variable' && variations.length > 0 && (
+                    <div className="col-md-3 col-6 mb-3 d-flex align-items-end">
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary w-100 mb-0"
+                        onClick={applyRetailPriceToAllVariations}
+                        disabled={isSubmitting || form.price === '' || form.price == null}
+                        title="Set every variant price to this retail price"
+                      >
+                        <i className="fas fa-copy me-1" aria-hidden="true" />
+                        Apply to all variants
+                      </button>
+                    </div>
+                  )}
                   <div className="col-md-4 mb-3">
                     <label htmlFor="wholesale_price" className="form-label">
                       Wholesale Price
@@ -1261,9 +1303,23 @@ const ProductEdit = () => {
                     />
                   </div>
                   <div className="col-md-4 mb-3">
-                    <label htmlFor="barcode" className="form-label">
-                      Barcode
-                    </label>
+                    <div className="d-flex justify-content-between align-items-center gap-2 mb-1">
+                      <label htmlFor="barcode" className="form-label mb-0">
+                        Barcode
+                      </label>
+                      {form.product_type === 'Variable' && variations.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary mb-0 py-0 px-2"
+                          onClick={applyBarcodeToEmptyVariations}
+                          disabled={isSubmitting || !(form.barcode || '').trim()}
+                          title="Copy this barcode to variants that have no barcode"
+                        >
+                          <i className="fas fa-copy me-1" aria-hidden="true" />
+                          Apply to empty variants
+                        </button>
+                      )}
+                    </div>
                     <div className="input-group">
                       <input
                         type="text"
