@@ -477,7 +477,7 @@ const ProcessIndex = () => {
                                     executingProcessId === id ||
                                     stoppingProcessId === id
                                   }
-                                  title="Reset progress and run again"
+                                  title="Restart failed or completed process"
                                 >
                                   {restartingProcessId === id ? (
                                     <>

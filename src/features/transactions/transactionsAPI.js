@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 const TRANSACTION_LIST_PATH = 'transaction/get-all-active';
+const TRANSACTION_DELETED_LIST_PATH = 'transaction/get-deleted';
 const MY_LEDGER_TRANSACTION_LIST_PATH = 'transaction/get-my-ledger-transaction';
 
 const getAuthToken = () => {
@@ -87,40 +88,7 @@ const normalizeTransactionsPayload = (result) => {
  */
 const DEFAULT_TRANSACTION_POPULATE = 'account_id,ref_id';
 
-export async function fetchTransactionsRequest(params = {}) {
-  const queryParams = new URLSearchParams();
-  queryParams.set(
-    'populate',
-    params.populate != null ? String(params.populate) : DEFAULT_TRANSACTION_POPULATE
-  );
-  queryParams.set('amount_gt', '0');
-
-  if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
-    queryParams.set('reference_user_id', String(params.referenceUserId).trim());
-  }
-
-  if (params.page && params.limit) {
-    const skip = (params.page - 1) * params.limit;
-    queryParams.append('skip', String(skip));
-  } else if (params.skip != null) {
-    queryParams.append('skip', String(params.skip));
-  }
-  if (params.limit) queryParams.append('limit', String(params.limit));
-  if (params.search) queryParams.append('search', String(params.search));
-  if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
-  if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
-  if (params.startDate) queryParams.append('startDate', String(params.startDate));
-  if (params.endDate) queryParams.append('endDate', String(params.endDate));
-
-  const queryString = queryParams.toString();
-  const url = `${BASE_URL}${TRANSACTION_LIST_PATH}?${queryString}`;
-  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
-  }
-
-  const result = await response.json();
+const parseTransactionListResult = (result, params = {}) => {
   const data = normalizeTransactionsPayload(result);
 
   if (result.pagination && typeof result.pagination === 'object') {
@@ -163,6 +131,75 @@ export async function fetchTransactionsRequest(params = {}) {
     limit,
     totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
   };
+};
+
+const buildTransactionListQuery = (params = {}) => {
+  const queryParams = new URLSearchParams();
+  queryParams.set(
+    'populate',
+    params.populate != null ? String(params.populate) : DEFAULT_TRANSACTION_POPULATE
+  );
+  queryParams.set('amount_gt', '0');
+
+  if (params.referenceUserId != null && String(params.referenceUserId).trim() !== '') {
+    queryParams.set('reference_user_id', String(params.referenceUserId).trim());
+  }
+
+  if (params.page && params.limit) {
+    const skip = (params.page - 1) * params.limit;
+    queryParams.append('skip', String(skip));
+  } else if (params.skip != null) {
+    queryParams.append('skip', String(params.skip));
+  }
+  if (params.limit) queryParams.append('limit', String(params.limit));
+  if (params.search) queryParams.append('search', String(params.search));
+  if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
+  if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
+  if (params.startDate) queryParams.append('startDate', String(params.startDate));
+  if (params.endDate) queryParams.append('endDate', String(params.endDate));
+
+  return queryParams.toString();
+};
+
+export async function fetchTransactionsRequest(params = {}) {
+  const queryString = buildTransactionListQuery(params);
+  const url = `${BASE_URL}${TRANSACTION_LIST_PATH}?${queryString}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  return parseTransactionListResult(result, params);
+}
+
+/**
+ * GET /transaction/get-deleted (fallback: /transactions/get-deleted)
+ */
+export async function fetchDeletedTransactionsRequest(params = {}) {
+  const queryString = buildTransactionListQuery(params);
+  const primaryUrl = `${BASE_URL}${TRANSACTION_DELETED_LIST_PATH}?${queryString}`;
+  const fallbackUrl = `${BASE_URL}transactions/get-deleted?${queryString}`;
+
+  let response = await fetch(primaryUrl, {
+    method: 'GET',
+    headers: getHeaders({ json: false }),
+  });
+
+  if (response.status === 404) {
+    response = await fetch(fallbackUrl, {
+      method: 'GET',
+      headers: getHeaders({ json: false }),
+    });
+  }
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  return parseTransactionListResult(result, params);
 }
 
 /**

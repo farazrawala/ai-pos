@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchTransactions,
+  fetchDeletedTransactions,
   setSearch,
   setPage,
   setLimit,
@@ -49,10 +50,11 @@ const Transactions = () => {
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
-  /** 'journal' = double-entry grouped view; 'lines' = flat ledger list */
+  /** 'journal' | 'lines' | 'deleted' */
   const [viewMode, setViewMode] = useState('journal');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+  const isDeletedView = viewMode === 'deleted';
 
   const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
@@ -67,7 +69,11 @@ const Transactions = () => {
     }
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
-    dispatch(fetchTransactions(params));
+    if (isDeletedView) {
+      dispatch(fetchDeletedTransactions(params));
+    } else {
+      dispatch(fetchTransactions(params));
+    }
   }, [
     dispatch,
     pagination.page,
@@ -77,7 +83,17 @@ const Transactions = () => {
     sort.sortOrder,
     filters.startDate,
     filters.endDate,
+    isDeletedView,
   ]);
+
+  const handleViewModeChange = (mode) => {
+    if (mode === viewMode) return;
+    const switchingDeleted = mode === 'deleted' || viewMode === 'deleted';
+    setViewMode(mode);
+    if (switchingDeleted) {
+      dispatch(setPage(1));
+    }
+  };
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -220,10 +236,19 @@ const Transactions = () => {
                   <h5 className="mb-0">Transactions</h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
-                      Double-entry journals (grouped lines). API:{' '}
-                      <code className="small">
-                        GET /transaction/get-all-active?populate=account_id,ref_id
-                      </code>
+                      {isDeletedView ? (
+                        <>
+                          Deleted transactions. API:{' '}
+                          <code className="small">GET /transaction/get-deleted</code>
+                        </>
+                      ) : (
+                        <>
+                          Double-entry journals (grouped lines). API:{' '}
+                          <code className="small">
+                            GET /transaction/get-all-active?populate=account_id,ref_id
+                          </code>
+                        </>
+                      )}
                     </p>
                   ) : null}
                 </div>
@@ -247,16 +272,23 @@ const Transactions = () => {
                       <button
                         type="button"
                         className={`btn mb-0 ${viewMode === 'journal' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => setViewMode('journal')}
+                        onClick={() => handleViewModeChange('journal')}
                       >
                         Journal view
                       </button>
                       <button
                         type="button"
                         className={`btn mb-0 ${viewMode === 'lines' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => setViewMode('lines')}
+                        onClick={() => handleViewModeChange('lines')}
                       >
                         All lines
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn mb-0 ${viewMode === 'deleted' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => handleViewModeChange('deleted')}
+                      >
+                        Deleted Transactions
                       </button>
                     </div>
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
@@ -352,7 +384,9 @@ const Transactions = () => {
 
               {loading && (
                 <div className="text-center p-4">
-                  <p className="mb-0">Loading transactions…</p>
+                  <p className="mb-0">
+                    {isDeletedView ? 'Loading deleted transactions…' : 'Loading transactions…'}
+                  </p>
                 </div>
               )}
               {error && (
@@ -472,7 +506,7 @@ const Transactions = () => {
                 </div>
               )}
 
-              {!loading && !error && viewMode === 'lines' && (
+              {!loading && !error && (viewMode === 'lines' || viewMode === 'deleted') && (
                 <div className="list-data-table mx-3 mb-3">
                   <div className="list-data-table-scroll">
                     <table className="table align-items-center mb-0 w-100">
@@ -522,17 +556,21 @@ const Transactions = () => {
                             Created
                             {renderSortIcon('createdAt')}
                           </th>
-                          {isAdmin ? <th className="text-end">Actions</th> : null}
+                          {isAdmin && !isDeletedView ? (
+                            <th className="text-end">Actions</th>
+                          ) : null}
                         </tr>
                       </thead>
                       <tbody>
                         {data.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={isAdmin ? 10 : 9}
+                              colSpan={isAdmin && !isDeletedView ? 10 : 9}
                               className="text-center text-sm font-weight-normal p-4"
                             >
-                              No transactions found
+                              {isDeletedView
+                                ? 'No deleted transactions found'
+                                : 'No transactions found'}
                             </td>
                           </tr>
                         ) : (
@@ -593,7 +631,7 @@ const Transactions = () => {
                                     ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
                                     : '—'}
                                 </td>
-                                {isAdmin ? (
+                                {isAdmin && !isDeletedView ? (
                                   <td className="text-end">
                                     <button
                                       type="button"

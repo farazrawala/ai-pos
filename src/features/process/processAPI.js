@@ -309,19 +309,79 @@ export const stopProcessRequest = async (processId) =>
   updateProcessRequest(processId, { status: 'inactive' });
 
 /**
- * Restart a process: reset its progress/hits and re-activate, then execute again.
+ * Restart failed/completed processes (bulk).
+ * POST /process/restart-process
+ */
+export const restartProcessesRequest = async () => {
+  const url = `${BASE_URL}process/restart-process`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+  } catch (err) {
+    logProcessModuleError('restartProcessesRequest network error', { url, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('restartProcessesRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/**
+ * Restart one process by id.
+ * POST /process/restart-process/:id
  */
 export const restartProcessRequest = async (processId) => {
   const id = String(processId || '').trim();
   if (!id) throw new Error('Process id is required');
 
-  await updateProcessRequest(id, {
-    status: 'active',
-    progress: 'not_started',
-    hits: 0,
-  });
+  const url = `${BASE_URL}process/restart-process/${encodeURIComponent(id)}`;
 
-  return executeProcessRequest(id);
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+  } catch (err) {
+    logProcessModuleError('restartProcessRequest network error', { url, processId: id, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('restartProcessRequest failed', {
+      status: response.status,
+      processId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
 };
 
 export const executeProcessRequest = async (processId) => {

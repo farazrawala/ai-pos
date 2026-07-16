@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchTransactionsRequest,
+  fetchDeletedTransactionsRequest,
   createTransactionRequest,
   updateTransactionRequest,
   fetchTransactionByIdRequest,
@@ -13,6 +14,17 @@ export const fetchTransactions = createAsyncThunk(
       return await fetchTransactionsRequest(params);
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch transactions');
+    }
+  }
+);
+
+export const fetchDeletedTransactions = createAsyncThunk(
+  'transactions/fetchDeletedTransactions',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await fetchDeletedTransactionsRequest(params);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch deleted transactions');
     }
   }
 );
@@ -103,24 +115,37 @@ const transactionsSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    const applyListFulfilled = (state, action) => {
+      state.status = 'succeeded';
+      state.list = action.payload.data || [];
+      state.pagination = {
+        page: action.payload.page || state.pagination.page,
+        limit: action.payload.limit || state.pagination.limit,
+        total: action.payload.total || 0,
+        totalPages: action.payload.totalPages || 0,
+      };
+    };
+
     builder
       .addCase(fetchTransactions.pending, (state) => {
         state.status = 'loading';
         state.error = null;
       })
-      .addCase(fetchTransactions.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.list = action.payload.data || [];
-        state.pagination = {
-          page: action.payload.page || state.pagination.page,
-          limit: action.payload.limit || state.pagination.limit,
-          total: action.payload.total || 0,
-          totalPages: action.payload.totalPages || 0,
-        };
-      })
+      .addCase(fetchTransactions.fulfilled, applyListFulfilled)
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload || action.error.message || 'Failed to fetch transactions';
+        state.list = [];
+      })
+      .addCase(fetchDeletedTransactions.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchDeletedTransactions.fulfilled, applyListFulfilled)
+      .addCase(fetchDeletedTransactions.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error =
+          action.payload || action.error.message || 'Failed to fetch deleted transactions';
         state.list = [];
       });
   },
