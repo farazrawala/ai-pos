@@ -63,11 +63,15 @@ function productMatchesExactQuery(product, query) {
   return haystacks.some((v) => v != null && normalizeSearchToken(v) === needle);
 }
 
+/**
+ * Only exact barcode/SKU/code/name matches are allowed on scan Enter.
+ * Never fall back to "only one search result" — that adds the wrong product when
+ * the grid still shows a previous fuzzy search hit.
+ */
 function pickScannedProduct(products, query) {
   if (!Array.isArray(products) || products.length === 0) return null;
   const exact = products.filter((p) => productMatchesExactQuery(p, query));
   if (exact.length === 1) return exact[0];
-  if (products.length === 1) return products[0];
   return null;
 }
 
@@ -99,6 +103,14 @@ const PosProducts = ({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [hideLowStock, setHideLowStock] = useState(true);
   const searchInputRef = useRef(null);
+  /** Latest search text — scanners fire Enter before React state catches up. */
+  const productQueryRef = useRef(productQuery);
+  /** Prevents double-Enter / overlapping async scans from adding the same (or stale) item twice. */
+  const scanInFlightRef = useRef(false);
+
+  useEffect(() => {
+    productQueryRef.current = productQuery;
+  }, [productQuery]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(productQuery.trim()), 350);
@@ -185,33 +197,27 @@ const PosProducts = ({
     return list;
   }, [products, hideLowStock, warehouseId]);
 
-  const clearSearchAndRefocus = useCallback(() => {
-    setProductQuery('');
-    requestAnimationFrame(() => searchInputRef.current?.focus());
-  }, [setProductQuery]);
-
   const tryAddProductFromQuery = useCallback(
     async (query) => {
       const q = String(query ?? '').trim();
-      if (!q) return false;
+      if (!q) return 'not_found';
 
       const tryAdd = (product) => {
         if (isVariableParentProduct(product)) {
           toast.warning(
             'This is a variable product. Scan or select a size/color variation instead.'
           );
-          return false;
+          return 'blocked';
         }
         if (
           hideLowStock &&
           isProductStockBelowMinimum(product, { warehouseId, minimum: 1 })
         ) {
           toast.info('Product hidden — stock is less than 1.');
-          return false;
+          return 'blocked';
         }
         onAddToCart?.(product);
-        clearSearchAndRefocus();
-        return true;
+        return 'added';
       };
 
       const fromList = pickScannedProduct(products, q);
@@ -249,28 +255,43 @@ const PosProducts = ({
       } catch (err) {
         console.error('[POS] Offline barcode lookup failed', err);
       }
-      return false;
+      return 'not_found';
     },
-    [
-      products,
-      categoryFilter,
-      onAddToCart,
-      clearSearchAndRefocus,
-      hideLowStock,
-      warehouseId,
-      isOnline,
-    ]
+    [products, categoryFilter, onAddToCart, hideLowStock, warehouseId, isOnline]
   );
 
   const handleSearchKeyDown = useCallback(
     async (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      const q = productQuery.trim();
-      if (!q) return;
-      await tryAddProductFromQuery(q);
+      // Prefer the ref (updated synchronously in onChange) over React state / DOM.
+      // Scanners type + Enter faster than setState flushes, which used to re-add the previous barcode.
+      const q = String(
+        productQueryRef.current || e.currentTarget?.value || searchInputRef.current?.value || ''
+      ).trim();
+      if (!q || scanInFlightRef.current) return;
+
+      scanInFlightRef.current = true;
+      // Clear immediately so the next scan cannot append onto this barcode, and so a
+      // second Enter cannot re-add the same code while the lookup is in flight.
+      productQueryRef.current = '';
+      setProductQuery('');
+
+      try {
+        const result = await tryAddProductFromQuery(q);
+        if (result !== 'added') {
+          productQueryRef.current = q;
+          setProductQuery(q);
+          if (result === 'not_found') {
+            toast.info('No exact product match for that barcode or code.');
+          }
+        }
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      } finally {
+        scanInFlightRef.current = false;
+      }
     },
-    [productQuery, tryAddProductFromQuery]
+    [tryAddProductFromQuery, setProductQuery]
   );
 
   return (
@@ -298,7 +319,11 @@ const PosProducts = ({
                   className="form-control"
                   placeholder="Search or scan barcode — press Enter to add"
                   value={productQuery}
-                  onChange={(e) => setProductQuery(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    productQueryRef.current = next;
+                    setProductQuery(next);
+                  }}
                   onKeyDown={handleSearchKeyDown}
                   autoComplete="off"
                   spellCheck={false}
