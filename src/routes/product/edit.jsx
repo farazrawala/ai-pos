@@ -17,7 +17,11 @@ import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.
 import { toast } from '../../utils/toast.js';
 import ProductVariationsModal from '../../components/product/ProductVariationsModal.jsx';
 import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
-import { variationProductIdFromRecord, generateBarcode } from '../../components/product/productVariationUtils.js';
+import {
+  variationProductIdFromRecord,
+  generateBarcode,
+  parseVariationAttrs,
+} from '../../components/product/productVariationUtils.js';
 import '../../components/product/product-variations-modal.css';
 import './product-form.css';
 
@@ -626,6 +630,31 @@ const ProductEdit = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Keep variant names in sync with product name: "Product [attrs]" → "New Name [attrs]"
+    if (name === 'name' && variations.length > 0) {
+      const previousName = form.name;
+      setVariations((prevVariations) =>
+        prevVariations.map((variation) => {
+          const attrs = parseVariationAttrs(variation.name);
+          let newVariationName;
+          if (attrs.length > 0) {
+            newVariationName = `${value} [${attrs.join(' - ')}]`;
+          } else if (previousName && String(variation.name || '').startsWith(previousName)) {
+            newVariationName = `${value}${String(variation.name).slice(previousName.length)}`;
+          } else {
+            newVariationName = value || variation.name;
+          }
+
+          const updated = { ...variation, name: newVariationName };
+          if (!variation.slug || variation.slug === generateSlug(variation.name)) {
+            updated.slug = generateSlug(newVariationName);
+          }
+          return updated;
+        })
+      );
+    }
+
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
 
