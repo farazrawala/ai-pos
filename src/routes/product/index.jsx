@@ -164,23 +164,6 @@ const isVariableProduct = (product) => {
   return collectVariationIds(product).length > 0;
 };
 
-/** Child SKU from a variable product (flat POS list rows). */
-const isVariationChildProduct = (product) => Boolean(parentProductIdFromRecord(product));
-
-/**
- * Type filter for flat `get-all-active-pos` rows:
- * - single: standalone products only (not variable parents, not children)
- * - variant: variable parents and their child variation rows
- */
-const matchesProductTypeFilter = (product, typeFilter) => {
-  if (!typeFilter || typeFilter === 'all') return true;
-  const isChild = isVariationChildProduct(product);
-  const isVariable = isVariableProduct(product);
-  if (typeFilter === 'variant') return isVariable || isChild;
-  if (typeFilter === 'single') return !isVariable && !isChild;
-  return true;
-};
-
 const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
 
 const categoryOptionLabel = (c) => {
@@ -233,14 +216,12 @@ const Product = () => {
     };
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
-    if (statusFilter === 'all') {
-      params.includeInactive = true;
-    } else if (statusFilter === 'inactive') {
-      params.includeInactive = true;
-      params.status = 'inactive';
+    // Status is client-side only — include_inactive/status have no effect on POS list.
+    if (typeFilter === 'single') {
+      params.productType = 'Single';
+    } else if (typeFilter === 'variant') {
+      params.productType = 'Variable';
     }
-    // Type filter is applied client-side: POS list marks child variants as
-    // product_type "Single", so product_type=Variable would hide them.
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -251,7 +232,7 @@ const Product = () => {
     pagination.limit,
     searchTerm,
     categoryFilter,
-    statusFilter,
+    typeFilter,
     sort.sortBy,
     sort.sortOrder,
   ]);
@@ -341,12 +322,15 @@ const Product = () => {
 
   const filteredData = useMemo(() => {
     const rows = Array.isArray(data) ? data : [];
-    return rows.filter((item) => {
-      if (statusFilter === 'inactive' && productIsActive(item)) return false;
-      if (statusFilter === 'active' && !productIsActive(item)) return false;
-      return matchesProductTypeFilter(item, typeFilter);
-    });
-  }, [data, statusFilter, typeFilter]);
+    // API returns active + inactive for product_type filters; status is UI-only.
+    if (statusFilter === 'inactive') {
+      return rows.filter((item) => !productIsActive(item));
+    }
+    if (statusFilter === 'active') {
+      return rows.filter((item) => productIsActive(item));
+    }
+    return rows;
+  }, [data, statusFilter]);
 
   // Handle sort change
   const handleSort = (column, isDoubleClick = false) => {
@@ -595,11 +579,10 @@ const Product = () => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
-    if (statusFilter === 'all') {
-      params.includeInactive = true;
-    } else if (statusFilter === 'inactive') {
-      params.includeInactive = true;
-      params.status = 'inactive';
+    if (typeFilter === 'single') {
+      params.productType = 'Single';
+    } else if (typeFilter === 'variant') {
+      params.productType = 'Variable';
     }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
@@ -612,11 +595,12 @@ const Product = () => {
     setExporting(true);
     try {
       const records = await fetchAllProductsForExportRequest(buildExportParams());
-      const filtered = records.filter((item) => {
-        if (statusFilter === 'inactive' && productIsActive(item)) return false;
-        if (statusFilter === 'active' && !productIsActive(item)) return false;
-        return matchesProductTypeFilter(item, typeFilter);
-      });
+      const filtered =
+        statusFilter === 'inactive'
+          ? records.filter((item) => !productIsActive(item))
+          : statusFilter === 'active'
+            ? records.filter((item) => productIsActive(item))
+            : records;
       if (!filtered.length) {
         toast.info('No products to export.');
         return;

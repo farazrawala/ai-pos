@@ -48,9 +48,9 @@ const buildApiErrorMessage = (errorData, status) => {
 };
 
 /**
- * Flat sellable list (parents + child variants as rows).
- * Status filtering uses `include_inactive` / `status` query params — do not
- * switch to `product/get-all` (parent-only catalog, drops children).
+ * POS flat list (parents + child variants as rows).
+ * Supported query params: skip, limit, search, sort, category_id, product_type.
+ * `include_inactive` and `status` have no effect on this endpoint — do not send them.
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
 
@@ -142,13 +142,11 @@ export const fetchProductsRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
-  if (params.includeInactive) queryParams.append('include_inactive', 'true');
-  if (params.status) queryParams.append('status', String(params.status));
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}${resolveProductsListPath(params)}${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${resolveProductsListPath()}${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',
@@ -167,8 +165,8 @@ export const fetchProductsRequest = async (params = {}) => {
 export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode';
 
 /**
- * POS / search: `GET product/get-all-active-pos?search=...&searchFields=product_name,product_code,sku,barcode`
- * Pass `includeInactive` / `status` to include or filter inactive rows (still flat with children).
+ * POS / search: `GET product/get-all-active-pos?search=...&searchFields=...&product_type=Single|Variable`
+ * Only product_type (+ pagination/search) is supported for filtering; status params are ignored by API.
  */
 export const fetchProductActiveRequest = async (params = {}) => {
   const token = getAuthToken();
@@ -199,13 +197,11 @@ export const fetchProductActiveRequest = async (params = {}) => {
   if (params.limit) queryParams.append('limit', params.limit);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
-  if (params.includeInactive) queryParams.append('include_inactive', 'true');
-  if (params.status) queryParams.append('status', String(params.status));
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}${resolveProductsListPath(params)}${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${resolveProductsListPath()}${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',
