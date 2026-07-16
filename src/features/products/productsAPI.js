@@ -47,13 +47,12 @@ const buildApiErrorMessage = (errorData, status) => {
   return `HTTP error! status: ${status}`;
 };
 
-/** Active-only POS list vs full catalog when inactive rows are needed. */
-const resolveProductsListPath = (params = {}) => {
-  const status = String(params.status ?? '').trim().toLowerCase();
-  const needsInactive =
-    Boolean(params.includeInactive) || status === 'inactive' || status === 'all';
-  return needsInactive ? 'product/get-all' : 'product/get-all-active-pos';
-};
+/**
+ * Flat sellable list (parents + child variants as rows).
+ * Status filtering uses `include_inactive` / `status` query params — do not
+ * switch to `product/get-all` (parent-only catalog, drops children).
+ */
+const resolveProductsListPath = () => 'product/get-all-active-pos';
 
 /** Shared shape: `{ data, total, page, limit, totalPages }` */
 const normalizeProductsListResponse = (result, params = {}) => {
@@ -169,7 +168,7 @@ export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode'
 
 /**
  * POS / search: `GET product/get-all-active-pos?search=...&searchFields=product_name,product_code,sku,barcode`
- * When inactive rows are requested, switches to `product/get-all`.
+ * Pass `includeInactive` / `status` to include or filter inactive rows (still flat with children).
  */
 export const fetchProductActiveRequest = async (params = {}) => {
   const token = getAuthToken();
