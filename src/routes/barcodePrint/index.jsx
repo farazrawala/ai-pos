@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { FaXmark } from 'react-icons/fa6';
 import JsBarcode from 'jsbarcode';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
@@ -1290,7 +1291,7 @@ const BarcodePrint = () => {
                                   title="Remove product"
                                   aria-label={`Remove ${productName(item.product)}`}
                                 >
-                                  <i className="fas fa-times" aria-hidden="true" />
+                                  <FaXmark aria-hidden="true" />
                                 </button>
                               </div>
                             </li>
@@ -1768,12 +1769,7 @@ const BarcodePrint = () => {
                             width: `${swIn}in`,
                           }}
                         >
-                          {renderLabelSheets(sheetChunks.slice(0, 3))}
-                          {sheetChunks.length > 3 ? (
-                            <p className="text-xs text-muted mt-2 mb-0">
-                              + {sheetChunks.length - 3} more sheet{sheetChunks.length - 3 !== 1 ? 's' : ''} in print
-                            </p>
-                          ) : null}
+                          {renderLabelSheets(sheetChunks)}
                         </div>
                       )}
                     </div>
