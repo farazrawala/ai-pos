@@ -14,7 +14,7 @@ import {
   getProductAvailableStock,
   isProductStockBelowMinimum,
 } from '../../utils/productStock.js';
-import { isVariableParentProduct, sellablePosProductId } from '../../components/product/productVariationUtils.js';
+import { isVariableParentProduct, sellablePosProductId, isProductInactive } from '../../components/product/productVariationUtils.js';
 import { toast } from '../../utils/toast.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
@@ -102,6 +102,7 @@ const PosProducts = ({
   const [productsError, setProductsError] = useState(null);
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [hideLowStock, setHideLowStock] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('active');
   const searchInputRef = useRef(null);
   /** Latest search text — scanners fire Enter before React state catches up. */
   const productQueryRef = useRef(productQuery);
@@ -119,7 +120,11 @@ const PosProducts = ({
 
   const loadProductsFromCache = useCallback(async () => {
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
-    const cached = await searchProducts({ query: debouncedQuery, categoryId });
+    const cached = await searchProducts({
+      query: debouncedQuery,
+      categoryId,
+      status: statusFilter,
+    });
     const totalCached = await countProducts();
     if (totalCached === 0) {
       setProducts([]);
@@ -131,12 +136,18 @@ const PosProducts = ({
     setProductsError(null);
     setProductsStatus('succeeded');
     return true;
-  }, [debouncedQuery, categoryFilter]);
+  }, [debouncedQuery, categoryFilter, statusFilter]);
 
   const loadProducts = useCallback(async () => {
     setProductsStatus('loading');
     setProductsError(null);
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+    const statusParams =
+      statusFilter === 'all'
+        ? { includeInactive: true }
+        : statusFilter === 'inactive'
+          ? { includeInactive: true, status: 'inactive' }
+          : {};
 
     if (!isOnline) {
       await loadProductsFromCache();
@@ -151,11 +162,13 @@ const PosProducts = ({
             page: 1,
             limit: 2000,
             ...(categoryId ? { categoryId } : {}),
+            ...statusParams,
           })
         : await fetchProductsRequest({
             page: 1,
             limit: 2000,
             ...(categoryId ? { categoryId } : {}),
+            ...statusParams,
           });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setProducts(arr);
@@ -169,7 +182,7 @@ const PosProducts = ({
         setProductsStatus('failed');
       }
     }
-  }, [debouncedQuery, categoryFilter, isOnline, loadProductsFromCache]);
+  }, [debouncedQuery, categoryFilter, statusFilter, isOnline, loadProductsFromCache]);
 
   useEffect(() => {
     loadProducts();
@@ -191,11 +204,16 @@ const PosProducts = ({
 
   const visibleProducts = useMemo(() => {
     let list = products.filter((p) => !isVariableParentProduct(p));
+    if (statusFilter === 'active') {
+      list = list.filter((p) => !isProductInactive(p));
+    } else if (statusFilter === 'inactive') {
+      list = list.filter((p) => isProductInactive(p));
+    }
     if (hideLowStock) {
       list = list.filter((p) => !isProductStockBelowMinimum(p, { warehouseId, minimum: 1 }));
     }
     return list;
-  }, [products, hideLowStock, warehouseId]);
+  }, [products, hideLowStock, warehouseId, statusFilter]);
 
   const tryAddProductFromQuery = useCallback(
     async (query) => {
@@ -351,6 +369,18 @@ const PosProducts = ({
                     </option>
                   );
                 })}
+              </select>
+            </div>
+            <div className="col-auto" style={{ minWidth: 130 }}>
+              <select
+                className="form-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter products by status"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="all">All</option>
               </select>
             </div>
           </div>

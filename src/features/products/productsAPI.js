@@ -135,6 +135,8 @@ export const fetchProductsRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
+  if (params.includeInactive) queryParams.append('include_inactive', 'true');
+  if (params.status) queryParams.append('status', String(params.status));
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;
@@ -187,6 +189,8 @@ export const fetchProductActiveRequest = async (params = {}) => {
   if (params.limit) queryParams.append('limit', params.limit);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
+  if (params.includeInactive) queryParams.append('include_inactive', 'true');
+  if (params.status) queryParams.append('status', String(params.status));
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;

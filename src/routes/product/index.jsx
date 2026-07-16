@@ -196,6 +196,7 @@ const Product = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -214,12 +215,26 @@ const Product = () => {
     };
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
+    if (statusFilter === 'all') {
+      params.includeInactive = true;
+    } else if (statusFilter === 'inactive') {
+      params.includeInactive = true;
+      params.status = 'inactive';
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
     return params;
-  }, [pagination.page, pagination.limit, searchTerm, categoryFilter, sort.sortBy, sort.sortOrder]);
+  }, [
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    categoryFilter,
+    statusFilter,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,6 +269,14 @@ const Product = () => {
   const handleCategoryFilterChange = useCallback(
     (e) => {
       setCategoryFilter(e.target.value);
+      dispatch(setPage(1));
+    },
+    [dispatch]
+  );
+
+  const handleStatusFilterChange = useCallback(
+    (e) => {
+      setStatusFilter(e.target.value);
       dispatch(setPage(1));
     },
     [dispatch]
@@ -535,6 +558,12 @@ const Product = () => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
+    if (statusFilter === 'all') {
+      params.includeInactive = true;
+    } else if (statusFilter === 'inactive') {
+      params.includeInactive = true;
+      params.status = 'inactive';
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -609,6 +638,18 @@ const Product = () => {
                           {categoryOptionLabel(cat)}
                         </option>
                       ))}
+                    </select>
+                    <select
+                      id="products-status-filter"
+                      className="form-select form-select-sm"
+                      style={{ maxWidth: '140px' }}
+                      value={statusFilter}
+                      onChange={handleStatusFilterChange}
+                      aria-label="Filter by status"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="all">All</option>
                     </select>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">

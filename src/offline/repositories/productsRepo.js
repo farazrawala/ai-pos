@@ -1,3 +1,4 @@
+import { isProductInactive } from '../../components/product/productVariationUtils.js';
 import { ensureOfflineDbOpen, offlineDb } from '../db.js';
 import { omitUndefined, pickRecordId } from '../utils/recordId.js';
 
@@ -106,14 +107,24 @@ function matchesCategoryFilter(product, categoryId) {
   return productCategory === String(categoryId).trim();
 }
 
+function matchesStatusFilter(product, status) {
+  const key = String(status ?? '').trim().toLowerCase();
+  if (!key || key === 'all') return true;
+  if (key === 'inactive') return isProductInactive(product);
+  if (key === 'active') return !isProductInactive(product);
+  return true;
+}
+
 /** Search cached products by text and Dexie indexes (sku, barcode, category_id). */
-export async function searchProducts({ query = '', categoryId } = {}) {
+export async function searchProducts({ query = '', categoryId, status } = {}) {
   await ensureOfflineDbOpen();
   const q = String(query ?? '').trim();
   const cat = categoryId ? String(categoryId).trim() : '';
 
   const baseRows = cat ? await getProductsByCategory(cat) : await getAllProducts();
-  if (!q) return baseRows;
+  const filterByStatus = (rows) => rows.filter((p) => matchesStatusFilter(p, status));
+
+  if (!q) return filterByStatus(baseRows);
 
   const matches = new Map();
 
@@ -133,7 +144,7 @@ export async function searchProducts({ query = '', categoryId } = {}) {
     }
   }
 
-  return Array.from(matches.values());
+  return filterByStatus(Array.from(matches.values()));
 }
 
 export async function lookupProductsForScan(query, categoryId) {

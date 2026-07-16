@@ -497,13 +497,16 @@ const BarcodePrint = () => {
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
   const [products, setProducts] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
-  const [selectedProductCache, setSelectedProductCache] = useState(null);
+  /** @type {[{ key: string, product: object, qty: number, overrideText: string }]} */
+  const [printItems, setPrintItems] = useState([]);
+  const [draftId, setDraftId] = useState('');
+  const [draftProductCache, setDraftProductCache] = useState(null);
+  const [draftQty, setDraftQty] = useState(1);
+  const [draftOverride, setDraftOverride] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const productSearchSeqRef = useRef(0);
-  const [bType, setBType] = useState('1');
-  const [labelCount, setLabelCount] = useState(1);
-  const [overrideText, setOverrideText] = useState('');
+  const printItemKeyRef = useRef(0);
+  const [bType, setBType] = useState('2');
 
   /** Sheet size on screen and in print (CSS `in`). ~160×50 mm ≈ 6.3×2.0 in. */
   const [sheetWidthIn, setSheetWidthIn] = useState(6.3);
@@ -618,7 +621,10 @@ const BarcodePrint = () => {
         };
 
         if (norm.bType !== undefined) applyStr(norm.bType, setBType);
-        if (norm.labelCount !== undefined) applyStr(norm.labelCount, setLabelCount);
+        if (norm.labelCount !== undefined) {
+          const n = Number(norm.labelCount);
+          if (Number.isFinite(n) && n >= 1) setDraftQty(Math.min(200, Math.max(1, Math.round(n))));
+        }
         if (norm.sheetWidthIn !== undefined) applyStr(norm.sheetWidthIn, setSheetWidthIn);
         applyBool(norm.sheetWidthAuto, setSheetWidthAuto);
         if (norm.sheetHeightMode === 'per-label' || norm.sheetHeightMode === 'auto' || norm.sheetHeightMode === 'fixed') {
@@ -672,17 +678,17 @@ const BarcodePrint = () => {
     };
   }, [companyId]);
 
-  const selectedProduct = useMemo(() => {
-    const fromList = products.find((p) => String(productId(p)) === String(selectedId));
+  const draftProduct = useMemo(() => {
+    const fromList = products.find((p) => String(productId(p)) === String(draftId));
     if (fromList) return fromList;
     if (
-      selectedProductCache &&
-      String(productId(selectedProductCache)) === String(selectedId)
+      draftProductCache &&
+      String(productId(draftProductCache)) === String(draftId)
     ) {
-      return selectedProductCache;
+      return draftProductCache;
     }
     return null;
-  }, [products, selectedId, selectedProductCache]);
+  }, [products, draftId, draftProductCache]);
 
   const productOptions = useMemo(() => {
     const map = new Map();
@@ -699,16 +705,17 @@ const BarcodePrint = () => {
       });
     };
     products.forEach(push);
-    push(selectedProductCache);
+    push(draftProductCache);
+    printItems.forEach((item) => push(item.product));
     return Array.from(map.values());
-  }, [products, selectedProductCache]);
+  }, [products, draftProductCache, printItems]);
 
-  const handleProductChange = useCallback(
+  const handleDraftProductChange = useCallback(
     (nextId) => {
-      setSelectedId(nextId);
+      setDraftId(nextId);
       const found =
         products.find((p) => String(productId(p)) === String(nextId)) || null;
-      setSelectedProductCache(found);
+      setDraftProductCache(found);
     },
     [products]
   );
@@ -717,11 +724,6 @@ const BarcodePrint = () => {
     const row = B_TYPES.find((t) => t.value === bType);
     return row?.format || 'CODE128';
   }, [bType]);
-
-  const { value: encodeValue, hint: encodeHint } = useMemo(
-    () => resolveEncodeValue(selectedProduct, format, overrideText.trim()),
-    [selectedProduct, format, overrideText]
-  );
 
   const lineSettings = useMemo(
     () => ({
@@ -732,15 +734,113 @@ const BarcodePrint = () => {
     [showProductName, showPrice, maxChars]
   );
 
-  const labelLines = useMemo(
+  const resolvedPrintItems = useMemo(
     () =>
-      selectedProduct
-        ? buildLabelLines(selectedProduct, lineSettings)
-        : [],
-    [selectedProduct, lineSettings]
+      printItems.map((item) => {
+        const resolved = resolveEncodeValue(
+          item.product,
+          format,
+          String(item.overrideText || '').trim()
+        );
+        return {
+          ...item,
+          encodeValue: resolved.value,
+          encodeHint: resolved.hint,
+          labelLines: buildLabelLines(item.product, lineSettings),
+        };
+      }),
+    [printItems, format, lineSettings]
   );
 
-  const totalLabels = Math.min(200, Math.max(1, Number(labelCount) || 1));
+  const labelSlots = useMemo(() => {
+    const slots = [];
+    for (const item of resolvedPrintItems) {
+      const qty = Math.max(1, Math.min(200, Number(item.qty) || 1));
+      for (let i = 0; i < qty; i += 1) {
+        if (slots.length >= 200) break;
+        slots.push({
+          key: `${item.key}-${i}`,
+          productId: String(productId(item.product) || item.key),
+          productName: productName(item.product),
+          encodeValue: item.encodeValue,
+          labelLines: item.labelLines,
+        });
+      }
+      if (slots.length >= 200) break;
+    }
+    return slots;
+  }, [resolvedPrintItems]);
+
+  const totalLabels = labelSlots.length;
+  const canPrint =
+    printItems.length > 0 &&
+    totalLabels > 0 &&
+    resolvedPrintItems.every((item) => Boolean(item.encodeValue));
+  const encodeHint = resolvedPrintItems.find((item) => item.encodeHint && !item.encodeValue)
+    ?.encodeHint;
+
+  const handleAddPrintItem = useCallback(() => {
+    if (!draftProduct) return;
+    const id = String(productId(draftProduct) || '').trim();
+    if (!id) return;
+    const addQty = Math.max(1, Math.min(200, Number(draftQty) || 1));
+    const override = String(draftOverride || '').trim();
+
+    setPrintItems((prev) => {
+      const used = prev.reduce((sum, it) => sum + Math.max(1, Number(it.qty) || 1), 0);
+      const remaining = Math.max(0, 200 - used);
+      if (remaining <= 0) return prev;
+
+      const existingIdx = prev.findIndex(
+        (it) =>
+          String(productId(it.product)) === id &&
+          String(it.overrideText || '').trim() === override
+      );
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        const current = next[existingIdx];
+        const currentQty = Math.max(1, Number(current.qty) || 1);
+        const bump = Math.min(addQty, remaining);
+        next[existingIdx] = { ...current, qty: Math.min(200, currentQty + bump) };
+        return next;
+      }
+
+      const qty = Math.min(addQty, remaining);
+      printItemKeyRef.current += 1;
+      return [
+        ...prev,
+        {
+          key: `pi-${printItemKeyRef.current}`,
+          product: draftProduct,
+          qty,
+          overrideText: override,
+        },
+      ];
+    });
+
+    setDraftId('');
+    setDraftProductCache(null);
+    setDraftQty(1);
+    setDraftOverride('');
+  }, [draftProduct, draftQty, draftOverride]);
+
+  const handleUpdatePrintItemQty = useCallback((key, nextQty) => {
+    const qty = Math.max(1, Math.min(200, Number(nextQty) || 1));
+    setPrintItems((prev) => {
+      const without = prev.filter((it) => it.key !== key);
+      const usedElsewhere = without.reduce(
+        (sum, it) => sum + Math.max(1, Number(it.qty) || 1),
+        0
+      );
+      const capped = Math.min(qty, Math.max(1, 200 - usedElsewhere));
+      return prev.map((it) => (it.key === key ? { ...it, qty: capped } : it));
+    });
+  }, []);
+
+  const handleRemovePrintItem = useCallback((key) => {
+    setPrintItems((prev) => prev.filter((it) => it.key !== key));
+  }, []);
+
   const rows = Math.min(12, Math.max(1, Number(totalRows) || 1));
   const cols = Math.min(12, Math.max(1, Number(totalCols) || 1));
   const slotsPerSheet = rows * cols;
@@ -845,24 +945,28 @@ const BarcodePrint = () => {
             background: '#fff',
           }}
         >
-          {slotIndices.map((labelIdx) => (
-            <BarcodeLabelCell
-              key={`${sheetIdx}-${labelIdx}-${selectedId}-${format}-${encodeValue}-${showBarcodeNumber}`}
-              index={labelIdx}
-              encodeValue={encodeValue}
-              format={format}
-              barCodeWidthField={barCodeWidthField}
-              barCodeHeightField={barCodeHeightField}
-              fontSize={fontSize}
-              lines={labelLines}
-              labelWidthMm={lw}
-              labelHeightMm={lh}
-              showBarcodeNumber={showBarcodeNumber}
-              textMarginTopMm={textTopMargin}
-              barcodeMarginTopMm={barcodeTopMargin}
-              autoFitLabel={autoFitLabel}
-            />
-          ))}
+          {slotIndices.map((labelIdx) => {
+            const slot = labelSlots[labelIdx];
+            if (!slot) return null;
+            return (
+              <BarcodeLabelCell
+                key={`${sheetIdx}-${slot.key}-${format}-${slot.encodeValue}-${showBarcodeNumber}`}
+                index={labelIdx}
+                encodeValue={slot.encodeValue}
+                format={format}
+                barCodeWidthField={barCodeWidthField}
+                barCodeHeightField={barCodeHeightField}
+                fontSize={fontSize}
+                lines={slot.labelLines}
+                labelWidthMm={lw}
+                labelHeightMm={lh}
+                showBarcodeNumber={showBarcodeNumber}
+                textMarginTopMm={textTopMargin}
+                barcodeMarginTopMm={barcodeTopMargin}
+                autoFitLabel={autoFitLabel}
+              />
+            );
+          })}
         </div>
       );
     });
@@ -878,7 +982,7 @@ const BarcodePrint = () => {
     try {
       const payload = buildBarcodeSettingsPayload({
         bType,
-        labelCount: Number(labelCount) || 1,
+        labelCount: totalLabels > 0 ? totalLabels : Math.max(1, Number(draftQty) || 1),
         sheetWidthIn: Number(sheetWidthIn) || 6.3,
         sheetWidthAuto,
         sheetHeightMode,
@@ -916,12 +1020,12 @@ const BarcodePrint = () => {
   };
 
   const handlePrint = () => {
-    if (!selectedProduct || !encodeValue) return;
+    if (!canPrint) return;
     window.print();
   };
 
   const handlePrintPage = () => {
-    if (!selectedProduct || !encodeValue) return;
+    if (!canPrint) return;
     const root = document.getElementById('barcode-print-sheets-root');
     if (!root) return;
 
@@ -972,15 +1076,22 @@ const BarcodePrint = () => {
   };
 
   const handleDownloadPdf = async () => {
-    if (!selectedProduct || !encodeValue || pdfExporting) return;
+    if (!canPrint || pdfExporting) return;
     setPdfError('');
     setPdfExporting(true);
     try {
+      const fileLabel =
+        printItems.length === 1
+          ? productName(printItems[0].product)
+          : printItems.length > 1
+            ? `barcodes-${printItems.length}-products`
+            : 'barcodes';
       await downloadBarcodeLabelsPdf({
-        encodeValue,
+        labels: labelSlots.map((slot) => ({
+          encodeValue: slot.encodeValue,
+          labelLines: slot.labelLines,
+        })),
         format,
-        labelLines,
-        totalLabels,
         cols,
         rows,
         sheetHeightMode,
@@ -1001,7 +1112,7 @@ const BarcodePrint = () => {
         barCodeHeightField,
         fontSize,
         showBarcodeNumber,
-        productName: productName(selectedProduct),
+        productName: fileLabel,
       });
     } catch (e) {
       setPdfError(e?.message || 'Could not create PDF');
@@ -1058,22 +1169,22 @@ const BarcodePrint = () => {
               <div className="row g-4 align-items-start">
                 <div className="col-lg-7 barcode-print-settings-col">
                   <section className="barcode-print-section">
-                    <h6 className="barcode-print-section-title">Product</h6>
-                    <div className="row g-3">
-                      <div className="col-md-8">
+                    <h6 className="barcode-print-section-title">Products</h6>
+                    <div className="row g-3 align-items-end">
+                      <div className="col-md-6">
                         <label className="form-label">Product</label>
                         <SearchableSelect
                           options={productOptions}
-                          value={selectedId}
+                          value={draftId}
                           placeholder="Search and select product…"
                           disabled={false}
                           loading={listLoading}
                           filterLocally={false}
                           selectedLabel={
-                            selectedProduct ? productName(selectedProduct) : ''
+                            draftProduct ? productName(draftProduct) : ''
                           }
                           onQueryChange={setProductSearchQuery}
-                          onChange={handleProductChange}
+                          onChange={handleDraftProductChange}
                         />
                         {listLoading ? (
                           <span className="barcode-print-field-hint">Searching products…</span>
@@ -1083,7 +1194,18 @@ const BarcodePrint = () => {
                           </span>
                         )}
                       </div>
-                      <div className="col-md-4">
+                      <div className="col-6 col-md-2">
+                        <label className="form-label">Qty</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min={1}
+                          max={200}
+                          value={draftQty}
+                          onChange={(e) => setDraftQty(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-6 col-md-2">
                         <label className="form-label">Barcode type</label>
                         <select
                           className="form-select"
@@ -1098,29 +1220,88 @@ const BarcodePrint = () => {
                           ))}
                         </select>
                       </div>
-                      <div className="col-md-4">
-                        <label className="form-label">Total labels</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min={1}
-                          max={200}
-                          value={labelCount}
-                          onChange={(e) => setLabelCount(e.target.value)}
-                        />
-                        <span className="barcode-print-field-hint">Rows × columns below</span>
+                      <div className="col-md-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary w-100"
+                          onClick={handleAddPrintItem}
+                          disabled={!draftProduct || totalLabels >= 200}
+                        >
+                          Add
+                        </button>
                       </div>
-                      <div className="col-md-8">
+                      <div className="col-12">
                         <label className="form-label">Custom encode text (optional)</label>
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="Overrides barcode / SKU / product code when filled"
-                          value={overrideText}
-                          onChange={(e) => setOverrideText(e.target.value)}
+                          placeholder="Overrides barcode / SKU / product code for this product when filled"
+                          value={draftOverride}
+                          onChange={(e) => setDraftOverride(e.target.value)}
                         />
                       </div>
                     </div>
+
+                    {printItems.length > 0 ? (
+                      <div className="barcode-print-queue mt-3">
+                        <div className="barcode-print-queue-head">
+                          <span>Queued products</span>
+                          <span>
+                            {printItems.length} product{printItems.length !== 1 ? 's' : ''} ·{' '}
+                            {totalLabels} label{totalLabels !== 1 ? 's' : ''}
+                            {totalLabels >= 200 ? ' (max 200)' : ''}
+                          </span>
+                        </div>
+                        <ul className="barcode-print-queue-list">
+                          {resolvedPrintItems.map((item) => (
+                            <li key={item.key} className="barcode-print-queue-item">
+                              <div className="barcode-print-queue-name">
+                                <span className="barcode-print-queue-title">
+                                  {productName(item.product)}
+                                </span>
+                                {item.overrideText ? (
+                                  <span className="barcode-print-field-hint">
+                                    Custom: {item.overrideText}
+                                  </span>
+                                ) : null}
+                                {!item.encodeValue && item.encodeHint ? (
+                                  <span className="text-danger small d-block">{item.encodeHint}</span>
+                                ) : null}
+                              </div>
+                              <div className="barcode-print-queue-controls">
+                                <label className="visually-hidden" htmlFor={`bp-qty-${item.key}`}>
+                                  Quantity for {productName(item.product)}
+                                </label>
+                                <input
+                                  id={`bp-qty-${item.key}`}
+                                  type="number"
+                                  className="form-control form-control-sm barcode-print-queue-qty"
+                                  min={1}
+                                  max={200}
+                                  value={item.qty}
+                                  onChange={(e) =>
+                                    handleUpdatePrintItemQty(item.key, e.target.value)
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={() => handleRemovePrintItem(item.key)}
+                                  title="Remove product"
+                                  aria-label={`Remove ${productName(item.product)}`}
+                                >
+                                  <i className="fas fa-times" aria-hidden="true" />
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="barcode-print-field-hint mt-3 mb-0">
+                        Add one or more products with quantities to print multiple barcodes.
+                      </p>
+                    )}
                   </section>
 
                   <section className="barcode-print-section">
@@ -1439,7 +1620,7 @@ const BarcodePrint = () => {
                     </div>
                   </section>
 
-                  {encodeHint && selectedProduct ? (
+                  {encodeHint && printItems.length > 0 ? (
                     <div className="alert alert-info py-2 mb-3 barcode-print-hint-card" role="status">
                       {encodeHint}
                     </div>
@@ -1456,7 +1637,7 @@ const BarcodePrint = () => {
                       type="button"
                       className="btn btn-success"
                       onClick={handlePrint}
-                      disabled={!selectedProduct || !encodeValue}
+                      disabled={!canPrint}
                     >
                       <i className="fas fa-print me-2" aria-hidden="true"></i>
                       Print
@@ -1465,7 +1646,7 @@ const BarcodePrint = () => {
                       type="button"
                       className="btn btn-outline-success"
                       onClick={handlePrintPage}
-                      disabled={!selectedProduct || !encodeValue}
+                      disabled={!canPrint}
                       title="Opens a print dialog using only the label sheets (no sidebar)"
                     >
                       <i className="fas fa-file-alt me-2" aria-hidden="true"></i>
@@ -1475,7 +1656,7 @@ const BarcodePrint = () => {
                       type="button"
                       className="btn btn-outline-primary"
                       onClick={handleDownloadPdf}
-                      disabled={!selectedProduct || !encodeValue || pdfExporting}
+                      disabled={!canPrint || pdfExporting}
                       title="Download label sheets as a PDF file"
                     >
                       {pdfExporting ? (
@@ -1525,11 +1706,13 @@ const BarcodePrint = () => {
                     <div className="barcode-print-preview-header">
                       <h6 className="mb-0">Live preview</h6>
                       <p className="text-xs text-muted mb-0">
-                        Updates when you change product, size, or layout settings
+                        Updates when you change products, size, or layout settings
                       </p>
-                      {selectedProduct ? (
+                      {printItems.length > 0 ? (
                         <div className="barcode-print-preview-meta">
-                          <span className="barcode-print-preview-chip">{productName(selectedProduct)}</span>
+                          <span className="barcode-print-preview-chip">
+                            {printItems.length} product{printItems.length !== 1 ? 's' : ''}
+                          </span>
                           <span className="barcode-print-preview-chip">{formatLabel}</span>
                           <span className="barcode-print-preview-chip">
                             {lw}×{lh} mm
@@ -1550,7 +1733,7 @@ const BarcodePrint = () => {
                             {sheetHeightMode === 'per-label'
                               ? '1 label / page'
                               : sheetHeightMode === 'auto'
-                                ? `${Math.ceil(totalLabels / cols)}×${cols} grid`
+                                ? `${Math.ceil(Math.max(1, totalLabels) / cols)}×${cols} grid`
                                 : `${rows}×${cols} grid`}
                           </span>
                           <span className="barcode-print-preview-chip">
@@ -1560,18 +1743,22 @@ const BarcodePrint = () => {
                       ) : null}
                     </div>
                     <div className="barcode-print-preview-viewport">
-                      {!selectedProduct ? (
+                      {printItems.length === 0 ? (
                         <div className="barcode-print-preview-empty">
                           <div className="barcode-print-preview-empty-icon">
                             <i className="fas fa-barcode" aria-hidden="true" />
                           </div>
-                          <p className="text-sm font-weight-bold text-dark mb-1">No product selected</p>
-                          <p className="text-xs mb-0">Choose a product to preview barcode labels here.</p>
+                          <p className="text-sm font-weight-bold text-dark mb-1">No products added</p>
+                          <p className="text-xs mb-0">
+                            Add products with quantities to preview barcode labels here.
+                          </p>
                         </div>
-                      ) : !encodeValue ? (
+                      ) : !canPrint ? (
                         <div className="barcode-print-preview-empty">
                           <p className="text-sm font-weight-bold text-dark mb-1">Cannot encode barcode</p>
-                          <p className="text-xs mb-0">{encodeHint || 'Check product codes or use custom encode text.'}</p>
+                          <p className="text-xs mb-0">
+                            {encodeHint || 'Check product codes or use custom encode text.'}
+                          </p>
                         </div>
                       ) : (
                         <div
@@ -1597,7 +1784,7 @@ const BarcodePrint = () => {
 
             <div className="barcode-print-print-area d-none">
               <div id="barcode-print-sheets-root">
-                {selectedProduct && encodeValue ? renderLabelSheets(sheetChunks) : null}
+                {canPrint ? renderLabelSheets(sheetChunks) : null}
               </div>
             </div>
           </div>
