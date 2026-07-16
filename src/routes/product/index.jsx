@@ -143,7 +143,9 @@ const PRODUCT_COLUMNS = [
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
-const productIsActive = (item) => item?.status === 'active' || item?.isActive || item?.status === 1;
+/** Product.status enum: "active" | "inactive" (default "active"). */
+const productIsActive = (item) =>
+  String(item?.status ?? '').trim().toLowerCase() === 'active';
 
 const collectVariationIds = (product) => {
   if (!product || typeof product !== 'object') return [];
