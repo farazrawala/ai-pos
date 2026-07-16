@@ -164,6 +164,23 @@ const isVariableProduct = (product) => {
   return collectVariationIds(product).length > 0;
 };
 
+/** Child SKU from a variable product (flat POS list rows). */
+const isVariationChildProduct = (product) => Boolean(parentProductIdFromRecord(product));
+
+/**
+ * Type filter for flat `get-all-active-pos` rows:
+ * - single: standalone products only (not variable parents, not children)
+ * - variant: variable parents and their child variation rows
+ */
+const matchesProductTypeFilter = (product, typeFilter) => {
+  if (!typeFilter || typeFilter === 'all') return true;
+  const isChild = isVariationChildProduct(product);
+  const isVariable = isVariableProduct(product);
+  if (typeFilter === 'variant') return isVariable || isChild;
+  if (typeFilter === 'single') return !isVariable && !isChild;
+  return true;
+};
+
 const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
 
 const categoryOptionLabel = (c) => {
@@ -222,11 +239,8 @@ const Product = () => {
       params.includeInactive = true;
       params.status = 'inactive';
     }
-    if (typeFilter === 'single') {
-      params.productType = 'Single';
-    } else if (typeFilter === 'variant') {
-      params.productType = 'Variable';
-    }
+    // Type filter is applied client-side: POS list marks child variants as
+    // product_type "Single", so product_type=Variable would hide them.
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -238,7 +252,6 @@ const Product = () => {
     searchTerm,
     categoryFilter,
     statusFilter,
-    typeFilter,
     sort.sortBy,
     sort.sortOrder,
   ]);
@@ -328,14 +341,12 @@ const Product = () => {
 
   const filteredData = useMemo(() => {
     const rows = Array.isArray(data) ? data : [];
-    if (statusFilter === 'inactive') {
-      return rows.filter((item) => !productIsActive(item));
-    }
-    if (statusFilter === 'active') {
-      return rows.filter((item) => productIsActive(item));
-    }
-    return rows;
-  }, [data, statusFilter]);
+    return rows.filter((item) => {
+      if (statusFilter === 'inactive' && productIsActive(item)) return false;
+      if (statusFilter === 'active' && !productIsActive(item)) return false;
+      return matchesProductTypeFilter(item, typeFilter);
+    });
+  }, [data, statusFilter, typeFilter]);
 
   // Handle sort change
   const handleSort = (column, isDoubleClick = false) => {
@@ -590,11 +601,6 @@ const Product = () => {
       params.includeInactive = true;
       params.status = 'inactive';
     }
-    if (typeFilter === 'single') {
-      params.productType = 'Single';
-    } else if (typeFilter === 'variant') {
-      params.productType = 'Variable';
-    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -606,11 +612,16 @@ const Product = () => {
     setExporting(true);
     try {
       const records = await fetchAllProductsForExportRequest(buildExportParams());
-      if (!records.length) {
+      const filtered = records.filter((item) => {
+        if (statusFilter === 'inactive' && productIsActive(item)) return false;
+        if (statusFilter === 'active' && !productIsActive(item)) return false;
+        return matchesProductTypeFilter(item, typeFilter);
+      });
+      if (!filtered.length) {
         toast.info('No products to export.');
         return;
       }
-      const mapped = mapProductsToExportRows(records);
+      const mapped = mapProductsToExportRows(filtered);
       const stamp = moment().format('YYYY-MM-DD-HHmm');
       const filename = `products-with-stock-${stamp}`;
       if (format === 'csv') {
