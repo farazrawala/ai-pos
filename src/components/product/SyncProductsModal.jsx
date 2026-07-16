@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { createBulkSyncProductProcessRequest } from '../../features/process/processAPI.js';
+import { parentProductIdFromRecord } from './productVariationUtils.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -66,7 +67,10 @@ export default function SyncProductsModal({ open, onClose, onSaved }) {
 
     try {
       const productsResult = await fetchProductsRequest({ page: 1, limit: 5000 });
-      const productIds = (productsResult?.data || []).map(productIdFromRecord).filter(Boolean);
+      const productIds = (productsResult?.data || [])
+        .filter((product) => !parentProductIdFromRecord(product))
+        .map(productIdFromRecord)
+        .filter(Boolean);
 
       if (productIds.length === 0) {
         setSaveStatus('failed');
