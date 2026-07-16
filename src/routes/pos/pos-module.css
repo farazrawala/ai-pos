@@ -610,6 +610,18 @@
   font-weight: 600;
 }
 
+.pos-page .pos-cart-order-toggle {
+  flex-shrink: 0;
+}
+
+.pos-page .pos-cart-order-toggle .btn {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  line-height: 1.35;
+}
+
 .pos-page .pos-footer-actions .btn-pay {
   background: var(--pos-success);
   border-color: var(--pos-success);

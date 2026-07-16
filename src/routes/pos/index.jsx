@@ -80,6 +80,32 @@ import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
 const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
+const POS_CART_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
+const POS_CART_ORDER_FIFO = 'fifo';
+const POS_CART_ORDER_LIFO = 'lifo';
+
+/** Load cart FIFO/LIFO preference from localStorage cache. */
+function readStoredCartDisplayOrder() {
+  if (typeof window === 'undefined') return POS_CART_ORDER_FIFO;
+  try {
+    const value = window.localStorage.getItem(POS_CART_ORDER_STORAGE_KEY);
+    if (value === POS_CART_ORDER_LIFO || value === POS_CART_ORDER_FIFO) return value;
+  } catch {
+    /* ignore */
+  }
+  return POS_CART_ORDER_FIFO;
+}
+
+/** Persist cart FIFO/LIFO preference to localStorage cache. */
+function persistCartDisplayOrder(order) {
+  if (typeof window === 'undefined') return;
+  if (order !== POS_CART_ORDER_FIFO && order !== POS_CART_ORDER_LIFO) return;
+  try {
+    window.localStorage.setItem(POS_CART_ORDER_STORAGE_KEY, order);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 function defaultDraftLabel(total = 0) {
   const amount = Number(total);
@@ -658,6 +684,9 @@ const Pos = () => {
   const [extraDiscountPercent, setExtraDiscountPercent] = useState('');
   const discountEditSourceRef = useRef(null);
   const [cartLines, setCartLines] = useState([]);
+  const [cartDisplayOrder, setCartDisplayOrder] = useState(readStoredCartDisplayOrder);
+  const cartDisplayOrderRef = useRef(cartDisplayOrder);
+  cartDisplayOrderRef.current = cartDisplayOrder;
   const [activeDraftId, setActiveDraftId] = useState(null);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDeletingId, setDraftDeletingId] = useState(null);
@@ -985,28 +1014,37 @@ const Pos = () => {
           };
           return next;
         }
-        return [
-          ...prev,
-          {
-            productId,
-            name,
-            unitPrice,
-            quantity: '1',
-            availableStock,
-            category_id:
-              String(
-                product.category_id ??
-                  product.categoryId ??
-                  product.category?._id ??
-                  product.category?.id ??
-                  ''
-              ).trim() || undefined,
-          },
-        ];
+        const newLine = {
+          productId,
+          name,
+          unitPrice,
+          quantity: '1',
+          availableStock,
+          category_id:
+            String(
+              product.category_id ??
+                product.categoryId ??
+                product.category?._id ??
+                product.category?.id ??
+                ''
+            ).trim() || undefined,
+        };
+        // FIFO: oldest first (append). LIFO: newest first (prepend).
+        return cartDisplayOrder === POS_CART_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine];
       });
     },
-    [defaultWarehouseId, allowAddWhenStockInsufficient]
+    [defaultWarehouseId, allowAddWhenStockInsufficient, cartDisplayOrder]
   );
+
+  const setCartOrderMode = useCallback((nextOrder) => {
+    if (nextOrder !== POS_CART_ORDER_FIFO && nextOrder !== POS_CART_ORDER_LIFO) return;
+    if (cartDisplayOrderRef.current === nextOrder) return;
+
+    cartDisplayOrderRef.current = nextOrder;
+    setCartDisplayOrder(nextOrder);
+    setCartLines((lines) => (lines.length > 1 ? [...lines].reverse() : lines));
+    persistCartDisplayOrder(nextOrder);
+  }, []);
 
   const bumpCartQty = useCallback(
     (productId, delta) => {
@@ -1979,6 +2017,38 @@ const Pos = () => {
 
               <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
                 <div className="pos-section-label mb-0">Cart</div>
+                <div
+                  className="btn-group btn-group-sm pos-cart-order-toggle"
+                  role="group"
+                  aria-label="Cart display order"
+                >
+                  <button
+                    type="button"
+                    className={`btn ${
+                      cartDisplayOrder === POS_CART_ORDER_FIFO
+                        ? 'btn-primary'
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setCartOrderMode(POS_CART_ORDER_FIFO)}
+                    title="First in, first out — oldest products at the top"
+                    aria-pressed={cartDisplayOrder === POS_CART_ORDER_FIFO}
+                  >
+                    FIFO
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      cartDisplayOrder === POS_CART_ORDER_LIFO
+                        ? 'btn-primary'
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setCartOrderMode(POS_CART_ORDER_LIFO)}
+                    title="Last in, first out — newest products at the top"
+                    aria-pressed={cartDisplayOrder === POS_CART_ORDER_LIFO}
+                  >
+                    LIFO
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-secondary pos-drafts-btn"
