@@ -47,6 +47,14 @@ const buildApiErrorMessage = (errorData, status) => {
   return `HTTP error! status: ${status}`;
 };
 
+/** Active-only POS list vs full catalog when inactive rows are needed. */
+const resolveProductsListPath = (params = {}) => {
+  const status = String(params.status ?? '').trim().toLowerCase();
+  const needsInactive =
+    Boolean(params.includeInactive) || status === 'inactive' || status === 'all';
+  return needsInactive ? 'product/get-all' : 'product/get-all-active-pos';
+};
+
 /** Shared shape: `{ data, total, page, limit, totalPages }` */
 const normalizeProductsListResponse = (result, params = {}) => {
   if (result.pagination && typeof result.pagination === 'object') {
@@ -137,9 +145,11 @@ export const fetchProductsRequest = async (params = {}) => {
   if (categoryId) queryParams.append('category_id', String(categoryId));
   if (params.includeInactive) queryParams.append('include_inactive', 'true');
   if (params.status) queryParams.append('status', String(params.status));
+  const productType = params.product_type ?? params.productType;
+  if (productType) queryParams.append('product_type', String(productType));
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${resolveProductsListPath(params)}${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',
@@ -159,6 +169,7 @@ export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode'
 
 /**
  * POS / search: `GET product/get-all-active-pos?search=...&searchFields=product_name,product_code,sku,barcode`
+ * When inactive rows are requested, switches to `product/get-all`.
  */
 export const fetchProductActiveRequest = async (params = {}) => {
   const token = getAuthToken();
@@ -191,9 +202,11 @@ export const fetchProductActiveRequest = async (params = {}) => {
   if (categoryId) queryParams.append('category_id', String(categoryId));
   if (params.includeInactive) queryParams.append('include_inactive', 'true');
   if (params.status) queryParams.append('status', String(params.status));
+  const productType = params.product_type ?? params.productType;
+  if (productType) queryParams.append('product_type', String(productType));
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}product/get-all-active-pos${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${resolveProductsListPath(params)}${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
     method: 'GET',

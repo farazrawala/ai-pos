@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -197,6 +197,7 @@ const Product = () => {
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -221,6 +222,11 @@ const Product = () => {
       params.includeInactive = true;
       params.status = 'inactive';
     }
+    if (typeFilter === 'single') {
+      params.productType = 'Single';
+    } else if (typeFilter === 'variant') {
+      params.productType = 'Variable';
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -232,6 +238,7 @@ const Product = () => {
     searchTerm,
     categoryFilter,
     statusFilter,
+    typeFilter,
     sort.sortBy,
     sort.sortOrder,
   ]);
@@ -282,6 +289,14 @@ const Product = () => {
     [dispatch]
   );
 
+  const handleTypeFilterChange = useCallback(
+    (e) => {
+      setTypeFilter(e.target.value);
+      dispatch(setPage(1));
+    },
+    [dispatch]
+  );
+
   // Handle search input with debounce
   const handleSearchChange = useCallback(
     (e) => {
@@ -310,6 +325,17 @@ const Product = () => {
   const handleLimitChange = (limit) => {
     dispatch(setLimit(limit));
   };
+
+  const filteredData = useMemo(() => {
+    const rows = Array.isArray(data) ? data : [];
+    if (statusFilter === 'inactive') {
+      return rows.filter((item) => !productIsActive(item));
+    }
+    if (statusFilter === 'active') {
+      return rows.filter((item) => productIsActive(item));
+    }
+    return rows;
+  }, [data, statusFilter]);
 
   // Handle sort change
   const handleSort = (column, isDoubleClick = false) => {
@@ -564,6 +590,11 @@ const Product = () => {
       params.includeInactive = true;
       params.status = 'inactive';
     }
+    if (typeFilter === 'single') {
+      params.productType = 'Single';
+    } else if (typeFilter === 'variant') {
+      params.productType = 'Variable';
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -650,6 +681,18 @@ const Product = () => {
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                       <option value="all">All</option>
+                    </select>
+                    <select
+                      id="products-type-filter"
+                      className="form-select form-select-sm"
+                      style={{ maxWidth: '140px' }}
+                      value={typeFilter}
+                      onChange={handleTypeFilterChange}
+                      aria-label="Filter by product type"
+                    >
+                      <option value="all">All</option>
+                      <option value="single">Single</option>
+                      <option value="variant">Variant</option>
                     </select>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
@@ -777,14 +820,14 @@ const Product = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.length === 0 ? (
+                    {filteredData.length === 0 ? (
                       <tr>
                         <td colSpan={visibleCount} className="text-center py-5 text-muted">
                           No products found. Try adjusting your search.
                         </td>
                       </tr>
                     ) : (
-                      data.map((item, index) => {
+                      filteredData.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
