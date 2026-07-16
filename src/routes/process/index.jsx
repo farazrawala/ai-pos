@@ -19,6 +19,7 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
 
 const processIdFromRecord = (item) => item?._id || item?.id || item?.process_id || '';
@@ -205,7 +206,8 @@ const ProcessIndex = () => {
     setExecuteError(null);
 
     try {
-      await restartProcessRequest(processId);
+      const result = await restartProcessRequest(processId);
+      toast.success(result?.message || 'Process restarted successfully.');
       refreshProcesses();
     } catch (err) {
       setExecuteError(err?.message || 'Failed to restart process');
