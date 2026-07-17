@@ -82,22 +82,16 @@ export const showToast = ({
   timeEl.className = 'text-body ms-2';
   timeEl.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-  const closeEl = document.createElement('i');
-  closeEl.className = 'fas fa-times text-md ms-3 cursor-pointer';
+  const closeEl = document.createElement('button');
+  closeEl.type = 'button';
+  closeEl.className = 'btn-close ms-2';
   closeEl.setAttribute('data-bs-dismiss', 'toast');
-  closeEl.setAttribute('role', 'button');
   closeEl.setAttribute('aria-label', 'Close');
-  closeEl.setAttribute('tabindex', '0');
+  closeEl.title = 'Close';
   closeEl.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     dismissToast();
-  });
-  closeEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      dismissToast();
-    }
   });
 
   header.appendChild(icon);
