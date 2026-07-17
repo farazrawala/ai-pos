@@ -1,5 +1,10 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { fetchOrdersRequest, deleteOrderRequest, pickOrderDocumentId } from './ordersAPI.js';
+import {
+  fetchOrdersRequest,
+  fetchDeletedOrdersRequest,
+  deleteOrderRequest,
+  pickOrderDocumentId,
+} from './ordersAPI.js';
 
 export const fetchOrders = createAsyncThunk(
   'orders/fetchOrders',
@@ -8,6 +13,17 @@ export const fetchOrders = createAsyncThunk(
       return await fetchOrdersRequest(params);
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch orders');
+    }
+  }
+);
+
+export const fetchDeletedOrders = createAsyncThunk(
+  'orders/fetchDeletedOrders',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await fetchDeletedOrdersRequest(params);
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch deleted orders');
     }
   }
 );
@@ -83,24 +99,36 @@ const ordersSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    const applyListFulfilled = (state, action) => {
+      state.status = 'succeeded';
+      state.list = action.payload.data || [];
+      state.pagination = {
+        page: action.payload.page || state.pagination.page,
+        limit: action.payload.limit || state.pagination.limit,
+        total: action.payload.total || 0,
+        totalPages: action.payload.totalPages || 0,
+      };
+    };
+
     builder
       .addCase(fetchOrders.pending, (state) => {
         state.status = 'loading';
         state.error = null;
       })
-      .addCase(fetchOrders.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.list = action.payload.data || [];
-        state.pagination = {
-          page: action.payload.page || state.pagination.page,
-          limit: action.payload.limit || state.pagination.limit,
-          total: action.payload.total || 0,
-          totalPages: action.payload.totalPages || 0,
-        };
-      })
+      .addCase(fetchOrders.fulfilled, applyListFulfilled)
       .addCase(fetchOrders.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload || action.error.message || 'Failed to fetch orders';
+        state.list = [];
+      })
+      .addCase(fetchDeletedOrders.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchDeletedOrders.fulfilled, applyListFulfilled)
+      .addCase(fetchDeletedOrders.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload || action.error.message || 'Failed to fetch deleted orders';
         state.list = [];
       })
       .addCase(deleteOrder.pending, (state) => {

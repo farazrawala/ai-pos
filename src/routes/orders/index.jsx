@@ -10,6 +10,8 @@ const ORDERS_PAGE_CONFIG = {
   showFetchSyncToolbar: false,
   showRowSyncButton: false,
   showIntegrationColumn: false,
+  showDeletedTab: true,
+  viewReadOnly: true,
 };
 
 const Orders = () => <OrdersListPage config={ORDERS_PAGE_CONFIG} />;

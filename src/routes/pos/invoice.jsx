@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
 import {
   fetchOrderForInvoiceRequest,
+  fetchDeletedOrderForInvoiceRequest,
   getOrderLineItems,
   updatePosOrderRequest,
 } from '../../features/orders/ordersAPI.js';
@@ -211,9 +212,43 @@ const normalizeOrderStatus = (value) => {
   return ORDER_STATUS_OPTIONS.includes(s) ? s : DEFAULT_ORDER_STATUS;
 };
 
+const orderSnapshotMatchesId = (row, invoiceId) => {
+  if (!row || typeof row !== 'object' || !invoiceId) return false;
+  const id = String(invoiceId).trim();
+  const candidates = [
+    row._id,
+    row.id,
+    row.order_id,
+    row.orderId,
+    row.order_no,
+    row.orderNo,
+  ]
+    .map((v) => (v != null ? String(v).trim() : ''))
+    .filter(Boolean);
+  return candidates.includes(id);
+};
+
 const PosInvoice = () => {
   const { invoiceId: invoiceIdParam } = useParams();
+  const location = useLocation();
   const invoiceId = invoiceIdParam ? decodeURIComponent(invoiceIdParam) : '';
+  const searchParams = new URLSearchParams(location.search || '');
+  const locationState =
+    location.state && typeof location.state === 'object' ? location.state : null;
+  const isDeletedOrderView =
+    searchParams.get('deleted') === '1' ||
+    searchParams.get('deleted') === 'true' ||
+    Boolean(locationState?.deleted);
+  const isReadOnlyView =
+    searchParams.get('readonly') === '1' ||
+    searchParams.get('readonly') === 'true' ||
+    searchParams.get('view') === '1' ||
+    Boolean(locationState?.readonly) ||
+    isDeletedOrderView;
+  const orderSnapshot =
+    locationState?.orderRow && typeof locationState.orderRow === 'object'
+      ? locationState.orderRow
+      : null;
   const authCompany = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
   const authUser = useSelector(selectAuthUser);
@@ -448,8 +483,41 @@ const PosInvoice = () => {
     (async () => {
       const requestedId = invoiceId;
       try {
-        const order = await fetchOrderForInvoiceRequest(requestedId);
+        let order = null;
+        let lastError = null;
+
+        if (isDeletedOrderView) {
+          try {
+            order = await fetchDeletedOrderForInvoiceRequest(requestedId);
+          } catch (e) {
+            lastError = e;
+          }
+        } else {
+          try {
+            order = await fetchOrderForInvoiceRequest(requestedId);
+          } catch (e) {
+            lastError = e;
+            // Soft-deleted orders may still be opened with ?readonly=1 from history.
+            try {
+              order = await fetchDeletedOrderForInvoiceRequest(requestedId);
+              lastError = null;
+            } catch {
+              /* keep original error */
+            }
+          }
+        }
+
+        if (!order && orderSnapshot && orderSnapshotMatchesId(orderSnapshot, requestedId)) {
+          order = orderSnapshot;
+          lastError = null;
+        }
+
         if (cancelled) return;
+
+        if (!order) {
+          throw lastError || new Error('Failed to load invoice');
+        }
+
         setSourceOrder(order);
         setView(mapOrderToInvoiceView(order, { origin: window.location.origin }));
         setFetchStatus('succeeded');
@@ -465,7 +533,7 @@ const PosInvoice = () => {
     return () => {
       cancelled = true;
     };
-  }, [invoiceId]);
+  }, [invoiceId, isDeletedOrderView, orderSnapshot]);
 
   const data = (() => {
     const base = view || {
@@ -639,7 +707,9 @@ const PosInvoice = () => {
   ]);
 
   const canUpdateInvoice =
-    Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
+    !isReadOnlyView &&
+    Boolean(sourceOrder) &&
+    (sourceOrder._id != null || sourceOrder.id != null);
 
   const customerOptions = useMemo(() => {
     const walkIn = { value: '', label: 'Walk in (no customer)' };
@@ -1322,6 +1392,11 @@ const PosInvoice = () => {
                     {canUpdateInvoice ? (
                       <span className={`badge text-xxs ${poStatusBadgeClass(invoiceOrderStatus)}`}>
                         {statusLabel}
+                      </span>
+                    ) : sourceOrder ? (
+                      <span className={`badge text-xxs ${poStatusBadgeClass(invoiceOrderStatus)}`}>
+                        {statusLabel}
+                        {isDeletedOrderView || isReadOnlyView ? ' · View only' : ''}
                       </span>
                     ) : null}
                     {printerSettings.show_gross_amount ? (

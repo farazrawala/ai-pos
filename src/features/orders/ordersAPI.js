@@ -167,6 +167,9 @@ const SALES_BY_CATEGORY_PATH = 'order/sales-by-category';
 
 /** Paginated order list (no id in path). Single-order invoice uses `ORDER_BY_ORDER_NO_PATH`. */
 const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
+/** Soft-deleted orders list. */
+export const DELETED_ORDER_BY_ORDER_ITEM_PATH = 'orders/get-deleted-order-by-order-item';
+const DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH = 'order/get-deleted-order-by-order-item';
 /** OMS / online-channel orders (Woo, Shopify, etc.). */
 export const ONLINE_ORDER_BY_ORDER_ITEM_PATH = 'order/get-online-order-by-order-item';
 const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
@@ -1010,8 +1013,7 @@ const normalizeOrdersPayload = (result) => {
   return [];
 };
 
-export async function fetchOrdersRequest(params = {}) {
-  const { listPath = DEFAULT_ORDER_LIST_PATH, ...listParams } = params;
+function buildOrderListQueryParams(listParams = {}) {
   const queryParams = new URLSearchParams();
   if (listParams.page && listParams.limit) {
     const skip = (listParams.page - 1) * listParams.limit;
@@ -1023,17 +1025,10 @@ export async function fetchOrdersRequest(params = {}) {
   if (listParams.endDate) queryParams.append('endDate', String(listParams.endDate));
   if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
   if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
+  return queryParams;
+}
 
-  const queryString = queryParams.toString();
-  const path = String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '');
-  const url = `${BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
-  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
-  }
-
-  const result = await response.json();
+function parseOrderListResult(result, listParams = {}) {
   if (result.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
     const data = normalizeOrdersPayload(result);
@@ -1060,6 +1055,45 @@ export async function fetchOrdersRequest(params = {}) {
   };
 }
 
+export async function fetchOrdersRequest(params = {}) {
+  const { listPath = DEFAULT_ORDER_LIST_PATH, ...listParams } = params;
+  const queryParams = buildOrderListQueryParams(listParams);
+  const queryString = queryParams.toString();
+  const path = String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '');
+  const url = `${BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  return parseOrderListResult(result, listParams);
+}
+
+/**
+ * GET /orders/get-deleted-order-by-order-item (fallback: /order/get-deleted-order-by-order-item)
+ */
+export async function fetchDeletedOrdersRequest(params = {}) {
+  const { listPath: _ignored, ...listParams } = params;
+  const queryString = buildOrderListQueryParams(listParams).toString();
+  const primaryUrl = `${BASE_URL}${DELETED_ORDER_BY_ORDER_ITEM_PATH}${queryString ? `?${queryString}` : ''}`;
+  const fallbackUrl = `${BASE_URL}${DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH}${queryString ? `?${queryString}` : ''}`;
+
+  let response = await fetch(primaryUrl, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (response.status === 404) {
+    response = await fetch(fallbackUrl, { method: 'GET', headers: getHeaders({ json: false }) });
+  }
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  return parseOrderListResult(result, listParams);
+}
+
 /** Fetch every page matching filters (for CSV / Excel / PDF export). */
 export async function fetchAllOrdersForExportRequest(params = {}) {
   const limit = 500;
@@ -1067,9 +1101,14 @@ export async function fetchAllOrdersForExportRequest(params = {}) {
   let allData = [];
   let totalPages = 1;
   const { page: _p, limit: _l, ...baseParams } = params;
+  const isDeletedList =
+    Boolean(baseParams.deleted) ||
+    String(baseParams.listPath || '') === DELETED_ORDER_BY_ORDER_ITEM_PATH ||
+    String(baseParams.listPath || '') === DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH;
+  const fetchPage = isDeletedList ? fetchDeletedOrdersRequest : fetchOrdersRequest;
 
   while (page <= totalPages) {
-    const result = await fetchOrdersRequest({ ...baseParams, page, limit });
+    const result = await fetchPage({ ...baseParams, page, limit });
     const batch = Array.isArray(result.data) ? result.data : [];
     allData = allData.concat(batch);
     totalPages = Math.max(result.totalPages || 1, 1);
@@ -1176,14 +1215,20 @@ export function extractOrderFromApiJson(result) {
 /**
  * Load one order for the POS invoice screen.
  * GET `order/get-order-by-order-no/:id` — `id` is order `_id` or order number.
+ * Pass `{ deleted: true }` to include soft-deleted orders (`?deleted=1`).
  */
-export async function fetchOrderForInvoiceRequest(slug) {
+export async function fetchOrderForInvoiceRequest(slug, options = {}) {
   const id = decodeURIComponent(String(slug || '').trim());
   if (!id) {
     throw new Error('Missing order reference');
   }
 
-  const url = `${BASE_URL}${ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}`;
+  const query = new URLSearchParams();
+  if (options.deleted) {
+    query.set('deleted', '1');
+  }
+  const qs = query.toString();
+  const url = `${BASE_URL}${ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}${qs ? `?${qs}` : ''}`;
   const response = await fetch(url, {
     method: 'GET',
     headers: getHeaders({ json: false }),
@@ -1211,6 +1256,47 @@ export async function fetchOrderForInvoiceRequest(slug) {
       ? ` (top-level keys: ${Object.keys(result).join(', ')})`
       : '';
   throw new Error(`Invalid order response format${hint}`);
+}
+
+function orderMatchesInvoiceSlug(order, slug) {
+  const id = String(slug || '').trim();
+  if (!id || !order) return false;
+  const candidates = [
+    pickOrderDocumentId(order),
+    pickInvoiceRouteId(order),
+    pickOrderInvoiceNo(order),
+    order._id,
+    order.id,
+    order.order_id,
+    order.orderId,
+  ]
+    .map((v) => (v != null ? String(v).trim() : ''))
+    .filter(Boolean);
+  return candidates.includes(id);
+}
+
+/**
+ * Load a soft-deleted order for the invoice screen.
+ * Tries get-order-by-order-no?deleted=1, then searches the deleted orders list.
+ */
+export async function fetchDeletedOrderForInvoiceRequest(slug) {
+  const id = decodeURIComponent(String(slug || '').trim());
+  if (!id) {
+    throw new Error('Missing order reference');
+  }
+
+  try {
+    return await fetchOrderForInvoiceRequest(id, { deleted: true });
+  } catch {
+    /* fall through — some APIs only expose deleted rows via the deleted list */
+  }
+
+  const listed = await fetchDeletedOrdersRequest({ search: id, page: 1, limit: 100 });
+  const rows = Array.isArray(listed?.data) ? listed.data : [];
+  const match = rows.find((row) => orderMatchesInvoiceSlug(row, id));
+  if (match) return match;
+
+  throw new Error('Deleted order not found');
 }
 
 const PUBLIC_ORDER_BY_ORDER_NO_PATH = 'order/public-get-order-by-order-no';

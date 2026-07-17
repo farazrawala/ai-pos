@@ -30,6 +30,7 @@ import {
 } from 'react-icons/fa6';
 import {
   fetchOrders,
+  fetchDeletedOrders,
   deleteOrder,
   setSearch,
   setDateFilters,
@@ -44,6 +45,7 @@ import {
   pickOrderDocumentId,
   getNoOfItemsDisplay,
   fetchAllOrdersForExportRequest,
+  DELETED_ORDER_BY_ORDER_ITEM_PATH,
 } from '../../features/orders/ordersAPI.js';
 import {
   ORDER_DETAIL_EXPORT_COLUMNS,
@@ -367,6 +369,8 @@ const statusBadgeClass = (status) => {
  *     showRowSyncButton?: boolean,
  *     showIntegrationColumn?: boolean,
  *     showTrackingColumn?: boolean,
+ *     showDeletedTab?: boolean,
+ *     viewReadOnly?: boolean,
  *     listPath?: string,
  *   },
  * }} props
@@ -384,6 +388,8 @@ export default function OrdersListPage({ config }) {
     showRowSyncButton = false,
     showIntegrationColumn = false,
     showTrackingColumn = false,
+    showDeletedTab = false,
+    viewReadOnly = false,
     topSummaryName = '',
     topTiles = null,
     listPath,
@@ -425,7 +431,10 @@ export default function OrdersListPage({ config }) {
   const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
+  const [showDeleted, setShowDeleted] = useState(false);
   const searchTimeoutRef = useRef(null);
+  const isDeletedView = Boolean(showDeletedTab && showDeleted);
+  const canViewOrder = canEdit || isDeletedView || viewReadOnly;
 
   const orderColumns = useMemo(() => {
     let cols = ORDER_COLUMNS;
@@ -451,7 +460,11 @@ export default function OrdersListPage({ config }) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    dispatch(fetchOrders(params));
+    if (isDeletedView) {
+      dispatch(fetchDeletedOrders(params));
+    } else {
+      dispatch(fetchOrders(params));
+    }
   }, [
     dispatch,
     listPath,
@@ -462,7 +475,14 @@ export default function OrdersListPage({ config }) {
     filters.endDate,
     sort.sortBy,
     sort.sortOrder,
+    isDeletedView,
   ]);
+
+  const handleDeletedTabChange = (nextDeleted) => {
+    if (Boolean(nextDeleted) === isDeletedView) return;
+    setShowDeleted(Boolean(nextDeleted));
+    dispatch(setPage(1));
+  };
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -521,7 +541,11 @@ export default function OrdersListPage({ config }) {
 
   const buildExportParams = () => {
     const params = {};
-    if (listPath) params.listPath = listPath;
+    if (isDeletedView) {
+      params.listPath = DELETED_ORDER_BY_ORDER_ITEM_PATH;
+    } else if (listPath) {
+      params.listPath = listPath;
+    }
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
@@ -601,7 +625,19 @@ export default function OrdersListPage({ config }) {
         return;
       }
 
-      navigate(posInvoiceRoutePath(invoiceId));
+      const path = posInvoiceRoutePath(invoiceId);
+      const readOnly = viewReadOnly || isDeletedView;
+      const query = new URLSearchParams();
+      if (readOnly) query.set('readonly', '1');
+      if (isDeletedView) query.set('deleted', '1');
+      const qs = query.toString();
+      navigate(qs ? `${path}?${qs}` : path, {
+        state: {
+          readonly: readOnly,
+          deleted: isDeletedView,
+          orderRow: row,
+        },
+      });
     } catch (err) {
       console.error(`[${logLabel}] open invoice failed`, err);
       window.alert(err?.message || 'Failed to load order for this line.');
@@ -679,7 +715,11 @@ export default function OrdersListPage({ config }) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    dispatch(fetchOrders(params));
+    if (isDeletedView) {
+      dispatch(fetchDeletedOrders(params));
+    } else {
+      dispatch(fetchOrders(params));
+    }
   }, [
     dispatch,
     listPath,
@@ -690,6 +730,7 @@ export default function OrdersListPage({ config }) {
     filters.endDate,
     sort.sortBy,
     sort.sortOrder,
+    isDeletedView,
   ]);
 
   const handleOpenShipmentModal = (orderId, orderNo) => {
@@ -869,11 +910,31 @@ export default function OrdersListPage({ config }) {
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
                 <div className="col-lg-4 col-md-5">
-                  <h5 className="mb-1">{pageTitle}</h5>
+                  <h5 className="mb-1">{isDeletedView ? 'Deleted Orders' : pageTitle}</h5>
                   {pageSubtitle ? (
                     <p className="text-sm text-muted mb-0">{pageSubtitle}</p>
                   ) : DEBUG ? (
                     <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
+                  ) : null}
+                  {showDeletedTab ? (
+                    <div className="btn-group btn-group-sm mt-2" role="group" aria-label="Orders list tabs">
+                      <button
+                        type="button"
+                        className={`btn mb-0 ${!isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => handleDeletedTabChange(false)}
+                        aria-pressed={!isDeletedView}
+                      >
+                        Orders
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn mb-0 ${isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => handleDeletedTabChange(true)}
+                        aria-pressed={isDeletedView}
+                      >
+                        Deleted Orders
+                      </button>
+                    </div>
                   ) : null}
                 </div>
                 <div className="col-lg-8 col-md-7">
@@ -1091,7 +1152,9 @@ export default function OrdersListPage({ config }) {
                     {data.length === 0 ? (
                       <tr>
                         <td colSpan={visibleCount} className="text-center py-5 text-muted">
-                          No orders found. Try adjusting your search or date range.
+                          {isDeletedView
+                            ? 'No deleted orders found. Try adjusting your search or date range.'
+                            : 'No orders found. Try adjusting your search or date range.'}
                         </td>
                       </tr>
                     ) : (
@@ -1128,7 +1191,7 @@ export default function OrdersListPage({ config }) {
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
                             <td className="text-sm font-weight-bold text-dark">
-                              {canEdit && orderNo !== '—' ? (
+                              {canViewOrder && orderNo !== '—' ? (
                                 <button
                                   type="button"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none"
@@ -1274,7 +1337,7 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
-                                {showRowSyncButton ? (
+                                {showRowSyncButton && !isDeletedView ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-secondary mb-0 px-2"
@@ -1294,7 +1357,7 @@ export default function OrdersListPage({ config }) {
                                     )}
                                   </button>
                                 ) : null}
-                                {canEdit ? (
+                                {canViewOrder ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-primary mb-0"
@@ -1304,7 +1367,7 @@ export default function OrdersListPage({ config }) {
                                     {isRowLoading ? 'Opening…' : 'View'}
                                   </button>
                                 ) : null}
-                                {canDelete ? (
+                                {canDelete && !isDeletedView ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-danger mb-0"
