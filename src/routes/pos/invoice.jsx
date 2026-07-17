@@ -15,6 +15,7 @@ import {
   shopName,
   formatInvoiceMoney,
 } from '../../features/orders/invoiceViewMapper.js';
+import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   fetchUsersListRequest,
@@ -226,6 +227,24 @@ const orderSnapshotMatchesId = (row, invoiceId) => {
     .map((v) => (v != null ? String(v).trim() : ''))
     .filter(Boolean);
   return candidates.includes(id);
+};
+
+/** Ensure deleted / sparse order payloads still get a shareable public invoice URL. */
+const ensureInvoicePublicShare = (mapped, order, invoiceId, origin) => {
+  const base = mapped && typeof mapped === 'object' ? mapped : {};
+  if (String(base.publicUrl || '').trim()) return base;
+
+  const token =
+    pickPublicInvoiceToken(order) ||
+    String(base.publicToken || '').trim() ||
+    String(invoiceId || '').trim();
+  if (!token) return base;
+
+  return {
+    ...base,
+    publicToken: token,
+    publicUrl: buildPublicInvoiceUrl(token, origin),
+  };
 };
 
 const PosInvoice = () => {
@@ -519,7 +538,14 @@ const PosInvoice = () => {
         }
 
         setSourceOrder(order);
-        setView(mapOrderToInvoiceView(order, { origin: window.location.origin }));
+        setView(
+          ensureInvoicePublicShare(
+            mapOrderToInvoiceView(order, { origin: window.location.origin }),
+            order,
+            requestedId,
+            window.location.origin
+          )
+        );
         setFetchStatus('succeeded');
       } catch (e) {
         if (cancelled) return;
@@ -553,6 +579,20 @@ const PosInvoice = () => {
         : DEMO_INVOICE.authorizedPerson;
     return { ...base, lines, termsBody, billTo, summary, authorizedPerson };
   })();
+
+  const sharePublicUrl = useMemo(() => {
+    const fromView = String(data?.publicUrl || '').trim();
+    if (fromView) return fromView;
+    const token =
+      pickPublicInvoiceToken(sourceOrder) ||
+      String(data?.publicToken || '').trim() ||
+      String(invoiceId || '').trim();
+    if (!token) return '';
+    return buildPublicInvoiceUrl(
+      token,
+      typeof window !== 'undefined' ? window.location.origin : ''
+    );
+  }, [data?.publicUrl, data?.publicToken, sourceOrder, invoiceId]);
 
   const paymentMethodDisplay = useMemo(
     () => resolvePaymentMethodLabel(sourceOrder, paymentMethods, invoicePosPayMethod),
@@ -1215,7 +1255,7 @@ const PosInvoice = () => {
         terms: data.terms,
         note: data.note,
         termsBody: data.termsBody,
-        publicUrl: data.publicUrl,
+        publicUrl: sharePublicUrl,
         billTo: billToDisplay,
         lines: printLines,
         summary: summaryDisplay,
@@ -1241,10 +1281,11 @@ const PosInvoice = () => {
     paymentMethodDisplay,
     sourceOrder,
     billCurrentUserName,
+    sharePublicUrl,
   ]);
 
   const handleShareWhatsApp = useCallback(() => {
-    const publicUrl = String(data?.publicUrl || '').trim();
+    const publicUrl = String(sharePublicUrl || '').trim();
     if (!publicUrl) {
       toast.error('Public invoice link is not available yet.');
       return;
@@ -1274,7 +1315,7 @@ const PosInvoice = () => {
     }
 
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [data, billToDisplay, companyBrand, grossDisplay]);
+  }, [sharePublicUrl, data, billToDisplay, companyBrand, grossDisplay]);
 
   const handleThermalPrint = useCallback(async () => {
     if (!view) return;
@@ -1309,7 +1350,7 @@ const PosInvoice = () => {
         summary: summaryDisplay,
         grossAmount: grossDisplay,
         terms: data.terms,
-        publicUrl: data.publicUrl,
+        publicUrl: sharePublicUrl,
         currentUserName: billCurrentUserName,
         cashier: billCurrentUserName,
       },
@@ -1335,6 +1376,7 @@ const PosInvoice = () => {
     grossDisplay,
     sourceOrder,
     billCurrentUserName,
+    sharePublicUrl,
   ]);
 
   if (fetchStatus === 'loading') {
@@ -1428,9 +1470,9 @@ const PosInvoice = () => {
                       type="button"
                       className="btn btn-sm btn-success"
                       onClick={handleShareWhatsApp}
-                      disabled={!data?.publicUrl}
+                      disabled={!sharePublicUrl}
                       title={
-                        data?.publicUrl
+                        sharePublicUrl
                           ? 'Share invoice link on client WhatsApp'
                           : 'Public invoice link unavailable'
                       }
@@ -2062,7 +2104,7 @@ const PosInvoice = () => {
               <div className="pos-inv-section pos-inv-footer-meta">
                 {printerSettings.show_qrcode ? (
                   <div className="mb-4 d-flex flex-column align-items-center text-center">
-                    <InvoiceQrCode value={data.publicUrl} size={96} />
+                    <InvoiceQrCode value={sharePublicUrl} size={96} />
                     <small className="text-muted mt-2">Scan invoice QR code</small>
                   </div>
                 ) : null}
@@ -2074,7 +2116,7 @@ const PosInvoice = () => {
                     </li>
                   ))}
                 </ol>
-                {data.publicUrl ? (
+                {sharePublicUrl ? (
                   <>
                     <div className="pos-inv-section-title mt-3">Public access</div>
                     <div className="d-flex flex-wrap gap-2 align-items-center pos-inv-no-print">
@@ -2082,7 +2124,7 @@ const PosInvoice = () => {
                         type="text"
                         className="form-control form-control-sm pos-inv-public-url flex-grow-1"
                         readOnly
-                        value={data.publicUrl}
+                        value={sharePublicUrl}
                       />
                       <button
                         type="button"

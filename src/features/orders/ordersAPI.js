@@ -1407,47 +1407,64 @@ async function enrichPublicInvoiceOrder(order) {
 /**
  * Load one order for the public invoice page (no auth).
  * GET `order/public-get-order-by-order-no/:id`
+ * Retries with `deleted=1` so soft-deleted invoices remain shareable.
  */
-export async function fetchPublicInvoiceRequest(token) {
+export async function fetchPublicInvoiceRequest(token, options = {}) {
   const id = decodeURIComponent(String(token || '').trim());
   if (!id) {
     throw new Error('Missing invoice reference');
   }
 
-  const query = new URLSearchParams({
-    populate: 'company_id,created_by',
-  });
-  const url = `${BASE_URL}${PUBLIC_ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}?${query}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-  });
+  const tryFetch = async (deleted) => {
+    const query = new URLSearchParams({
+      populate: 'company_id,created_by',
+    });
+    if (deleted || options.deleted) {
+      query.set('deleted', '1');
+    }
+    const url = `${BASE_URL}${PUBLIC_ORDER_BY_ORDER_NO_PATH}/${encodeURIComponent(id)}?${query}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
 
-  if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
-  }
+    if (!response.ok) {
+      throw new Error(await getErrorMessageFromResponse(response));
+    }
 
-  const result = await response.json().catch(() => ({}));
-  if (result && result.success === false) {
-    const msg =
-      typeof result.message === 'string' && result.message.trim() !== ''
-        ? result.message
-        : 'Could not load invoice';
-    throw new Error(msg);
-  }
+    const result = await response.json().catch(() => ({}));
+    if (result && result.success === false) {
+      const msg =
+        typeof result.message === 'string' && result.message.trim() !== ''
+          ? result.message
+          : 'Could not load invoice';
+      throw new Error(msg);
+    }
 
-  let order = extractOrderFromApiJson(result);
-  if (!order) {
-    throw new Error('Invalid invoice response format');
-  }
+    let order = extractOrderFromApiJson(result);
+    if (!order) {
+      throw new Error('Invalid invoice response format');
+    }
 
-  order = await enrichPublicInvoiceOrder(order);
+    order = await enrichPublicInvoiceOrder(order);
 
-  return {
-    order,
-    company: extractCompanyFromPublicInvoiceJson(result, order),
+    return {
+      order,
+      company: extractCompanyFromPublicInvoiceJson(result, order),
+    };
   };
+
+  try {
+    return await tryFetch(Boolean(options.deleted));
+  } catch (firstError) {
+    if (options.deleted) throw firstError;
+    try {
+      return await tryFetch(true);
+    } catch {
+      throw firstError;
+    }
+  }
 }
 
 /**

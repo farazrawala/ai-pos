@@ -12,8 +12,17 @@ export function pickPublicInvoiceToken(order) {
     order.publicToken,
     order.share_token,
     order.shareToken,
+    // Prefer parent order id when the row is a flattened order-item line.
+    order.order_id && typeof order.order_id === 'object'
+      ? (order.order_id._id ?? order.order_id.id)
+      : order.order_id,
+    order.orderId && typeof order.orderId === 'object'
+      ? (order.orderId._id ?? order.orderId.id)
+      : order.orderId,
     order._id,
     order.id,
+    order.order_no,
+    order.orderNo,
   ];
   for (const value of candidates) {
     if (value != null && String(value).trim() !== '') {
