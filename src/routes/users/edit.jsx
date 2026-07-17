@@ -257,6 +257,19 @@ const EditUser = () => {
     }));
   };
 
+  const setModulePermissions = (moduleName, granted) => {
+    setForm((prev) => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [moduleName]: PERMISSION_ACTIONS.reduce((actions, action) => {
+          actions[action] = granted;
+          return actions;
+        }, {}),
+      },
+    }));
+  };
+
   const setAllPermissions = (granted) => {
     setForm((prev) => ({
       ...prev,
@@ -606,6 +619,7 @@ const EditUser = () => {
                   <thead>
                     <tr>
                       <th>Module</th>
+                      <th>All</th>
                       {PERMISSION_ACTIONS.map((action) => (
                         <th key={action}>{action}</th>
                       ))}
@@ -616,6 +630,20 @@ const EditUser = () => {
                       <tr key={moduleName}>
                         <td>
                           <span className="user-perm-module">{moduleName}</span>
+                        </td>
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            checked={PERMISSION_ACTIONS.every((action) =>
+                              Boolean(form.permissions[moduleName]?.[action])
+                            )}
+                            onChange={(e) =>
+                              setModulePermissions(moduleName, e.target.checked)
+                            }
+                            disabled={isSubmitting}
+                            aria-label={`${moduleName} all permissions`}
+                          />
                         </td>
                         {PERMISSION_ACTIONS.map((action) => (
                           <td key={`${moduleName}-${action}`}>
