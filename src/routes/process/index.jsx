@@ -12,6 +12,7 @@ import {
   executeProcessRequest,
   stopProcessRequest,
   restartProcessRequest,
+  deleteProcessRequest,
 } from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -160,6 +161,7 @@ const ProcessIndex = () => {
   const [executingProcessId, setExecutingProcessId] = useState(null);
   const [stoppingProcessId, setStoppingProcessId] = useState(null);
   const [restartingProcessId, setRestartingProcessId] = useState(null);
+  const [deletingProcessId, setDeletingProcessId] = useState(null);
   const [executeError, setExecuteError] = useState(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('processes', PROCESS_COLUMNS);
@@ -231,6 +233,31 @@ const ProcessIndex = () => {
       console.error('[Process module] Failed to stop process', { processId, error: err });
     } finally {
       setStoppingProcessId(null);
+    }
+  };
+
+  const handleDeleteProcess = async (processId, actionLabel = '') => {
+    if (!processId) return;
+
+    const label = actionLabel || shortId(processId);
+    if (!window.confirm(`Delete process "${label}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingProcessId(processId);
+    setExecuteError(null);
+
+    try {
+      const result = await deleteProcessRequest(processId);
+      toast.success(result?.message || 'Process deleted successfully.');
+      refreshProcesses();
+    } catch (err) {
+      const message = err?.message || 'Failed to delete process';
+      setExecuteError(message);
+      toast.error(message);
+      console.error('[Process module] Failed to delete process', { processId, error: err });
+    } finally {
+      setDeletingProcessId(null);
     }
   };
 
@@ -444,7 +471,7 @@ const ProcessIndex = () => {
                               </td>
                             ) : null}
                             <td>
-                              <div className="d-flex gap-2">
+                              <div className="d-flex flex-wrap gap-2">
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-primary mb-0"
@@ -453,7 +480,8 @@ const ProcessIndex = () => {
                                     !id ||
                                     executingProcessId === id ||
                                     stoppingProcessId === id ||
-                                    restartingProcessId === id
+                                    restartingProcessId === id ||
+                                    deletingProcessId === id
                                   }
                                 >
                                   {executingProcessId === id ? (
@@ -477,7 +505,8 @@ const ProcessIndex = () => {
                                     !id ||
                                     restartingProcessId === id ||
                                     executingProcessId === id ||
-                                    stoppingProcessId === id
+                                    stoppingProcessId === id ||
+                                    deletingProcessId === id
                                   }
                                   title="Restart failed or completed process"
                                 >
@@ -503,7 +532,8 @@ const ProcessIndex = () => {
                                     !isActive ||
                                     stoppingProcessId === id ||
                                     executingProcessId === id ||
-                                    restartingProcessId === id
+                                    restartingProcessId === id ||
+                                    deletingProcessId === id
                                   }
                                   title={isActive ? 'Set status to inactive' : 'Already inactive'}
                                 >
@@ -518,6 +548,34 @@ const ProcessIndex = () => {
                                     </>
                                   ) : (
                                     'Stop'
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger mb-0"
+                                  onClick={() =>
+                                    handleDeleteProcess(id, formatAction(item.action))
+                                  }
+                                  disabled={
+                                    !id ||
+                                    deletingProcessId === id ||
+                                    executingProcessId === id ||
+                                    stoppingProcessId === id ||
+                                    restartingProcessId === id
+                                  }
+                                  title="Delete process"
+                                >
+                                  {deletingProcessId === id ? (
+                                    <>
+                                      <span
+                                        className="spinner-border spinner-border-sm me-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                      Deleting…
+                                    </>
+                                  ) : (
+                                    'Delete'
                                   )}
                                 </button>
                               </div>

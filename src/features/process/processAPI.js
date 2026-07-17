@@ -309,6 +309,46 @@ export const stopProcessRequest = async (processId) =>
   updateProcessRequest(processId, { status: 'inactive' });
 
 /**
+ * Soft-delete a process.
+ * DELETE /process/delete/:id
+ */
+export const deleteProcessRequest = async (processId) => {
+  const id = String(processId || '').trim();
+  if (!id) throw new Error('Process id is required');
+
+  const url = `${BASE_URL}process/delete/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+  } catch (err) {
+    logProcessModuleError('deleteProcessRequest network error', { url, processId: id, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('deleteProcessRequest failed', {
+      status: response.status,
+      processId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/**
  * Restart failed/completed processes (bulk).
  * POST /process/restart-process
  */
