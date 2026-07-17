@@ -79,16 +79,32 @@ export function buildApiUrl(pathAndQuery = '') {
   return path ? `${base}/${path}` : base;
 }
 
-/** Full browser URL for dev help text (relative `/api/...` → resolved API base). */
+/** Full browser URL for dev help text (relative `/api/...` → absolute URL with origin). */
 export function formatDisplayApiUrl(url) {
   if (!url) return '';
   const s = String(url);
-  if (/^https?:\/\//i.test(s)) return s;
-  const path = s.startsWith('/') ? s.slice(1) : s;
-  if (path.startsWith('api/')) {
-    return buildApiUrl(path.slice(4));
+  let built;
+  if (/^https?:\/\//i.test(s)) {
+    built = s;
+  } else {
+    const path = s.startsWith('/') ? s.slice(1) : s;
+    if (path.startsWith('api/')) {
+      built = buildApiUrl(path.slice(4));
+    } else {
+      built = buildApiUrl(path);
+    }
   }
-  return buildApiUrl(path);
+  if (/^https?:\/\//i.test(built)) return built;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const path = built.startsWith('/') ? built : `/${built}`;
+    return `${window.location.origin}${path}`;
+  }
+  const proxyTarget = readEnv('VITE_API_PROXY_TARGET', '');
+  if (proxyTarget && /^https?:\/\//i.test(proxyTarget)) {
+    const path = built.startsWith('/') ? built : `/${built}`;
+    return `${trimTrailingSlashes(proxyTarget)}${path}`;
+  }
+  return built;
 }
 
 /**

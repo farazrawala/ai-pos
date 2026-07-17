@@ -39,6 +39,7 @@ export const PERMISSION_MODULE_KEYS = [
 
   'expenses',
   'transactions',
+  'whatsapp-messages',
   'logs',
 ];
 
@@ -83,6 +84,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/payment-receipts': 'payment-receipts',
   '/expenses': 'expenses',
   '/transactions': 'transactions',
+  '/whatsapp-messages': 'whatsapp-messages',
   '/logs': 'logs',
   '/company-cache': null,
   '/company-queues': null,

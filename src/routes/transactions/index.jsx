@@ -95,7 +95,11 @@ const Transactions = () => {
   };
 
   const handleDeletedToggle = () => {
-    setShowDeleted((prev) => !prev);
+    setShowDeleted((prev) => {
+      const next = !prev;
+      if (next) setViewMode('journal');
+      return next;
+    });
     dispatch(setPage(1));
   };
 
@@ -237,7 +241,7 @@ const Transactions = () => {
             <div className="card-header">
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
-                  <h5 className="mb-0">Transactions</h5>
+                  <h5 className="mb-0">{isDeletedView ? 'Deleted Transactions' : 'Transactions'}</h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
                       {isDeletedView ? (

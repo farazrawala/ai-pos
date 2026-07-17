@@ -35,6 +35,7 @@ import {
   FaArrowRotateLeft,
   FaUser,
   FaCircleUser,
+  FaWhatsapp,
 } from 'react-icons/fa6';
 
 /**
@@ -77,6 +78,7 @@ export const NAV_ITEMS = [
   { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
+  { to: '/whatsapp-messages', label: 'WhatsApp messages', icon: FaWhatsapp },
   { to: '/logs', label: 'Logs', icon: FaClipboardList },
   { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane },
   { to: '/test-case', label: 'Test case runner', icon: FaFlask },
