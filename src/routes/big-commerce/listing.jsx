@@ -274,6 +274,9 @@ export default function BigCommerceListingPage() {
                             {company.location ? (
                               <p className="bc-company-card-meta mb-0">{company.location}</p>
                             ) : null}
+                            {company.phone ? (
+                              <p className="bc-company-card-meta mb-0">{company.phone}</p>
+                            ) : null}
                           </div>
                         </div>
 

@@ -251,17 +251,22 @@ function normalizeCompaniesListResponse(result, params = {}) {
   if (result?.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
     const data = result.data || result.companies || [];
-    const total = pagination.total || 0;
+    const total = Number(pagination.total) || 0;
+    const apiLimit = Number(pagination.limit);
+    // API may return `limit: null` — fall back to the requested page size.
+    const effectiveLimit =
+      Number.isFinite(apiLimit) && apiLimit > 0 ? apiLimit : limit;
+    const skip = Number(pagination.skip);
     const pageFromSkip =
-      pagination.limit > 0 && pagination.skip != null
-        ? Math.floor(pagination.skip / pagination.limit) + 1
+      Number.isFinite(skip) && skip >= 0
+        ? Math.floor(skip / effectiveLimit) + 1
         : page;
     return {
       data: Array.isArray(data) ? data : [],
       total,
       page: pageFromSkip,
-      limit: pagination.limit || limit,
-      totalPages: pagination.limit > 0 ? Math.ceil(total / pagination.limit) : 0,
+      limit: effectiveLimit,
+      totalPages: effectiveLimit > 0 ? Math.ceil(total / effectiveLimit) : total > 0 ? 1 : 0,
     };
   }
 
@@ -272,54 +277,44 @@ function normalizeCompaniesListResponse(result, params = {}) {
       : Array.isArray(result)
         ? result
         : [];
-  const total = result?.total ?? data.length;
+  const total = Number(result?.total) || data.length;
   return {
     data,
     total,
     page: result?.page || page,
-    limit: result?.limit || limit,
-    totalPages: Math.ceil(total / (result?.limit || limit)) || 0,
+    limit: Number(result?.limit) > 0 ? Number(result.limit) : limit,
+    totalPages: Math.ceil(total / limit) || 0,
   };
 }
 
 /**
  * List companies for Big Commerce directory.
- * Prefers marketplace endpoint; falls back to dynamic company CRUD lists.
+ * GET `company/get-all-for-listing?limit=20&skip=0`
  */
 export async function fetchMarketplaceCompaniesRequest(params = {}) {
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 20);
+  const skip = (page - 1) * limit;
+
   const queryParams = new URLSearchParams();
-  queryParams.set('skip', String((page - 1) * limit));
   queryParams.set('limit', String(limit));
+  queryParams.set('skip', String(skip));
   if (params.search) queryParams.set('search', String(params.search).trim());
   if (params.sortBy) queryParams.set('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
-  const candidates = [
-    `company/marketplace${queryParams.toString() ? `?${queryParams}` : ''}`,
-    `bigcommerce/companies${queryParams.toString() ? `?${queryParams}` : ''}`,
-    `company/get-all-active${queryParams.toString() ? `?${queryParams}` : ''}`,
-    `company/get-all${queryParams.toString() ? `?${queryParams}` : ''}`,
-  ];
+  const url = `${BASE_URL}company/get-all-for-listing?${queryParams.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
 
-  let lastError = null;
-  for (const path of candidates) {
-    const url = `${BASE_URL}${path}`;
-    try {
-      const response = await fetch(url, { method: 'GET', headers: getHeaders() });
-      if (!response.ok) {
-        lastError = new Error(`HTTP ${response.status}`);
-        continue;
-      }
-      const result = await response.json();
-      return normalizeCompaniesListResponse(result, { page, limit });
-    } catch (err) {
-      lastError = err;
-    }
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || errorData.error || `Failed to load companies (${response.status})`
+    );
   }
 
-  throw lastError || new Error('Failed to load companies');
+  const result = await response.json();
+  return normalizeCompaniesListResponse(result, { page, limit });
 }
 
 /**

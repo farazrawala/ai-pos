@@ -334,6 +334,18 @@ export function sortProductsClientSide(products, sortKey) {
   return list;
 }
 
+export function parseBigcommerceSettings(raw) {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function normalizeCompanyProfile(company, stats = {}) {
   if (!company || typeof company !== 'object') {
     return {
@@ -342,6 +354,7 @@ export function normalizeCompanyProfile(company, stats = {}) {
       description: '',
       location: '',
       phone: '',
+      email: '',
       logoUrl: '',
       coverUrl: '',
       rating: null,
@@ -354,19 +367,13 @@ export function normalizeCompanyProfile(company, stats = {}) {
     };
   }
 
+  const settings = parseBigcommerceSettings(
+    company.bigcommerce_settings ?? company.bigcommerceSettings
+  );
+
   const coverRaw =
-    (() => {
-      const settings = company.bigcommerce_settings ?? company.bigcommerceSettings;
-      let parsed = settings;
-      if (typeof settings === 'string') {
-        try {
-          parsed = JSON.parse(settings);
-        } catch {
-          parsed = null;
-        }
-      }
-      return parsed?.banner || parsed?.bigcommerce_banner || '';
-    })() ||
+    settings?.banner ||
+    settings?.bigcommerce_banner ||
     company.bigcommerce_banner ||
     company.bigcommerceBanner ||
     company.company_cover ||
@@ -376,18 +383,21 @@ export function normalizeCompanyProfile(company, stats = {}) {
     company.company_banner ||
     '';
 
-  const logoFromSettings = (() => {
-    const settings = company.bigcommerce_settings ?? company.bigcommerceSettings;
-    let parsed = settings;
-    if (typeof settings === 'string') {
-      try {
-        parsed = JSON.parse(settings);
-      } catch {
-        parsed = null;
-      }
-    }
-    return parsed?.logo || parsed?.bigcommerce_logo || '';
-  })();
+  const logoFromSettings = settings?.logo || settings?.bigcommerce_logo || '';
+
+  const showStoreForListing =
+    settings && typeof settings === 'object'
+      ? settings.show_store_for_listing !== undefined
+        ? Boolean(settings.show_store_for_listing)
+        : settings.show_products !== undefined
+          ? Boolean(settings.show_products)
+          : true
+      : true;
+
+  const showStoreForRequest =
+    settings && typeof settings === 'object' && settings.show_store_for_request !== undefined
+      ? Boolean(settings.show_store_for_request)
+      : false;
 
   return {
     id: String(company._id ?? company.id ?? '').trim(),
@@ -401,6 +411,7 @@ export function normalizeCompanyProfile(company, stats = {}) {
     phone: String(
       company.company_phone ?? company.phone ?? company.contact_phone ?? company.mobile ?? ''
     ).trim(),
+    email: String(company.company_email ?? company.email ?? '').trim(),
     logoUrl: resolveCategoryMediaUrl(
       logoFromSettings ||
         company.bigcommerce_logo ||
@@ -412,34 +423,9 @@ export function normalizeCompanyProfile(company, stats = {}) {
         ''
     ),
     coverUrl: resolveCategoryMediaUrl(coverRaw),
-    ...(() => {
-      const settings = company.bigcommerce_settings ?? company.bigcommerceSettings;
-      let parsed = settings;
-      if (typeof settings === 'string') {
-        try {
-          parsed = JSON.parse(settings);
-        } catch {
-          parsed = null;
-        }
-      }
-      const showStoreForListing =
-        parsed && typeof parsed === 'object'
-          ? parsed.show_store_for_listing !== undefined
-            ? Boolean(parsed.show_store_for_listing)
-            : parsed.show_products !== undefined
-              ? Boolean(parsed.show_products)
-              : true
-          : true;
-      const showStoreForRequest =
-        parsed && typeof parsed === 'object' && parsed.show_store_for_request !== undefined
-          ? Boolean(parsed.show_store_for_request)
-          : false;
-      return {
-        showStoreForListing,
-        showProducts: showStoreForListing,
-        showStoreForRequest,
-      };
-    })(),
+    showStoreForListing,
+    showProducts: showStoreForListing,
+    showStoreForRequest,
     rating: (() => {
       const n = Number(company.rating ?? company.average_rating);
       return Number.isFinite(n) && n > 0 ? Math.min(5, n) : null;
