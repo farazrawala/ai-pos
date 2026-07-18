@@ -113,9 +113,26 @@ export const fetchMarketplaceProducts = createAsyncThunk(
 
 export const openMarketplaceProduct = createAsyncThunk(
   'bigCommerce/openProduct',
-  async (productId, { rejectWithValue }) => {
+  async (arg, { getState, rejectWithValue }) => {
     try {
-      const { product, variations } = await fetchMarketplaceProductDetailRequest(productId);
+      const productId =
+        typeof arg === 'object' && arg != null
+          ? String(arg.productId ?? arg.id ?? '').trim()
+          : String(arg || '').trim();
+      const seedFromArg =
+        typeof arg === 'object' && arg != null && arg.product && typeof arg.product === 'object'
+          ? arg.product
+          : null;
+
+      const list = getState()?.bigCommerce?.products;
+      const seedFromList = Array.isArray(list)
+        ? list.find((item) => productIdFromRecord(item) === productId) || null
+        : null;
+      const seed = seedFromArg || seedFromList;
+
+      const { product, variations } = await fetchMarketplaceProductDetailRequest(productId, {
+        seed,
+      });
       const cat = getProductCategory(product);
       const related = await fetchRelatedProductsRequest({
         categoryId: cat.id,

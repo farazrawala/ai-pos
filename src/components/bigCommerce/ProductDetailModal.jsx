@@ -48,6 +48,7 @@ export default function ProductDetailModal({
   const badges = getProductBadges(product);
   const specs = buildSpecs(product);
   const productType = String(product?.product_type ?? product?.productType ?? '').trim();
+  const isVariable = productType.toLowerCase() === 'variable';
 
   const variations = useMemo(() => {
     if (Array.isArray(variationsProp) && variationsProp.length > 0) return variationsProp;
@@ -210,64 +211,62 @@ export default function ProductDetailModal({
               </div>
             ) : null}
 
-            {variations.length > 0 ? (
+            {isVariable || variations.length > 0 ? (
               <div className="bc-detail-section">
                 <div className="bc-detail-section-head">
-                  <h4>Available variations</h4>
-                  <span className="bc-pill">{variations.length}</span>
+                  <h4>Variations</h4>
+                  {variations.length > 0 ? (
+                    <span className="bc-pill">{variations.length}</span>
+                  ) : null}
                 </div>
-                <div className="bc-variations-wrap">
-                  <table className="bc-variations-table">
-                    <thead>
-                      <tr>
-                        <th>Option</th>
-                        <th>SKU</th>
-                        <th>Barcode</th>
-                        <th>Price</th>
-                        <th>Stock</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {variations.map((variation, idx) => {
-                        const vStock = getProductStock(variation);
-                        const vPrice = getProductPrice(variation);
-                        const vSku = getProductSku(variation);
-                        const vBarcode = getProductBarcode(variation);
-                        return (
-                          <tr key={productIdFromRecord(variation) || `var-${idx}`}>
-                            <td>
-                              <span className="bc-variation-name">
-                                {getVariationLabel(variation, name)}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="bc-code">{vSku || '—'}</span>
-                            </td>
-                            <td>
-                              <span className="bc-code">{vBarcode || '—'}</span>
-                            </td>
-                            <td className="bc-variation-price">{formatMoney(vPrice)}</td>
-                            <td>
-                              <span
-                                className={`bc-stock-pill bc-stock-pill--sm ${
-                                  vStock === 0
-                                    ? 'is-out'
-                                    : vStock == null
-                                      ? 'is-unknown'
-                                      : vStock <= 5
-                                        ? 'is-low'
-                                        : 'is-in'
-                                }`}
-                              >
-                                {vStock == null ? '—' : vStock === 0 ? 'Out' : vStock}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {variations.length > 0 ? (
+                  <div className="bc-variations-wrap">
+                    <table className="bc-variations-table">
+                      <thead>
+                        <tr>
+                          <th>Variation</th>
+                          <th>Price</th>
+                          <th>Stock</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variations.map((variation, idx) => {
+                          const vStock = getProductStock(variation);
+                          const vPrice = getProductPrice(variation);
+                          return (
+                            <tr key={productIdFromRecord(variation) || `var-${idx}`}>
+                              <td>
+                                <span className="bc-variation-name">
+                                  {getVariationLabel(variation, name)}
+                                </span>
+                              </td>
+                              <td className="bc-variation-price">{formatMoney(vPrice)}</td>
+                              <td>
+                                <span
+                                  className={`bc-stock-pill bc-stock-pill--sm ${
+                                    vStock === 0
+                                      ? 'is-out'
+                                      : vStock == null
+                                        ? 'is-unknown'
+                                        : vStock <= 5
+                                          ? 'is-low'
+                                          : 'is-in'
+                                  }`}
+                                >
+                                  {vStock == null ? '—' : vStock === 0 ? 'Out' : vStock}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="bc-muted mb-0">
+                    {loading ? 'Loading variations…' : 'No child variations found for this product.'}
+                  </p>
+                )}
               </div>
             ) : null}
           </div>

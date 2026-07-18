@@ -165,57 +165,79 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   };
 }
 
+function unwrapProductRecord(body) {
+  if (!body || typeof body !== 'object') return null;
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body.data)) return body.data;
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) return body.data;
+  if (body.product && typeof body.product === 'object') return body.product;
+  return body;
+}
+
 export async function fetchMarketplaceProductByIdRequest(productId) {
   const result = await fetchProductByIdRequest(productId);
-  if (result && typeof result === 'object') {
-    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
-      return result.data;
-    }
-    if (result.product && typeof result.product === 'object') {
-      return result.product;
-    }
-  }
+  const record = unwrapProductRecord(result);
+  if (record && typeof record === 'object' && !Array.isArray(record)) return record;
   return result;
 }
 
-/** Load parent product + variations (childproducts) for the detail modal. */
-export async function fetchMarketplaceProductDetailRequest(productId) {
-  const product = await fetchMarketplaceProductByIdRequest(productId);
-  let variations = getProductVariations(product);
+/**
+ * Load parent product + child variations for the detail modal.
+ * Variable parents are loaded via `get-product-variation` (includes `childproducts`);
+ * falls back to `product/get` and an optional list-row seed.
+ */
+export async function fetchMarketplaceProductDetailRequest(productId, { seed } = {}) {
+  const id = String(productId || '').trim();
+  const seedProduct =
+    seed && typeof seed === 'object' && !Array.isArray(seed) ? seed : null;
 
-  if (variations.length === 0 && productId) {
+  let product = null;
+  let variations = [];
+
+  // Prefer variation endpoint — same as product edit — so Variable parents include children.
+  if (id) {
     try {
-      const variationBody = await fetchProductVariationRequest(productId);
-      const record =
-        variationBody?.data && typeof variationBody.data === 'object'
-          ? variationBody.data
-          : variationBody?.product && typeof variationBody.product === 'object'
-            ? variationBody.product
-            : variationBody;
-      if (record && typeof record === 'object') {
+      const variationBody = await fetchProductVariationRequest(id);
+      const record = unwrapProductRecord(variationBody);
+      if (Array.isArray(record)) {
+        variations = record.filter(Boolean);
+      } else if (record && typeof record === 'object') {
+        product = record;
         variations = getProductVariations(record);
-        if (variations.length === 0 && Array.isArray(record)) {
-          variations = record;
-        }
-        // Merge any richer parent fields from variation endpoint.
-        if (record.childproducts || record.child_products || record.variations) {
-          return {
-            product: { ...product, ...record, childproducts: variations },
-            variations,
-          };
-        }
       }
     } catch {
-      // Parent detail without a variation endpoint is fine.
+      // Cross-company or missing variation endpoint — fall through.
     }
+  }
+
+  if (!product) {
+    try {
+      product = id ? await fetchMarketplaceProductByIdRequest(id) : null;
+    } catch (err) {
+      if (!seedProduct) throw err;
+      product = seedProduct;
+    }
+  }
+
+  if (!product && seedProduct) product = seedProduct;
+  if (!product) {
+    throw new Error('Product not found');
+  }
+
+  if (variations.length === 0) {
+    variations = getProductVariations(product);
+  }
+  if (variations.length === 0 && seedProduct) {
+    variations = getProductVariations(seedProduct);
   }
 
   return {
     product: {
+      ...(seedProduct || {}),
       ...product,
-      childproducts: variations.length ? variations : getProductVariations(product),
+      childproducts: variations,
     },
-    variations: variations.length ? variations : getProductVariations(product),
+    variations,
   };
 }
 

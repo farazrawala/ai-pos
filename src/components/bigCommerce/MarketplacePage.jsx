@@ -264,7 +264,9 @@ export default function MarketplacePage({ companyId }) {
                     key={product._id || product.id}
                     product={product}
                     viewMode={state.viewMode}
-                    onViewDetails={(id) => dispatch(openMarketplaceProduct(id))}
+                    onViewDetails={(id) =>
+                      dispatch(openMarketplaceProduct({ productId: id, product }))
+                    }
                   />
                 ))
               : null}

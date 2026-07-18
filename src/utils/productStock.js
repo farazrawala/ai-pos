@@ -86,6 +86,11 @@ export function getProductAvailableStock(item, { warehouseId = '' } = {}) {
     if (hasQty) return Math.round(total * 100) / 100;
   }
 
+  if (item.quantity != null && item.quantity !== '') {
+    const n = Number(item.quantity);
+    if (Number.isFinite(n)) return Math.max(0, n);
+  }
+
   return null;
 }
 
