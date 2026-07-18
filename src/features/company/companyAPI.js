@@ -657,6 +657,16 @@ export async function patchCompanyBarcodeSettings(companyId, settingsObject) {
 
 export const COMPANY_LOGO_FIELD = 'company_logo';
 
+/** Top-level company Boolean field (not inside `bigcommerce_settings`). */
+export const DISPLAY_STORE_ON_BIGCOMMERCE_FIELD = 'display_store_on_bigcommerce';
+
+export const DISPLAY_STORE_ON_BIGCOMMERCE_META = {
+  key: DISPLAY_STORE_ON_BIGCOMMERCE_FIELD,
+  label: 'Display Store on BigCommerce',
+  hint: 'When on, this company appears in the Big Commerce company listing.',
+  defaultValue: false,
+};
+
 export function pickCompanyLogoUrl(company) {
   if (!company || typeof company !== 'object') return '';
   const raw =
@@ -729,7 +739,7 @@ async function patchCompanyFormFields(companyId, fields = {}, fileField = null) 
   return normalizeSingleCompanyPayload(data) || data;
 }
 
-/** PATCH company profile fields (name, contact, address, logo). */
+/** PATCH company profile fields (name, contact, address, logo, display_store_on_bigcommerce). */
 export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   const { company_logo, ...rest } = payload;
   const fields = {};
@@ -738,6 +748,9 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   if (rest.company_email !== undefined) fields.company_email = String(rest.company_email).trim();
   if (rest.company_address !== undefined)
     fields.company_address = String(rest.company_address).trim();
+  if (rest.display_store_on_bigcommerce !== undefined) {
+    fields[DISPLAY_STORE_ON_BIGCOMMERCE_FIELD] = Boolean(rest.display_store_on_bigcommerce);
+  }
 
   const useMultipart = isUserUploadFilePart(company_logo);
   if (useMultipart) {
@@ -1135,11 +1148,6 @@ export const BIGCOMMERCE_LOGO_FIELD = 'logo';
 export const BIGCOMMERCE_BANNER_FIELD = 'banner';
 
 const BIGCOMMERCE_SETTING_META = {
-  show_store_for_listing: {
-    label: 'Show store for listing',
-    hint: 'When on, this company appears in the Big Commerce company listing.',
-    defaultValue: true,
-  },
   show_store_for_request: {
     label: 'Show store for request',
     hint: 'When on, visitors can submit store / quote requests from the marketplace.',
@@ -1154,6 +1162,24 @@ export const BIGCOMMERCE_SETTING_DEFS = Object.entries(BIGCOMMERCE_SETTING_META)
   })
 );
 
+export function pickDisplayStoreOnBigcommerce(company) {
+  if (!company || typeof company !== 'object') return false;
+  const raw =
+    company.display_store_on_bigcommerce ??
+    company.displayStoreOnBigcommerce ??
+    company.display_store_on_big_commerce;
+  if (raw === undefined || raw === null || raw === '') {
+    return DISPLAY_STORE_ON_BIGCOMMERCE_META.defaultValue;
+  }
+  return coerceSettingBool(raw);
+}
+
+export async function patchCompanyDisplayStoreOnBigcommerce(companyId, enabled) {
+  return patchCompanyFormFields(companyId, {
+    [DISPLAY_STORE_ON_BIGCOMMERCE_FIELD]: Boolean(enabled),
+  });
+}
+
 export function defaultBigCommerceSettings() {
   const out = {
     logo: '',
@@ -1166,7 +1192,6 @@ export function defaultBigCommerceSettings() {
 }
 
 const BIGCOMMERCE_SETTING_ALT_KEYS = {
-  show_store_for_listing: ['showStoreForListing', 'show_products', 'showProducts', 'show_product'],
   show_store_for_request: ['showStoreForRequest', 'show_store_request'],
 };
 
@@ -1187,8 +1212,6 @@ function readBigCommerceSettingsRaw(company) {
     if (parsed?.bigcommerce_settings != null) return parsed.bigcommerce_settings;
     if (parsed?.bigcommerceSettings != null) return parsed.bigcommerceSettings;
     if (
-      parsed?.show_store_for_listing !== undefined ||
-      parsed?.show_products !== undefined ||
       parsed?.show_store_for_request !== undefined ||
       parsed?.logo !== undefined ||
       parsed?.banner !== undefined
@@ -1205,11 +1228,7 @@ function readBigCommerceSettingsRaw(company) {
       allFields.big_commerce_settings ??
       allFields.bigCommerceSettings;
     if (raw != null) return raw;
-    if (
-      allFields.show_store_for_listing !== undefined ||
-      allFields.show_products !== undefined ||
-      allFields.show_store_for_request !== undefined
-    ) {
+    if (allFields.show_store_for_request !== undefined) {
       return allFields;
     }
   }
@@ -1271,9 +1290,6 @@ export function mergeBigCommerceSettings(parsed) {
  */
 export function buildBigCommerceSettingsPayload(values = {}) {
   const out = {
-    show_store_for_listing: Boolean(
-      values.show_store_for_listing ?? values.show_products
-    ),
     show_store_for_request: Boolean(values.show_store_for_request),
   };
   const logo = values.logo != null ? String(values.logo).trim() : '';

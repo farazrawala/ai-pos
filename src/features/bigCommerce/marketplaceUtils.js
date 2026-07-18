@@ -358,7 +358,7 @@ export function normalizeCompanyProfile(company, stats = {}) {
       logoUrl: '',
       coverUrl: '',
       rating: null,
-      showStoreForListing: true,
+      showStoreForListing: false,
       showProducts: true,
       showStoreForRequest: false,
       totalProducts: stats.totalProducts ?? 0,
@@ -385,14 +385,27 @@ export function normalizeCompanyProfile(company, stats = {}) {
 
   const logoFromSettings = settings?.logo || settings?.bigcommerce_logo || '';
 
-  const showStoreForListing =
-    settings && typeof settings === 'object'
-      ? settings.show_store_for_listing !== undefined
-        ? Boolean(settings.show_store_for_listing)
-        : settings.show_products !== undefined
-          ? Boolean(settings.show_products)
-          : true
-      : true;
+  const showStoreForListing = (() => {
+    const root =
+      company.display_store_on_bigcommerce ??
+      company.displayStoreOnBigcommerce ??
+      company.display_store_on_big_commerce;
+    if (root !== undefined && root !== null && root !== '') {
+      return root === true || root === 'true' || root === 1 || root === '1';
+    }
+    if (settings && typeof settings === 'object') {
+      if (settings.display_store_on_bigcommerce !== undefined) {
+        return Boolean(settings.display_store_on_bigcommerce);
+      }
+      if (settings.show_store_for_listing !== undefined) {
+        return Boolean(settings.show_store_for_listing);
+      }
+      if (settings.show_products !== undefined) {
+        return Boolean(settings.show_products);
+      }
+    }
+    return false;
+  })();
 
   const showStoreForRequest =
     settings && typeof settings === 'object' && settings.show_store_for_request !== undefined

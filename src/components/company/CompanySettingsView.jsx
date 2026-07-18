@@ -5,6 +5,7 @@ import {
   COMPANY_LOGO_FIELD,
   BIGCOMMERCE_SETTINGS_FIELD,
   BIGCOMMERCE_SETTING_DEFS,
+  DISPLAY_STORE_ON_BIGCOMMERCE_META,
   PRINTER_SETTING_DEFS,
   PRINTER_SETTING_SECTIONS,
   PRODUCT_SETTING_DEFS,
@@ -48,11 +49,13 @@ import {
   patchCompanyPrinterSettings,
   patchCompanyProductSettings,
   patchCompanyBigCommerceSettings,
+  patchCompanyDisplayStoreOnBigcommerce,
   patchCompanyLocalSmsSettings,
   patchCompanyLocalWhatsappSettings,
   patchCompanyApiSmsSettings,
   patchCompanyEmailAlertsSettings,
   pickCompanyLogoUrl,
+  pickDisplayStoreOnBigcommerce,
   pickBigCommerceLogoUrl,
   pickBigCommerceBannerUrl,
   updateCompanyDetailsRequest,
@@ -109,7 +112,11 @@ export default function CompanySettingsView() {
   const [productSaveError, setProductSaveError] = useState('');
 
   const [bigCommerceSettings, setBigCommerceSettings] = useState(() => defaultBigCommerceSettings());
+  const [displayStoreOnBigcommerce, setDisplayStoreOnBigcommerce] = useState(
+    DISPLAY_STORE_ON_BIGCOMMERCE_META.defaultValue
+  );
   const [togglingBigCommerceKey, setTogglingBigCommerceKey] = useState('');
+  const [togglingDisplayStore, setTogglingDisplayStore] = useState(false);
   const [bigCommerceSaveError, setBigCommerceSaveError] = useState('');
   const [bigCommerceSaving, setBigCommerceSaving] = useState(false);
   const [bcLogoFile, setBcLogoFile] = useState(null);
@@ -206,6 +213,7 @@ export default function CompanySettingsView() {
     const bigCommerceParsed = extractBigCommerceSettingsFromCompanyBody(body ?? { data: company });
     const bcSettings = mergeBigCommerceSettings(bigCommerceParsed);
     setBigCommerceSettings(bcSettings);
+    setDisplayStoreOnBigcommerce(pickDisplayStoreOnBigcommerce(company));
     setExistingBcLogoUrl(pickBigCommerceLogoUrl(company));
     setBcLogoFile(null);
     setBcLogoPreview((prev) => {
@@ -328,6 +336,7 @@ export default function CompanySettingsView() {
         company_phone: form.company_phone.trim(),
         company_email: form.company_email.trim(),
         company_address: form.company_address.trim(),
+        display_store_on_bigcommerce: Boolean(displayStoreOnBigcommerce),
       };
       if (isUserUploadFilePart(logoFile)) payload.company_logo = logoFile;
 
@@ -338,6 +347,7 @@ export default function CompanySettingsView() {
       const merged = { ...(authCompany || {}), ...(fromApi || {}), ...savedFields };
       if (isUserUploadFilePart(merged.company_logo)) delete merged.company_logo;
       dispatch(setCompany(merged));
+      setDisplayStoreOnBigcommerce(pickDisplayStoreOnBigcommerce(merged));
       const nextLogoUrl = pickCompanyLogoUrl(merged);
       setExistingLogoUrl(nextLogoUrl);
       if (isUserUploadFilePart(logoFile)) {
@@ -469,6 +479,45 @@ export default function CompanySettingsView() {
     });
     const { company, settings } = await patchCompanyBigCommerceSettings(companyId, payload, files);
     return applyBigCommerceCompanyUpdate(company, settings);
+  };
+
+  const handleToggleDisplayStoreOnBigcommerce = async () => {
+    if (!companyId || togglingDisplayStore || companySaving) return;
+
+    const previous = displayStoreOnBigcommerce;
+    const next = !previous;
+    setDisplayStoreOnBigcommerce(next);
+    setCompanySaveError('');
+    setTogglingDisplayStore(true);
+
+    try {
+      const updated = await patchCompanyDisplayStoreOnBigcommerce(companyId, next);
+      const fromApi =
+        getCompanyFromApiBody(updated) || (updated && !updated.company ? updated : null);
+      const merged = {
+        ...(authCompany || {}),
+        ...(fromApi || {}),
+        display_store_on_bigcommerce:
+          fromApi?.display_store_on_bigcommerce ??
+          fromApi?.displayStoreOnBigcommerce ??
+          next,
+      };
+      dispatch(setCompany(merged));
+      setDisplayStoreOnBigcommerce(pickDisplayStoreOnBigcommerce(merged));
+      showToast({
+        message: next
+          ? 'Store will appear on Big Commerce listing.'
+          : 'Store hidden from Big Commerce listing.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setDisplayStoreOnBigcommerce(previous);
+      const message = err?.message || 'Failed to update Display Store on BigCommerce';
+      setCompanySaveError(message);
+      showToast({ message, variant: 'error' });
+    } finally {
+      setTogglingDisplayStore(false);
+    }
   };
 
   const handleToggleBigCommerceSetting = async (key) => {
@@ -1214,6 +1263,57 @@ export default function CompanySettingsView() {
                     }
                     disabled={companySaving || !companyId}
                   />
+                </div>
+
+                <div className="settings-row mt-4 mb-0">
+                  <div>
+                    <div className="settings-row-label">{DISPLAY_STORE_ON_BIGCOMMERCE_META.label}</div>
+                    {DISPLAY_STORE_ON_BIGCOMMERCE_META.hint ? (
+                      <div className="settings-row-hint">{DISPLAY_STORE_ON_BIGCOMMERCE_META.hint}</div>
+                    ) : null}
+                  </div>
+                  <div className="settings-row-control">
+                    {togglingDisplayStore ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                        style={{ width: '1rem', height: '1rem' }}
+                      >
+                        <span className="visually-hidden">Saving…</span>
+                      </span>
+                    ) : (
+                      <span
+                        className={`settings-state ${
+                          displayStoreOnBigcommerce ? 'text-success' : 'text-muted'
+                        }`}
+                      >
+                        {displayStoreOnBigcommerce ? 'On' : 'Off'}
+                      </span>
+                    )}
+                    <label
+                      className="form-check form-switch settings-switch"
+                      htmlFor="company-display-store-on-bigcommerce"
+                      style={{
+                        cursor:
+                          togglingDisplayStore || companySaving || !companyId
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
+                    >
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="company-display-store-on-bigcommerce"
+                        checked={displayStoreOnBigcommerce}
+                        onChange={handleToggleDisplayStoreOnBigcommerce}
+                        disabled={togglingDisplayStore || companySaving || !companyId}
+                        aria-label={`${DISPLAY_STORE_ON_BIGCOMMERCE_META.label} ${
+                          displayStoreOnBigcommerce ? 'on' : 'off'
+                        }`}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
