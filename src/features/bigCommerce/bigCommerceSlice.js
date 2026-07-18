@@ -38,8 +38,8 @@ export const loadMarketplaceBootstrap = createAsyncThunk(
     try {
       // Load profile independently so filter catalog failures don't blank the header.
       const [categoriesResult, brandsResult, companyResult] = await Promise.allSettled([
-        fetchMarketplaceCategoriesRequest(),
-        fetchMarketplaceBrandsRequest(),
+        fetchMarketplaceCategoriesRequest(companyId),
+        fetchMarketplaceBrandsRequest(companyId),
         fetchMarketplaceCompanyProfileRequest(companyId, {}),
       ]);
 
@@ -77,22 +77,34 @@ export const fetchMarketplaceProducts = createAsyncThunk(
   async (overrides = {}, { getState, rejectWithValue }) => {
     try {
       const state = getState().bigCommerce;
-      const { append: appendOverride, page: pageOverride, limit: limitOverride, companyId: companyIdOverride, ...filterOverrides } =
-        overrides;
+      const {
+        append: appendOverride,
+        page: pageOverride,
+        skip: skipOverride,
+        limit: limitOverride,
+        companyId: companyIdOverride,
+        ...filterOverrides
+      } = overrides;
       const filters = { ...state.filters, ...filterOverrides };
-      const page = pageOverride ?? state.pagination.page;
-      const limit = limitOverride ?? state.pagination.limit;
+      const limit = Math.max(1, Number(limitOverride ?? state.pagination.limit) || 20);
       const companyId = companyIdOverride ?? state.companyId;
-      const append = Boolean(appendOverride) || page > 1;
+      const append = Boolean(appendOverride) || Number(skipOverride) > 0 || (pageOverride ?? 1) > 1;
+
+      // Cursor-style skip from items already loaded — avoids gaps when a page returns
+      // fewer rows than `limit` (e.g. after client filtering on older builds).
+      const skip = append
+        ? Math.max(0, Number(skipOverride ?? state.products.length) || 0)
+        : Math.max(0, Number(skipOverride) || 0);
 
       const result = await fetchMarketplaceProductsRequest({
         ...filters,
-        page,
+        skip,
         limit,
         companyId,
       });
 
-      return { ...result, filters, append, page, limit };
+      const page = Math.floor(skip / limit) + 1;
+      return { ...result, filters, append, page, limit, skip };
     } catch (err) {
       return rejectWithValue(err?.message || 'Failed to load products');
     }
@@ -225,6 +237,8 @@ const bigCommerceSlice = createSlice({
       const nextId = String(action.payload || '').trim();
       if (nextId !== state.companyId) {
         state.company = null;
+        state.categories = [];
+        state.brands = [];
         state.products = [];
         state.pagination.page = 1;
         state.productsHasMore = true;
@@ -319,13 +333,10 @@ const bigCommerceSlice = createSlice({
           total: action.payload.total,
           totalPages: action.payload.totalPages,
         };
-        const page = action.payload.page || 1;
-        const totalPages = action.payload.totalPages || 0;
         const loaded = state.products.length;
         const total = Number(action.payload.total) || 0;
-        // Keep paging even if a page is empty after client-side parent filtering.
-        state.productsHasMore =
-          total > loaded && (totalPages > 0 ? page < totalPages : true);
+        // Sole source of truth: keep loading until every catalog row is in the list.
+        state.productsHasMore = loaded < total;
         if (state.company) {
           state.company.totalProducts = total;
           state.company.totalCategories = state.categories.length;

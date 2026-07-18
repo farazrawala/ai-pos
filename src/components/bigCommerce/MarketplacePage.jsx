@@ -83,11 +83,10 @@ export default function MarketplacePage({ companyId }) {
     if (!state.productsHasMore) return;
     if (state.productsStatus === 'failed' && state.products.length === 0) return;
 
-    const nextPage = (state.pagination.page || 1) + 1;
     dispatch(
       fetchMarketplaceProducts({
         companyId: String(companyId || '').trim(),
-        page: nextPage,
+        skip: state.products.length,
         limit: state.pagination.limit,
         append: true,
       })
@@ -98,7 +97,6 @@ export default function MarketplacePage({ companyId }) {
     state.productsHasMore,
     state.productsStatus,
     state.products.length,
-    state.pagination.page,
     state.pagination.limit,
   ]);
 
@@ -112,12 +110,32 @@ export default function MarketplacePage({ companyId }) {
         if (!entry?.isIntersecting) return;
         loadNextPage();
       },
-      { root: null, rootMargin: '280px 0px', threshold: 0 }
+      { root: null, rootMargin: '480px 0px', threshold: 0 }
     );
 
     observer.observe(node);
     return () => observer.disconnect();
   }, [loadNextPage, state.products.length]);
+
+  // Prefetch a couple of pages so short first responses don't look like "end of list".
+  // Remaining pages load via the intersection observer on scroll.
+  useEffect(() => {
+    if (state.productsStatus !== 'succeeded') return;
+    if (!state.productsHasMore) return;
+    const limit = state.pagination.limit || 20;
+    const total = Number(state.pagination.total) || 0;
+    if (state.products.length >= total) return;
+    if (state.products.length >= limit * 2) return;
+    const t = window.setTimeout(() => loadNextPage(), 50);
+    return () => window.clearTimeout(t);
+  }, [
+    state.productsStatus,
+    state.productsHasMore,
+    state.products.length,
+    state.pagination.limit,
+    state.pagination.total,
+    loadNextPage,
+  ]);
 
   const onFilterChange = useCallback(
     (patch) => {

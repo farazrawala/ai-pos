@@ -307,8 +307,6 @@ function buildSpecs(product) {
   push('Unit', product.unit ?? product.product_unit);
   const tax = product.tax_rate ?? product.taxRate;
   if (tax != null && Number(tax) !== 0) push('Tax rate', tax);
-  const wholesale = product.wholesale_price;
-  if (wholesale != null && Number(wholesale) !== 0) push('Wholesale price', wholesale);
   if (product.weight != null && Number(product.weight) !== 0) push('Weight', product.weight);
   push('Dimensions', product.dimensions);
 

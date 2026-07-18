@@ -12,7 +12,6 @@ import {
   resolveSortParams,
   filterProductsClientSide,
   sortProductsClientSide,
-  excludeChildProducts,
   getProductVariations,
 } from './marketplaceUtils.js';
 import { fetchProductVariationRequest } from '../products/productsAPI.js';
@@ -43,6 +42,10 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 20);
+  const skip =
+    params.skip != null && params.skip !== ''
+      ? Math.max(0, Number(params.skip) || 0)
+      : (page - 1) * limit;
   const companyId = params.companyId ? String(params.companyId).trim() : '';
 
   let listResult = null;
@@ -50,15 +53,20 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   if (companyId) {
     const queryParams = new URLSearchParams();
-    queryParams.set('skip', String((page - 1) * limit));
+    queryParams.set('skip', String(skip));
     queryParams.set('limit', String(limit));
 
     if (params.search) {
       queryParams.set('search', String(params.search).trim());
     }
 
-    // Category/brand filters are tenant-scoped in the sidebar today — only apply
-    // when browsing the own catalog fallback, not another company's store.
+    if (categoryIds.length === 1) {
+      queryParams.set('category_id', String(categoryIds[0]));
+    }
+    if (brandIds.length === 1) {
+      queryParams.set('brand_id', String(brandIds[0]));
+    }
+
     const storeUrl = `${BASE_URL}big-commerce/products/${encodeURIComponent(companyId)}?${queryParams}`;
 
     try {
@@ -77,8 +85,9 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
         listResult = {
           data: raw.data,
           total: safeTotal,
-          page,
+          page: Math.floor(skip / limit) + 1,
           limit,
+          skip,
           totalPages: limit > 0 ? Math.ceil(safeTotal / limit) : 0,
         };
       } else {
@@ -102,7 +111,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   if (!listResult && useOwnCatalogFallback) {
     listResult = await fetchProductsRequest({
-      page,
+      page: Math.floor(skip / limit) + 1,
       limit,
       search: params.search || undefined,
       sortBy: sort.sortBy,
@@ -112,27 +121,22 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   }
 
   if (!listResult) {
-    return { data: [], total: 0, page, limit, totalPages: 0 };
+    return { data: [], total: 0, page: 1, limit, skip, totalPages: 0 };
   }
 
   let data = Array.isArray(listResult.data) ? listResult.data : [];
   const serverTotal = Number(listResult.total);
-  // Match POS catalog: do not drop variation rows for partner stores (that was
-  // shrinking a 600+ catalog down to a handful of "parent" rows).
-  if (useOwnCatalogFallback) {
-    data = excludeChildProducts(data);
-  }
+  // Never drop rows for partner stores — that was capping the grid at a handful
+  // while `total` stayed at the full catalog size (e.g. "5 of 678").
   let total =
     Number.isFinite(serverTotal) && serverTotal >= 0 ? serverTotal : data.length;
   let totalPages =
     listResult.totalPages ?? (limit > 0 ? Math.ceil(total / limit) : 0);
 
   // Refine with client-side filters (multi-category/brand, price, stock, rating).
-  // Skip brand/category refine for other-company stores — those ids are from the
-  // viewer's own catalog and would incorrectly empty the partner grid.
-  const isOwnCatalog = useOwnCatalogFallback;
   const needsClientRefine =
-    (isOwnCatalog && (categoryIds.length > 1 || brandIds.length > 0)) ||
+    categoryIds.length > 1 ||
+    brandIds.length > 1 ||
     params.minPrice !== '' ||
     params.maxPrice !== '' ||
     Boolean(params.stock) ||
@@ -141,21 +145,22 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   if (needsClientRefine) {
     const refined = filterProductsClientSide(data, {
       search: '',
-      categoryIds: isOwnCatalog && categoryIds.length > 1 ? categoryIds : [],
-      brandIds: isOwnCatalog ? brandIds : [],
+      categoryIds: categoryIds.length > 1 ? categoryIds : [],
+      brandIds: brandIds.length > 1 ? brandIds : [],
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
       stock: params.stock,
       minRating: params.minRating,
     });
-    data = excludeChildProducts(sortProductsClientSide(refined, params.sortBy || 'latest'));
+    data = sortProductsClientSide(refined, params.sortBy || 'latest');
   }
 
   return {
     data,
     total,
-    page,
+    page: Math.floor(skip / limit) + 1,
     limit,
+    skip,
     totalPages: totalPages || (limit > 0 ? Math.ceil(total / limit) : 0),
   };
 }
@@ -318,13 +323,55 @@ async function findListedCompanyById(companyId) {
   return null;
 }
 
-export async function fetchMarketplaceCategoriesRequest() {
-  const result = await fetchCategoriesRequest({ page: 1, limit: 500, sortBy: 'name', sortOrder: 'asc' });
+export async function fetchMarketplaceCategoriesRequest(companyId) {
+  const id = String(companyId || '').trim();
+  if (id) {
+    try {
+      const response = await fetch(
+        `${BASE_URL}big-commerce/categories/${encodeURIComponent(id)}`,
+        { method: 'GET', headers: getHeaders() }
+      );
+      const raw = await response.json().catch(() => null);
+      if (response.ok && raw && Array.isArray(raw.data)) {
+        return raw.data;
+      }
+    } catch {
+      // fall through to tenant categories (own store / older API)
+    }
+  }
+
+  const result = await fetchCategoriesRequest({
+    page: 1,
+    limit: 500,
+    sortBy: 'name',
+    sortOrder: 'asc',
+  });
   return Array.isArray(result?.data) ? result.data : [];
 }
 
-export async function fetchMarketplaceBrandsRequest() {
-  const result = await fetchBrandsRequest({ page: 1, limit: 500, sortBy: 'name', sortOrder: 'asc' });
+export async function fetchMarketplaceBrandsRequest(companyId) {
+  const id = String(companyId || '').trim();
+  if (id) {
+    try {
+      const response = await fetch(
+        `${BASE_URL}big-commerce/brands/${encodeURIComponent(id)}`,
+        { method: 'GET', headers: getHeaders() }
+      );
+      const raw = await response.json().catch(() => null);
+      if (response.ok && raw && Array.isArray(raw.data)) {
+        return raw.data;
+      }
+    } catch {
+      // fall through to tenant brands (own store / older API)
+    }
+  }
+
+  const result = await fetchBrandsRequest({
+    page: 1,
+    limit: 500,
+    sortBy: 'name',
+    sortOrder: 'asc',
+  });
   return Array.isArray(result?.data) ? result.data : [];
 }
 
