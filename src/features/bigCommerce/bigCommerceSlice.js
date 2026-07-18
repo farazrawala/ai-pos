@@ -36,13 +36,35 @@ export const loadMarketplaceBootstrap = createAsyncThunk(
   'bigCommerce/loadBootstrap',
   async ({ companyId } = {}, { rejectWithValue }) => {
     try {
-      const [categories, brands] = await Promise.all([
+      // Load profile independently so filter catalog failures don't blank the header.
+      const [categoriesResult, brandsResult, companyResult] = await Promise.allSettled([
         fetchMarketplaceCategoriesRequest(),
         fetchMarketplaceBrandsRequest(),
+        fetchMarketplaceCompanyProfileRequest(companyId, {}),
       ]);
-      const company = await fetchMarketplaceCompanyProfileRequest(companyId, {
-        totalCategories: categories.length,
-      });
+
+      const categories =
+        categoriesResult.status === 'fulfilled' && Array.isArray(categoriesResult.value)
+          ? categoriesResult.value
+          : [];
+      const brands =
+        brandsResult.status === 'fulfilled' && Array.isArray(brandsResult.value)
+          ? brandsResult.value
+          : [];
+      const company =
+        companyResult.status === 'fulfilled' && companyResult.value
+          ? {
+              ...companyResult.value,
+              totalCategories: categories.length,
+            }
+          : null;
+
+      if (!company && companyResult.status === 'rejected') {
+        return rejectWithValue(
+          companyResult.reason?.message || 'Failed to load company profile'
+        );
+      }
+
       return { company, categories, brands };
     } catch (err) {
       return rejectWithValue(err?.message || 'Failed to load marketplace');
@@ -202,9 +224,13 @@ const bigCommerceSlice = createSlice({
     setMarketplaceCompanyId(state, action) {
       const nextId = String(action.payload || '').trim();
       if (nextId !== state.companyId) {
+        state.company = null;
         state.products = [];
         state.pagination.page = 1;
         state.productsHasMore = true;
+        // Drop viewer-tenant category/brand filters — they do not apply to partner stores.
+        state.filters = { ...DEFAULT_FILTERS };
+        persistFilters(state.filters);
       }
       state.companyId = nextId;
     },
@@ -251,6 +277,7 @@ const bigCommerceSlice = createSlice({
       .addCase(loadMarketplaceBootstrap.pending, (state) => {
         state.bootstrapStatus = 'loading';
         state.error = null;
+        state.company = null;
       })
       .addCase(loadMarketplaceBootstrap.fulfilled, (state, action) => {
         state.bootstrapStatus = 'succeeded';
@@ -260,6 +287,7 @@ const bigCommerceSlice = createSlice({
       })
       .addCase(loadMarketplaceBootstrap.rejected, (state, action) => {
         state.bootstrapStatus = 'failed';
+        state.company = null;
         state.error = action.payload || 'Failed to load marketplace';
       })
       .addCase(fetchMarketplaceProducts.pending, (state, action) => {
@@ -294,12 +322,32 @@ const bigCommerceSlice = createSlice({
         const page = action.payload.page || 1;
         const totalPages = action.payload.totalPages || 0;
         const loaded = state.products.length;
-        const total = action.payload.total || 0;
+        const total = Number(action.payload.total) || 0;
+        // Keep paging even if a page is empty after client-side parent filtering.
         state.productsHasMore =
-          incoming.length > 0 && (totalPages > 0 ? page < totalPages : loaded < total);
+          total > loaded && (totalPages > 0 ? page < totalPages : true);
         if (state.company) {
-          state.company.totalProducts = action.payload.total;
+          state.company.totalProducts = total;
           state.company.totalCategories = state.categories.length;
+        } else if (total > 0) {
+          // Profile may still be loading/failed — still surface the catalog count.
+          state.company = {
+            id: state.companyId,
+            name: 'Company Marketplace',
+            description: '',
+            location: '',
+            phone: '',
+            email: '',
+            logoUrl: '',
+            coverUrl: '',
+            rating: null,
+            showStoreForListing: true,
+            showProducts: true,
+            showStoreForRequest: false,
+            totalProducts: total,
+            totalCategories: state.categories.length,
+            joinedAt: null,
+          };
         }
       })
       .addCase(fetchMarketplaceProducts.rejected, (state, action) => {

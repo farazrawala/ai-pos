@@ -44,6 +44,7 @@ export default function MarketplacePage({ companyId }) {
 
   useEffect(() => {
     const id = String(companyId || '').trim();
+    setSearchDraft('');
     dispatch(setMarketplaceCompanyId(id));
     dispatch(loadMarketplaceBootstrap({ companyId: id }));
   }, [companyId, dispatch]);

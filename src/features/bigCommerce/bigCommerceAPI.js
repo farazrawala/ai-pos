@@ -57,13 +57,8 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       queryParams.set('search', String(params.search).trim());
     }
 
-    if (categoryIds.length === 1) {
-      queryParams.set('category_id', String(categoryIds[0]));
-    }
-    if (brandIds.length === 1) {
-      queryParams.set('brand_id', String(brandIds[0]));
-    }
-
+    // Category/brand filters are tenant-scoped in the sidebar today — only apply
+    // when browsing the own catalog fallback, not another company's store.
     const storeUrl = `${BASE_URL}big-commerce/products/${encodeURIComponent(companyId)}?${queryParams}`;
 
     try {
@@ -71,13 +66,20 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       const raw = await response.json().catch(() => null);
 
       if (response.ok && raw && typeof raw === 'object' && Array.isArray(raw.data)) {
-        const total = Number(raw.total ?? raw.pagination?.total ?? raw.data.length) || 0;
+        const total = Number(
+          raw.total ??
+            raw.count ??
+            raw.pagination?.total ??
+            raw.meta?.total ??
+            raw.data.length
+        );
+        const safeTotal = Number.isFinite(total) && total >= 0 ? total : raw.data.length;
         listResult = {
           data: raw.data,
-          total,
+          total: safeTotal,
           page,
           limit,
-          totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+          totalPages: limit > 0 ? Math.ceil(safeTotal / limit) : 0,
         };
       } else {
         const message = String(raw?.message || raw?.error || '');
@@ -114,15 +116,21 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   }
 
   let data = Array.isArray(listResult.data) ? listResult.data : [];
+  // Partner API already returns parents; keep exclude as a safety net but do not
+  // shrink the server total (that would break "showing X of Y" + infinite scroll).
+  const serverTotal = Number(listResult.total);
   data = excludeChildProducts(data);
-  let total = listResult.total ?? data.length;
+  let total =
+    Number.isFinite(serverTotal) && serverTotal >= 0 ? serverTotal : data.length;
   let totalPages =
     listResult.totalPages ?? (limit > 0 ? Math.ceil(total / limit) : 0);
 
   // Refine with client-side filters (multi-category/brand, price, stock, rating).
+  // Skip brand/category refine for other-company stores — those ids are from the
+  // viewer's own catalog and would incorrectly empty the partner grid.
+  const isOwnCatalog = useOwnCatalogFallback;
   const needsClientRefine =
-    categoryIds.length > 1 ||
-    brandIds.length > 0 ||
+    (isOwnCatalog && (categoryIds.length > 1 || brandIds.length > 0)) ||
     params.minPrice !== '' ||
     params.maxPrice !== '' ||
     Boolean(params.stock) ||
@@ -131,8 +139,8 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   if (needsClientRefine) {
     const refined = filterProductsClientSide(data, {
       search: '',
-      categoryIds: categoryIds.length > 1 ? categoryIds : [],
-      brandIds,
+      categoryIds: isOwnCatalog && categoryIds.length > 1 ? categoryIds : [],
+      brandIds: isOwnCatalog ? brandIds : [],
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
       stock: params.stock,
@@ -204,17 +212,108 @@ export async function fetchMarketplaceProductDetailRequest(productId) {
   };
 }
 
-export async function fetchMarketplaceCompanyProfileRequest(companyId, stats = {}) {
-  if (!companyId) {
-    return normalizeCompanyProfile(null, stats);
-  }
-  const body = await fetchCompanyById(companyId);
-  const company = getCompanyFromApiBody(body) || body?.data || body;
+function profileFromCompanyRecord(company, stats = {}) {
   const profile = normalizeCompanyProfile(company, stats);
   if (!profile.logoUrl && company) {
     profile.logoUrl = pickCompanyLogoUrl(company);
   }
   return profile;
+}
+
+/**
+ * Resolve a marketplace storefront company.
+ * `GET company/get/:id` is tenant-scoped (own company / branches only), so other
+ * stores must use the Big Commerce profile endpoint or the listing directory.
+ */
+export async function fetchMarketplaceCompanyProfileRequest(companyId, stats = {}) {
+  const id = String(companyId || '').trim();
+  if (!id) {
+    return normalizeCompanyProfile(null, stats);
+  }
+
+  // 1) Dedicated marketplace profile (not tenant-filtered).
+  try {
+    const response = await fetch(
+      `${BASE_URL}big-commerce/company/${encodeURIComponent(id)}`,
+      { method: 'GET', headers: getHeaders() }
+    );
+    const raw = await response.json().catch(() => null);
+    if (response.ok && raw) {
+      const company = getCompanyFromApiBody(raw) || raw?.data || raw;
+      if (
+        company &&
+        typeof company === 'object' &&
+        (company._id || company.id || company.company_name || company.name)
+      ) {
+        return profileFromCompanyRecord(company, stats);
+      }
+    }
+  } catch {
+    // fall through
+  }
+
+  // 2) Listing directory (other companies with display_store_on_bigcommerce).
+  try {
+    const listed = await findListedCompanyById(id);
+    if (listed) {
+      return profileFromCompanyRecord(listed, stats);
+    }
+  } catch {
+    // fall through
+  }
+
+  // 3) Tenant-scoped get — works for own company / branches.
+  try {
+    const body = await fetchCompanyById(id);
+    const company = getCompanyFromApiBody(body) || body?.data || body;
+    if (
+      company &&
+      typeof company === 'object' &&
+      (company._id || company.id || company.company_name || company.name)
+    ) {
+      return profileFromCompanyRecord(company, stats);
+    }
+  } catch {
+    // fall through
+  }
+
+  return normalizeCompanyProfile(null, stats);
+}
+
+/** Find one company in the Big Commerce listing (optionally via include_id). */
+async function findListedCompanyById(companyId) {
+  const target = String(companyId || '').trim();
+  if (!target) return null;
+
+  const match = (rows) =>
+    (Array.isArray(rows) ? rows : []).find(
+      (c) => String(c?._id ?? c?.id ?? '').trim() === target
+    ) || null;
+
+  try {
+    const withInclude = await fetchMarketplaceCompaniesRequest({
+      page: 1,
+      limit: 5,
+      includeId: target,
+    });
+    const hit = match(withInclude.data);
+    if (hit) return hit;
+  } catch {
+    // Older backends may ignore include_id — paginate below.
+  }
+
+  let page = 1;
+  let totalPages = 1;
+  const limit = 50;
+  do {
+    const result = await fetchMarketplaceCompaniesRequest({ page, limit });
+    const hit = match(result.data);
+    if (hit) return hit;
+    totalPages = Math.max(1, Number(result.totalPages) || 1);
+    page += 1;
+  } while (page <= totalPages && page <= 20);
+
+  return null;
 }
 
 export async function fetchMarketplaceCategoriesRequest() {
@@ -299,6 +398,7 @@ export async function fetchMarketplaceCompaniesRequest(params = {}) {
   if (params.search) queryParams.set('search', String(params.search).trim());
   if (params.sortBy) queryParams.set('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
+  if (params.includeId) queryParams.set('include_id', String(params.includeId).trim());
 
   const url = `${BASE_URL}company/get-all-for-listing?${queryParams.toString()}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
