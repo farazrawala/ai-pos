@@ -32,21 +32,48 @@ export function productIdFromRecord(item) {
   return String(item._id ?? item.id ?? item.product_id ?? '').trim();
 }
 
+/** Parent product id from a child/variation row (string, or nested object). */
+export function getParentProductId(item) {
+  if (!item || typeof item !== 'object') return '';
+  const raw = item.parent_product_id ?? item.parentProductId;
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return String(raw._id ?? raw.id ?? '').trim();
+  }
+  return String(raw).trim();
+}
+
 /** True when this row is a child / variation of another product. */
 export function hasParentProductId(item) {
+  return Boolean(getParentProductId(item));
+}
+
+/** Strip trailing `[Size - Color]` option suffix used by variation SKUs. */
+export function baseProductName(name) {
+  return String(name || '')
+    .replace(/\s*\[[^\]]*\]\s*$/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Single SKUs named `Parent [options]` are variation rows even without parent_product_id. */
+export function looksLikeNamedVariation(item) {
   if (!item || typeof item !== 'object') return false;
-  const raw = item.parent_product_id ?? item.parentProductId;
-  if (raw == null || raw === '') return false;
-  if (typeof raw === 'object' && !Array.isArray(raw)) {
-    return Boolean(String(raw._id ?? raw.id ?? '').trim());
-  }
-  return Boolean(String(raw).trim());
+  const type = String(item.product_type ?? item.productType ?? '').trim().toLowerCase();
+  if (type === 'variable') return false;
+  const name = String(item.product_name ?? item.name ?? '').trim();
+  return /\[[^\]]+\]\s*$/.test(name);
+}
+
+/** True for marketplace rows that should not appear as top-level cards. */
+export function isMarketplaceChildProduct(item) {
+  return hasParentProductId(item) || looksLikeNamedVariation(item);
 }
 
 /** Parent-only catalog rows (exclude variation/child products). */
 export function excludeChildProducts(list) {
   if (!Array.isArray(list)) return [];
-  return list.filter((item) => !hasParentProductId(item));
+  return list.filter((item) => !isMarketplaceChildProduct(item));
 }
 
 /** Variations / child products on a parent product record. */
@@ -59,6 +86,87 @@ export function getProductVariations(item) {
     item.children ??
     [];
   return Array.isArray(kids) ? kids.filter(Boolean) : [];
+}
+
+function mergeVariationLists(...lists) {
+  const out = [];
+  const seen = new Set();
+  lists.flat().forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const id = productIdFromRecord(item);
+    const key = id || `name:${String(item.product_name ?? item.name ?? '').trim()}`;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
+  });
+  return out;
+}
+
+/**
+ * Nest flat child/variation rows onto their Variable parent within a list page.
+ * Marketplace APIs often return children as sibling products, not nested `childproducts`.
+ */
+export function attachSiblingChildren(list) {
+  if (!Array.isArray(list) || list.length === 0) return Array.isArray(list) ? list : [];
+
+  const byParentId = new Map();
+  const byBaseName = new Map();
+
+  list.forEach((item) => {
+    if (!isMarketplaceChildProduct(item)) return;
+    const parentId = getParentProductId(item);
+    if (parentId) {
+      if (!byParentId.has(parentId)) byParentId.set(parentId, []);
+      byParentId.get(parentId).push(item);
+    }
+    const base = baseProductName(item.product_name ?? item.name);
+    if (base) {
+      if (!byBaseName.has(base)) byBaseName.set(base, []);
+      byBaseName.get(base).push(item);
+    }
+  });
+
+  return list.map((item) => {
+    if (isMarketplaceChildProduct(item)) return item;
+    const id = productIdFromRecord(item);
+    const type = String(item?.product_type ?? item?.productType ?? '').trim().toLowerCase();
+    const base = baseProductName(item?.product_name ?? item?.name);
+    const fromId = id ? byParentId.get(id) || [] : [];
+    const fromName =
+      type === 'variable' && base ? byBaseName.get(base) || [] : [];
+    const existing = getProductVariations(item);
+    const merged = mergeVariationLists(existing, fromId, fromName);
+    if (merged.length === 0) return item;
+    return { ...item, childproducts: merged };
+  });
+}
+
+/**
+ * Collect child variations for a parent from nested fields + flat catalog siblings.
+ */
+export function collectMarketplaceVariations(parent, catalog = []) {
+  if (!parent || typeof parent !== 'object') return [];
+  const parentId = productIdFromRecord(parent);
+  const parentBase = baseProductName(parent.product_name ?? parent.name);
+  const nested = getProductVariations(parent);
+
+  const siblings = (Array.isArray(catalog) ? catalog : []).filter((item) => {
+    if (!item || item === parent) return false;
+    const itemId = productIdFromRecord(item);
+    if (parentId && itemId && itemId === parentId) return false;
+    const linkedParent = getParentProductId(item);
+    if (parentId && linkedParent && linkedParent === parentId) return true;
+    if (
+      parentBase &&
+      looksLikeNamedVariation(item) &&
+      baseProductName(item.product_name ?? item.name) === parentBase
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  return mergeVariationLists(nested, siblings);
 }
 
 export function getVariationLabel(variation, parentName = '') {

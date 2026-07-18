@@ -13,6 +13,8 @@ import {
   filterProductsClientSide,
   sortProductsClientSide,
   getProductVariations,
+  attachSiblingChildren,
+  collectMarketplaceVariations,
 } from './marketplaceUtils.js';
 import { fetchProductVariationRequest } from '../products/productsAPI.js';
 
@@ -155,6 +157,10 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
     data = sortProductsClientSide(refined, params.sortBy || 'latest');
   }
 
+  // Nest flat variation SKUs onto Variable parents (keep children in the payload so
+  // skip-based infinite scroll still matches the server page size).
+  data = attachSiblingChildren(data);
+
   return {
     data,
     total,
@@ -183,18 +189,22 @@ export async function fetchMarketplaceProductByIdRequest(productId) {
 
 /**
  * Load parent product + child variations for the detail modal.
- * Variable parents are loaded via `get-product-variation` (includes `childproducts`);
- * falls back to `product/get` and an optional list-row seed.
+ * Same source as product edit (`get-product-variation` → `childproducts`), with
+ * marketplace list siblings as fallback when the tenant variation API is unavailable.
  */
-export async function fetchMarketplaceProductDetailRequest(productId, { seed } = {}) {
+export async function fetchMarketplaceProductDetailRequest(
+  productId,
+  { seed, catalog = [] } = {}
+) {
   const id = String(productId || '').trim();
   const seedProduct =
     seed && typeof seed === 'object' && !Array.isArray(seed) ? seed : null;
+  const catalogList = Array.isArray(catalog) ? catalog : [];
 
   let product = null;
   let variations = [];
 
-  // Prefer variation endpoint — same as product edit — so Variable parents include children.
+  // Prefer variation endpoint — same as /products/edit/:id — so Variable parents include children.
   if (id) {
     try {
       const variationBody = await fetchProductVariationRequest(id);
@@ -206,7 +216,7 @@ export async function fetchMarketplaceProductDetailRequest(productId, { seed } =
         variations = getProductVariations(record);
       }
     } catch {
-      // Cross-company or missing variation endpoint — fall through.
+      // Partner-store / unauthorized — fall through to get + list siblings.
     }
   }
 
@@ -224,11 +234,17 @@ export async function fetchMarketplaceProductDetailRequest(productId, { seed } =
     throw new Error('Product not found');
   }
 
-  if (variations.length === 0) {
-    variations = getProductVariations(product);
-  }
+  variations = collectMarketplaceVariations(
+    {
+      ...(seedProduct || {}),
+      ...product,
+      childproducts: variations.length ? variations : getProductVariations(product),
+    },
+    catalogList
+  );
+
   if (variations.length === 0 && seedProduct) {
-    variations = getProductVariations(seedProduct);
+    variations = collectMarketplaceVariations(seedProduct, catalogList);
   }
 
   return {

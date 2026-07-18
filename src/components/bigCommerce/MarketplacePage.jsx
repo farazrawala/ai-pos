@@ -13,6 +13,7 @@ import {
   closeMarketplaceDetail,
   selectBigCommerce,
 } from '../../features/bigCommerce/bigCommerceSlice.js';
+import { excludeChildProducts } from '../../features/bigCommerce/marketplaceUtils.js';
 import CompanyProfileHeader from './CompanyProfileHeader.jsx';
 import MarketplaceFilters from './MarketplaceFilters.jsx';
 import ProductToolbar from './ProductToolbar.jsx';
@@ -154,16 +155,22 @@ export default function MarketplacePage({ companyId }) {
     dispatch(resetMarketplaceFilters());
   }, [dispatch]);
 
+  // Children stay in Redux for variation lookup / skip pagination; hide them as cards.
+  const visibleProducts = useMemo(
+    () => excludeChildProducts(state.products),
+    [state.products]
+  );
+
   const priceBounds = useMemo(() => {
     let max = 1000;
-    for (const p of state.products) {
+    for (const p of visibleProducts) {
       const price = Number(p?.price ?? p?.product_price ?? 0);
       if (price > max) max = price;
     }
     return { min: 0, max: Math.ceil(max / 100) * 100 || 100000 };
-  }, [state.products]);
+  }, [visibleProducts]);
 
-  const showing = state.products.length;
+  const showing = visibleProducts.length;
 
   return (
     <div className="bc-marketplace">
@@ -248,7 +255,9 @@ export default function MarketplacePage({ companyId }) {
                 ))
               : null}
 
-            {!initialLoading && state.products.length === 0 && state.productsStatus === 'succeeded' ? (
+            {!initialLoading &&
+            visibleProducts.length === 0 &&
+            state.productsStatus === 'succeeded' ? (
               <div className="bc-empty">
                 <h3>No products found</h3>
                 <p>Try adjusting filters or search terms.</p>
@@ -259,7 +268,7 @@ export default function MarketplacePage({ companyId }) {
             ) : null}
 
             {!initialLoading
-              ? state.products.map((product) => (
+              ? visibleProducts.map((product) => (
                   <ProductCard
                     key={product._id || product.id}
                     product={product}

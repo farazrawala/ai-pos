@@ -9,8 +9,13 @@ import {
   fetchMarketplaceCompaniesRequest,
   sendCompanyStoreRequestRequest,
 } from './bigCommerceAPI.js';
-import { DEFAULT_FILTERS, PAGE_SIZE_OPTIONS } from './marketplaceUtils.js';
-import { getProductCategory, productIdFromRecord } from './marketplaceUtils.js';
+import {
+  DEFAULT_FILTERS,
+  PAGE_SIZE_OPTIONS,
+  attachSiblingChildren,
+  getProductCategory,
+  productIdFromRecord,
+} from './marketplaceUtils.js';
 
 const FILTERS_CACHE_KEY = 'bigCommerce.filters';
 
@@ -124,7 +129,7 @@ export const openMarketplaceProduct = createAsyncThunk(
           ? arg.product
           : null;
 
-      const list = getState()?.bigCommerce?.products;
+      const list = getState()?.bigCommerce?.products || [];
       const seedFromList = Array.isArray(list)
         ? list.find((item) => productIdFromRecord(item) === productId) || null
         : null;
@@ -132,6 +137,7 @@ export const openMarketplaceProduct = createAsyncThunk(
 
       const { product, variations } = await fetchMarketplaceProductDetailRequest(productId, {
         seed,
+        catalog: list,
       });
       const cat = getProductCategory(product);
       const related = await fetchRelatedProductsRequest({
@@ -340,9 +346,10 @@ const bigCommerceSlice = createSlice({
             seen.add(id);
             merged.push(p);
           });
-          state.products = merged;
+          // Re-nest so children loaded on later pages attach to earlier parents.
+          state.products = attachSiblingChildren(merged);
         } else {
-          state.products = incoming;
+          state.products = attachSiblingChildren(incoming);
         }
         state.pagination = {
           page: action.payload.page,
