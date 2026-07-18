@@ -116,10 +116,12 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   }
 
   let data = Array.isArray(listResult.data) ? listResult.data : [];
-  // Partner API already returns parents; keep exclude as a safety net but do not
-  // shrink the server total (that would break "showing X of Y" + infinite scroll).
   const serverTotal = Number(listResult.total);
-  data = excludeChildProducts(data);
+  // Match POS catalog: do not drop variation rows for partner stores (that was
+  // shrinking a 600+ catalog down to a handful of "parent" rows).
+  if (useOwnCatalogFallback) {
+    data = excludeChildProducts(data);
+  }
   let total =
     Number.isFinite(serverTotal) && serverTotal >= 0 ? serverTotal : data.length;
   let totalPages =
