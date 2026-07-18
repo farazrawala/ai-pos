@@ -32,9 +32,9 @@ const getHeaders = () => {
 };
 
 /**
- * Marketplace products list.
- * Sends supported server params today; future backend can honor brand_ids, min_price, etc.
- * Client-side filters refine results for multi-select / price / stock / rating.
+ * Marketplace products list for a store company.
+ * Uses `GET /big-commerce/products/:companyId` (public listing or approved connection).
+ * Falls back to POS product list only when browsing the signed-in company's own store.
  */
 export async function fetchMarketplaceProductsRequest(params = {}) {
   const sort = resolveSortParams(params.sortBy || 'latest');
@@ -43,69 +43,62 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.max(1, Number(params.limit) || 20);
+  const companyId = params.companyId ? String(params.companyId).trim() : '';
 
-  // Prefer dedicated marketplace endpoint when backend adds it; fall back to POS list.
   let listResult = null;
-  const queryParams = new URLSearchParams();
-  queryParams.set('skip', String((page - 1) * limit));
-  queryParams.set('limit', String(limit));
+  let useOwnCatalogFallback = !companyId;
 
-  if (params.search) {
-    queryParams.set('search', String(params.search).trim());
-    queryParams.set('searchFields', 'product_name,product_code,sku,barcode');
-  }
+  if (companyId) {
+    const queryParams = new URLSearchParams();
+    queryParams.set('skip', String((page - 1) * limit));
+    queryParams.set('limit', String(limit));
 
-  queryParams.set('sortBy', sort.sortBy);
-  queryParams.set('sortOrder', sort.sortOrder);
+    if (params.search) {
+      queryParams.set('search', String(params.search).trim());
+    }
 
-  if (categoryIds.length === 1) {
-    queryParams.set('category_id', String(categoryIds[0]));
-  } else if (categoryIds.length > 1) {
-    queryParams.set('category_ids', categoryIds.join(','));
-  }
+    if (categoryIds.length === 1) {
+      queryParams.set('category_id', String(categoryIds[0]));
+    }
+    if (brandIds.length === 1) {
+      queryParams.set('brand_id', String(brandIds[0]));
+    }
 
-  if (brandIds.length === 1) {
-    queryParams.set('brand_id', String(brandIds[0]));
-  } else if (brandIds.length > 1) {
-    queryParams.set('brand_ids', brandIds.join(','));
-  }
+    const storeUrl = `${BASE_URL}big-commerce/products/${encodeURIComponent(companyId)}?${queryParams}`;
 
-  if (params.minPrice !== '' && params.minPrice != null) {
-    queryParams.set('min_price', String(params.minPrice));
-  }
-  if (params.maxPrice !== '' && params.maxPrice != null) {
-    queryParams.set('max_price', String(params.maxPrice));
-  }
-  if (params.stock) queryParams.set('stock', String(params.stock));
-  if (params.minRating) queryParams.set('min_rating', String(params.minRating));
-  if (params.companyId) queryParams.set('company_id', String(params.companyId));
+    try {
+      const response = await fetch(storeUrl, { method: 'GET', headers: getHeaders() });
+      const raw = await response.json().catch(() => null);
 
-  const marketplaceUrl = `${BASE_URL}product/marketplace?${queryParams}`;
-
-  try {
-    const response = await fetch(marketplaceUrl, { method: 'GET', headers: getHeaders() });
-    if (response.ok) {
-      const raw = await response.json();
-      if (raw && typeof raw === 'object' && Array.isArray(raw.data)) {
+      if (response.ok && raw && typeof raw === 'object' && Array.isArray(raw.data)) {
+        const total = Number(raw.total ?? raw.pagination?.total ?? raw.data.length) || 0;
         listResult = {
           data: raw.data,
-          total: raw.total ?? raw.pagination?.total ?? raw.data.length,
+          total,
           page,
           limit,
-          totalPages:
-            raw.totalPages ??
-            raw.total_pages ??
-            (limit > 0
-              ? Math.ceil((raw.total ?? raw.pagination?.total ?? raw.data.length) / limit)
-              : 0),
+          totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
         };
+      } else {
+        const message = String(raw?.message || raw?.error || '');
+        // Own company store → use tenant POS catalog.
+        if (
+          response.status === 400 &&
+          /own catalog|your own/i.test(message)
+        ) {
+          useOwnCatalogFallback = true;
+        } else if (!response.ok) {
+          throw new Error(message || `Failed to load store products (${response.status})`);
+        }
+      }
+    } catch (err) {
+      if (!useOwnCatalogFallback) {
+        throw err instanceof Error ? err : new Error('Failed to load store products');
       }
     }
-  } catch {
-    // fall through to POS list
   }
 
-  if (!listResult) {
+  if (!listResult && useOwnCatalogFallback) {
     listResult = await fetchProductsRequest({
       page,
       limit,
@@ -114,6 +107,10 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       sortOrder: sort.sortOrder,
       category_id: categoryIds.length === 1 ? categoryIds[0] : undefined,
     });
+  }
+
+  if (!listResult) {
+    return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
   let data = Array.isArray(listResult.data) ? listResult.data : [];
