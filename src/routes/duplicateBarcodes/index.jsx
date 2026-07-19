@@ -1,13 +1,36 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaArrowsRotate } from 'react-icons/fa6';
-import { fetchDuplicateBarcodesRequest } from '../../features/products/productsAPI.js';
+import { FaArrowsRotate, FaBarcode } from 'react-icons/fa6';
+import {
+  fetchDuplicateBarcodesRequest,
+  generateUniqueProductBarcodeRequest,
+} from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { toast } from '../../utils/toast.js';
 
 const productRowId = (p) => String(p?._id || p?.id || '');
+
+const formatQty = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+};
+
+const getProductQty = (product) => {
+  if (!product || typeof product !== 'object') return null;
+  const raw =
+    product.qty ??
+    product.stock ??
+    product.total_warehouse_qty ??
+    product.quantity ??
+    product.total_stock;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
 
 const DuplicateBarcodes = () => {
   useRequireModuleAccess('products');
@@ -20,10 +43,13 @@ const DuplicateBarcodes = () => {
   const [duplicateProductCount, setDuplicateProductCount] = useState(0);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
+  const [generatingIds, setGeneratingIds] = useState(() => new Set());
 
-  const loadDuplicates = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadDuplicates = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const result = await fetchDuplicateBarcodesRequest();
       const rows = Array.isArray(result.data) ? result.data : [];
@@ -33,14 +59,24 @@ const DuplicateBarcodes = () => {
         result.duplicate_product_count ||
           rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0)
       );
-      setExpanded(new Set(rows.map((row) => String(row.barcode || '')).filter(Boolean)));
+      setExpanded((prev) => {
+        if (prev.size > 0) {
+          const next = new Set();
+          for (const row of rows) {
+            const key = String(row.barcode || '');
+            if (key && prev.has(key)) next.add(key);
+          }
+          return next.size > 0 ? next : new Set(rows.map((r) => String(r.barcode || '')).filter(Boolean));
+        }
+        return new Set(rows.map((row) => String(row.barcode || '')).filter(Boolean));
+      });
     } catch (err) {
       setGroups([]);
       setDuplicateBarcodeCount(0);
       setDuplicateProductCount(0);
       setError(err?.message || 'Failed to load duplicate barcodes');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
@@ -82,6 +118,30 @@ const DuplicateBarcodes = () => {
     });
   };
 
+  const handleGenerateBarcode = async (product) => {
+    const id = productRowId(product);
+    if (!id || generatingIds.has(id)) return;
+
+    setGeneratingIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await generateUniqueProductBarcodeRequest(id);
+      const code = String(result?.data?.barcode ?? '').trim();
+      if (!code) {
+        throw new Error(result?.message || 'Failed to generate unique barcode');
+      }
+      toast.success(result?.message || `Barcode assigned: ${code}`);
+      await loadDuplicates({ quiet: true });
+    } catch (err) {
+      toast.error(err?.message || 'Failed to generate barcode');
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
   if (!canView) {
     return (
       <div className="container-fluid py-4">
@@ -121,7 +181,7 @@ const DuplicateBarcodes = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-primary mb-0"
-                    onClick={loadDuplicates}
+                    onClick={() => loadDuplicates()}
                     disabled={loading}
                     title="Refresh"
                   >
@@ -150,7 +210,11 @@ const DuplicateBarcodes = () => {
               {!loading && error ? (
                 <div className="p-4">
                   <div className="alert alert-danger mb-3">{error}</div>
-                  <button type="button" className="btn btn-sm btn-primary mb-0" onClick={loadDuplicates}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary mb-0"
+                    onClick={() => loadDuplicates()}
+                  >
                     Retry
                   </button>
                 </div>
@@ -207,6 +271,8 @@ const DuplicateBarcodes = () => {
                                         <th>Name</th>
                                         <th>Code</th>
                                         <th>SKU</th>
+                                        <th className="text-end">Qty</th>
+                                        <th className="text-end">Stock</th>
                                         <th>Type</th>
                                         <th>Status</th>
                                         {canEdit ? <th className="text-end">Actions</th> : null}
@@ -215,6 +281,8 @@ const DuplicateBarcodes = () => {
                                     <tbody>
                                       {products.map((product) => {
                                         const id = productRowId(product);
+                                        const qty = getProductQty(product);
+                                        const generating = id && generatingIds.has(id);
                                         return (
                                           <tr key={id || `${barcode}-${product.sku}`}>
                                             <td className="text-sm">
@@ -226,6 +294,8 @@ const DuplicateBarcodes = () => {
                                             <td className="text-sm font-monospace">
                                               {product.sku || '—'}
                                             </td>
+                                            <td className="text-sm text-end">{formatQty(qty)}</td>
+                                            <td className="text-sm text-end">{formatQty(qty)}</td>
                                             <td className="text-sm">
                                               {product.product_type || '—'}
                                             </td>
@@ -234,16 +304,38 @@ const DuplicateBarcodes = () => {
                                             </td>
                                             {canEdit ? (
                                               <td className="text-end">
-                                                {id ? (
-                                                  <Link
-                                                    to={`/products/edit/${id}`}
-                                                    className="btn btn-link btn-sm p-0 mb-0"
-                                                  >
-                                                    Edit
-                                                  </Link>
-                                                ) : (
-                                                  <span className="text-muted">—</span>
-                                                )}
+                                                <div className="d-inline-flex align-items-center justify-content-end gap-2">
+                                                  {id ? (
+                                                    <button
+                                                      type="button"
+                                                      className="btn btn-sm btn-outline-primary mb-0 d-inline-flex align-items-center"
+                                                      onClick={() => handleGenerateBarcode(product)}
+                                                      disabled={generating}
+                                                      title="Generate a unique barcode for this product"
+                                                    >
+                                                      {generating ? (
+                                                        <span
+                                                          className="spinner-border spinner-border-sm me-1"
+                                                          role="status"
+                                                          aria-hidden="true"
+                                                        />
+                                                      ) : (
+                                                        <FaBarcode className="me-1" size={14} />
+                                                      )}
+                                                      Generate barcode
+                                                    </button>
+                                                  ) : null}
+                                                  {id ? (
+                                                    <Link
+                                                      to={`/products/edit/${id}`}
+                                                      className="btn btn-link btn-sm p-0 mb-0"
+                                                    >
+                                                      Edit
+                                                    </Link>
+                                                  ) : (
+                                                    <span className="text-muted">—</span>
+                                                  )}
+                                                </div>
                                               </td>
                                             ) : null}
                                           </tr>
