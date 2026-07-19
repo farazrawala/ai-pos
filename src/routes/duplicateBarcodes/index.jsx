@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FaArrowsRotate, FaBarcode } from 'react-icons/fa6';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaArrowsRotate, FaBarcode, FaPrint } from 'react-icons/fa6';
 import {
   fetchDuplicateBarcodesRequest,
   generateUniqueProductBarcodeRequest,
@@ -32,9 +32,18 @@ const getProductQty = (product) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** Label print qty for barcode-print (1–200). */
+const printQtyFromStock = (product) => {
+  const stock = getProductQty(product);
+  if (stock == null || !Number.isFinite(stock) || stock <= 0) return 1;
+  return Math.max(1, Math.min(200, Math.round(stock)));
+};
+
 const DuplicateBarcodes = () => {
   useRequireModuleAccess('products');
+  const navigate = useNavigate();
   const { canView, canEdit } = usePermissions('products');
+  const { canView: canViewBarcodePrint } = usePermissions('barcode-print');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,6 +53,8 @@ const DuplicateBarcodes = () => {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
   const [generatingIds, setGeneratingIds] = useState(() => new Set());
+
+  const showActions = canEdit || canViewBarcodePrint;
 
   const loadDuplicates = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) {
@@ -66,7 +77,9 @@ const DuplicateBarcodes = () => {
             const key = String(row.barcode || '');
             if (key && prev.has(key)) next.add(key);
           }
-          return next.size > 0 ? next : new Set(rows.map((r) => String(r.barcode || '')).filter(Boolean));
+          return next.size > 0
+            ? next
+            : new Set(rows.map((r) => String(r.barcode || '')).filter(Boolean));
         }
         return new Set(rows.map((row) => String(row.barcode || '')).filter(Boolean));
       });
@@ -140,6 +153,18 @@ const DuplicateBarcodes = () => {
         return next;
       });
     }
+  };
+
+  /** Open barcode-print with this product and its stock as label qty. */
+  const handlePrintBarcode = (product) => {
+    const id = productRowId(product);
+    if (!id) return;
+    const qty = printQtyFromStock(product);
+    const params = new URLSearchParams();
+    params.set('product_ids', id);
+    params.set('qty', String(qty));
+    params.set('bType', '2'); // CODE-128
+    navigate(`/barcode-print?${params.toString()}`);
   };
 
   if (!canView) {
@@ -275,7 +300,9 @@ const DuplicateBarcodes = () => {
                                         <th className="text-end">Stock</th>
                                         <th>Type</th>
                                         <th>Status</th>
-                                        {canEdit ? <th className="text-end">Actions</th> : null}
+                                        {showActions ? (
+                                          <th className="text-end">Actions</th>
+                                        ) : null}
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -283,6 +310,7 @@ const DuplicateBarcodes = () => {
                                         const id = productRowId(product);
                                         const qty = getProductQty(product);
                                         const generating = id && generatingIds.has(id);
+                                        const labelQty = printQtyFromStock(product);
                                         return (
                                           <tr key={id || `${barcode}-${product.sku}`}>
                                             <td className="text-sm">
@@ -302,16 +330,27 @@ const DuplicateBarcodes = () => {
                                             <td className="text-sm text-capitalize">
                                               {product.status || '—'}
                                             </td>
-                                            {canEdit ? (
+                                            {showActions ? (
                                               <td className="text-end">
-                                                <div className="d-inline-flex align-items-center justify-content-end gap-2">
-                                                  {id ? (
+                                                <div className="d-inline-flex flex-wrap align-items-center justify-content-end gap-2">
+                                                  {canViewBarcodePrint && id ? (
+                                                    <button
+                                                      type="button"
+                                                      className="btn btn-sm btn-outline-success mb-0 d-inline-flex align-items-center"
+                                                      onClick={() => handlePrintBarcode(product)}
+                                                      title={`Open barcode print for this product (${labelQty} label${labelQty === 1 ? '' : 's'})`}
+                                                    >
+                                                      <FaPrint className="me-1" size={14} />
+                                                      Print barcode
+                                                    </button>
+                                                  ) : null}
+                                                  {canEdit && id ? (
                                                     <button
                                                       type="button"
                                                       className="btn btn-sm btn-outline-primary mb-0 d-inline-flex align-items-center"
                                                       onClick={() => handleGenerateBarcode(product)}
                                                       disabled={generating}
-                                                      title="Generate a unique barcode for this product"
+                                                      title="Assign a new unique barcode to this product"
                                                     >
                                                       {generating ? (
                                                         <span
@@ -322,19 +361,17 @@ const DuplicateBarcodes = () => {
                                                       ) : (
                                                         <FaBarcode className="me-1" size={14} />
                                                       )}
-                                                      Generate barcode
+                                                      New barcode
                                                     </button>
                                                   ) : null}
-                                                  {id ? (
+                                                  {canEdit && id ? (
                                                     <Link
                                                       to={`/products/edit/${id}`}
                                                       className="btn btn-link btn-sm p-0 mb-0"
                                                     >
                                                       Edit
                                                     </Link>
-                                                  ) : (
-                                                    <span className="text-muted">—</span>
-                                                  )}
+                                                  ) : null}
                                                 </div>
                                               </td>
                                             ) : null}
