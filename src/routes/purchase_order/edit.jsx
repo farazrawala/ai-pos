@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import { FaBarcode } from 'react-icons/fa6';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
 import {
   extractPrinterSettingsFromCompanyBody,
@@ -858,6 +859,31 @@ const PurchaseOrderEdit = () => {
     [lines]
   );
 
+  const handleGenerateBarcode = useCallback(() => {
+    const qtyByProductId = new Map();
+    lines.forEach((row) => {
+      const productId = String(row?.productId ?? '').trim();
+      if (!productId) return;
+      const qtyNum = parseFloat(String(row?.qty ?? '1').replace(/,/g, ''));
+      const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? Math.round(qtyNum) : 1;
+      qtyByProductId.set(productId, (qtyByProductId.get(productId) || 0) + qty);
+    });
+    if (qtyByProductId.size === 0) return;
+
+    const productIds = [];
+    const qtys = [];
+    qtyByProductId.forEach((qty, productId) => {
+      productIds.push(productId);
+      qtys.push(String(Math.max(1, Math.min(200, qty))));
+    });
+
+    const params = new URLSearchParams();
+    params.set('product_ids', productIds.join(','));
+    params.set('qty', qtys.join(','));
+    params.set('bType', '2'); // CODE-128
+    navigate(`/barcode-print?${params.toString()}`);
+  }, [lines, navigate]);
+
   const hasVendor = Boolean(String(form.supplier_id ?? '').trim());
   const hasPaymentAccount = Boolean(String(form.account_id ?? '').trim());
 
@@ -1032,6 +1058,20 @@ const PurchaseOrderEdit = () => {
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
                       Print
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={handleGenerateBarcode}
+                      disabled={!hasSaveableLines}
+                      title={
+                        !hasSaveableLines
+                          ? 'Add at least one product line'
+                          : 'Open barcode print with these products (CODE-128)'
+                      }
+                    >
+                      <FaBarcode className="me-1" aria-hidden="true" />
+                      Generate barcode
                     </button>
                   </div>
                 </div>

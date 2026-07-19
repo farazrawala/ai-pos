@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
 import JsBarcode from 'jsbarcode';
-import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import {
+  fetchProductActiveRequest,
+  fetchProductByIdRequest,
+} from '../../features/products/productsAPI.js';
 import {
   getCompanyIdFromUser,
   fetchCompanyById,
@@ -35,6 +39,69 @@ const productId = (p) => p?._id || p?.id || p?.product_id;
 const productName = (p) => p?.name || p?.product_name || 'Product';
 
 const digitsOnly = (s) => String(s ?? '').replace(/\D/g, '');
+
+function unwrapProductRecord(body) {
+  if (!body || typeof body !== 'object') return null;
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) return body.data;
+  if (body.product && typeof body.product === 'object') return body.product;
+  if (body._id || body.id || body.product_name || body.name) return body;
+  return null;
+}
+
+/** Parse `?product_ids=a,b&qty=2,1` (or `products=a:2,b:1`) into [{ id, qty }]. */
+function parseBarcodePrintQuery(searchParams) {
+  if (!searchParams) return [];
+
+  const productsParam = String(searchParams.get('products') || '').trim();
+  if (productsParam) {
+    return productsParam
+      .split(',')
+      .map((part) => {
+        const [idRaw, qtyRaw] = String(part).split(':');
+        const id = String(idRaw || '').trim();
+        if (!id) return null;
+        const qtyNum = parseFloat(String(qtyRaw ?? '1').trim());
+        const qty =
+          Number.isFinite(qtyNum) && qtyNum > 0 ? Math.min(200, Math.max(1, Math.round(qtyNum))) : 1;
+        return { id, qty };
+      })
+      .filter(Boolean);
+  }
+
+  const idsRaw = String(
+    searchParams.get('product_ids') || searchParams.get('product_id') || ''
+  ).trim();
+  if (!idsRaw) return [];
+
+  const ids = idsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const qtyRaw = String(searchParams.get('qty') || searchParams.get('qtys') || '').trim();
+  const qtys = qtyRaw
+    ? qtyRaw.split(',').map((s) => {
+        const n = parseFloat(String(s).trim());
+        return Number.isFinite(n) && n > 0 ? Math.min(200, Math.max(1, Math.round(n))) : 1;
+      })
+    : [];
+
+  return ids.map((id, index) => ({
+    id,
+    qty: qtys[index] != null ? qtys[index] : 1,
+  }));
+}
+
+function resolveBarcodeTypeFromQuery(searchParams) {
+  const raw = String(
+    searchParams?.get('bType') || searchParams?.get('format') || searchParams?.get('barcode_type') || ''
+  )
+    .trim()
+    .toUpperCase();
+  if (!raw) return '2'; // default CODE-128 when importing from PO
+  if (raw === '2' || raw === 'CODE128' || raw === 'CODE-128') return '2';
+  const byValue = B_TYPES.find((t) => t.value === raw || t.format === raw);
+  return byValue?.value || '2';
+}
 
 function priceLine(product) {
   if (!product) return '';
@@ -492,6 +559,7 @@ function BarcodeLabelCell({
 
 const BarcodePrint = () => {
   useRequireModuleAccess('barcode-print');
+  const [searchParams, setSearchParams] = useSearchParams();
   const userSlice = useSelector((state) => state.user);
   const user = userSlice?.user;
 
@@ -507,6 +575,9 @@ const BarcodePrint = () => {
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const productSearchSeqRef = useRef(0);
   const printItemKeyRef = useRef(0);
+  const urlImportDoneRef = useRef(false);
+  const [urlImportStatus, setUrlImportStatus] = useState('idle'); // idle | loading | done | failed
+  const [urlImportError, setUrlImportError] = useState('');
   const [bType, setBType] = useState('2');
 
   /** Sheet size on screen and in print (CSS `in`). ~160×50 mm ≈ 6.3×2.0 in. */
@@ -589,6 +660,95 @@ const BarcodePrint = () => {
     return () => clearTimeout(t);
   }, [productSearchQuery, loadProducts]);
 
+  // Auto-load products from URL: ?product_ids=id1,id2&qty=2,1&bType=2
+  useEffect(() => {
+    if (urlImportDoneRef.current) return;
+    const entries = parseBarcodePrintQuery(searchParams);
+    if (!entries.length) return;
+
+    let cancelled = false;
+    const importBType = resolveBarcodeTypeFromQuery(searchParams);
+    setBType(importBType);
+    setUrlImportStatus('loading');
+    setUrlImportError('');
+
+    (async () => {
+      const results = await Promise.all(
+        entries.map(async (entry) => {
+          try {
+            const body = await fetchProductByIdRequest(entry.id);
+            const product = unwrapProductRecord(body);
+            if (!product) return { ok: false, id: entry.id };
+            return { ok: true, entry, product };
+          } catch {
+            return { ok: false, id: entry.id };
+          }
+        })
+      );
+
+      // Strict Mode remounts cancel the first run — do not mark done until a live run finishes.
+      if (cancelled) return;
+
+      const nextItems = [];
+      const failures = [];
+      for (const result of results) {
+        if (!result.ok) {
+          failures.push(result.id);
+          continue;
+        }
+        printItemKeyRef.current += 1;
+        nextItems.push({
+          key: `pi-${printItemKeyRef.current}`,
+          product: result.product,
+          qty: result.entry.qty,
+          overrideText: '',
+        });
+      }
+
+      urlImportDoneRef.current = true;
+      setBType(importBType);
+
+      if (nextItems.length) {
+        setPrintItems(nextItems);
+        setUrlImportStatus('done');
+      } else {
+        setUrlImportStatus('failed');
+        setUrlImportError('Could not load products from the URL.');
+      }
+
+      if (failures.length) {
+        setUrlImportError(
+          nextItems.length
+            ? `Loaded ${nextItems.length} product(s). Could not load: ${failures.join(', ')}`
+            : `Could not load products: ${failures.join(', ')}`
+        );
+      }
+
+      // Drop one-shot import params so refresh does not re-import / wipe edits.
+      setSearchParams(
+        (prev) => {
+          const nextParams = new URLSearchParams(prev);
+          [
+            'product_ids',
+            'product_id',
+            'qty',
+            'qtys',
+            'products',
+            'bType',
+            'format',
+            'barcode_type',
+          ].forEach((key) => nextParams.delete(key));
+          return nextParams;
+        },
+        { replace: true }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!companyId) {
       setSettingsLoadError('');
@@ -621,7 +781,9 @@ const BarcodePrint = () => {
           setter(String(v));
         };
 
-        if (norm.bType !== undefined) applyStr(norm.bType, setBType);
+        if (norm.bType !== undefined && !urlImportDoneRef.current) {
+          applyStr(norm.bType, setBType);
+        }
         if (norm.labelCount !== undefined) {
           const n = Number(norm.labelCount);
           if (Number.isFinite(n) && n >= 1) setDraftQty(Math.min(200, Math.max(1, Math.round(n))));
@@ -1171,6 +1333,19 @@ const BarcodePrint = () => {
                 <div className="col-lg-7 barcode-print-settings-col">
                   <section className="barcode-print-section">
                     <h6 className="barcode-print-section-title">Products</h6>
+                    {urlImportStatus === 'loading' ? (
+                      <div className="alert alert-info py-2 mb-3" role="status">
+                        Loading products from purchase order…
+                      </div>
+                    ) : null}
+                    {urlImportError ? (
+                      <div
+                        className={`alert py-2 mb-3 ${urlImportStatus === 'failed' ? 'alert-warning' : 'alert-info'}`}
+                        role="status"
+                      >
+                        {urlImportError}
+                      </div>
+                    ) : null}
                     <div className="row g-3 align-items-end">
                       <div className="col-md-6">
                         <label className="form-label">Product</label>
