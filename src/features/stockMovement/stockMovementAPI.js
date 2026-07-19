@@ -244,6 +244,75 @@ export async function fetchStockByProductRequest(productId) {
   return response.json().catch(() => ({}));
 }
 
+/**
+ * POST `inventory_movements/save`
+ * @param {{
+ *   product_id: string;
+ *   warehouse_id: string;
+ *   quantity: number | string;
+ *   movement_type: 'in' | 'out';
+ *   unit_cost?: number | string;
+ *   reference_type?: string;
+ *   reference_id?: string;
+ *   reference_name?: string;
+ * }} payload
+ */
+export async function createInventoryMovementRequest(payload = {}) {
+  const url = `${BASE_URL}inventory_movements/save`;
+  const quantity = Number(payload.quantity);
+  const unit_cost = Number(payload.unit_cost ?? 0);
+  const productId = String(payload.product_id ?? '').trim();
+  const body = {
+    product_id: productId,
+    warehouse_id: String(payload.warehouse_id ?? '').trim(),
+    quantity,
+    movement_type: String(payload.movement_type ?? '').trim().toLowerCase(),
+    unit_cost: Number.isFinite(unit_cost) && unit_cost >= 0 ? unit_cost : 0,
+    reference_type: String(payload.reference_type ?? 'adjustment').trim() || 'adjustment',
+    reference_id: String(payload.reference_id ?? productId).trim(),
+    reference_name:
+      String(payload.reference_name ?? 'Zero stock').trim() || 'Zero stock',
+  };
+
+  if (!body.product_id) throw new Error('product_id is required');
+  if (!body.warehouse_id) throw new Error('warehouse_id is required');
+  if (!body.reference_id) throw new Error('reference_id is required');
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error('quantity must be a positive number');
+  }
+  if (body.movement_type !== 'in' && body.movement_type !== 'out') {
+    throw new Error('movement_type must be in or out');
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(true),
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    logStockMovementError('createInventoryMovementRequest network error', {
+      url,
+      body,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    logStockMovementError('createInventoryMovementRequest failed', {
+      status: response.status,
+      body,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  return response.json().catch(() => ({ success: true }));
+}
+
 /** POST URL for warehouse stock transfer. */
 export function buildStockTransferUrl() {
   return `${BASE_URL}${STOCK_TRANSFER_PATH}`;
