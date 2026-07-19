@@ -13,10 +13,16 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
+import { formatMoney } from '../../utils/formatMoney.js';
 
 const formatQty = (n) => {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   return Number(n).toLocaleString();
+};
+
+const formatPrice = (n) => {
+  if (n == null || n === '') return '—';
+  return formatMoney(n);
 };
 
 const WarehouseInventoryListing = () => {
@@ -182,6 +188,24 @@ const WarehouseInventoryListing = () => {
                       <th
                         className="text-end"
                         style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('price')}
+                        onDoubleClick={() => handleSort('price', true)}
+                      >
+                        Retail price
+                        {renderSortIcon('price')}
+                      </th>
+                      <th
+                        className="text-end"
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleSort('wholesale_price')}
+                        onDoubleClick={() => handleSort('wholesale_price', true)}
+                      >
+                        Wholesale price
+                        {renderSortIcon('wholesale_price')}
+                      </th>
+                      <th
+                        className="text-end"
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
                         onClick={() => handleSort('quantity')}
                         onDoubleClick={() => handleSort('quantity', true)}
                       >
@@ -202,7 +226,7 @@ const WarehouseInventoryListing = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center text-sm font-weight-normal p-4">
+                        <td colSpan="9" className="text-center text-sm font-weight-normal p-4">
                           No warehouse inventory found
                         </td>
                       </tr>
@@ -218,6 +242,12 @@ const WarehouseInventoryListing = () => {
                             </td>
                             <td className="text-sm font-weight-normal">{item.barcode || '—'}</td>
                             <td className="text-sm font-weight-normal">{item.unit || '—'}</td>
+                            <td className="text-sm font-weight-normal text-end text-nowrap">
+                              {formatPrice(item.retailPrice)}
+                            </td>
+                            <td className="text-sm font-weight-normal text-end text-nowrap">
+                              {formatPrice(item.wholesalePrice)}
+                            </td>
                             <td className="text-sm font-weight-normal text-end">
                               <span className="badge bg-gradient-dark text-white mb-0">
                                 {formatQty(item.totalQuantity)}

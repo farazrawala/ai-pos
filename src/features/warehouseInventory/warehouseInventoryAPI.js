@@ -93,6 +93,28 @@ export const getProductUnit = (row) => {
   return '—';
 };
 
+/** Populated product retail / selling price. */
+export const getProductRetailPrice = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  const p = row.product_id ?? row.product;
+  if (!isPopulatedRef(p)) return null;
+  const raw = p.price ?? p.product_price ?? p.retail_price ?? p.retailPrice;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
+
+/** Populated product wholesale / cost price. */
+export const getProductWholesalePrice = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  const p = row.product_id ?? row.product;
+  if (!isPopulatedRef(p)) return null;
+  const raw = p.wholesale_price ?? p.wholesalePrice;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
+
 export const getWarehouseLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';
   const w = row.warehouse_id ?? row.warehouse;
@@ -142,6 +164,8 @@ export function groupInventoryByProduct(rows) {
         productName: getProductLabel(row),
         barcode: getProductBarcode(row),
         unit: getProductUnit(row),
+        retailPrice: getProductRetailPrice(row),
+        wholesalePrice: getProductWholesalePrice(row),
         warehouseLines: [],
         totalQuantity: 0,
         latestUpdatedAt: null,
@@ -198,6 +222,17 @@ export const sortGroupedProducts = (groups, sortBy, sortOrder) => {
       case 'unit':
         av = String(a.unit ?? '').toLowerCase();
         bv = String(b.unit ?? '').toLowerCase();
+        break;
+      case 'price':
+      case 'retail_price':
+      case 'retailPrice':
+        av = a.retailPrice == null ? Number.NEGATIVE_INFINITY : Number(a.retailPrice);
+        bv = b.retailPrice == null ? Number.NEGATIVE_INFINITY : Number(b.retailPrice);
+        break;
+      case 'wholesale_price':
+      case 'wholesalePrice':
+        av = a.wholesalePrice == null ? Number.NEGATIVE_INFINITY : Number(a.wholesalePrice);
+        bv = b.wholesalePrice == null ? Number.NEGATIVE_INFINITY : Number(b.wholesalePrice);
         break;
       case 'updatedAt':
         av = a.latestUpdatedAt ? new Date(a.latestUpdatedAt).getTime() : 0;
