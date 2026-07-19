@@ -17,7 +17,7 @@ import {
 } from '../../features/company/companyAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
-import { downloadBarcodeLabelsPdf } from '../../utils/barcodePrintPdf.js';
+import { downloadBarcodeLabelsPdf, BARCODE_PRINT_MAX_LABELS } from '../../utils/barcodePrintPdf.js';
 import { computeLabelAutoFit } from '../../utils/barcodeLabelAutoFit.js';
 import './barcode-print-module.css';
 
@@ -62,7 +62,9 @@ function parseBarcodePrintQuery(searchParams) {
         if (!id) return null;
         const qtyNum = parseFloat(String(qtyRaw ?? '1').trim());
         const qty =
-          Number.isFinite(qtyNum) && qtyNum > 0 ? Math.min(200, Math.max(1, Math.round(qtyNum))) : 1;
+          Number.isFinite(qtyNum) && qtyNum > 0
+            ? Math.min(BARCODE_PRINT_MAX_LABELS, Math.max(1, Math.round(qtyNum)))
+            : 1;
         return { id, qty };
       })
       .filter(Boolean);
@@ -81,7 +83,9 @@ function parseBarcodePrintQuery(searchParams) {
   const qtys = qtyRaw
     ? qtyRaw.split(',').map((s) => {
         const n = parseFloat(String(s).trim());
-        return Number.isFinite(n) && n > 0 ? Math.min(200, Math.max(1, Math.round(n))) : 1;
+        return Number.isFinite(n) && n > 0
+          ? Math.min(BARCODE_PRINT_MAX_LABELS, Math.max(1, Math.round(n)))
+          : 1;
       })
     : [];
 
@@ -786,7 +790,9 @@ const BarcodePrint = () => {
         }
         if (norm.labelCount !== undefined) {
           const n = Number(norm.labelCount);
-          if (Number.isFinite(n) && n >= 1) setDraftQty(Math.min(200, Math.max(1, Math.round(n))));
+          if (Number.isFinite(n) && n >= 1) {
+            setDraftQty(Math.min(BARCODE_PRINT_MAX_LABELS, Math.max(1, Math.round(n))));
+          }
         }
         if (norm.sheetWidthIn !== undefined) applyStr(norm.sheetWidthIn, setSheetWidthIn);
         applyBool(norm.sheetWidthAuto, setSheetWidthAuto);
@@ -918,9 +924,9 @@ const BarcodePrint = () => {
   const labelSlots = useMemo(() => {
     const slots = [];
     for (const item of resolvedPrintItems) {
-      const qty = Math.max(1, Math.min(200, Number(item.qty) || 1));
+      const qty = Math.max(1, Math.min(BARCODE_PRINT_MAX_LABELS, Number(item.qty) || 1));
       for (let i = 0; i < qty; i += 1) {
-        if (slots.length >= 200) break;
+        if (slots.length >= BARCODE_PRINT_MAX_LABELS) break;
         slots.push({
           key: `${item.key}-${i}`,
           productId: String(productId(item.product) || item.key),
@@ -929,7 +935,7 @@ const BarcodePrint = () => {
           labelLines: item.labelLines,
         });
       }
-      if (slots.length >= 200) break;
+      if (slots.length >= BARCODE_PRINT_MAX_LABELS) break;
     }
     return slots;
   }, [resolvedPrintItems]);
@@ -946,12 +952,12 @@ const BarcodePrint = () => {
     if (!draftProduct) return;
     const id = String(productId(draftProduct) || '').trim();
     if (!id) return;
-    const addQty = Math.max(1, Math.min(200, Number(draftQty) || 1));
+    const addQty = Math.max(1, Math.min(BARCODE_PRINT_MAX_LABELS, Number(draftQty) || 1));
     const override = String(draftOverride || '').trim();
 
     setPrintItems((prev) => {
       const used = prev.reduce((sum, it) => sum + Math.max(1, Number(it.qty) || 1), 0);
-      const remaining = Math.max(0, 200 - used);
+      const remaining = Math.max(0, BARCODE_PRINT_MAX_LABELS - used);
       if (remaining <= 0) return prev;
 
       const existingIdx = prev.findIndex(
@@ -964,7 +970,7 @@ const BarcodePrint = () => {
         const current = next[existingIdx];
         const currentQty = Math.max(1, Number(current.qty) || 1);
         const bump = Math.min(addQty, remaining);
-        next[existingIdx] = { ...current, qty: Math.min(200, currentQty + bump) };
+        next[existingIdx] = { ...current, qty: Math.min(BARCODE_PRINT_MAX_LABELS, currentQty + bump) };
         return next;
       }
 
@@ -988,14 +994,14 @@ const BarcodePrint = () => {
   }, [draftProduct, draftQty, draftOverride]);
 
   const handleUpdatePrintItemQty = useCallback((key, nextQty) => {
-    const qty = Math.max(1, Math.min(200, Number(nextQty) || 1));
+    const qty = Math.max(1, Math.min(BARCODE_PRINT_MAX_LABELS, Number(nextQty) || 1));
     setPrintItems((prev) => {
       const without = prev.filter((it) => it.key !== key);
       const usedElsewhere = without.reduce(
         (sum, it) => sum + Math.max(1, Number(it.qty) || 1),
         0
       );
-      const capped = Math.min(qty, Math.max(1, 200 - usedElsewhere));
+      const capped = Math.min(qty, Math.max(1, BARCODE_PRINT_MAX_LABELS - usedElsewhere));
       return prev.map((it) => (it.key === key ? { ...it, qty: capped } : it));
     });
   }, []);
@@ -1376,7 +1382,7 @@ const BarcodePrint = () => {
                           type="number"
                           className="form-control"
                           min={1}
-                          max={200}
+                          max={BARCODE_PRINT_MAX_LABELS}
                           value={draftQty}
                           onChange={(e) => setDraftQty(e.target.value)}
                         />
@@ -1401,7 +1407,7 @@ const BarcodePrint = () => {
                           type="button"
                           className="btn btn-primary w-100"
                           onClick={handleAddPrintItem}
-                          disabled={!draftProduct || totalLabels >= 200}
+                          disabled={!draftProduct || totalLabels >= BARCODE_PRINT_MAX_LABELS}
                         >
                           Add
                         </button>
@@ -1425,7 +1431,9 @@ const BarcodePrint = () => {
                           <span>
                             {printItems.length} product{printItems.length !== 1 ? 's' : ''} ·{' '}
                             {totalLabels} label{totalLabels !== 1 ? 's' : ''}
-                            {totalLabels >= 200 ? ' (max 200)' : ''}
+                            {totalLabels >= BARCODE_PRINT_MAX_LABELS
+                              ? ` (max ${BARCODE_PRINT_MAX_LABELS})`
+                              : ''}
                           </span>
                         </div>
                         <ul className="barcode-print-queue-list">
@@ -1453,7 +1461,7 @@ const BarcodePrint = () => {
                                   type="number"
                                   className="form-control form-control-sm barcode-print-queue-qty"
                                   min={1}
-                                  max={200}
+                                  max={BARCODE_PRINT_MAX_LABELS}
                                   value={item.qty}
                                   onChange={(e) =>
                                     handleUpdatePrintItemQty(item.key, e.target.value)

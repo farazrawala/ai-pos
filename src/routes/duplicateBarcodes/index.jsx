@@ -11,6 +11,7 @@ import NavIcon from '../../components/NavIcon.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
 import { toast } from '../../utils/toast.js';
+import { BARCODE_PRINT_MAX_LABELS } from '../../utils/barcodePrintPdf.js';
 
 const productRowId = (p) => String(p?._id || p?.id || '');
 
@@ -63,11 +64,11 @@ const getProductStockDisplay = (item) => {
   return { total: Number.isFinite(n) ? n : null, lines: [] };
 };
 
-/** Label print qty for barcode-print (1–200). */
+/** Label print qty for barcode-print (1–BARCODE_PRINT_MAX_LABELS). */
 const printQtyFromStock = (product) => {
   const { total } = getProductStockDisplay(product);
   if (total == null || !Number.isFinite(total) || total <= 0) return 1;
-  return Math.max(1, Math.min(200, Math.round(total)));
+  return Math.max(1, Math.min(BARCODE_PRINT_MAX_LABELS, Math.round(total)));
 };
 
 const DuplicateBarcodes = () => {

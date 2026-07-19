@@ -1,6 +1,9 @@
 import JsBarcode from 'jsbarcode';
 import { computeLabelAutoFit } from './barcodeLabelAutoFit.js';
 
+/** Max labels in one barcode-print queue / PDF. */
+export const BARCODE_PRINT_MAX_LABELS = 1000;
+
 function roundMm(mm) {
   return Math.round(mm * 100) / 100;
 }
@@ -97,7 +100,7 @@ function resolveLabelList(opts) {
   if (Array.isArray(labels) && labels.length > 0) {
     return labels
       .filter((l) => l && String(l.encodeValue || '').trim())
-      .slice(0, 200)
+      .slice(0, BARCODE_PRINT_MAX_LABELS)
       .map((l) => ({
         encodeValue: String(l.encodeValue).trim(),
         labelLines: Array.isArray(l.labelLines) ? l.labelLines : [],
@@ -106,7 +109,7 @@ function resolveLabelList(opts) {
 
   if (!encodeValue) return [];
 
-  const count = Math.min(200, Math.max(1, Number(totalLabels) || 1));
+  const count = Math.min(BARCODE_PRINT_MAX_LABELS, Math.max(1, Number(totalLabels) || 1));
   const lines = Array.isArray(labelLines) ? labelLines : [];
   return Array.from({ length: count }, () => ({
     encodeValue: String(encodeValue),
