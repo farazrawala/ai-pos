@@ -9,61 +9,65 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import ProductWarehouseStockModal from '../../components/product/ProductWarehouseStockModal.jsx';
 import { toast } from '../../utils/toast.js';
 
 const productRowId = (p) => String(p?._id || p?.id || '');
 
-const formatQty = (value) => {
-  if (value == null || value === '') return '—';
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '—';
-  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+/** Same stock formatting as /products list. */
+const formatProductStock = (stock) => {
+  if (stock == null || !Number.isFinite(stock)) return '—';
+  return Number(stock).toLocaleString();
 };
 
-const warehouseNameFromRow = (row) => {
-  const w = row?.warehouse_id ?? row?.warehouseId;
-  if (w && typeof w === 'object') {
-    const n = w.name ?? w.code ?? w.warehouse_name;
+const warehouseNameFromInventoryRow = (row) => {
+  if (!row || typeof row !== 'object') return 'Warehouse';
+  const w = row.warehouse_id ?? row.warehouseId;
+  if (w && typeof w === 'object' && !Array.isArray(w)) {
+    const n = w.name ?? w.warehouse_name ?? w.title ?? w.code;
     if (n != null && String(n).trim() !== '') return String(n).trim();
   }
-  const fallback = row?.warehouse_name ?? row?.warehouseName;
-  return fallback != null && String(fallback).trim() !== ''
-    ? String(fallback).trim()
-    : 'Warehouse';
+  if (w != null && typeof w !== 'object') return String(w);
+  const fallback = row.warehouse_name ?? row.warehouseName;
+  return fallback != null && String(fallback).trim() !== '' ? String(fallback).trim() : 'Warehouse';
 };
 
-const getWarehouseStockLines = (product) => {
-  const inv = product?.warehouse_inventory ?? product?.warehouseInventory;
+/** Per-warehouse qty from API `warehouse_inventory` (populated `warehouse_id`). */
+const getWarehouseStockLines = (item) => {
+  if (!item || typeof item !== 'object') return [];
+  const inv = item.warehouse_inventory ?? item.warehouseInventory;
   if (!Array.isArray(inv) || inv.length === 0) return [];
   return inv.map((row, index) => ({
-    key: String(row?._id ?? row?.id ?? `${warehouseNameFromRow(row)}-${index}`),
-    name: warehouseNameFromRow(row),
+    key: String(row?._id ?? row?.id ?? `${warehouseNameFromInventoryRow(row)}-${index}`),
+    name: warehouseNameFromInventoryRow(row),
     qty: Number(row?.quantity) || 0,
   }));
 };
 
-const getProductQty = (product) => {
-  if (!product || typeof product !== 'object') return null;
-  const lines = getWarehouseStockLines(product);
+/** Total qty plus per-warehouse lines — same logic as /products. */
+const getProductStockDisplay = (item) => {
+  const lines = getWarehouseStockLines(item);
   if (lines.length > 0) {
-    return lines.reduce((sum, line) => sum + line.qty, 0);
+    const warehouseTotal = lines.reduce((sum, line) => sum + line.qty, 0);
+    return { total: warehouseTotal, lines };
   }
+
   const raw =
-    product.qty ??
-    product.stock ??
-    product.total_warehouse_qty ??
-    product.quantity ??
-    product.total_stock;
-  if (raw == null || raw === '') return null;
+    item?.qty ??
+    item?.stock ??
+    item?.total_warehouse_qty ??
+    item?.quantity ??
+    item?.total_stock;
+  if (raw == null || raw === '') return { total: null, lines: [] };
   const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  return { total: Number.isFinite(n) ? n : null, lines: [] };
 };
 
 /** Label print qty for barcode-print (1–200). */
 const printQtyFromStock = (product) => {
-  const stock = getProductQty(product);
-  if (stock == null || !Number.isFinite(stock) || stock <= 0) return 1;
-  return Math.max(1, Math.min(200, Math.round(stock)));
+  const { total } = getProductStockDisplay(product);
+  if (total == null || !Number.isFinite(total) || total <= 0) return 1;
+  return Math.max(1, Math.min(200, Math.round(total)));
 };
 
 const DuplicateBarcodes = () => {
@@ -80,6 +84,7 @@ const DuplicateBarcodes = () => {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
   const [generatingIds, setGeneratingIds] = useState(() => new Set());
+  const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
 
   const showActions = canEdit || canViewBarcodePrint;
 
@@ -155,6 +160,15 @@ const DuplicateBarcodes = () => {
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
+    });
+  };
+
+  const openWarehouseStock = (product) => {
+    const id = productRowId(product);
+    if (!id) return;
+    setWarehouseStockTarget({
+      productId: id,
+      productName: product.product_name || product.name || 'Product',
     });
   };
 
@@ -323,8 +337,7 @@ const DuplicateBarcodes = () => {
                                         <th>Name</th>
                                         <th>Code</th>
                                         <th>SKU</th>
-                                        <th className="text-end">Qty</th>
-                                        <th className="text-end">Stock</th>
+                                        <th className="text-end list-col-stock">Stock</th>
                                         <th>Type</th>
                                         <th>Status</th>
                                         {showActions ? (
@@ -335,8 +348,8 @@ const DuplicateBarcodes = () => {
                                     <tbody>
                                       {products.map((product) => {
                                         const id = productRowId(product);
-                                        const qty = getProductQty(product);
-                                        const warehouseLines = getWarehouseStockLines(product);
+                                        const { total: stockTotal, lines: warehouseLines } =
+                                          getProductStockDisplay(product);
                                         const generating = id && generatingIds.has(id);
                                         const labelQty = printQtyFromStock(product);
                                         return (
@@ -350,32 +363,40 @@ const DuplicateBarcodes = () => {
                                             <td className="text-sm font-monospace">
                                               {product.sku || '—'}
                                             </td>
-                                            <td className="text-sm text-end">{formatQty(qty)}</td>
-                                            <td className="text-sm text-end">
+                                            <td className="text-sm text-end list-col-stock">
+                                              <button
+                                                type="button"
+                                                className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none list-stock-total"
+                                                title="View stock by warehouse"
+                                                onClick={() => openWarehouseStock(product)}
+                                                disabled={!id}
+                                              >
+                                                {formatProductStock(stockTotal)}
+                                              </button>
                                               {warehouseLines.length > 0 ? (
-                                                <div className="d-flex flex-column align-items-end gap-0">
-                                                  <span className="font-weight-bold">
-                                                    {formatQty(qty)}
-                                                  </span>
+                                                <div className="list-stock-warehouses">
                                                   {warehouseLines.slice(0, 2).map((line) => (
-                                                    <span
+                                                    <button
                                                       key={line.key}
-                                                      className="text-muted text-xxs text-truncate"
-                                                      style={{ maxWidth: '9rem' }}
-                                                      title={`${line.name}: ${formatQty(line.qty)}`}
+                                                      type="button"
+                                                      className="btn btn-link btn-sm p-0 mb-0 text-muted text-xxs text-decoration-none list-cell-truncate-sm d-block w-100 text-end"
+                                                      title={`${line.name}: ${formatProductStock(line.qty)}`}
+                                                      onClick={() => openWarehouseStock(product)}
                                                     >
-                                                      {line.name}: {formatQty(line.qty)}
-                                                    </span>
+                                                      {line.name}: {formatProductStock(line.qty)}
+                                                    </button>
                                                   ))}
                                                   {warehouseLines.length > 2 ? (
-                                                    <span className="text-primary text-xxs">
+                                                    <button
+                                                      type="button"
+                                                      className="btn btn-link btn-sm p-0 mb-0 text-primary text-xxs text-decoration-none"
+                                                      onClick={() => openWarehouseStock(product)}
+                                                    >
                                                       +{warehouseLines.length - 2} more
-                                                    </span>
+                                                    </button>
                                                   ) : null}
                                                 </div>
-                                              ) : (
-                                                formatQty(qty)
-                                              )}
+                                              ) : null}
                                             </td>
                                             <td className="text-sm">
                                               {product.product_type || '—'}
@@ -447,6 +468,13 @@ const DuplicateBarcodes = () => {
           </div>
         </div>
       </div>
+
+      <ProductWarehouseStockModal
+        open={Boolean(warehouseStockTarget)}
+        onClose={() => setWarehouseStockTarget(null)}
+        productId={warehouseStockTarget?.productId}
+        productName={warehouseStockTarget?.productName}
+      />
     </div>
   );
 };
