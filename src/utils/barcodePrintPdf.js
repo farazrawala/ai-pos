@@ -2,7 +2,7 @@ import JsBarcode from 'jsbarcode';
 import { computeLabelAutoFit } from './barcodeLabelAutoFit.js';
 
 /** Max labels in one barcode-print queue / PDF. */
-export const BARCODE_PRINT_MAX_LABELS = 1000;
+export const BARCODE_PRINT_MAX_LABELS = 5000;
 
 function roundMm(mm) {
   return Math.round(mm * 100) / 100;
