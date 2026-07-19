@@ -255,7 +255,22 @@ const AdjustmentAdd = () => {
           .join(', ');
         toast.success(`Created adjustment(s): ${summary}. Wholesale cost set to 0.`);
       }
-      setTimeout(() => navigate('/adjustments'), 600);
+
+      // Stay on this page — reset the form for the next product.
+      setForm({
+        product_id: '',
+        productLabel: '',
+        productSku: '',
+        productBarcode: '',
+        wholesalePrice: null,
+        quantity: '1',
+        type: 'add',
+        description: '',
+      });
+      setProductQuery('');
+      setProductResults([]);
+      setProductSearchError('');
+      setErrors({});
     } catch (error) {
       toast.error(
         error?.message || (error && String(error)) || 'Could not zero stock and cost.'
@@ -269,7 +284,6 @@ const AdjustmentAdd = () => {
     form.wholesalePrice,
     defaultWarehouseId,
     dispatch,
-    navigate,
   ]);
 
   const handleChange = (e) => {
