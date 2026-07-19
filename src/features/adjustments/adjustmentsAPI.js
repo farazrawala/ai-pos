@@ -211,6 +211,15 @@ export function buildAdjustmentSaveBody(adjustmentData = {}) {
   };
   const qty = Number(adjustmentData.quantity);
   if (!Number.isNaN(qty)) body.quantity = qty;
+
+  const warehouseId = String(adjustmentData.warehouse_id ?? '').trim();
+  if (warehouseId) body.warehouse_id = warehouseId;
+
+  const unitCost = Number(adjustmentData.unit_cost ?? adjustmentData.cost);
+  if (Number.isFinite(unitCost) && unitCost > 0) {
+    body.unit_cost = unitCost;
+  }
+
   return body;
 }
 

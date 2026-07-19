@@ -4,10 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { createAdjustment } from '../../features/adjustments/adjustmentsSlice.js';
 import { ADJUSTMENT_TYPE_OPTIONS } from '../../features/adjustments/adjustmentsAPI.js';
 import { fetchProductActiveRequest, updateProductRequest } from '../../features/products/productsAPI.js';
-import {
-  createInventoryMovementRequest,
-  fetchStockByProductRequest,
-} from '../../features/stockMovement/stockMovementAPI.js';
+import { fetchStockByProductRequest } from '../../features/stockMovement/stockMovementAPI.js';
 import { getWarehouseIdFromCompany } from '../../features/company/companyAPI.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { formatMoney } from '../../utils/formatMoney.js';
@@ -218,7 +215,7 @@ const AdjustmentAdd = () => {
     }
     const label = form.productLabel || 'this product';
     const confirmed = window.confirm(
-      `Bring stock to 0 (IN if negative, OUT if positive) and set wholesale cost to 0 for "${label}"?`
+      `Bring stock to 0 (add if negative, remove if positive) and set wholesale cost to 0 for "${label}"?\n\nThis creates adjustment record(s) on the Adjustments list.`
     );
     if (!confirmed) return;
 
@@ -227,19 +224,24 @@ const AdjustmentAdd = () => {
       const stockPayload = await fetchStockByProductRequest(productId);
       const movements = buildZeroStockMovements(stockPayload, defaultWarehouseId);
       const unitCostRaw = Number(form.wholesalePrice);
+      // Adjustment GL requires amount > 0; use a tiny seed cost when wholesale/retail are 0.
       const unit_cost =
-        Number.isFinite(unitCostRaw) && unitCostRaw >= 0 ? unitCostRaw : 0;
+        Number.isFinite(unitCostRaw) && unitCostRaw > 0 ? unitCostRaw : 0.01;
 
       for (const line of movements) {
-        await createInventoryMovementRequest({
-          product_id: productId,
-          warehouse_id: line.warehouse_id,
-          quantity: line.quantity,
-          movement_type: line.movement_type,
-          unit_cost,
-          reference_type: 'adjustment',
-          reference_name: 'Zero stock',
-        });
+        // adjustment add = IN, remove = OUT (posts inventory + shows on /adjustments)
+        await dispatch(
+          createAdjustment({
+            adjustmentFields: {
+              product_id: productId,
+              quantity: line.quantity,
+              type: line.movement_type === 'in' ? 'add' : 'remove',
+              warehouse_id: line.warehouse_id,
+              description: 'making stock zero.',
+              unit_cost,
+            },
+          })
+        ).unwrap();
       }
 
       await updateProductRequest(productId, { wholesale_price: 0 });
@@ -249,10 +251,11 @@ const AdjustmentAdd = () => {
         toast.success('Stock already 0. Wholesale cost set to 0.');
       } else {
         const summary = movements
-          .map((m) => `${m.movement_type.toUpperCase()} ${m.quantity}`)
+          .map((m) => `${m.movement_type === 'in' ? 'Add' : 'Remove'} ${m.quantity}`)
           .join(', ');
-        toast.success(`Stock cleared (${summary}). Wholesale cost set to 0.`);
+        toast.success(`Created adjustment(s): ${summary}. Wholesale cost set to 0.`);
       }
+      setTimeout(() => navigate('/adjustments'), 600);
     } catch (error) {
       toast.error(
         error?.message || (error && String(error)) || 'Could not zero stock and cost.'
@@ -260,7 +263,14 @@ const AdjustmentAdd = () => {
     } finally {
       setIsZeroingStock(false);
     }
-  }, [form.product_id, form.productLabel, form.wholesalePrice, defaultWarehouseId]);
+  }, [
+    form.product_id,
+    form.productLabel,
+    form.wholesalePrice,
+    defaultWarehouseId,
+    dispatch,
+    navigate,
+  ]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
