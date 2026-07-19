@@ -12,6 +12,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { withBase } from '../../config/appBase.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 
@@ -238,7 +239,19 @@ const WarehouseInventoryListing = () => {
                           <tr key={key}>
                             <td className="text-sm font-weight-normal">{seriesNumber}</td>
                             <td className="text-sm font-weight-normal">
-                              {item.productName || '—'}
+                              {item.productId ? (
+                                <a
+                                  href={withBase(`/products/edit/${item.productId}`)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark text-decoration-none text-start"
+                                  title={`Open ${item.productName || 'product'} in new tab`}
+                                >
+                                  {item.productName || '—'}
+                                </a>
+                              ) : (
+                                item.productName || '—'
+                              )}
                             </td>
                             <td className="text-sm font-weight-normal">{item.barcode || '—'}</td>
                             <td className="text-sm font-weight-normal">{item.unit || '—'}</td>
