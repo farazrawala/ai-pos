@@ -14,13 +14,40 @@ import { toast } from '../../utils/toast.js';
 const productRowId = (p) => String(p?._id || p?.id || '');
 
 const formatQty = (value) => {
+  if (value == null || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 };
 
+const warehouseNameFromRow = (row) => {
+  const w = row?.warehouse_id ?? row?.warehouseId;
+  if (w && typeof w === 'object') {
+    const n = w.name ?? w.code ?? w.warehouse_name;
+    if (n != null && String(n).trim() !== '') return String(n).trim();
+  }
+  const fallback = row?.warehouse_name ?? row?.warehouseName;
+  return fallback != null && String(fallback).trim() !== ''
+    ? String(fallback).trim()
+    : 'Warehouse';
+};
+
+const getWarehouseStockLines = (product) => {
+  const inv = product?.warehouse_inventory ?? product?.warehouseInventory;
+  if (!Array.isArray(inv) || inv.length === 0) return [];
+  return inv.map((row, index) => ({
+    key: String(row?._id ?? row?.id ?? `${warehouseNameFromRow(row)}-${index}`),
+    name: warehouseNameFromRow(row),
+    qty: Number(row?.quantity) || 0,
+  }));
+};
+
 const getProductQty = (product) => {
   if (!product || typeof product !== 'object') return null;
+  const lines = getWarehouseStockLines(product);
+  if (lines.length > 0) {
+    return lines.reduce((sum, line) => sum + line.qty, 0);
+  }
   const raw =
     product.qty ??
     product.stock ??
@@ -309,6 +336,7 @@ const DuplicateBarcodes = () => {
                                       {products.map((product) => {
                                         const id = productRowId(product);
                                         const qty = getProductQty(product);
+                                        const warehouseLines = getWarehouseStockLines(product);
                                         const generating = id && generatingIds.has(id);
                                         const labelQty = printQtyFromStock(product);
                                         return (
@@ -323,7 +351,32 @@ const DuplicateBarcodes = () => {
                                               {product.sku || '—'}
                                             </td>
                                             <td className="text-sm text-end">{formatQty(qty)}</td>
-                                            <td className="text-sm text-end">{formatQty(qty)}</td>
+                                            <td className="text-sm text-end">
+                                              {warehouseLines.length > 0 ? (
+                                                <div className="d-flex flex-column align-items-end gap-0">
+                                                  <span className="font-weight-bold">
+                                                    {formatQty(qty)}
+                                                  </span>
+                                                  {warehouseLines.slice(0, 2).map((line) => (
+                                                    <span
+                                                      key={line.key}
+                                                      className="text-muted text-xxs text-truncate"
+                                                      style={{ maxWidth: '9rem' }}
+                                                      title={`${line.name}: ${formatQty(line.qty)}`}
+                                                    >
+                                                      {line.name}: {formatQty(line.qty)}
+                                                    </span>
+                                                  ))}
+                                                  {warehouseLines.length > 2 ? (
+                                                    <span className="text-primary text-xxs">
+                                                      +{warehouseLines.length - 2} more
+                                                    </span>
+                                                  ) : null}
+                                                </div>
+                                              ) : (
+                                                formatQty(qty)
+                                              )}
+                                            </td>
                                             <td className="text-sm">
                                               {product.product_type || '—'}
                                             </td>
