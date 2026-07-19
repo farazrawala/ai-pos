@@ -226,6 +226,8 @@ const PurchaseOrderAdd = () => {
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [addingSelectedProducts, setAddingSelectedProducts] = useState(false);
 
   const [accounts, setAccounts] = useState([]);
   const [accountsStatus, setAccountsStatus] = useState('idle');
@@ -336,6 +338,7 @@ const PurchaseOrderAdd = () => {
     if (q.length < 2) {
       setAddProductResults([]);
       setAddProductError('');
+      setSelectedProductIds([]);
       return undefined;
     }
     let cancelled = false;
@@ -346,10 +349,12 @@ const PurchaseOrderAdd = () => {
         const res = await fetchProductActiveRequest({ search: q, page: 1, limit: 30 });
         if (cancelled) return;
         setAddProductResults(Array.isArray(res?.data) ? res.data : []);
+        setSelectedProductIds([]);
       } catch (e) {
         if (!cancelled) {
           setAddProductError(e?.message || 'Search failed');
           setAddProductResults([]);
+          setSelectedProductIds([]);
         }
       } finally {
         if (!cancelled) setAddProductLoading(false);
@@ -422,11 +427,11 @@ const PurchaseOrderAdd = () => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
 
-  const appendProduct = useCallback(
+  const buildLineFromProduct = useCallback(
     async (product) => {
-      if (!product || typeof product !== 'object') return;
+      if (!product || typeof product !== 'object') return null;
       const id = String(product._id ?? product.id ?? '').trim();
-      if (!id) return;
+      if (!id) return null;
 
       let resolved = product;
       if (productPickerWholesalePrice(product) === null) {
@@ -440,29 +445,85 @@ const PurchaseOrderAdd = () => {
       }
 
       const rate = productPickerDefaultLineRate(resolved);
-      setLines((prev) => [
-        ...prev,
-        {
-          key: newLineKey(),
-          productId: id,
-          label: productPickerLabel(resolved),
-          qty: '1',
-          rate: String(rate),
-          totalShipping: '',
-          warehouseId: defaultWarehouseId,
-          warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
-            ? resolved.warehouse_inventory
-            : Array.isArray(product.warehouse_inventory)
-              ? product.warehouse_inventory
-              : [],
-        },
-      ]);
-      setAddProductQuery('');
-      setAddProductResults([]);
-      setAddProductError('');
+      return {
+        key: newLineKey(),
+        productId: id,
+        label: productPickerLabel(resolved),
+        qty: '1',
+        rate: String(rate),
+        totalShipping: '',
+        warehouseId: defaultWarehouseId,
+        warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
+          ? resolved.warehouse_inventory
+          : Array.isArray(product.warehouse_inventory)
+            ? product.warehouse_inventory
+            : [],
+      };
     },
     [defaultWarehouseId]
   );
+
+  const appendProducts = useCallback(
+    async (products) => {
+      const list = (Array.isArray(products) ? products : [products]).filter(Boolean);
+      if (!list.length) return;
+      setAddingSelectedProducts(true);
+      try {
+        const rows = (
+          await Promise.all(list.map((product) => buildLineFromProduct(product)))
+        ).filter(Boolean);
+        if (!rows.length) return;
+        setLines((prev) => [...prev, ...rows]);
+        setAddProductQuery('');
+        setAddProductResults([]);
+        setSelectedProductIds([]);
+        setAddProductError('');
+      } finally {
+        setAddingSelectedProducts(false);
+      }
+    },
+    [buildLineFromProduct]
+  );
+
+  const toggleProductSelected = useCallback((productId) => {
+    const id = String(productId || '').trim();
+    if (!id) return;
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const allVisibleProductIds = useMemo(
+    () =>
+      addProductResults
+        .map((p) => String(p?._id ?? p?.id ?? '').trim())
+        .filter(Boolean),
+    [addProductResults]
+  );
+
+  const allVisibleSelected =
+    allVisibleProductIds.length > 0 &&
+    allVisibleProductIds.every((id) => selectedProductIds.includes(id));
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedProductIds((prev) => {
+      if (
+        allVisibleProductIds.length > 0 &&
+        allVisibleProductIds.every((id) => prev.includes(id))
+      ) {
+        return prev.filter((id) => !allVisibleProductIds.includes(id));
+      }
+      return [...new Set([...prev, ...allVisibleProductIds])];
+    });
+  }, [allVisibleProductIds]);
+
+  const handleAddSelectedProducts = useCallback(async () => {
+    const selected = addProductResults.filter((p) => {
+      const id = String(p?._id ?? p?.id ?? '').trim();
+      return id && selectedProductIds.includes(id);
+    });
+    await appendProducts(selected);
+  }, [addProductResults, selectedProductIds, appendProducts]);
 
   const summary = useMemo(() => {
     let subTotal = 0;
@@ -948,29 +1009,79 @@ const PurchaseOrderAdd = () => {
                       </div>
                     ) : null}
                     {addProductResults.length > 0 ? (
-                      <ul
-                        className="list-group position-relative w-100 shadow-sm mt-1"
-                        style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                      <div
+                        className="po-form-product-results list-group position-relative w-100 shadow-sm mt-1"
+                        style={{ zIndex: 20, maxHeight: '280px', overflowY: 'auto' }}
                       >
+                        <div className="list-group-item d-flex align-items-center gap-2 py-2 px-3 bg-light sticky-top">
+                          <input
+                            type="checkbox"
+                            className="form-check-input m-0 flex-shrink-0"
+                            checked={allVisibleSelected}
+                            onChange={toggleSelectAllVisible}
+                            disabled={isSubmitting || addingSelectedProducts}
+                            aria-label="Select all search results"
+                          />
+                          <span className="small text-muted flex-grow-1">
+                            {selectedProductIds.length > 0
+                              ? `${selectedProductIds.length} selected`
+                              : 'Select products'}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            disabled={
+                              isSubmitting ||
+                              addingSelectedProducts ||
+                              selectedProductIds.length === 0
+                            }
+                            onClick={handleAddSelectedProducts}
+                          >
+                            {addingSelectedProducts
+                              ? 'Adding…'
+                              : `Add selected${selectedProductIds.length ? ` (${selectedProductIds.length})` : ''}`}
+                          </button>
+                        </div>
                         {addProductResults.map((p) => {
                           const pk = String(p._id ?? p.id ?? '');
+                          const checked = selectedProductIds.includes(pk);
                           return (
-                            <li key={pk} className="list-group-item p-0">
+                            <div
+                              key={pk}
+                              className="list-group-item po-form-product-result-row d-flex align-items-stretch py-0 px-0 mb-0"
+                            >
+                              <label
+                                className="po-form-product-result-check d-flex align-items-center justify-content-center px-3 mb-0"
+                                title="Select for bulk add"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input m-0 flex-shrink-0"
+                                  checked={checked}
+                                  onChange={() => toggleProductSelected(pk)}
+                                  disabled={isSubmitting || addingSelectedProducts}
+                                  aria-label={`Select ${productPickerLabel(p)}`}
+                                />
+                              </label>
                               <button
                                 type="button"
-                                className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
-                                onClick={() => appendProduct(p)}
+                                className="po-form-product-result-add btn btn-link text-decoration-none text-start text-body flex-grow-1 border-0 rounded-0 py-2 px-3"
+                                title="Click to add this product"
+                                disabled={isSubmitting || addingSelectedProducts}
+                                onClick={() => appendProducts([p])}
                               >
-                                <span className="fw-semibold">{productPickerLabel(p)}</span>
-                                <span className="text-muted ms-2">
+                                <span className="fw-semibold d-block">{productPickerLabel(p)}</span>
+                                <span className="text-muted small">
                                   Wholesale{' '}
-                                  {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                                  {fmt(
+                                    productPickerWholesalePrice(p) ?? productPickerUnitPrice(p)
+                                  )}
                                 </span>
                               </button>
-                            </li>
+                            </div>
                           );
                         })}
-                      </ul>
+                      </div>
                     ) : null}
                   </div>
 

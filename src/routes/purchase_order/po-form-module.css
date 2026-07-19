@@ -193,6 +193,33 @@
   color: var(--po-muted);
 }
 
+.po-form-page .po-form-product-result-row {
+  padding: 0;
+  overflow: hidden;
+}
+
+.po-form-page .po-form-product-result-check {
+  cursor: pointer;
+  background: #eef1f6;
+  border-right: 1px solid var(--po-border);
+  min-width: 2.75rem;
+}
+
+.po-form-page .po-form-product-result-check:hover {
+  background: #e4e9f1;
+}
+
+.po-form-page .po-form-product-result-add {
+  cursor: pointer;
+  background: #fff;
+}
+
+.po-form-page .po-form-product-result-add:hover,
+.po-form-page .po-form-product-result-add:focus {
+  background: #f5f8ff;
+  color: inherit;
+}
+
 .po-form-page .po-form-table-wrap {
   border: 1px solid var(--po-border);
   border-radius: 0.625rem;
