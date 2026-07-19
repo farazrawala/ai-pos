@@ -193,9 +193,15 @@
   color: var(--po-muted);
 }
 
+.po-form-page .po-form-product-results.list-group {
+  /* Keep Bootstrap list-group borders; don't let flex crush rows when max-height scrolls. */
+  display: block;
+}
+
 .po-form-page .po-form-product-result-row {
   padding: 0;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .po-form-page .po-form-product-result-check {
