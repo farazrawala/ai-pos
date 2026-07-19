@@ -46,6 +46,7 @@ export const NAV_ITEMS = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
   { to: '/pos', label: 'POS', icon: FaLaptop },
   { to: '/products', label: 'Products', icon: FaBox },
+  { to: '/products/duplicate-barcodes', label: 'Duplicate barcodes', icon: FaQrcode },
   { to: '/orders', label: 'Orders', icon: FaCartShopping },
   { to: '/oms', label: 'OMS', icon: FaClipboardList },
   { to: '/purchase-orders', label: 'Purchase orders', icon: FaTruck },

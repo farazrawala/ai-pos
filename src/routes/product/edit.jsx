@@ -10,6 +10,7 @@ import {
   clearUpdateStatus,
   clearCurrentProduct,
 } from '../../features/products/productsSlice.js';
+import { generateUniqueProductBarcodeRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
@@ -24,6 +25,8 @@ import {
 } from '../../components/product/productVariationUtils.js';
 import '../../components/product/product-variations-modal.css';
 import './product-form.css';
+
+const isPersistedProductId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? '').trim());
 
 const ProductEdit = () => {
   const dispatch = useDispatch();
@@ -77,6 +80,7 @@ const ProductEdit = () => {
   const [loadingAttributes, setLoadingAttributes] = useState(false);
   const [selectedAttributes, setSelectedAttributes] = useState({}); // { attributeId: [valueNames] }
   const [variations, setVariations] = useState([]); // Array of variation objects
+  const [applyingBarcodes, setApplyingBarcodes] = useState(false);
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
@@ -533,43 +537,93 @@ const ProductEdit = () => {
     toast.success(`Applied retail price to ${variations.length} variant${variations.length === 1 ? '' : 's'}`);
   };
 
-  const applyBarcodeToEmptyVariations = () => {
-    if (variations.length === 0) return;
+  const applyBarcodeToEmptyVariations = async () => {
+    if (variations.length === 0 || applyingBarcodes) return;
 
-    const existingMain = (form.barcode || '').trim();
-    const barcode = existingMain || generateBarcode();
-    const mainWasEmpty = !existingMain;
-
-    if (mainWasEmpty) {
-      setForm((prev) => ({ ...prev, barcode }));
-      if (errors.barcode) {
-        setErrors((prev) => ({ ...prev, barcode: '' }));
-      }
-    }
-
-    const emptyIds = new Set(
-      variations.filter((v) => !v.barcode || String(v.barcode).trim() === '').map((v) => v.id)
+    const mainWasEmpty = !(form.barcode || '').trim();
+    const emptyVariations = variations.filter(
+      (v) => !v.barcode || String(v.barcode).trim() === ''
     );
 
-    if (emptyIds.size === 0 && !mainWasEmpty) {
+    if (!mainWasEmpty && emptyVariations.length === 0) {
       toast.info('Main product and all variants already have a barcode');
       return;
     }
 
-    if (emptyIds.size > 0) {
-      setVariations((prev) =>
-        prev.map((v) => (emptyIds.has(v.id) ? { ...v, barcode } : v))
-      );
-    }
+    const used = new Set(
+      [form.barcode, ...variations.map((v) => v.barcode)]
+        .map((b) => String(b ?? '').trim())
+        .filter(Boolean)
+    );
 
-    const parts = [];
-    if (mainWasEmpty) parts.push('main product');
-    if (emptyIds.size > 0) {
-      parts.push(
-        `${emptyIds.size} empty variant${emptyIds.size === 1 ? '' : 's'}`
-      );
+    const nextLocalBarcode = () => {
+      let code = '';
+      do {
+        code = generateBarcode();
+      } while (used.has(code));
+      used.add(code);
+      return code;
+    };
+
+    const assignUniqueBarcode = async (productId) => {
+      const pid = String(productId ?? '').trim();
+      if (isPersistedProductId(pid)) {
+        const result = await generateUniqueProductBarcodeRequest(pid);
+        const code = String(result?.data?.barcode ?? '').trim();
+        if (!code) {
+          throw new Error(result?.message || 'Failed to generate unique barcode');
+        }
+        used.add(code);
+        return code;
+      }
+      return nextLocalBarcode();
+    };
+
+    setApplyingBarcodes(true);
+    try {
+      if (mainWasEmpty) {
+        const mainCode = await assignUniqueBarcode(id);
+        setForm((prev) => ({ ...prev, barcode: mainCode }));
+        if (errors.barcode) {
+          setErrors((prev) => ({ ...prev, barcode: '' }));
+        }
+      }
+
+      const barcodeByVariationId = new Map();
+      for (const variation of emptyVariations) {
+        const productId =
+          variation.childProductId ||
+          (isPersistedProductId(variation.id) ? variation.id : null);
+        const code = await assignUniqueBarcode(productId);
+        barcodeByVariationId.set(variation.id, code);
+      }
+
+      if (barcodeByVariationId.size > 0) {
+        setVariations((prev) =>
+          prev.map((v) =>
+            barcodeByVariationId.has(v.id)
+              ? { ...v, barcode: barcodeByVariationId.get(v.id) }
+              : v
+          )
+        );
+      }
+
+      const parts = [];
+      if (mainWasEmpty) parts.push('main product');
+      if (barcodeByVariationId.size > 0) {
+        parts.push(
+          `${barcodeByVariationId.size} empty variant${
+            barcodeByVariationId.size === 1 ? '' : 's'
+          }`
+        );
+      }
+      toast.success(`Generated unique barcodes for ${parts.join(' and ')}`);
+    } catch (err) {
+      console.error('[Product edit] Failed to apply barcodes', err);
+      toast.error(err?.message || 'Failed to generate barcodes');
+    } finally {
+      setApplyingBarcodes(false);
     }
-    toast.success(`Applied barcode to ${parts.join(' and ')}`);
   };
 
   // Handle variation image change
@@ -1359,10 +1413,18 @@ const ProductEdit = () => {
                           type="button"
                           className="btn btn-sm btn-outline-primary mb-0 py-0 px-2"
                           onClick={applyBarcodeToEmptyVariations}
-                          disabled={isSubmitting}
-                          title="Fill main product barcode if empty, and copy to variants with no barcode"
+                          disabled={isSubmitting || applyingBarcodes}
+                          title="Generate a unique barcode for the main product (if empty) and each empty variant"
                         >
-                          <i className="fas fa-copy me-1" aria-hidden="true" />
+                          {applyingBarcodes ? (
+                            <span
+                              className="spinner-border spinner-border-sm me-1"
+                              role="status"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <i className="fas fa-barcode me-1" aria-hidden="true" />
+                          )}
                           Apply to empty variants
                         </button>
                       )}

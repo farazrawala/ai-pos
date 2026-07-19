@@ -825,6 +825,84 @@ export const updateProductVariationRequest = async (
   return result;
 };
 
+/**
+ * List barcodes shared by more than one non-deleted product in the company.
+ * GET /product/duplicate-barcodes
+ * @returns {{
+ *   success: boolean,
+ *   company_id: string,
+ *   duplicate_barcode_count: number,
+ *   duplicate_product_count: number,
+ *   data: Array<{ barcode: string, count: number, products: Array<object> }>
+ * }}
+ */
+export const fetchDuplicateBarcodesRequest = async () => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}product/duplicate-barcodes`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(buildApiErrorMessage(errorData, response.status));
+  }
+
+  const result = await response.json();
+  return {
+    success: Boolean(result?.success),
+    company_id: result?.company_id != null ? String(result.company_id) : '',
+    duplicate_barcode_count: Number(result?.duplicate_barcode_count) || 0,
+    duplicate_product_count: Number(result?.duplicate_product_count) || 0,
+    data: Array.isArray(result?.data) ? result.data : [],
+  };
+};
+
+/**
+ * Generate a company-unique barcode and save it on the product.
+ * POST /product/generate-barcode/:id (PATCH also supported by API)
+ * @returns {{ success, message, data: { product_id, product_name, previous_barcode, barcode, company_id } }}
+ */
+export const generateUniqueProductBarcodeRequest = async (productId) => {
+  const token = getAuthToken();
+  const id = String(productId ?? '').trim();
+  if (!id) {
+    throw new Error('Valid product id is required');
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}product/generate-barcode/${encodeURIComponent(id)}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(buildApiErrorMessage(errorData, response.status));
+  }
+
+  const result = await response.json();
+  return result;
+};
+
 /** Fetch every page matching filters (for CSV / Excel / PDF export). */
 export async function fetchAllProductsForExportRequest(params = {}) {
   const limit = 500;

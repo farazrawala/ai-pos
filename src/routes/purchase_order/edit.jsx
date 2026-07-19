@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FaBarcode } from 'react-icons/fa6';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
-import { generateBarcode } from '../../components/product/productVariationUtils.js';
 import {
   extractPrinterSettingsFromCompanyBody,
   fetchCompanyById,
@@ -23,7 +22,7 @@ import {
 import {
   fetchProductActiveRequest,
   fetchProductByIdRequest,
-  updateProductRequest,
+  generateUniqueProductBarcodeRequest,
 } from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
@@ -683,28 +682,16 @@ const PurchaseOrderEdit = () => {
       return;
     }
     if (lineHasBarcode(row)) {
-      toast.info(`Already has barcode: ${row.barcode}`);
       return;
     }
 
     setGeneratingBarcodeKeys((prev) => new Set(prev).add(row.key));
     try {
-      const detail = await fetchProductByIdRequest(productId);
-      const existing = productBarcode(normalizeProductDetail(detail));
-      if (existing) {
-        setLines((prev) =>
-          prev.map((r) =>
-            String(r.productId ?? '').trim() === productId
-              ? { ...r, barcode: existing, barcodeResolved: true }
-              : r
-          )
-        );
-        toast.info(`Product already has barcode: ${existing}`);
-        return;
+      const result = await generateUniqueProductBarcodeRequest(productId);
+      const code = String(result?.data?.barcode ?? '').trim();
+      if (!code) {
+        throw new Error(result?.message || 'Failed to generate unique barcode');
       }
-
-      const code = generateBarcode();
-      await updateProductRequest(productId, { barcode: code });
       setLines((prev) =>
         prev.map((r) =>
           String(r.productId ?? '').trim() === productId
@@ -712,7 +699,7 @@ const PurchaseOrderEdit = () => {
             : r
         )
       );
-      toast.success(`Barcode assigned: ${code}`);
+      toast.success(result?.message || `Barcode assigned: ${code}`);
     } catch (err) {
       console.error('[Purchase order edit] Failed to assign barcode', err);
       toast.error(err?.message || 'Failed to generate barcode');
@@ -1556,7 +1543,7 @@ const PurchaseOrderEdit = () => {
                                       {row.barcodeResolved && !hasBarcode ? (
                                         <button
                                           type="button"
-                                          className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center p-0"
+                                          className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center p-0"
                                           style={{ width: '32px', height: '32px' }}
                                           title="Generate barcode for this product"
                                           aria-label={`Generate barcode for line ${i + 1}`}

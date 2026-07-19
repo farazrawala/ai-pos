@@ -55,6 +55,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/purchase-order-returns': 'purchase-order-returns',
   '/sales-returns': 'sales-returns',
   '/products': 'products',
+  '/products/duplicate-barcodes': 'products',
   '/categories': 'categories',
   '/brands': 'brands',
   '/integration': 'integration',

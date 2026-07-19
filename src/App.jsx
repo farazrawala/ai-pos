@@ -71,6 +71,7 @@ import CompanyCachePage from './routes/companyCache/index.jsx';
 import CompanyQueuesPage from './routes/companyQueues/index.jsx';
 import CompanyPage from './routes/company/index.jsx';
 import BarcodePrint from './routes/barcodePrint/index.jsx';
+import DuplicateBarcodes from './routes/duplicateBarcodes/index.jsx';
 import ProductPrint from './routes/productPrint/index.jsx';
 import PrinterSettings from './routes/printerSettings/index.jsx';
 import ProfitReportPage from './routes/profitReport/index.jsx';
@@ -184,6 +185,7 @@ const App = () => {
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/products/duplicate-barcodes" element={<DuplicateBarcodes />} />
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
           <Route path="/printer-settings" element={<PrinterSettings />} />
@@ -320,6 +322,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/products" element={<Product />} />
           <Route path="/products/add" element={<ProductAdd />} />
           <Route path="/products/edit/:id" element={<ProductEdit />} />
+          <Route path="/products/duplicate-barcodes" element={<DuplicateBarcodes />} />
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
           <Route path="/printer-settings" element={<PrinterSettings />} />
