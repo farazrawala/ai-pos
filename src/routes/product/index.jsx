@@ -880,14 +880,15 @@ const Product = () => {
                               title={productName !== 'Product' ? productName : undefined}
                             >
                               {canEdit ? (
-                                <button
-                                  type="button"
+                                <a
+                                  href={withBase(`/products/edit/${productEditId}`)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
                                   title={`Edit ${productName}`}
-                                  onClick={() => navigate(`/products/edit/${productEditId}`)}
                                 >
                                   {productName}
-                                </button>
+                                </a>
                               ) : (
                                 productName
                               )}
