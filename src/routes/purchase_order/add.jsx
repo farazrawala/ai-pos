@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { FaBarcode } from 'react-icons/fa6';
+import { generateBarcode } from '../../components/product/productVariationUtils.js';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import {
   fetchProductActiveRequest,
   fetchProductByIdRequest,
+  updateProductRequest,
 } from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
@@ -28,6 +31,13 @@ import { toast } from '../../utils/toast.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import './po-form-module.css';
+
+const productBarcode = (p) => {
+  if (!p || typeof p !== 'object') return '';
+  return String(p.barcode ?? '').trim();
+};
+
+const lineHasBarcode = (row) => Boolean(String(row?.barcode ?? '').trim());
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -235,6 +245,7 @@ const PurchaseOrderAdd = () => {
   const [amountPaidDirty, setAmountPaidDirty] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
   const [warehousesStatus, setWarehousesStatus] = useState('idle');
+  const [generatingBarcodeKeys, setGeneratingBarcodeKeys] = useState(() => new Set());
 
   const loadUsers = useCallback(async (selectAfter) => {
     setUsersStatus('loading');
@@ -458,10 +469,61 @@ const PurchaseOrderAdd = () => {
           : Array.isArray(product.warehouse_inventory)
             ? product.warehouse_inventory
             : [],
+        barcode: productBarcode(resolved),
+        barcodeResolved: true,
       };
     },
     [defaultWarehouseId]
   );
+
+  const handleAssignBarcode = useCallback(async (row) => {
+    const productId = String(row?.productId ?? '').trim();
+    if (!productId) {
+      toast.error('Missing product on this line');
+      return;
+    }
+    if (lineHasBarcode(row)) {
+      toast.info(`Already has barcode: ${row.barcode}`);
+      return;
+    }
+
+    setGeneratingBarcodeKeys((prev) => new Set(prev).add(row.key));
+    try {
+      const detail = await fetchProductByIdRequest(productId);
+      const existing = productBarcode(normalizeProductDetail(detail));
+      if (existing) {
+        setLines((prev) =>
+          prev.map((r) =>
+            String(r.productId ?? '').trim() === productId
+              ? { ...r, barcode: existing, barcodeResolved: true }
+              : r
+          )
+        );
+        toast.info(`Product already has barcode: ${existing}`);
+        return;
+      }
+
+      const code = generateBarcode();
+      await updateProductRequest(productId, { barcode: code });
+      setLines((prev) =>
+        prev.map((r) =>
+          String(r.productId ?? '').trim() === productId
+            ? { ...r, barcode: code, barcodeResolved: true }
+            : r
+        )
+      );
+      toast.success(`Barcode assigned: ${code}`);
+    } catch (err) {
+      console.error('[Purchase order add] Failed to assign barcode', err);
+      toast.error(err?.message || 'Failed to generate barcode');
+    } finally {
+      setGeneratingBarcodeKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(row.key);
+        return next;
+      });
+    }
+  }, []);
 
   const appendProducts = useCallback(
     async (products) => {
@@ -1100,7 +1162,7 @@ const PurchaseOrderAdd = () => {
                             <th className="text-end po-form-col-amt">Amount</th>
                             <th
                               className="text-center po-form-col-action"
-                              aria-label="Remove row"
+                              aria-label="Barcode and remove"
                             />
                           </tr>
                         </thead>
@@ -1115,6 +1177,8 @@ const PurchaseOrderAdd = () => {
                             lines.map((row, i) => {
                               const derived = computeLineDerived(row);
                               const { shippingPerUnit, amount, hasLineShipping } = derived;
+                              const hasBarcode = lineHasBarcode(row);
+                              const assigningBarcode = generatingBarcodeKeys.has(row.key);
                               return (
                                 <tr key={row.key}>
                                   <td className="text-center text-muted">{i + 1}</td>
@@ -1203,32 +1267,59 @@ const PurchaseOrderAdd = () => {
                                     {fmt(amount)}
                                   </td>
                                   <td className="text-center">
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center p-0"
-                                      style={{ width: '32px', height: '32px' }}
-                                      title="Remove line"
-                                      aria-label={`Remove line ${i + 1}`}
-                                      onClick={() => removeLine(row.key)}
-                                      disabled={isSubmitting}
-                                    >
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
+                                    <div className="d-inline-flex align-items-center justify-content-center gap-1">
+                                      {row.barcodeResolved && !hasBarcode ? (
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center p-0"
+                                          style={{ width: '32px', height: '32px' }}
+                                          title="Generate barcode for this product"
+                                          aria-label={`Generate barcode for line ${i + 1}`}
+                                          onClick={() => handleAssignBarcode(row)}
+                                          disabled={
+                                            isSubmitting ||
+                                            assigningBarcode ||
+                                            !String(row.productId || '').trim()
+                                          }
+                                        >
+                                          {assigningBarcode ? (
+                                            <span
+                                              className="spinner-border spinner-border-sm"
+                                              role="status"
+                                              aria-hidden="true"
+                                            />
+                                          ) : (
+                                            <FaBarcode size={14} aria-hidden="true" />
+                                          )}
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center p-0"
+                                        style={{ width: '32px', height: '32px' }}
+                                        title="Remove line"
+                                        aria-label={`Remove line ${i + 1}`}
+                                        onClick={() => removeLine(row.key)}
+                                        disabled={isSubmitting}
                                       >
-                                        <path d="M3 6h18" />
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                        <line x1="10" y1="11" x2="10" y2="17" />
-                                        <line x1="14" y1="11" x2="14" y2="17" />
-                                      </svg>
-                                    </button>
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          width="16"
+                                          height="16"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <path d="M3 6h18" />
+                                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                          <line x1="10" y1="11" x2="10" y2="17" />
+                                          <line x1="14" y1="11" x2="14" y2="17" />
+                                        </svg>
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
