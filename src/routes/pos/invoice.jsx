@@ -342,6 +342,7 @@ const PosInvoice = () => {
   const [invoiceDiscountInput, setInvoiceDiscountInput] = useState('');
   const [invoiceDiscountPercentInput, setInvoiceDiscountPercentInput] = useState('');
   const [invoiceShippingInput, setInvoiceShippingInput] = useState('');
+  const [invoiceAmountReceivedInput, setInvoiceAmountReceivedInput] = useState('');
   const discountEditSourceRef = useRef(null);
   const [invoiceCustomerId, setInvoiceCustomerId] = useState('');
   const [invoiceAddress, setInvoiceAddress] = useState('');
@@ -399,6 +400,14 @@ const PosInvoice = () => {
     const shipRaw = sourceOrder.shipping ?? sourceOrder.shipment ?? 0;
     const s = parseFloat(String(shipRaw).replace(/,/g, ''));
     setInvoiceShippingInput(String(Number.isFinite(s) ? s : 0));
+    const receivedRaw =
+      sourceOrder.amount_received ?? sourceOrder.payment_made ?? sourceOrder.paymentMade ?? '';
+    if (receivedRaw != null && String(receivedRaw).trim() !== '') {
+      const receivedNum = parseFloat(String(receivedRaw).replace(/,/g, ''));
+      setInvoiceAmountReceivedInput(String(Number.isFinite(receivedNum) ? receivedNum : ''));
+    } else {
+      setInvoiceAmountReceivedInput('');
+    }
     const cid = sourceOrder.customer_id ?? sourceOrder.customerId ?? '';
     setInvoiceCustomerId(cid != null && String(cid).trim() !== '' ? String(cid).trim() : '');
     setInvoiceAddress(sourceOrder.address != null ? String(sourceOrder.address) : '');
@@ -497,6 +506,7 @@ const PosInvoice = () => {
     setInvoiceDiscountInput('');
     setInvoiceDiscountPercentInput('');
     setInvoiceShippingInput('');
+    setInvoiceAmountReceivedInput('');
     discountEditSourceRef.current = null;
 
     (async () => {
@@ -679,9 +689,22 @@ const PosInvoice = () => {
       const discNum = parseFloat(String(invoiceDiscountInput).replace(/,/g, ''));
       const discPctNum = parseFloat(String(invoiceDiscountPercentInput).replace(/,/g, ''));
       const shipNum = parseFloat(String(invoiceShippingInput).replace(/,/g, ''));
+      const receivedNum = parseFloat(String(invoiceAmountReceivedInput).replace(/,/g, ''));
       const discount = Number.isFinite(discNum) ? discNum : 0;
       const discount_percentage = Number.isFinite(discPctNum) ? discPctNum : 0;
       const shipping = Number.isFinite(shipNum) ? shipNum : 0;
+      const amount_received = Number.isFinite(receivedNum) ? receivedNum : 0;
+      const lineTotalBefore = (invoiceDraftLines || []).reduce((sum, d) => {
+        const qtyNum = parseFloat(String(d?.qty ?? '0').replace(/,/g, ''));
+        const rateNum = parseFloat(String(d?.rate ?? '0').replace(/,/g, ''));
+        const qty = Number.isFinite(qtyNum) ? qtyNum : 0;
+        const rate = Number.isFinite(rateNum) ? rateNum : 0;
+        const taxPct = Number(d?.taxPct) || 0;
+        const line = qty * rate;
+        return sum + line + (line * taxPct) / 100;
+      }, 0);
+      const invoiceTotal = Math.max(0, lineTotalBefore - discount + shipping);
+      const change_given = Math.max(0, amount_received - invoiceTotal);
       const customer = invoiceCustomerId
         ? users.find((u) => getUserOptionValue(u) === invoiceCustomerId)
         : null;
@@ -699,6 +722,8 @@ const PosInvoice = () => {
         discount_percentage,
         shipping,
         shipment: shipping,
+        amount_received,
+        change_given,
         customer_id: invoiceCustomerId || undefined,
         posPayMethod: invoicePosPayMethod || undefined,
         payment_method_id: invoicePosPayMethod || undefined,
@@ -736,6 +761,7 @@ const PosInvoice = () => {
     invoiceDiscountInput,
     invoiceDiscountPercentInput,
     invoiceShippingInput,
+    invoiceAmountReceivedInput,
     invoiceCustomerId,
     invoiceAddress,
     invoiceCity,
@@ -1113,7 +1139,10 @@ const PosInvoice = () => {
       ? shippingParsed
       : Number(view.summary.shipping) || 0;
     const total = Math.max(0, totalBeforeAdjust - discount + shipping);
-    const paymentMade = Number(view.summary.paymentMade) || 0;
+    const receivedParsed = parseFloat(String(invoiceAmountReceivedInput).replace(/,/g, ''));
+    const paymentMade = Number.isFinite(receivedParsed)
+      ? Math.max(0, receivedParsed)
+      : Number(view.summary.paymentMade) || 0;
     return {
       subTotal,
       tax: taxTotal,
@@ -1123,6 +1152,7 @@ const PosInvoice = () => {
       total,
       paymentMade,
       balanceDue: Math.max(0, total - paymentMade),
+      changeGiven: Math.max(0, paymentMade - total),
     };
   }, [
     sourceOrder,
@@ -1132,6 +1162,7 @@ const PosInvoice = () => {
     invoiceDiscountInput,
     invoiceDiscountPercentInput,
     invoiceShippingInput,
+    invoiceAmountReceivedInput,
   ]);
 
   const summaryDisplay = liveSummaryFromDraft ?? data.summary;
@@ -2078,19 +2109,51 @@ const PosInvoice = () => {
                             <span>{fmt(summaryDisplay.balanceDue)}</span>
                           </div>
                         ) : null}
-                        {printerSettings.show_change_return && sourceOrder ? (
+                        {printerSettings.show_change_return || canUpdateInvoice ? (
                           <>
-                            {sourceOrder.amount_received != null &&
-                            sourceOrder.amount_received !== '' ? (
-                              <div className="pos-inv-summary-row">
+                            {canUpdateInvoice ||
+                            (sourceOrder &&
+                              sourceOrder.amount_received != null &&
+                              sourceOrder.amount_received !== '') ? (
+                              <div
+                                className={`pos-inv-summary-row align-items-center ${!printerSettings.show_change_return ? 'pos-inv-no-print' : ''}`}
+                              >
                                 <span className="text-muted">Amount received</span>
-                                <span>{fmt(sourceOrder.amount_received)}</span>
+                                {canUpdateInvoice ? (
+                                  <>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm text-end pos-inv-no-print"
+                                      style={{ maxWidth: 140 }}
+                                      inputMode="decimal"
+                                      value={invoiceAmountReceivedInput}
+                                      onChange={(e) => setInvoiceAmountReceivedInput(e.target.value)}
+                                      aria-label="Amount received"
+                                    />
+                                    <span className="d-none d-print-inline-block fw-semibold">
+                                      {fmt(summaryDisplay.paymentMade)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span>{fmt(sourceOrder.amount_received)}</span>
+                                )}
                               </div>
                             ) : null}
-                            {sourceOrder.change_given != null && sourceOrder.change_given !== '' ? (
-                              <div className="pos-inv-summary-row">
+                            {canUpdateInvoice ||
+                            (sourceOrder &&
+                              sourceOrder.change_given != null &&
+                              sourceOrder.change_given !== '') ? (
+                              <div
+                                className={`pos-inv-summary-row ${!printerSettings.show_change_return ? 'pos-inv-no-print' : ''}`}
+                              >
                                 <span className="text-muted">Change return</span>
-                                <span>{fmt(sourceOrder.change_given)}</span>
+                                <span>
+                                  {fmt(
+                                    canUpdateInvoice && summaryDisplay.changeGiven != null
+                                      ? summaryDisplay.changeGiven
+                                      : sourceOrder.change_given
+                                  )}
+                                </span>
                               </div>
                             ) : null}
                           </>

@@ -11,7 +11,7 @@ const ORDERS_PAGE_CONFIG = {
   showRowSyncButton: false,
   showIntegrationColumn: false,
   showDeletedTab: true,
-  viewReadOnly: true,
+  viewReadOnly: false,
 };
 
 const Orders = () => <OrdersListPage config={ORDERS_PAGE_CONFIG} />;
