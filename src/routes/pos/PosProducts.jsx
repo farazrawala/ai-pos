@@ -26,6 +26,31 @@ import {
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 
+const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
+
+/** Load "Remove stock with less than 1" preference from localStorage cache. */
+function readStoredHideLowStock() {
+  if (typeof window === 'undefined') return true;
+  try {
+    const value = window.localStorage.getItem(POS_HIDE_LOW_STOCK_STORAGE_KEY);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+/** Persist "Remove stock with less than 1" preference to localStorage cache. */
+function persistHideLowStock(hide) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(POS_HIDE_LOW_STOCK_STORAGE_KEY, hide ? 'true' : 'false');
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 const getProductId = (p) => sellablePosProductId(p);
 
 const getProductName = (p) => p.name || p.product_name || 'Product';
@@ -101,7 +126,7 @@ const PosProducts = ({
   const [productsStatus, setProductsStatus] = useState('idle');
   const [productsError, setProductsError] = useState(null);
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [hideLowStock, setHideLowStock] = useState(true);
+  const [hideLowStock, setHideLowStock] = useState(readStoredHideLowStock);
   const [statusFilter, setStatusFilter] = useState('active');
   const searchInputRef = useRef(null);
   /** Latest search text — scanners fire Enter before React state catches up. */
@@ -391,7 +416,11 @@ const PosProducts = ({
               type="checkbox"
               id="posHideLowStock"
               checked={hideLowStock}
-              onChange={(e) => setHideLowStock(e.target.checked)}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setHideLowStock(next);
+                persistHideLowStock(next);
+              }}
             />
             <label className="form-check-label text-sm" htmlFor="posHideLowStock">
               Remove stock with less than 1
