@@ -2,11 +2,9 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 import {
   fetchCompanyById,
   getCompanyFromApiBody,
-  getCompanyIdFromUser,
   pickCompanyLogoUrl,
 } from '../company/companyAPI.js';
 import {
-  fetchProductActiveRequest,
   fetchProductByIdRequest,
   fetchProductVariationRequest,
   POS_PRODUCT_SEARCH_FIELDS,
@@ -25,6 +23,9 @@ import {
 
 const BASE_URL = `${API_BASE_URL}/`;
 
+/** Same search fields as POS / ecommerce products docs. */
+export const ECOMMERCE_PRODUCT_SEARCH_FIELDS = POS_PRODUCT_SEARCH_FIELDS;
+
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('authToken') || '';
@@ -37,48 +38,31 @@ const getHeaders = () => {
   return headers;
 };
 
-/** Signed-in tenant company id (userData / companyData in localStorage). */
-function getSignedInCompanyId() {
-  if (typeof window === 'undefined') return '';
-  try {
-    const userRaw = localStorage.getItem('userData');
-    if (userRaw) {
-      const fromUser = getCompanyIdFromUser(JSON.parse(userRaw));
-      if (fromUser) return fromUser;
-    }
-    const companyRaw = localStorage.getItem('companyData');
-    if (companyRaw) {
-      const company = JSON.parse(companyRaw);
-      const id = String(company?._id ?? company?.id ?? '').trim();
-      if (id) return id;
-    }
-  } catch {
-    /* ignore */
-  }
-  return '';
-}
-
 /**
- * Own-tenant catalog via
- * `GET /product/get-all-active-pos?search=&searchFields=product_name,product_code,sku,barcode&status=active&category_id=`
+ * Resolve API `stock` / `min_stock` (min total warehouse qty).
+ * UI stock enums stay client-side except `in_stock` → min qty 1.
  */
-async function fetchOwnCatalogProducts(params = {}, { skip, limit, categoryIds = [], sort } = {}) {
-  return fetchProductActiveRequest({
-    page: Math.floor(skip / limit) + 1,
-    limit,
-    search: params.search || undefined,
-    searchFields: POS_PRODUCT_SEARCH_FIELDS,
-    status: 'active',
-    category_id: categoryIds.length === 1 ? categoryIds[0] : undefined,
-    sortBy: sort?.sortBy,
-    sortOrder: sort?.sortOrder,
-  });
+function resolveEcommerceMinStock(params = {}) {
+  const explicit = params.min_stock ?? params.minStock;
+  if (explicit != null && String(explicit).trim() !== '') {
+    const n = Number(explicit);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  const raw = params.stock;
+  if (raw == null || raw === '') return undefined;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  const asNum = Number(raw);
+  if (Number.isFinite(asNum) && String(raw).trim() !== '' && !Number.isNaN(asNum)) {
+    return asNum;
+  }
+  if (String(raw).trim().toLowerCase() === 'in_stock') return 1;
+  return undefined;
 }
 
 /**
- * Marketplace products list for a store company.
- * Own store → `GET /product/get-all-active-pos` (searchFields + status=active).
- * Partner store → `GET /big-commerce/products/:companyId`, with POS catalog fallback.
+ * Marketplace products for a store company.
+ * `GET /big-commerce/get-all-active-ecommerce-products/{companyId}
+ *   ?search=&searchFields=product_name,product_code,sku,barcode&status=active&category_id=&stock=`
  */
 export async function fetchMarketplaceProductsRequest(params = {}) {
   const sort = resolveSortParams(params.sortBy || 'latest');
@@ -92,94 +76,86 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       ? Math.max(0, Number(params.skip) || 0)
       : (page - 1) * limit;
   const companyId = params.companyId ? String(params.companyId).trim() : '';
-  const ownCompanyId = getSignedInCompanyId();
-  const isOwnStore = !companyId || (ownCompanyId && companyId === ownCompanyId);
 
-  let listResult = null;
-  let useOwnCatalogFallback = isOwnStore;
-
-  if (companyId && !isOwnStore) {
-    const queryParams = new URLSearchParams();
-    queryParams.set('skip', String(skip));
-    queryParams.set('limit', String(limit));
-
-    if (params.search) {
-      queryParams.set('search', String(params.search).trim());
-    }
-
-    if (categoryIds.length === 1) {
-      queryParams.set('category_id', String(categoryIds[0]));
-    }
-    if (brandIds.length === 1) {
-      queryParams.set('brand_id', String(brandIds[0]));
-    }
-
-    const storeUrl = `${BASE_URL}big-commerce/products/${encodeURIComponent(companyId)}?${queryParams}`;
-
-    try {
-      const response = await fetch(storeUrl, { method: 'GET', headers: getHeaders() });
-      const raw = await response.json().catch(() => null);
-
-      if (response.ok && raw && typeof raw === 'object' && Array.isArray(raw.data)) {
-        const total = Number(
-          raw.total ??
-            raw.count ??
-            raw.pagination?.total ??
-            raw.meta?.total ??
-            raw.data.length
-        );
-        const safeTotal = Number.isFinite(total) && total >= 0 ? total : raw.data.length;
-        listResult = {
-          data: raw.data,
-          total: safeTotal,
-          page: Math.floor(skip / limit) + 1,
-          limit,
-          skip,
-          totalPages: limit > 0 ? Math.ceil(safeTotal / limit) : 0,
-        };
-      } else {
-        const message = String(raw?.message || raw?.error || '');
-        // Own company store → use tenant POS catalog.
-        if (
-          response.status === 400 &&
-          /own catalog|your own/i.test(message)
-        ) {
-          useOwnCatalogFallback = true;
-        } else if (!response.ok) {
-          throw new Error(message || `Failed to load store products (${response.status})`);
-        }
-      }
-    } catch (err) {
-      if (!useOwnCatalogFallback) {
-        throw err instanceof Error ? err : new Error('Failed to load store products');
-      }
-    }
-  }
-
-  if (!listResult && useOwnCatalogFallback) {
-    listResult = await fetchOwnCatalogProducts(params, { skip, limit, categoryIds, sort });
-  }
-
-  if (!listResult) {
+  if (!companyId) {
     return { data: [], total: 0, page: 1, limit, skip, totalPages: 0 };
   }
 
+  const queryParams = new URLSearchParams();
+  queryParams.set('skip', String(skip));
+  queryParams.set('limit', String(limit));
+  queryParams.set('status', String(params.status || 'active').trim() || 'active');
+  queryParams.set(
+    'searchFields',
+    String(params.searchFields || ECOMMERCE_PRODUCT_SEARCH_FIELDS).trim() ||
+      ECOMMERCE_PRODUCT_SEARCH_FIELDS
+  );
+
+  const search = params.search != null ? String(params.search).trim() : '';
+  if (search) queryParams.set('search', search);
+
+  if (categoryIds.length === 1) {
+    queryParams.set('category_id', String(categoryIds[0]));
+  } else if (params.category_id || params.categoryId) {
+    queryParams.set('category_id', String(params.category_id ?? params.categoryId));
+  }
+
+  if (brandIds.length === 1) {
+    queryParams.set('brand_id', String(brandIds[0]));
+  } else if (params.brand_id || params.brandId) {
+    queryParams.set('brand_id', String(params.brand_id ?? params.brandId));
+  }
+
+  const minStock = resolveEcommerceMinStock(params);
+  if (minStock != null) {
+    queryParams.set('stock', String(minStock));
+  }
+
+  if (sort.sortBy) queryParams.set('sortBy', sort.sortBy);
+  if (sort.sortOrder) queryParams.set('sortOrder', sort.sortOrder);
+
+  const storeUrl = `${BASE_URL}big-commerce/get-all-active-ecommerce-products/${encodeURIComponent(companyId)}?${queryParams}`;
+
+  const response = await fetch(storeUrl, { method: 'GET', headers: getHeaders() });
+  const raw = await response.json().catch(() => null);
+
+  if (!response.ok || !raw || typeof raw !== 'object' || !Array.isArray(raw.data)) {
+    const message = String(raw?.message || raw?.error || '');
+    throw new Error(message || `Failed to load store products (${response.status})`);
+  }
+
+  const total = Number(
+    raw.total ?? raw.count ?? raw.pagination?.total ?? raw.meta?.total ?? raw.data.length
+  );
+  const safeTotal = Number.isFinite(total) && total >= 0 ? total : raw.data.length;
+
+  let listResult = {
+    data: raw.data,
+    total: safeTotal,
+    page: Math.floor(skip / limit) + 1,
+    limit,
+    skip,
+    totalPages: limit > 0 ? Math.ceil(safeTotal / limit) : 0,
+  };
+
   let data = Array.isArray(listResult.data) ? listResult.data : [];
   const serverTotal = Number(listResult.total);
-  // Never drop rows for partner stores — that was capping the grid at a handful
-  // while `total` stayed at the full catalog size (e.g. "5 of 678").
-  let total =
+  let totalCount =
     Number.isFinite(serverTotal) && serverTotal >= 0 ? serverTotal : data.length;
   let totalPages =
-    listResult.totalPages ?? (limit > 0 ? Math.ceil(total / limit) : 0);
+    listResult.totalPages ?? (limit > 0 ? Math.ceil(totalCount / limit) : 0);
 
-  // Refine with client-side filters (multi-category/brand, price, stock, rating).
+  // Refine with client-side filters (multi-category/brand, price, stock enum, rating).
+  // Numeric min `stock` already applied server-side; keep enum stock client-side.
+  const stockIsEnum =
+    typeof params.stock === 'string' &&
+    ['in_stock', 'out_of_stock', 'low_stock'].includes(params.stock);
   const needsClientRefine =
     categoryIds.length > 1 ||
     brandIds.length > 1 ||
     params.minPrice !== '' ||
     params.maxPrice !== '' ||
-    Boolean(params.stock) ||
+    stockIsEnum ||
     Number(params.minRating) > 0;
 
   if (needsClientRefine) {
@@ -189,7 +165,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       brandIds: brandIds.length > 1 ? brandIds : [],
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
-      stock: params.stock,
+      stock: stockIsEnum ? params.stock : '',
       minRating: params.minRating,
     });
     data = sortProductsClientSide(refined, params.sortBy || 'latest');
@@ -201,11 +177,11 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   return {
     data,
-    total,
+    total: totalCount,
     page: Math.floor(skip / limit) + 1,
     limit,
     skip,
-    totalPages: totalPages || (limit > 0 ? Math.ceil(total / limit) : 0),
+    totalPages: totalPages || (limit > 0 ? Math.ceil(totalCount / limit) : 0),
   };
 }
 
