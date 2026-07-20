@@ -38,37 +38,20 @@ const getHeaders = () => {
   return headers;
 };
 
-/**
- * Resolve API `stock` / `min_stock` (min total warehouse qty).
- * UI enums (`in_stock` / `out_of_stock` / `low_stock`) are filtered client-side
- * after nesting variations — do not map them to a numeric query param here.
- */
-function resolveEcommerceMinStock(params = {}) {
-  const explicit = params.min_stock ?? params.minStock;
-  if (explicit != null && String(explicit).trim() !== '') {
-    const n = Number(explicit);
-    if (Number.isFinite(n) && n >= 0) return n;
-  }
-  const raw = params.stock;
+const STOCK_STATUS_VALUES = new Set(['in_stock', 'out_of_stock', 'low_stock']);
+
+/** UI stock filter → API `stock_status` (`in_stock` | `out_of_stock` | `low_stock`). */
+function resolveStockStatus(params = {}) {
+  const raw = params.stock_status ?? params.stockStatus ?? params.stock;
   if (raw == null || raw === '') return undefined;
-  if (typeof raw === 'string') {
-    const key = raw.trim().toLowerCase();
-    if (key === 'in_stock' || key === 'out_of_stock' || key === 'low_stock') {
-      return undefined;
-    }
-  }
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  const asNum = Number(raw);
-  if (Number.isFinite(asNum) && String(raw).trim() !== '' && !Number.isNaN(asNum)) {
-    return asNum;
-  }
-  return undefined;
+  const key = String(raw).trim().toLowerCase();
+  return STOCK_STATUS_VALUES.has(key) ? key : undefined;
 }
 
 /**
  * Marketplace products for a store company.
  * `GET /big-commerce/get-all-active-ecommerce-products/{companyId}
- *   ?search=&searchFields=product_name,product_code,sku,barcode&status=active&category_id=&stock=`
+ *   ?search=&searchFields=...&status=active&category_id=&stock_status=`
  */
 export async function fetchMarketplaceProductsRequest(params = {}) {
   const sort = resolveSortParams(params.sortBy || 'latest');
@@ -112,9 +95,9 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
     queryParams.set('brand_id', String(params.brand_id ?? params.brandId));
   }
 
-  const minStock = resolveEcommerceMinStock(params);
-  if (minStock != null) {
-    queryParams.set('stock', String(minStock));
+  const stockStatus = resolveStockStatus(params);
+  if (stockStatus) {
+    queryParams.set('stock_status', stockStatus);
   }
 
   if (sort.sortBy) queryParams.set('sortBy', sort.sortBy);
@@ -151,20 +134,15 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   let totalPages =
     listResult.totalPages ?? (limit > 0 ? Math.ceil(totalCount / limit) : 0);
 
-  // Nest flat variation SKUs onto Variable parents first so stock filters can sum
-  // child qty (parents often have stock 0). Keep children in the list for scroll skip.
+  // Nest flat variation SKUs onto Variable parents. Keep children for scroll skip.
   data = attachSiblingChildren(data);
 
-  // Refine with client-side filters (multi-category/brand, price, stock enum).
-  const stockIsEnum =
-    typeof params.stock === 'string' &&
-    ['in_stock', 'out_of_stock', 'low_stock'].includes(params.stock);
+  // Refine with client-side filters (multi-category/brand, price). Stock status is server-side.
   const needsClientRefine =
     categoryIds.length > 1 ||
     brandIds.length > 1 ||
     params.minPrice !== '' ||
-    params.maxPrice !== '' ||
-    stockIsEnum;
+    params.maxPrice !== '';
 
   if (needsClientRefine) {
     const refined = filterProductsClientSide(data, {
@@ -173,7 +151,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       brandIds: brandIds.length > 1 ? brandIds : [],
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
-      stock: stockIsEnum ? params.stock : '',
+      stock: '',
     });
     data = sortProductsClientSide(refined, params.sortBy || 'latest');
   }

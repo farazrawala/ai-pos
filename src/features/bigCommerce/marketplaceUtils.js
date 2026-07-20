@@ -7,7 +7,7 @@ export const DEFAULT_FILTERS = {
   brandIds: [],
   minPrice: '',
   maxPrice: '',
-  stock: '', // in_stock | out_of_stock | low_stock | ''
+  stock: '', // → API stock_status: in_stock | out_of_stock | low_stock | ''
   sortBy: 'latest',
 };
 
@@ -286,7 +286,7 @@ export function getProductImages(item) {
   if (!item || typeof item !== 'object') return [];
   const collected = [];
   const push = (raw) => {
-    const url = resolveCategoryMediaUrl(raw);
+    const url = resolveCategoryMediaUrl(extractMediaPath(raw, { preferThumb: false }));
     if (url && !collected.includes(url)) collected.push(url);
   };
 
@@ -297,6 +297,82 @@ export function getProductImages(item) {
   if (Array.isArray(item.gallery)) item.gallery.forEach(push);
 
   return collected;
+}
+
+/**
+ * Pull a usable path/URL from a string or image object.
+ * When `preferThumb` is set, thumb fields win over the full image.
+ */
+function extractMediaPath(raw, { preferThumb = false } = {}) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'string' || typeof raw === 'number') return String(raw).trim();
+  if (typeof File !== 'undefined' && raw instanceof File) return '';
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
+  if (typeof raw !== 'object' || Array.isArray(raw)) return '';
+
+  if (preferThumb) {
+    const thumb =
+      raw.thumb_image ??
+      raw.thumbImage ??
+      raw.product_thumb ??
+      raw.productThumb ??
+      raw.thumbnail ??
+      raw.thumb ??
+      raw.url_thumbnail ??
+      raw.urlThumbnail ??
+      '';
+    if (thumb != null && String(thumb).trim()) return String(thumb).trim();
+  }
+
+  const full =
+    raw.product_image ??
+    raw.image_url ??
+    raw.imageUrl ??
+    raw.url_standard ??
+    raw.urlStandard ??
+    raw.url_zoom ??
+    raw.urlZoom ??
+    raw.url ??
+    raw.path ??
+    raw.src ??
+    raw.image ??
+    '';
+  return full != null && String(full).trim() ? String(full).trim() : '';
+}
+
+/**
+ * Listing/card image: prefer thumb, else exact/full product image.
+ */
+export function getProductListingImage(item) {
+  if (!item || typeof item !== 'object') return '';
+
+  const thumbFields = [
+    item.thumb_image,
+    item.thumbImage,
+    item.product_thumb,
+    item.productThumb,
+    item.thumbnail,
+    item.thumb,
+  ];
+  for (const field of thumbFields) {
+    const url = resolveCategoryMediaUrl(extractMediaPath(field, { preferThumb: true }));
+    if (url) return url;
+  }
+
+  // Nested thumb on the main image object / first gallery entry.
+  const nestedSources = [
+    item.product_image,
+    item.image,
+    Array.isArray(item.multi_images) ? item.multi_images[0] : null,
+    Array.isArray(item.images) ? item.images[0] : null,
+  ];
+  for (const source of nestedSources) {
+    if (!source || typeof source !== 'object') continue;
+    const url = resolveCategoryMediaUrl(extractMediaPath(source, { preferThumb: true }));
+    if (url) return url;
+  }
+
+  return getProductImages(item)[0] || '';
 }
 
 export function getProductStock(item) {

@@ -5,7 +5,7 @@ import {
   getProductBrand,
   getProductCategory,
   getProductDescription,
-  getProductImages,
+  getProductListingImage,
   getProductName,
   getProductPrice,
   getProductComparePrice,
@@ -17,8 +17,7 @@ import {
 export default function ProductCard({ product, viewMode = 'grid', onViewDetails }) {
   const id = productIdFromRecord(product);
   const name = getProductName(product);
-  const images = getProductImages(product);
-  const image = images[0] || '';
+  const image = getProductListingImage(product);
   const price = getProductPrice(product);
   const compare = getProductComparePrice(product);
   const sku = getProductSku(product);
