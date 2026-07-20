@@ -81,8 +81,12 @@ export default function MarketplacePage({ companyId }) {
 
   const loadNextPage = useCallback(() => {
     if (loadingRef.current) return;
-    if (!state.productsHasMore) return;
-    if (state.productsStatus === 'failed' && state.products.length === 0) return;
+    // No products → do not keep requesting; page-1 failures use the Retry button.
+    if (state.products.length === 0) return;
+
+    const isFailureRetry = state.productsStatus === 'failed';
+    if (!isFailureRetry && !state.productsHasMore) return;
+    if (!isFailureRetry && state.productsStatus !== 'succeeded') return;
 
     dispatch(
       fetchMarketplaceProducts({
@@ -104,6 +108,14 @@ export default function MarketplacePage({ companyId }) {
   useEffect(() => {
     const node = sentinelRef.current;
     if (!node) return undefined;
+    // Scroll-load only while we have items and more pages — never auto-retry failures.
+    if (
+      state.products.length === 0 ||
+      !state.productsHasMore ||
+      state.productsStatus !== 'succeeded'
+    ) {
+      return undefined;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -116,27 +128,7 @@ export default function MarketplacePage({ companyId }) {
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [loadNextPage, state.products.length]);
-
-  // Prefetch a couple of pages so short first responses don't look like "end of list".
-  // Remaining pages load via the intersection observer on scroll.
-  useEffect(() => {
-    if (state.productsStatus !== 'succeeded') return;
-    if (!state.productsHasMore) return;
-    const limit = state.pagination.limit || 20;
-    const total = Number(state.pagination.total) || 0;
-    if (state.products.length >= total) return;
-    if (state.products.length >= limit * 2) return;
-    const t = window.setTimeout(() => loadNextPage(), 50);
-    return () => window.clearTimeout(t);
-  }, [
-    state.productsStatus,
-    state.productsHasMore,
-    state.products.length,
-    state.pagination.limit,
-    state.pagination.total,
-    loadNextPage,
-  ]);
+  }, [loadNextPage, state.products.length, state.productsHasMore, state.productsStatus]);
 
   const onFilterChange = useCallback(
     (patch) => {

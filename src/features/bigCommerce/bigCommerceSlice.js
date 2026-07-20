@@ -338,6 +338,7 @@ const bigCommerceSlice = createSlice({
         state.productsStatus = 'succeeded';
         const incoming = action.payload.data || [];
         const append = Boolean(action.payload.append);
+        const previousLength = state.products.length;
         if (append) {
           const seen = new Set(state.products.map((p) => String(p._id ?? p.id)));
           const merged = [...state.products];
@@ -360,8 +361,10 @@ const bigCommerceSlice = createSlice({
         };
         const loaded = state.products.length;
         const total = Number(action.payload.total) || 0;
-        // Sole source of truth: keep loading until every catalog row is in the list.
-        state.productsHasMore = loaded < total;
+        const listGrew = !append || loaded > previousLength;
+        // Stop when the API returns an empty page, only duplicates, or we've caught up.
+        // Relying on `loaded < total` alone loops forever if `total` is stale / mismatched.
+        state.productsHasMore = incoming.length > 0 && listGrew && loaded < total;
         if (state.company) {
           state.company.totalProducts = total;
           state.company.totalCategories = state.categories.length;
