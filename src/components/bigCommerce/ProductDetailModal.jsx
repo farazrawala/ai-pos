@@ -43,9 +43,7 @@ export default function ProductDetailModal({
   const barcode = getProductBarcode(product);
   const brand = getProductBrand(product);
   const category = getProductCategory(product);
-  const stock = getProductStock(product);
   const description = formatProductDescriptionHtml(getProductDescription(product));
-  const badges = getProductBadges(product);
   const specs = buildSpecs(product);
   const productType = String(product?.product_type ?? product?.productType ?? '').trim();
   const isVariable = productType.toLowerCase() === 'variable';
@@ -54,6 +52,16 @@ export default function ProductDetailModal({
     if (Array.isArray(variationsProp) && variationsProp.length > 0) return variationsProp;
     return getProductVariations(product);
   }, [variationsProp, product]);
+
+  // Nest loaded variations so stock/badges sum child qty for Variable parents.
+  const productWithVariations = useMemo(() => {
+    if (!product) return product;
+    if (!variations.length) return product;
+    return { ...product, childproducts: variations };
+  }, [product, variations]);
+
+  const stock = getProductStock(productWithVariations);
+  const badges = getProductBadges(productWithVariations);
 
   const variationStockTotal = useMemo(() => {
     if (!variations.length) return null;
@@ -69,7 +77,13 @@ export default function ProductDetailModal({
     return hasAny ? total : null;
   }, [variations]);
 
-  const displayStock = stock != null ? stock : variationStockTotal;
+  // Variable products: prefer sum of variation stock over parent qty (often 0).
+  const displayStock =
+    (isVariable || variations.length > 0) && variationStockTotal != null
+      ? variationStockTotal
+      : stock != null
+        ? stock
+        : variationStockTotal;
 
   const metaItems = [
     sku ? { label: 'SKU', value: sku } : null,

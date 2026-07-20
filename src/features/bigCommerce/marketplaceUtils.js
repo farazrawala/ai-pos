@@ -300,6 +300,24 @@ export function getProductImages(item) {
 }
 
 export function getProductStock(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  // Variable parents often store stock on children only (parent qty is 0).
+  const type = String(item.product_type ?? item.productType ?? '').trim().toLowerCase();
+  const kids = getProductVariations(item);
+  if ((type === 'variable' || kids.length > 0) && kids.length > 0) {
+    let total = 0;
+    let hasAny = false;
+    for (const child of kids) {
+      const childStock = getProductAvailableStock(child);
+      if (childStock != null && Number.isFinite(childStock)) {
+        total += childStock;
+        hasAny = true;
+      }
+    }
+    if (hasAny) return Math.round(total * 100) / 100;
+  }
+
   const stock = getProductAvailableStock(item);
   if (stock == null || !Number.isFinite(stock)) return null;
   return stock;
