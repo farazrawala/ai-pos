@@ -25,7 +25,8 @@ export const SORT_OPTIONS = [
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-export const LOW_STOCK_THRESHOLD = 5;
+/** Marketplace stock filter + badge: low when 0 < qty < this value. */
+export const LOW_STOCK_THRESHOLD = 10;
 
 export function productIdFromRecord(item) {
   if (!item || typeof item !== 'object') return '';
@@ -342,7 +343,7 @@ export function getProductBadges(item) {
     (created && Date.now() - new Date(created).getTime() < 1000 * 60 * 60 * 24 * 30);
 
   if (stock === 0) badges.push({ key: 'out', label: 'Out of Stock', tone: 'danger' });
-  else if (stock != null && stock <= getAlertQty(item)) {
+  else if (stock != null && stock > 0 && stock < LOW_STOCK_THRESHOLD) {
     badges.push({ key: 'low', label: 'Low Stock', tone: 'warning' });
   }
   if (compare != null && compare > price) badges.push({ key: 'sale', label: 'Sale', tone: 'accent' });
@@ -401,15 +402,13 @@ export function filterProductsClientSide(products, filters) {
 
     if (filters.stock) {
       const stock = getProductStock(item);
-      if (filters.stock === 'in_stock' && !(stock != null && stock > getAlertQty(item))) {
-        return false;
-      }
-      if (filters.stock === 'out_of_stock' && stock !== 0) return false;
-      if (
-        filters.stock === 'low_stock' &&
-        !(stock != null && stock > 0 && stock <= getAlertQty(item))
-      ) {
-        return false;
+      // in_stock: > 0 | out_of_stock: == 0 | low_stock: > 0 && < 10
+      if (filters.stock === 'in_stock') {
+        if (!(stock != null && stock > 0)) return false;
+      } else if (filters.stock === 'out_of_stock') {
+        if (stock !== 0) return false;
+      } else if (filters.stock === 'low_stock') {
+        if (!(stock != null && stock > 0 && stock < LOW_STOCK_THRESHOLD)) return false;
       }
     }
 

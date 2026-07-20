@@ -17,6 +17,7 @@ import {
   getVariationLabel,
   formatProductDescriptionHtml,
   productIdFromRecord,
+  LOW_STOCK_THRESHOLD,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import ProductCard from './ProductCard.jsx';
 
@@ -91,7 +92,7 @@ export default function ProductDetailModal({
     const list = badges.filter((b) => b.key !== 'out' && b.key !== 'low');
     if (displayStock === 0) {
       list.unshift({ key: 'out', label: 'Out of Stock', tone: 'danger' });
-    } else if (displayStock != null && displayStock > 0 && displayStock <= 5) {
+    } else if (displayStock != null && displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD) {
       list.unshift({ key: 'low', label: 'Low Stock', tone: 'warning' });
     }
     return list;
@@ -190,7 +191,7 @@ export default function ProductDetailModal({
               </div>
               {displayStock != null ? (
                 <span
-                  className={`bc-stock-pill ${displayStock === 0 ? 'is-out' : displayStock <= 5 ? 'is-low' : 'is-in'}`}
+                  className={`bc-stock-pill ${displayStock === 0 ? 'is-out' : displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD ? 'is-low' : 'is-in'}`}
                 >
                   {displayStock === 0
                     ? 'Out of stock'
@@ -274,7 +275,7 @@ export default function ProductDetailModal({
                                       ? 'is-out'
                                       : vStock == null
                                         ? 'is-unknown'
-                                        : vStock <= 5
+                                        : vStock > 0 && vStock < LOW_STOCK_THRESHOLD
                                           ? 'is-low'
                                           : 'is-in'
                                   }`}

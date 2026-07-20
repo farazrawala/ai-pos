@@ -40,7 +40,8 @@ const getHeaders = () => {
 
 /**
  * Resolve API `stock` / `min_stock` (min total warehouse qty).
- * UI stock enums stay client-side except `in_stock` → min qty 1.
+ * UI enums (`in_stock` / `out_of_stock` / `low_stock`) are filtered client-side
+ * after nesting variations — do not map them to a numeric query param here.
  */
 function resolveEcommerceMinStock(params = {}) {
   const explicit = params.min_stock ?? params.minStock;
@@ -50,12 +51,17 @@ function resolveEcommerceMinStock(params = {}) {
   }
   const raw = params.stock;
   if (raw == null || raw === '') return undefined;
+  if (typeof raw === 'string') {
+    const key = raw.trim().toLowerCase();
+    if (key === 'in_stock' || key === 'out_of_stock' || key === 'low_stock') {
+      return undefined;
+    }
+  }
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   const asNum = Number(raw);
   if (Number.isFinite(asNum) && String(raw).trim() !== '' && !Number.isNaN(asNum)) {
     return asNum;
   }
-  if (String(raw).trim().toLowerCase() === 'in_stock') return 1;
   return undefined;
 }
 
@@ -145,8 +151,11 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   let totalPages =
     listResult.totalPages ?? (limit > 0 ? Math.ceil(totalCount / limit) : 0);
 
+  // Nest flat variation SKUs onto Variable parents first so stock filters can sum
+  // child qty (parents often have stock 0). Keep children in the list for scroll skip.
+  data = attachSiblingChildren(data);
+
   // Refine with client-side filters (multi-category/brand, price, stock enum, rating).
-  // Numeric min `stock` already applied server-side; keep enum stock client-side.
   const stockIsEnum =
     typeof params.stock === 'string' &&
     ['in_stock', 'out_of_stock', 'low_stock'].includes(params.stock);
@@ -170,10 +179,6 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
     });
     data = sortProductsClientSide(refined, params.sortBy || 'latest');
   }
-
-  // Nest flat variation SKUs onto Variable parents (keep children in the payload so
-  // skip-based infinite scroll still matches the server page size).
-  data = attachSiblingChildren(data);
 
   return {
     data,
