@@ -152,28 +152,6 @@ export default function MarketplaceFilters({
       </div>
 
       <div className="bc-filter-block">
-        <div className="bc-filter-label">Rating</div>
-        <div className="bc-radio-list">
-          {[
-            { value: 0, label: 'Any' },
-            { value: 5, label: '★★★★★' },
-            { value: 4, label: '★★★★☆ & up' },
-            { value: 3, label: '★★★☆☆ & up' },
-          ].map((opt) => (
-            <label key={opt.value} className="bc-radio">
-              <input
-                type="radio"
-                name="bc-rating"
-                checked={Number(filters.minRating || 0) === opt.value}
-                onChange={() => onChange({ minRating: opt.value })}
-              />
-              <span className={opt.value ? 'bc-stars' : ''}>{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="bc-filter-block">
         <label className="bc-filter-label" htmlFor="bc-sort">
           Sort by
         </label>

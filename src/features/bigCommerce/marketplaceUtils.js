@@ -8,7 +8,6 @@ export const DEFAULT_FILTERS = {
   minPrice: '',
   maxPrice: '',
   stock: '', // in_stock | out_of_stock | low_stock | ''
-  minRating: 0,
   sortBy: 'latest',
 };
 
@@ -340,7 +339,7 @@ export function getProductBadges(item) {
   const isNew =
     item?.is_new === true ||
     item?.badge === 'new' ||
-    (created && Date.now() - new Date(created).getTime() < 1000 * 60 * 60 * 24 * 30);
+    (created && Date.now() - new Date(created).getTime() < 1000 * 60 * 60 * 24 * 15);
 
   if (stock === 0) badges.push({ key: 'out', label: 'Out of Stock', tone: 'danger' });
   else if (stock != null && stock > 0 && stock < LOW_STOCK_THRESHOLD) {
@@ -362,7 +361,6 @@ export function filterProductsClientSide(products, filters) {
   const brands = new Set((filters.brandIds || []).map(String));
   const minPrice = filters.minPrice !== '' ? Number(filters.minPrice) : null;
   const maxPrice = filters.maxPrice !== '' ? Number(filters.maxPrice) : null;
-  const minRating = Number(filters.minRating) || 0;
   const q = String(filters.search || '')
     .trim()
     .toLowerCase();
@@ -394,11 +392,6 @@ export function filterProductsClientSide(products, filters) {
     const price = getProductPrice(item);
     if (minPrice != null && Number.isFinite(minPrice) && price < minPrice) return false;
     if (maxPrice != null && Number.isFinite(maxPrice) && price > maxPrice) return false;
-
-    if (minRating > 0) {
-      const rating = getProductRating(item) ?? 0;
-      if (rating < minRating) return false;
-    }
 
     if (filters.stock) {
       const stock = getProductStock(item);

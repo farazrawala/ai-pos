@@ -155,7 +155,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   // child qty (parents often have stock 0). Keep children in the list for scroll skip.
   data = attachSiblingChildren(data);
 
-  // Refine with client-side filters (multi-category/brand, price, stock enum, rating).
+  // Refine with client-side filters (multi-category/brand, price, stock enum).
   const stockIsEnum =
     typeof params.stock === 'string' &&
     ['in_stock', 'out_of_stock', 'low_stock'].includes(params.stock);
@@ -164,8 +164,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
     brandIds.length > 1 ||
     params.minPrice !== '' ||
     params.maxPrice !== '' ||
-    stockIsEnum ||
-    Number(params.minRating) > 0;
+    stockIsEnum;
 
   if (needsClientRefine) {
     const refined = filterProductsClientSide(data, {
@@ -175,7 +174,6 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
       stock: stockIsEnum ? params.stock : '',
-      minRating: params.minRating,
     });
     data = sortProductsClientSide(refined, params.sortBy || 'latest');
   }
