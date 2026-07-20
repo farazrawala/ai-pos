@@ -204,14 +204,14 @@ export const fetchProductActiveRequest = async (params = {}) => {
     params.searchFields != null && String(params.searchFields).trim() !== ''
       ? String(params.searchFields).trim()
       : POS_PRODUCT_SEARCH_FIELDS;
-  if (queryParams.has('search')) {
-    queryParams.set('searchFields', searchFields);
-  }
+  queryParams.set('searchFields', searchFields);
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     queryParams.append('skip', skip);
   }
   if (params.limit) queryParams.append('limit', params.limit);
+  if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+  if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
   appendPosStatusParams(queryParams, params);

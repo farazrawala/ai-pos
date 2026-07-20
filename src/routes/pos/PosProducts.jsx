@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaBarcode, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
 import {
-  fetchProductsRequest,
   fetchProductActiveRequest,
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
@@ -24,6 +23,7 @@ import {
   searchProducts,
 } from '../../offline/repositories/productsRepo.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
+import { DEBUG } from '../../config/env.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
@@ -180,21 +180,14 @@ const PosProducts = ({
     }
 
     try {
-      const result = debouncedQuery
-        ? await fetchProductActiveRequest({
-            search: debouncedQuery,
-            searchFields: POS_PRODUCT_SEARCH_FIELDS,
-            page: 1,
-            limit: 2000,
-            ...(categoryId ? { categoryId } : {}),
-            ...statusParams,
-          })
-        : await fetchProductsRequest({
-            page: 1,
-            limit: 2000,
-            ...(categoryId ? { categoryId } : {}),
-            ...statusParams,
-          });
+      const result = await fetchProductActiveRequest({
+        search: debouncedQuery || undefined,
+        searchFields: POS_PRODUCT_SEARCH_FIELDS,
+        page: 1,
+        limit: 2000,
+        ...(categoryId ? { categoryId } : {}),
+        ...statusParams,
+      });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setProducts(arr);
       setProductsStatus('succeeded');
@@ -348,6 +341,13 @@ const PosProducts = ({
         <div className="pos-panel-header">
           <h5>Products</h5>
           <p>Search by name, code, SKU, or barcode — scan and press Enter to add</p>
+          {DEBUG ? (
+            <p className="text-sm mb-0 text-muted">
+              <code className="small">
+                {`GET /product/get-all-active-pos?search=&searchFields=${POS_PRODUCT_SEARCH_FIELDS}&status=${statusFilter}&category_id=`}
+              </code>
+            </p>
+          ) : null}
         </div>
         <div className="pos-panel-body flex-grow-1 d-flex flex-column">
           <div className="row g-2 mb-3 pos-search-bar">

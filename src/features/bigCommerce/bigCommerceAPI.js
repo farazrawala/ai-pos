@@ -2,9 +2,15 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 import {
   fetchCompanyById,
   getCompanyFromApiBody,
+  getCompanyIdFromUser,
   pickCompanyLogoUrl,
 } from '../company/companyAPI.js';
-import { fetchProductsRequest, fetchProductByIdRequest } from '../products/productsAPI.js';
+import {
+  fetchProductActiveRequest,
+  fetchProductByIdRequest,
+  fetchProductVariationRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
+} from '../products/productsAPI.js';
 import { fetchCategoriesRequest } from '../categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../brands/brandsAPI.js';
 import {
@@ -16,7 +22,6 @@ import {
   attachSiblingChildren,
   collectMarketplaceVariations,
 } from './marketplaceUtils.js';
-import { fetchProductVariationRequest } from '../products/productsAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -32,10 +37,48 @@ const getHeaders = () => {
   return headers;
 };
 
+/** Signed-in tenant company id (userData / companyData in localStorage). */
+function getSignedInCompanyId() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const userRaw = localStorage.getItem('userData');
+    if (userRaw) {
+      const fromUser = getCompanyIdFromUser(JSON.parse(userRaw));
+      if (fromUser) return fromUser;
+    }
+    const companyRaw = localStorage.getItem('companyData');
+    if (companyRaw) {
+      const company = JSON.parse(companyRaw);
+      const id = String(company?._id ?? company?.id ?? '').trim();
+      if (id) return id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
+/**
+ * Own-tenant catalog via
+ * `GET /product/get-all-active-pos?search=&searchFields=product_name,product_code,sku,barcode&status=active&category_id=`
+ */
+async function fetchOwnCatalogProducts(params = {}, { skip, limit, categoryIds = [], sort } = {}) {
+  return fetchProductActiveRequest({
+    page: Math.floor(skip / limit) + 1,
+    limit,
+    search: params.search || undefined,
+    searchFields: POS_PRODUCT_SEARCH_FIELDS,
+    status: 'active',
+    category_id: categoryIds.length === 1 ? categoryIds[0] : undefined,
+    sortBy: sort?.sortBy,
+    sortOrder: sort?.sortOrder,
+  });
+}
+
 /**
  * Marketplace products list for a store company.
- * Uses `GET /big-commerce/products/:companyId` (public listing or approved connection).
- * Falls back to POS product list only when browsing the signed-in company's own store.
+ * Own store → `GET /product/get-all-active-pos` (searchFields + status=active).
+ * Partner store → `GET /big-commerce/products/:companyId`, with POS catalog fallback.
  */
 export async function fetchMarketplaceProductsRequest(params = {}) {
   const sort = resolveSortParams(params.sortBy || 'latest');
@@ -49,11 +92,13 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
       ? Math.max(0, Number(params.skip) || 0)
       : (page - 1) * limit;
   const companyId = params.companyId ? String(params.companyId).trim() : '';
+  const ownCompanyId = getSignedInCompanyId();
+  const isOwnStore = !companyId || (ownCompanyId && companyId === ownCompanyId);
 
   let listResult = null;
-  let useOwnCatalogFallback = !companyId;
+  let useOwnCatalogFallback = isOwnStore;
 
-  if (companyId) {
+  if (companyId && !isOwnStore) {
     const queryParams = new URLSearchParams();
     queryParams.set('skip', String(skip));
     queryParams.set('limit', String(limit));
@@ -112,14 +157,7 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
   }
 
   if (!listResult && useOwnCatalogFallback) {
-    listResult = await fetchProductsRequest({
-      page: Math.floor(skip / limit) + 1,
-      limit,
-      search: params.search || undefined,
-      sortBy: sort.sortBy,
-      sortOrder: sort.sortOrder,
-      category_id: categoryIds.length === 1 ? categoryIds[0] : undefined,
-    });
+    listResult = await fetchOwnCatalogProducts(params, { skip, limit, categoryIds, sort });
   }
 
   if (!listResult) {
