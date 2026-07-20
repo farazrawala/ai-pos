@@ -309,6 +309,7 @@ export function getProductStock(item) {
     let total = 0;
     let hasAny = false;
     for (const child of kids) {
+      // Resolve each child directly (avoid re-entering variable parent logic).
       const childStock = getProductAvailableStock(child);
       if (childStock != null && Number.isFinite(childStock)) {
         total += childStock;

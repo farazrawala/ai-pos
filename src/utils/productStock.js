@@ -59,16 +59,22 @@ export function getProductAvailableStock(item, { warehouseId = '' } = {}) {
 
   if (item.total_stock != null && item.total_stock !== '') {
     const n = Number(item.total_stock);
-    if (Number.isFinite(n)) return Math.max(0, n);
+    if (Number.isFinite(n) && n > 0) return Math.max(0, n);
   }
 
+  // Positive `stock` is trusted; `stock: 0` often means “unset on parent” while
+  // real qty lives in warehouse_inventory or child variations — fall through.
+  let explicitZeroStock = false;
   if (item.stock != null && item.stock !== '') {
     const n = Number(item.stock);
-    if (Number.isFinite(n)) return Math.max(0, n);
+    if (Number.isFinite(n)) {
+      if (n > 0) return Math.max(0, n);
+      explicitZeroStock = true;
+    }
   }
 
   const inv = item.warehouse_inventory ?? item.warehouseInventory;
-  if (Array.isArray(inv)) {
+  if (Array.isArray(inv) && inv.length > 0) {
     return sumWarehouseInventoryRows(inv, wh);
   }
 
@@ -91,6 +97,7 @@ export function getProductAvailableStock(item, { warehouseId = '' } = {}) {
     if (Number.isFinite(n)) return Math.max(0, n);
   }
 
+  if (explicitZeroStock) return 0;
   return null;
 }
 

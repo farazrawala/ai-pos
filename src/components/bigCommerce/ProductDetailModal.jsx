@@ -68,6 +68,7 @@ export default function ProductDetailModal({
     let total = 0;
     let hasAny = false;
     variations.forEach((v) => {
+      // Use available stock helper so warehouse_inventory is not skipped when stock is 0.
       const s = getProductStock(v);
       if (s != null && Number.isFinite(s)) {
         total += s;
@@ -77,13 +78,24 @@ export default function ProductDetailModal({
     return hasAny ? total : null;
   }, [variations]);
 
-  // Variable products: prefer sum of variation stock over parent qty (often 0).
+  // Variable products: always prefer sum of variation stock over parent qty (often 0).
   const displayStock =
     (isVariable || variations.length > 0) && variationStockTotal != null
       ? variationStockTotal
       : stock != null
         ? stock
         : variationStockTotal;
+
+  // Badges must follow displayStock so Variable parents are not marked Out of Stock.
+  const displayBadges = useMemo(() => {
+    const list = badges.filter((b) => b.key !== 'out' && b.key !== 'low');
+    if (displayStock === 0) {
+      list.unshift({ key: 'out', label: 'Out of Stock', tone: 'danger' });
+    } else if (displayStock != null && displayStock > 0 && displayStock <= 5) {
+      list.unshift({ key: 'low', label: 'Low Stock', tone: 'warning' });
+    }
+    return list;
+  }, [badges, displayStock]);
 
   const metaItems = [
     sku ? { label: 'SKU', value: sku } : null,
@@ -142,9 +154,9 @@ export default function ProductDetailModal({
               ) : (
                 <div className="bc-card-img bc-card-img--empty">No image</div>
               )}
-              {badges.length > 0 ? (
+              {displayBadges.length > 0 ? (
                 <div className="bc-badges">
-                  {badges.map((b) => (
+                  {displayBadges.map((b) => (
                     <span key={b.key} className={`bc-badge bc-badge--${b.tone}`}>
                       {b.label}
                     </span>

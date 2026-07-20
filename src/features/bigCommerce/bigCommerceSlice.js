@@ -14,6 +14,7 @@ import {
   PAGE_SIZE_OPTIONS,
   attachSiblingChildren,
   getProductCategory,
+  getProductVariations,
   productIdFromRecord,
 } from './marketplaceUtils.js';
 
@@ -395,9 +396,29 @@ const bigCommerceSlice = createSlice({
           state.productsHasMore = false;
         }
       })
-      .addCase(openMarketplaceProduct.pending, (state) => {
+      .addCase(openMarketplaceProduct.pending, (state, action) => {
         state.detailStatus = 'loading';
         state.detailOpen = true;
+        state.relatedProducts = [];
+
+        const arg = action.meta?.arg;
+        const productId =
+          typeof arg === 'object' && arg != null
+            ? String(arg.productId ?? arg.id ?? '').trim()
+            : String(arg || '').trim();
+        const seedFromArg =
+          typeof arg === 'object' && arg != null && arg.product && typeof arg.product === 'object'
+            ? arg.product
+            : null;
+        const seedFromList = productId
+          ? state.products.find((item) => productIdFromRecord(item) === productId) || null
+          : null;
+        const seed = seedFromArg || seedFromList;
+        if (seed) {
+          const kids = getProductVariations(seed);
+          state.selectedProduct = seed;
+          state.selectedVariations = kids;
+        }
       })
       .addCase(openMarketplaceProduct.fulfilled, (state, action) => {
         state.detailStatus = 'succeeded';
