@@ -11,10 +11,22 @@ import {
   getProductComparePrice,
   getProductSku,
   getProductStock,
+  isOutOfStock,
+  isAlreadyMeTooProduct,
   productIdFromRecord,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 
-export default function ProductCard({ product, viewMode = 'grid', onViewDetails }) {
+export default function ProductCard({
+  product,
+  viewMode = 'grid',
+  onViewDetails,
+  onMeToo,
+  onDeleteMeToo,
+  meTooLoading = false,
+  deleteMeTooLoading = false,
+  hideMeToo = false,
+  alreadyMeTooIds,
+}) {
   const id = productIdFromRecord(product);
   const name = getProductName(product);
   const image = getProductListingImage(product);
@@ -26,7 +38,12 @@ export default function ProductCard({ product, viewMode = 'grid', onViewDetails 
   const category = getProductCategory(product);
   const stock = getProductStock(product);
   const description = getProductDescription(product);
-  const badges = getProductBadges(product);
+  const alreadyMeToo = isAlreadyMeTooProduct(product, alreadyMeTooIds);
+  const badges = getProductBadges(product, { alreadyMeToo });
+  const showMeToo = !hideMeToo && typeof onMeToo === 'function';
+  const meTooBusy = Boolean(meTooLoading);
+  const deleteBusy = Boolean(deleteMeTooLoading);
+  const showDelete = alreadyMeToo && typeof onDeleteMeToo === 'function';
 
   return (
     <article className={`bc-card bc-card--${viewMode}`}>
@@ -71,7 +88,7 @@ export default function ProductCard({ product, viewMode = 'grid', onViewDetails 
             {compare != null ? <span className="bc-price-old">{formatMoney(compare)}</span> : null}
           </div>
           <div className="bc-stock-rating">
-            <span className={`bc-stock ${stock === 0 ? 'is-out' : ''}`}>
+            <span className={`bc-stock ${isOutOfStock(stock) ? 'is-out' : ''}`}>
               Stock: {stock == null ? '—' : stock}
             </span>
           </div>
@@ -82,7 +99,33 @@ export default function ProductCard({ product, viewMode = 'grid', onViewDetails 
         ) : null}
 
         <div className="bc-card-actions">
-          <button type="button" className="bc-btn bc-btn-primary" onClick={() => onViewDetails?.(id, product)}>
+          {showMeToo ? (
+            <button
+              type="button"
+              className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-ghost'}`}
+              disabled={meTooBusy || deleteBusy || alreadyMeToo}
+              onClick={() => onMeToo?.(product)}
+              title={alreadyMeToo ? 'Already in your catalog' : 'Copy this product to your catalog'}
+            >
+              {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
+            </button>
+          ) : null}
+          {showDelete ? (
+            <button
+              type="button"
+              className="bc-btn bc-btn-danger-ghost"
+              disabled={deleteBusy || meTooBusy}
+              onClick={() => onDeleteMeToo?.(product)}
+              title="Remove this product from your catalog"
+            >
+              {deleteBusy ? 'Removing…' : 'Delete'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="bc-btn bc-btn-primary"
+            onClick={() => onViewDetails?.(id, product)}
+          >
             View Details
           </button>
         </div>

@@ -17,6 +17,8 @@ import {
   getVariationLabel,
   formatProductDescriptionHtml,
   productIdFromRecord,
+  isOutOfStock,
+  isAlreadyMeTooProduct,
   LOW_STOCK_THRESHOLD,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import ProductCard from './ProductCard.jsx';
@@ -29,6 +31,14 @@ export default function ProductDetailModal({
   related = [],
   loading,
   onOpenRelated,
+  onMeToo,
+  onDeleteMeToo,
+  meTooLoading = false,
+  meTooProductId = '',
+  deleteMeTooLoading = false,
+  deleteMeTooProductId = '',
+  hideMeToo = false,
+  alreadyMeTooIds,
 }) {
   const [activeImage, setActiveImage] = useState(0);
 
@@ -62,7 +72,8 @@ export default function ProductDetailModal({
   }, [product, variations]);
 
   const stock = getProductStock(productWithVariations);
-  const badges = getProductBadges(productWithVariations);
+  const alreadyMeToo = isAlreadyMeTooProduct(product, alreadyMeTooIds);
+  const badges = getProductBadges(productWithVariations, { alreadyMeToo });
 
   const variationStockTotal = useMemo(() => {
     if (!variations.length) return null;
@@ -88,15 +99,23 @@ export default function ProductDetailModal({
         : variationStockTotal;
 
   // Badges must follow displayStock so Variable parents are not marked Out of Stock.
+  // Unknown stock (—) is treated as out of stock, same as qty 0.
+  // Keep "In your catalog" (me-too) from the base badge list.
   const displayBadges = useMemo(() => {
     const list = badges.filter((b) => b.key !== 'out' && b.key !== 'low');
-    if (displayStock === 0) {
-      list.unshift({ key: 'out', label: 'Out of Stock', tone: 'danger' });
-    } else if (displayStock != null && displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD) {
-      list.unshift({ key: 'low', label: 'Low Stock', tone: 'warning' });
+    if (isOutOfStock(displayStock)) {
+      list.push({ key: 'out', label: 'Out of Stock', tone: 'danger' });
+    } else if (displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD) {
+      list.push({ key: 'low', label: 'Low Stock', tone: 'warning' });
     }
     return list;
   }, [badges, displayStock]);
+
+  const meTooBusyForProduct =
+    meTooLoading && (!meTooProductId || meTooProductId === productIdFromRecord(product));
+  const deleteBusyForProduct =
+    deleteMeTooLoading &&
+    (!deleteMeTooProductId || deleteMeTooProductId === productIdFromRecord(product));
 
   const metaItems = [
     sku ? { label: 'SKU', value: sku } : null,
@@ -130,9 +149,40 @@ export default function ProductDetailModal({
       subtitle={brand.name !== '—' ? brand.name : category.name !== '—' ? category.name : undefined}
       size="xl"
       footer={
-        <button type="button" className="bc-btn bc-btn-ghost" onClick={onClose}>
-          Close
-        </button>
+        <>
+          {!hideMeToo ? (
+            <button
+              type="button"
+              className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-primary'}`}
+              disabled={
+                loading ||
+                !product ||
+                meTooBusyForProduct ||
+                deleteBusyForProduct ||
+                alreadyMeToo ||
+                !onMeToo
+              }
+              onClick={() => onMeToo?.(product)}
+              title={alreadyMeToo ? 'Already in your catalog' : 'Copy this product to your catalog'}
+            >
+              {meTooBusyForProduct ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
+            </button>
+          ) : null}
+          {!hideMeToo && alreadyMeToo && onDeleteMeToo ? (
+            <button
+              type="button"
+              className="bc-btn bc-btn-danger-ghost"
+              disabled={loading || !product || deleteBusyForProduct || meTooBusyForProduct}
+              onClick={() => onDeleteMeToo?.(product)}
+              title="Remove this product from your catalog"
+            >
+              {deleteBusyForProduct ? 'Removing…' : 'Delete'}
+            </button>
+          ) : null}
+          <button type="button" className="bc-btn bc-btn-ghost" onClick={onClose}>
+            Close
+          </button>
+        </>
       }
     >
       {loading && !product ? (
@@ -189,15 +239,19 @@ export default function ProductDetailModal({
                   <span className="bc-price-old">{formatMoney(compare)}</span>
                 ) : null}
               </div>
-              {displayStock != null ? (
-                <span
-                  className={`bc-stock-pill ${displayStock === 0 ? 'is-out' : displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD ? 'is-low' : 'is-in'}`}
-                >
-                  {displayStock === 0
-                    ? 'Out of stock'
-                    : `${displayStock} in stock${variations.length ? ' (all variants)' : ''}`}
-                </span>
-              ) : null}
+              <span
+                className={`bc-stock-pill ${
+                  isOutOfStock(displayStock)
+                    ? 'is-out'
+                    : displayStock > 0 && displayStock < LOW_STOCK_THRESHOLD
+                      ? 'is-low'
+                      : 'is-in'
+                }`}
+              >
+                {isOutOfStock(displayStock)
+                  ? 'Out of stock'
+                  : `${displayStock} in stock${variations.length ? ' (all variants)' : ''}`}
+              </span>
             </div>
 
             {metaItems.length > 0 ? (
@@ -308,6 +362,16 @@ export default function ProductDetailModal({
                     product={item}
                     viewMode="grid"
                     onViewDetails={(id) => onOpenRelated?.(id)}
+                    onMeToo={onMeToo}
+                    onDeleteMeToo={onDeleteMeToo}
+                    meTooLoading={
+                      meTooLoading && meTooProductId === productIdFromRecord(item)
+                    }
+                    deleteMeTooLoading={
+                      deleteMeTooLoading && deleteMeTooProductId === productIdFromRecord(item)
+                    }
+                    hideMeToo={hideMeToo}
+                    alreadyMeTooIds={alreadyMeTooIds}
                   />
                 ))}
               </div>

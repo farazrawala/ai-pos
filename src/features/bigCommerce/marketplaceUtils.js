@@ -406,7 +406,80 @@ export function getAlertQty(item) {
   return Number.isFinite(n) && n > 0 ? n : LOW_STOCK_THRESHOLD;
 }
 
-export function getProductBadges(item) {
+/** Missing / unknown stock (`—`) is treated the same as qty 0. */
+export function isOutOfStock(stock) {
+  return stock == null || stock === 0;
+}
+
+/** Partner product id this row was copied from (Me too / fetch). */
+export function getFetchFromProductId(item) {
+  if (!item || typeof item !== 'object') return '';
+  const raw =
+    item.fetch_from_product_id ??
+    item.fetchFromProductId ??
+    item.source_product_id ??
+    item.sourceProductId;
+  if (raw && typeof raw === 'object') {
+    return String(raw._id ?? raw.id ?? raw.product_id ?? '').trim();
+  }
+  return String(raw || '').trim();
+}
+
+/** Partner company id this row was copied from. */
+export function getFetchFromCompanyId(item) {
+  if (!item || typeof item !== 'object') return '';
+  const raw =
+    item.fetch_from_company_id ??
+    item.fetchFromCompanyId ??
+    item.source_company_id ??
+    item.sourceCompanyId;
+  if (raw && typeof raw === 'object') {
+    return String(raw._id ?? raw.id ?? raw.company_id ?? '').trim();
+  }
+  return String(raw || '').trim();
+}
+
+/** True when the marketplace list/detail payload marks the product as already copied. */
+export function productHasAlreadyFetchedFlag(item) {
+  if (!item || typeof item !== 'object') return false;
+  return Boolean(
+    item.already_fetched ??
+      item.alreadyFetched ??
+      item.is_fetched ??
+      item.isFetched ??
+      item.me_too ??
+      item.meToo ??
+      item.in_my_catalog ??
+      item.inMyCatalog
+  );
+}
+
+/**
+ * Whether the viewer has already Me-too'd this partner product.
+ * Uses payload flags and/or a set of known fetched source product ids.
+ */
+export function isAlreadyMeTooProduct(item, fetchedIds) {
+  if (productHasAlreadyFetchedFlag(item)) return true;
+  const id = productIdFromRecord(item);
+  if (!id) return false;
+  if (fetchedIds instanceof Set) return fetchedIds.has(id);
+  if (Array.isArray(fetchedIds)) return fetchedIds.map(String).includes(id);
+  if (fetchedIds && typeof fetchedIds === 'object') return Boolean(fetchedIds[id]);
+  return false;
+}
+
+/** Collect partner product ids flagged as already fetched on a list page. */
+export function collectAlreadyFetchedIdsFromProducts(products) {
+  const ids = [];
+  for (const item of Array.isArray(products) ? products : []) {
+    if (!productHasAlreadyFetchedFlag(item)) continue;
+    const id = productIdFromRecord(item);
+    if (id) ids.push(id);
+  }
+  return ids;
+}
+
+export function getProductBadges(item, { alreadyMeToo = false } = {}) {
   const badges = [];
   const stock = getProductStock(item);
   const price = getProductPrice(item);
@@ -417,8 +490,11 @@ export function getProductBadges(item) {
     item?.badge === 'new' ||
     (created && Date.now() - new Date(created).getTime() < 1000 * 60 * 60 * 24 * 15);
 
-  if (stock === 0) badges.push({ key: 'out', label: 'Out of Stock', tone: 'danger' });
-  else if (stock != null && stock > 0 && stock < LOW_STOCK_THRESHOLD) {
+  if (alreadyMeToo) {
+    badges.push({ key: 'me-too', label: 'In your catalog', tone: 'success' });
+  }
+  if (isOutOfStock(stock)) badges.push({ key: 'out', label: 'Out of Stock', tone: 'danger' });
+  else if (stock > 0 && stock < LOW_STOCK_THRESHOLD) {
     badges.push({ key: 'low', label: 'Low Stock', tone: 'warning' });
   }
   if (compare != null && compare > price) badges.push({ key: 'sale', label: 'Sale', tone: 'accent' });
@@ -471,11 +547,11 @@ export function filterProductsClientSide(products, filters) {
 
     if (filters.stock) {
       const stock = getProductStock(item);
-      // in_stock: > 0 | out_of_stock: == 0 | low_stock: > 0 && < 10
+      // in_stock: > 0 | out_of_stock: == 0 or unknown | low_stock: > 0 && < 10
       if (filters.stock === 'in_stock') {
         if (!(stock != null && stock > 0)) return false;
       } else if (filters.stock === 'out_of_stock') {
-        if (stock !== 0) return false;
+        if (!isOutOfStock(stock)) return false;
       } else if (filters.stock === 'low_stock') {
         if (!(stock != null && stock > 0 && stock < LOW_STOCK_THRESHOLD)) return false;
       }

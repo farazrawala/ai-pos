@@ -535,3 +535,211 @@ export async function sendCompanyStoreRequestRequest({ companyId, message = '' }
 
   throw lastError || new Error('Failed to send store request');
 }
+
+/**
+ * Copy a partner marketplace product into the current company catalog ("Me too").
+ * POST `big-commerce/products/:productId/duplicate`
+ * (also tries `big-commerce/products/fetch/:productId`)
+ *
+ * Idempotent: if already fetched, API returns `already_fetched: true` with the existing row.
+ */
+export async function duplicateMarketplaceProductRequest(productId) {
+  const id = String(productId || '').trim();
+  if (!id) throw new Error('Product is required');
+
+  const encoded = encodeURIComponent(id);
+  const candidates = [
+    `big-commerce/products/${encoded}/duplicate`,
+    `big-commerce/products/fetch/${encoded}`,
+  ];
+  let lastError = null;
+
+  for (const path of candidates) {
+    try {
+      const response = await fetch(`${BASE_URL}${path}`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        lastError = new Error(
+          data?.message || data?.error || `Failed to copy product (${response.status})`
+        );
+        continue;
+      }
+
+      const record =
+        data?.data && typeof data.data === 'object' && !Array.isArray(data.data)
+          ? data.data
+          : data?.product && typeof data.product === 'object'
+            ? data.product
+            : data;
+
+      return {
+        ...data,
+        already_fetched: Boolean(
+          data?.already_fetched ?? data?.alreadyFetched ?? record?.already_fetched
+        ),
+        product: record,
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('Failed to copy product');
+}
+
+function unwrapRecordId(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object') {
+    return String(raw._id ?? raw.id ?? raw.$oid ?? raw.product_id ?? '').trim();
+  }
+  return String(raw).trim();
+}
+
+function collectFetchedProductRecords(payload) {
+  const records = [];
+
+  const walk = (node, depth = 0) => {
+    if (node == null || depth > 4) return;
+    if (Array.isArray(node)) {
+      node.forEach((item) => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          records.push(item);
+        }
+        if (item && typeof item === 'object') walk(item, depth + 1);
+      });
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    const listKeys = [
+      'product_ids',
+      'productIds',
+      'fetched_product_ids',
+      'fetchedProductIds',
+      'ids',
+      'data',
+      'products',
+      'items',
+      'rows',
+      'result',
+    ];
+    let walkedList = false;
+    listKeys.forEach((key) => {
+      if (node[key] == null) return;
+      walkedList = true;
+      walk(node[key], depth + 1);
+    });
+
+    if (!walkedList && (node._id || node.id || node.fetch_from_product_id || node.fetchFromProductId)) {
+      records.push(node);
+    }
+  };
+
+  walk(payload);
+  return records;
+}
+
+/**
+ * Build Me too links from GET fetched-products.
+ * - sourceProductId: partner listing id (`fetch_from_product_id`)
+ * - localProductId: your copy id (`_id`) — required for soft-delete
+ */
+export function normalizeFetchedProductLinks(payload) {
+  const bySourceId = {};
+  const sourceIds = [];
+
+  // Plain id arrays (legacy): treat each id as a source id only.
+  if (Array.isArray(payload) && payload.every((x) => typeof x === 'string' || typeof x === 'number')) {
+    payload.forEach((raw) => {
+      const id = unwrapRecordId(raw);
+      if (!id) return;
+      sourceIds.push(id);
+    });
+    return { sourceIds: [...new Set(sourceIds)], bySourceId };
+  }
+
+  collectFetchedProductRecords(payload).forEach((item) => {
+    const localId = unwrapRecordId(item._id ?? item.id ?? item.product_id);
+    const sourceId = unwrapRecordId(
+      item.fetch_from_product_id ??
+        item.fetchFromProductId ??
+        item.source_product_id ??
+        item.sourceProductId ??
+        item.original_product_id ??
+        item.originalProductId
+    );
+
+    // Your copy: has fetch_from_* → map partner id → local copy id.
+    if (sourceId && localId) {
+      bySourceId[sourceId] = localId;
+      sourceIds.push(sourceId);
+      return;
+    }
+
+    // Fallback: only one id present.
+    const only = sourceId || localId;
+    if (only) sourceIds.push(only);
+  });
+
+  return {
+    sourceIds: [...new Set(sourceIds)],
+    bySourceId,
+  };
+}
+
+/**
+ * Partner product ids + local copy ids the current company already Me-too'd.
+ * GET `big-commerce/fetched-products/:sourceCompanyId`
+ * (Company 2 token → your copies fetched from company 1.)
+ */
+export async function fetchAlreadyMeTooProductIdsRequest({
+  sourceCompanyId,
+  ownCompanyId,
+} = {}) {
+  const sourceId = String(sourceCompanyId || '').trim();
+  const ownId = String(ownCompanyId || '').trim();
+  if (!sourceId) return { sourceIds: [], bySourceId: {} };
+  if (ownId && sourceId === ownId) return { sourceIds: [], bySourceId: {} };
+
+  const response = await fetch(
+    `${BASE_URL}big-commerce/fetched-products/${encodeURIComponent(sourceId)}`,
+    { method: 'GET', headers: getHeaders() }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || data?.error || `Failed to load fetched products (${response.status})`
+    );
+  }
+
+  return normalizeFetchedProductLinks(data);
+}
+
+/**
+ * Soft-delete your Me too copy (deletedAt + status inactive).
+ * DELETE `big-commerce/fetched-products/:productId/delete`
+ * `productId` must be YOUR copy id (row with fetch_from_company_id).
+ * Partner original is not affected; Variable children are soft-deleted too.
+ */
+export async function deleteFetchedMarketplaceProductRequest(productId) {
+  const id = String(productId || '').trim();
+  if (!id) throw new Error('Product is required');
+
+  const response = await fetch(
+    `${BASE_URL}big-commerce/fetched-products/${encodeURIComponent(id)}/delete`,
+    { method: 'DELETE', headers: getHeaders() }
+  );
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(
+      data?.message || data?.error || `Failed to remove product (${response.status})`
+    );
+  }
+
+  return data;
+}

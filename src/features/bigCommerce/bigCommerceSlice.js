@@ -8,6 +8,9 @@ import {
   fetchRelatedProductsRequest,
   fetchMarketplaceCompaniesRequest,
   sendCompanyStoreRequestRequest,
+  duplicateMarketplaceProductRequest,
+  fetchAlreadyMeTooProductIdsRequest,
+  deleteFetchedMarketplaceProductRequest,
 } from './bigCommerceAPI.js';
 import {
   DEFAULT_FILTERS,
@@ -16,6 +19,7 @@ import {
   getProductCategory,
   getProductVariations,
   productIdFromRecord,
+  collectAlreadyFetchedIdsFromProducts,
 } from './marketplaceUtils.js';
 
 const FILTERS_CACHE_KEY = 'bigCommerce.filters';
@@ -189,6 +193,88 @@ export const sendCompanyStoreRequest = createAsyncThunk(
   }
 );
 
+export const duplicateMarketplaceProduct = createAsyncThunk(
+  'bigCommerce/duplicateProduct',
+  async ({ productId } = {}, { rejectWithValue }) => {
+    try {
+      const result = await duplicateMarketplaceProductRequest(productId);
+      return { productId, result };
+    } catch (err) {
+      return rejectWithValue(err?.message || 'Failed to copy product');
+    }
+  }
+);
+
+export const loadAlreadyMeTooIds = createAsyncThunk(
+  'bigCommerce/loadAlreadyMeTooIds',
+  async ({ sourceCompanyId, ownCompanyId } = {}, { rejectWithValue }) => {
+    try {
+      const result = await fetchAlreadyMeTooProductIdsRequest({
+        sourceCompanyId,
+        ownCompanyId,
+      });
+      return result;
+    } catch (err) {
+      return rejectWithValue(err?.message || 'Failed to load Me too status');
+    }
+  }
+);
+
+export const deleteFetchedMarketplaceProduct = createAsyncThunk(
+  'bigCommerce/deleteFetchedProduct',
+  async ({ productId, localProductId, productName } = {}, { getState, rejectWithValue }) => {
+    try {
+      const sourceId = String(productId || '').trim();
+      const map = getState()?.bigCommerce?.alreadyMeTooLocalBySource || {};
+      const resolvedLocal =
+        String(localProductId || '').trim() ||
+        String(map[sourceId] || '').trim() ||
+        sourceId;
+      if (!resolvedLocal) {
+        return rejectWithValue('Fetched product id is missing');
+      }
+      const result = await deleteFetchedMarketplaceProductRequest(resolvedLocal);
+      return { productId: sourceId, localProductId: resolvedLocal, productName, result };
+    } catch (err) {
+      return rejectWithValue(err?.message || 'Failed to remove product');
+    }
+  }
+);
+
+function mergeAlreadyMeTooIds(state, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  const set = new Set((state.alreadyMeTooIds || []).map(String));
+  ids.forEach((id) => {
+    const value = String(id || '').trim();
+    if (value) set.add(value);
+  });
+  state.alreadyMeTooIds = [...set];
+}
+
+function mergeAlreadyMeTooLocalBySource(state, bySourceId) {
+  if (!bySourceId || typeof bySourceId !== 'object') return;
+  const next = { ...(state.alreadyMeTooLocalBySource || {}) };
+  Object.entries(bySourceId).forEach(([sourceId, localId]) => {
+    const source = String(sourceId || '').trim();
+    const local = String(localId || '').trim();
+    if (source && local) next[source] = local;
+  });
+  state.alreadyMeTooLocalBySource = next;
+}
+
+function removeAlreadyMeTooIds(state, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  const remove = new Set(ids.map((id) => String(id || '').trim()).filter(Boolean));
+  state.alreadyMeTooIds = (state.alreadyMeTooIds || [])
+    .map(String)
+    .filter((id) => id && !remove.has(id));
+  const map = { ...(state.alreadyMeTooLocalBySource || {}) };
+  remove.forEach((sourceId) => {
+    delete map[sourceId];
+  });
+  state.alreadyMeTooLocalBySource = map;
+}
+
 const initialState = {
   companyId: '',
   company: null,
@@ -227,6 +313,18 @@ const initialState = {
   storeRequestStatus: 'idle',
   storeRequestError: null,
   storeRequestTargetId: '',
+  duplicateStatus: 'idle',
+  duplicateError: null,
+  duplicateProductId: '',
+  duplicateProductName: '',
+  duplicateAlreadyFetched: false,
+  alreadyMeTooIds: [],
+  alreadyMeTooLocalBySource: {},
+  alreadyMeTooStatus: 'idle',
+  deleteFetchedStatus: 'idle',
+  deleteFetchedError: null,
+  deleteFetchedProductId: '',
+  deleteFetchedProductName: '',
 };
 
 const bigCommerceSlice = createSlice({
@@ -266,6 +364,9 @@ const bigCommerceSlice = createSlice({
         state.products = [];
         state.pagination.page = 1;
         state.productsHasMore = true;
+        state.alreadyMeTooIds = [];
+        state.alreadyMeTooLocalBySource = {};
+        state.alreadyMeTooStatus = 'idle';
         // Drop viewer-tenant category/brand filters — they do not apply to partner stores.
         state.filters = { ...DEFAULT_FILTERS };
         persistFilters(state.filters);
@@ -308,6 +409,19 @@ const bigCommerceSlice = createSlice({
       state.storeRequestStatus = 'idle';
       state.storeRequestError = null;
       state.storeRequestTargetId = '';
+    },
+    clearDuplicateStatus(state) {
+      state.duplicateStatus = 'idle';
+      state.duplicateError = null;
+      state.duplicateProductId = '';
+      state.duplicateProductName = '';
+      state.duplicateAlreadyFetched = false;
+    },
+    clearDeleteFetchedStatus(state) {
+      state.deleteFetchedStatus = 'idle';
+      state.deleteFetchedError = null;
+      state.deleteFetchedProductId = '';
+      state.deleteFetchedProductName = '';
     },
   },
   extraReducers: (builder) => {
@@ -353,6 +467,7 @@ const bigCommerceSlice = createSlice({
         } else {
           state.products = attachSiblingChildren(incoming);
         }
+        mergeAlreadyMeTooIds(state, collectAlreadyFetchedIdsFromProducts(incoming));
         state.pagination = {
           page: action.payload.page,
           limit: action.payload.limit,
@@ -491,6 +606,65 @@ const bigCommerceSlice = createSlice({
         state.storeRequestStatus = 'failed';
         state.storeRequestError = action.payload || 'Failed to send request';
         state.storeRequestTargetId = '';
+      })
+      .addCase(duplicateMarketplaceProduct.pending, (state, action) => {
+        state.duplicateStatus = 'loading';
+        state.duplicateError = null;
+        state.duplicateAlreadyFetched = false;
+        state.duplicateProductId = String(action.meta?.arg?.productId || '');
+        state.duplicateProductName = String(action.meta?.arg?.productName || '').trim();
+      })
+      .addCase(duplicateMarketplaceProduct.fulfilled, (state, action) => {
+        state.duplicateStatus = 'succeeded';
+        state.duplicateAlreadyFetched = Boolean(action.payload?.result?.already_fetched);
+        state.duplicateProductId = String(action.payload?.productId || '');
+        const sourceId = String(action.payload?.productId || '').trim();
+        mergeAlreadyMeTooIds(state, [sourceId]);
+        const copied =
+          action.payload?.result?.product && typeof action.payload.result.product === 'object'
+            ? action.payload.result.product
+            : null;
+        const localId = String(
+          copied?._id ?? copied?.id ?? action.payload?.result?.data?._id ?? ''
+        ).trim();
+        if (sourceId && localId) {
+          mergeAlreadyMeTooLocalBySource(state, { [sourceId]: localId });
+        }
+      })
+      .addCase(duplicateMarketplaceProduct.rejected, (state, action) => {
+        state.duplicateStatus = 'failed';
+        state.duplicateError = action.payload || 'Failed to copy product';
+        state.duplicateProductId = '';
+        state.duplicateAlreadyFetched = false;
+      })
+      .addCase(loadAlreadyMeTooIds.pending, (state) => {
+        state.alreadyMeTooStatus = 'loading';
+      })
+      .addCase(loadAlreadyMeTooIds.fulfilled, (state, action) => {
+        state.alreadyMeTooStatus = 'succeeded';
+        state.alreadyMeTooIds = [];
+        state.alreadyMeTooLocalBySource = {};
+        mergeAlreadyMeTooIds(state, action.payload?.sourceIds || action.payload?.ids || []);
+        mergeAlreadyMeTooLocalBySource(state, action.payload?.bySourceId || {});
+      })
+      .addCase(loadAlreadyMeTooIds.rejected, (state) => {
+        state.alreadyMeTooStatus = 'failed';
+      })
+      .addCase(deleteFetchedMarketplaceProduct.pending, (state, action) => {
+        state.deleteFetchedStatus = 'loading';
+        state.deleteFetchedError = null;
+        state.deleteFetchedProductId = String(action.meta?.arg?.productId || '');
+        state.deleteFetchedProductName = String(action.meta?.arg?.productName || '').trim();
+      })
+      .addCase(deleteFetchedMarketplaceProduct.fulfilled, (state, action) => {
+        state.deleteFetchedStatus = 'succeeded';
+        state.deleteFetchedProductId = String(action.payload?.productId || '');
+        removeAlreadyMeTooIds(state, [action.payload?.productId]);
+      })
+      .addCase(deleteFetchedMarketplaceProduct.rejected, (state, action) => {
+        state.deleteFetchedStatus = 'failed';
+        state.deleteFetchedError = action.payload || 'Failed to remove product';
+        state.deleteFetchedProductId = '';
       });
   },
 });
@@ -508,6 +682,8 @@ export const {
   setCompaniesLimit,
   resetCompaniesList,
   clearStoreRequestStatus,
+  clearDuplicateStatus,
+  clearDeleteFetchedStatus,
 } = bigCommerceSlice.actions;
 
 export const selectBigCommerce = (state) => state.bigCommerce;
