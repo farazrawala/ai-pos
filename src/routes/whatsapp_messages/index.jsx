@@ -40,6 +40,15 @@ const messagePreview = (value) => {
   return text.length > 80 ? `${text.slice(0, 80)}…` : text;
 };
 
+/** Show WhatsApp numbers with Pakistan country code (92) for display. */
+const formatWhatsappDisplayNumber = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '—';
+  if (digits.startsWith('92')) return digits;
+  if (digits.startsWith('0')) return `92${digits.slice(1)}`;
+  return `92${digits}`;
+};
+
 const messageIdFromRecord = (item) => String(item?._id || item?.id || '').trim();
 
 const canStopSending = (item) => {
@@ -128,7 +137,8 @@ const WhatsappMessages = () => {
     const id = messageIdFromRecord(item);
     if (!id) return;
 
-    const number = item.number || 'this number';
+    const displayNumber = formatWhatsappDisplayNumber(item.number);
+    const number = displayNumber === '—' ? 'this number' : displayNumber;
     if (
       !window.confirm(
         `Stop sending this WhatsApp message to ${number}? It will be removed from the queue.`
@@ -275,7 +285,7 @@ const WhatsappMessages = () => {
                         return (
                           <tr key={id}>
                             <td>{(pagination.page - 1) * pagination.limit + index + 1}</td>
-                            <td className="text-sm">{item.number || '—'}</td>
+                            <td className="text-sm">{formatWhatsappDisplayNumber(item.number)}</td>
                             <td>
                               <button
                                 type="button"
@@ -358,7 +368,9 @@ const WhatsappMessages = () => {
                     <h5 className="modal-title" id="whatsappMessageDetailsTitle">
                       WhatsApp Message
                     </h5>
-                    <span className="text-sm text-muted">{selectedMessage.number || '—'}</span>
+                    <span className="text-sm text-muted">
+                      {formatWhatsappDisplayNumber(selectedMessage.number)}
+                    </span>
                   </div>
                   <button
                     type="button"
