@@ -160,27 +160,30 @@ export default function BigCommerceListingPage() {
     storeRequestTargetId === String(requestTarget?.id || '');
 
   return (
-    <div className="container-fluid py-4">
+    <div className="container-fluid py-4 px-3">
       <div className="bc-listing-page">
         <div className="bc-listing-header">
           <div>
-            <p className="bc-listing-eyebrow mb-1">Big Commerce</p>
-            <h4 className="bc-listing-title mb-1">Company listing</h4>
+            <p className="bc-listing-eyebrow mb-0">
+              <FaStore aria-hidden="true" />
+              Big Commerce
+            </p>
+            <h4 className="bc-listing-title">Company directory</h4>
             <p className="bc-listing-subtitle mb-0">
               Browse companies, send a store request, or open their marketplace.
             </p>
           </div>
         </div>
 
-        <div className="card border-0 shadow-sm bc-listing-card">
-          <div className="card-header bg-transparent border-0 pt-3 px-3">
+        <div className="card border-0 bc-listing-card">
+          <div className="card-header bg-transparent border-0 pt-3 px-3 pb-2">
             <div className="bc-listing-toolbar">
               <div className="bc-search-wrap bc-listing-search">
                 <FaMagnifyingGlass className="bc-search-icon" aria-hidden="true" />
                 <input
                   type="search"
                   className="bc-search-input"
-                  placeholder="Search companies..."
+                  placeholder="Search companies…"
                   value={localSearch}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   aria-label="Search companies"
@@ -252,6 +255,8 @@ export default function BigCommerceListingPage() {
                             ? { backgroundImage: `url(${company.coverUrl})` }
                             : undefined
                         }
+                        role="img"
+                        aria-label={`${company.name || 'Company'} banner`}
                       />
                       <div className="bc-company-card-body">
                         <div className="bc-company-identity">
@@ -267,15 +272,15 @@ export default function BigCommerceListingPage() {
                               {(company.name || 'C').charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <div className="min-w-0">
+                          <div className="bc-company-identity-text">
                             <h5 className="bc-company-card-name" title={company.name}>
                               {company.name}
                             </h5>
                             {company.location ? (
-                              <p className="bc-company-card-meta mb-0">{company.location}</p>
+                              <p className="bc-company-card-meta">{company.location}</p>
                             ) : null}
                             {company.phone ? (
-                              <p className="bc-company-card-meta mb-0">{company.phone}</p>
+                              <p className="bc-company-card-meta">{company.phone}</p>
                             ) : null}
                           </div>
                         </div>
@@ -308,7 +313,7 @@ export default function BigCommerceListingPage() {
                             onClick={() => openRequestModal(company)}
                           >
                             <FaPaperPlane aria-hidden="true" />
-                            Send Request
+                            Send request
                           </button>
                           <button
                             type="button"
@@ -316,7 +321,7 @@ export default function BigCommerceListingPage() {
                             onClick={() => navigate(`/big-commerce/store/${company.id}`)}
                           >
                             <FaStore aria-hidden="true" />
-                            View Store
+                            View store
                           </button>
                         </div>
                       </div>

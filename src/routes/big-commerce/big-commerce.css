@@ -1232,34 +1232,61 @@
   --bc-accent: #0f766e;
   --bc-accent-2: #1d4f6f;
   --bc-border: rgba(15, 23, 42, 0.08);
-  --bc-radius: 18px;
-  --bc-radius-sm: 12px;
+  --bc-radius: 1rem;
+  --bc-radius-sm: 0.85rem;
   font-family: 'Segoe UI', 'Helvetica Neue', Candara, Calibri, sans-serif;
   color: var(--bc-text);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.bc-listing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem;
+  background: linear-gradient(120deg, #f8fafc 0%, #eef2f9 100%);
+  border: 1px solid #e9ecf1;
+  border-radius: var(--bc-radius);
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.06);
+  margin-bottom: 1rem;
 }
 
 .bc-listing-eyebrow {
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--bc-accent);
+  color: #0f766e;
+  margin-bottom: 0.35rem;
 }
 
 .bc-listing-title {
+  font-size: 1.35rem;
   font-weight: 750;
   letter-spacing: -0.02em;
+  color: #1f2a44;
+  margin: 0;
+  line-height: 1.2;
 }
 
 .bc-listing-subtitle {
-  color: var(--bc-muted);
+  color: #64748b;
   max-width: 40rem;
+  font-size: 0.875rem;
+  margin: 0.3rem 0 0;
+  line-height: 1.45;
 }
 
 .bc-listing-card {
   border-radius: var(--bc-radius) !important;
   overflow: hidden;
-  margin-top: 1rem;
+  border: 1px solid #e9ecf1 !important;
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.06) !important;
 }
 
 .bc-listing-toolbar {
@@ -1276,47 +1303,73 @@
   max-width: 420px;
 }
 
+.bc-listing-search .bc-search-input {
+  font-size: 0.875rem;
+  padding: 0.55rem 0.9rem 0.55rem 2.25rem;
+}
+
+.bc-result-summary {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .bc-company-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
 }
 
 .bc-company-card {
-  border: 1px solid var(--bc-border);
+  border: 1px solid #e9ecf1;
   border-radius: var(--bc-radius-sm);
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
   display: flex;
   flex-direction: column;
 }
 
 .bc-company-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+  border-color: #d0daf0;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
 .bc-company-banner {
-  height: 88px;
+  position: relative;
+  height: 96px;
   background:
     linear-gradient(135deg, #0f766e 0%, #134e4a 42%, #1e3a5f 100%);
   background-size: cover;
   background-position: center;
 }
 
+.bc-company-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.45) 100%);
+  pointer-events: none;
+}
+
 .bc-company-card-body {
-  padding: 0 1rem 1rem;
+  position: relative;
+  padding: 0 1.1rem 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.65rem;
   flex: 1;
+  background: #fff;
 }
 
 .bc-company-identity {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 0.75rem;
   margin-top: -28px;
 }
@@ -1327,46 +1380,60 @@
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid #fff;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
   background: #e2e8f0;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .bc-company-avatar--fallback {
   display: grid;
   place-items: center;
   font-weight: 700;
+  font-size: 1.1rem;
   color: #fff;
   background: linear-gradient(135deg, var(--bc-accent), var(--bc-accent-2));
 }
 
+.bc-company-identity-text {
+  min-width: 0;
+  flex: 1;
+  /* Keep name/meta on the white card body — not over the dark banner */
+  padding-top: 34px;
+}
+
 .bc-company-card-name {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  color: #1f2a44;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .bc-company-card-meta {
-  font-size: 0.8rem;
-  color: var(--bc-muted);
+  font-size: 0.75rem;
+  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0.15rem 0 0;
+  line-height: 1.35;
 }
 
 .bc-company-card-desc {
   margin: 0;
-  font-size: 0.86rem;
-  color: var(--bc-muted);
-  line-height: 1.4;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 2.4em;
+  min-height: 2.3em;
 }
 
 .bc-company-stats {
@@ -1374,32 +1441,63 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  font-size: 0.78rem;
-  color: var(--bc-muted);
+  font-size: 0.75rem;
+  color: #64748b;
   font-weight: 600;
+  padding-top: 0.15rem;
 }
 
 .bc-pill {
   background: rgba(15, 118, 110, 0.1);
   color: var(--bc-accent);
-  padding: 0.2rem 0.55rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .bc-company-actions {
-  display: flex;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
   margin-top: auto;
   padding-top: 0.35rem;
 }
 
 .bc-company-actions .bc-btn {
-  flex: 1;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.2;
+  border-radius: 0.5rem;
+  white-space: nowrap;
+}
+
+.bc-company-actions .bc-btn svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
+.bc-company-actions .bc-btn-primary {
+  box-shadow: none;
+  font-size: 0.75rem;
+}
+
+.bc-company-actions .bc-btn-ghost {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  color: #41506b;
+}
+
+.bc-company-actions .bc-btn-ghost:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #c5cddb;
 }
 
 .bc-scroll-sentinel {
@@ -1417,5 +1515,10 @@
   .bc-company-grid {
     grid-template-columns: 1fr;
   }
+
+  .bc-company-actions {
+    grid-template-columns: 1fr;
+  }
 }
+
 
