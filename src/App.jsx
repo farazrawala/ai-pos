@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { APP_NAME } from './config/env.js';
+import { syncAuthCookiesFromStorage } from './utils/authCookie.js';
 import { fetchUserByIdRequest } from './features/users/usersAPI.js';
 import Home from './routes/Home.jsx';
 import About from './routes/About.jsx';
@@ -132,6 +133,7 @@ const App = () => {
 
   useEffect(() => {
     document.title = APP_NAME;
+    syncAuthCookiesFromStorage();
   }, []);
 
   // Refresh roles/permissions from the live record so admin/edit rights reflect

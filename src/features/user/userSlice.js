@@ -8,6 +8,7 @@ import {
   getWarehouseIdFromCompany,
   pickAccountRefId,
 } from '../company/companyAPI.js';
+import { setAuthCookies, clearAuthCookies } from '../../utils/authCookie.js';
 
 const getStoredUser = () => {
   if (typeof window === 'undefined') return null;
@@ -91,11 +92,17 @@ const persistSession = ({ user, name, token, company }) => {
     } else {
       localStorage.removeItem('companyData');
     }
+    setAuthCookies({
+      token: token || user?.token || '',
+      companyId: getCompanyIdFromUser(user) || pickId(company),
+      companyName: String(company?.company_name ?? company?.name ?? '').trim(),
+    });
   } else {
     localStorage.removeItem('userData');
     localStorage.removeItem('userName');
     localStorage.removeItem('authToken');
     localStorage.removeItem('companyData');
+    clearAuthCookies();
   }
 };
 
@@ -139,8 +146,10 @@ const userSlice = createSlice({
       if (typeof window !== 'undefined') {
         if (action.payload) {
           localStorage.setItem('authToken', action.payload);
+          setAuthCookies({ token: action.payload, companyId: state.companyId, companyName: state.company?.company_name ?? state.company?.name ?? '' });
         } else {
           localStorage.removeItem('authToken');
+          clearAuthCookies();
         }
       }
     },
@@ -219,6 +228,11 @@ const userSlice = createSlice({
         if (typeof window !== 'undefined') {
           localStorage.setItem('userData', JSON.stringify(state.user));
           localStorage.setItem('companyData', JSON.stringify(company));
+          setAuthCookies({
+            token: state.token,
+            companyId: state.companyId,
+            companyName: String(company?.company_name ?? company?.name ?? '').trim(),
+          });
         }
       }
     },
