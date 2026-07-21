@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaArrowsRotate, FaCloudArrowUp } from 'react-icons/fa6';
+import { FaArrowsRotate, FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
 import {
   fetchProducts,
   deleteProduct,
@@ -200,6 +200,12 @@ const Product = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFilterCount =
+    (categoryFilter ? 1 : 0) +
+    (statusFilter !== 'active' ? 1 : 0) +
+    (typeFilter !== 'all' ? 1 : 0);
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
@@ -299,6 +305,13 @@ const Product = () => {
     },
     [dispatch]
   );
+
+  const handleClearProductFilters = useCallback(() => {
+    setCategoryFilter('');
+    setStatusFilter('active');
+    setTypeFilter('all');
+    dispatch(setPage(1));
+  }, [dispatch]);
 
   // Handle search input with debounce
   const handleSearchChange = useCallback(
@@ -644,54 +657,14 @@ const Product = () => {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
-                <div className="col-lg-3 col-md-4">
+                <div className="col-lg-4 col-md-5">
                   <h5 className="mb-1">Products</h5>
                   {DEBUG ? (
                     <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
                 </div>
-                <div className="col-lg-9 col-md-8">
+                <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <select
-                      id="products-category-filter"
-                      className="form-select form-select-sm"
-                      style={{ maxWidth: '200px' }}
-                      value={categoryFilter}
-                      onChange={handleCategoryFilterChange}
-                      disabled={categoriesStatus === 'loading'}
-                      aria-label="Filter by category"
-                    >
-                      <option value="">All categories</option>
-                      {categories.map((cat) => (
-                        <option key={categoryOptionValue(cat)} value={categoryOptionValue(cat)}>
-                          {categoryOptionLabel(cat)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      id="products-status-filter"
-                      className="form-select form-select-sm"
-                      style={{ maxWidth: '140px' }}
-                      value={statusFilter}
-                      onChange={handleStatusFilterChange}
-                      aria-label="Filter by status"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="all">All</option>
-                    </select>
-                    <select
-                      id="products-type-filter"
-                      className="form-select form-select-sm"
-                      style={{ maxWidth: '140px' }}
-                      value={typeFilter}
-                      onChange={handleTypeFilterChange}
-                      aria-label="Filter by product type"
-                    >
-                      <option value="all">All</option>
-                      <option value="single">Single</option>
-                      <option value="variant">Variant</option>
-                    </select>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -711,40 +684,6 @@ const Product = () => {
                       onToggle={toggle}
                       onReset={reset}
                     />
-                    {canView ? (
-                      <div className="btn-group btn-group-sm" role="group" aria-label="Export products">
-                        <button
-                          type="button"
-                          className="btn btn-outline-success mb-0"
-                          disabled={exporting}
-                          onClick={() => handleExport('csv')}
-                          title="Export all products with stock (CSV)"
-                        >
-                          <i className="fas fa-file-csv me-1" aria-hidden="true" />
-                          {exporting ? 'Exporting…' : 'Export CSV'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-success mb-0"
-                          disabled={exporting}
-                          onClick={() => handleExport('excel')}
-                          title="Export all products with stock (Excel)"
-                        >
-                          <i className="fas fa-file-excel me-1" aria-hidden="true" />
-                          Excel
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-danger mb-0"
-                          disabled={exporting}
-                          onClick={() => handleExport('pdf')}
-                          title="Export all products with stock (PDF)"
-                        >
-                          <i className="fas fa-file-pdf me-1" aria-hidden="true" />
-                          PDF
-                        </button>
-                      </div>
-                    ) : null}
                     {canCreate ? (
                       <>
                         <button
@@ -766,10 +705,150 @@ const Product = () => {
                         <AddNewButton to="/products/add" label="Add product" size="sm" />
                       </>
                     ) : null}
+                    <button
+                      type="button"
+                      className={`btn btn-sm mb-0 position-relative ${
+                        showFilters || activeFilterCount > 0 ? 'btn-primary' : 'btn-outline-primary'
+                      }`}
+                      onClick={() => setShowFilters((prev) => !prev)}
+                      aria-expanded={showFilters}
+                      aria-controls="products-filter-panel"
+                      aria-label="Filters and export"
+                      title="Filters & export"
+                    >
+                      <NavIcon icon={FaFilter} size={14} />
+                      {activeFilterCount > 0 ? (
+                        <span className="badge bg-gradient-danger text-white rounded-pill position-absolute top-0 start-100 translate-middle">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
+
+            {showFilters ? (
+              <div className="card-body pt-0 px-3 pb-0">
+                <div className="orders-filter-panel" id="products-filter-panel">
+                  <div className="row g-3 align-items-end">
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="products-category-filter"
+                      >
+                        Category
+                      </label>
+                      <select
+                        id="products-category-filter"
+                        className="form-select form-select-sm"
+                        value={categoryFilter}
+                        onChange={handleCategoryFilterChange}
+                        disabled={categoriesStatus === 'loading'}
+                        aria-label="Filter by category"
+                      >
+                        <option value="">All categories</option>
+                        {categories.map((cat) => (
+                          <option key={categoryOptionValue(cat)} value={categoryOptionValue(cat)}>
+                            {categoryOptionLabel(cat)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="products-status-filter"
+                      >
+                        Status
+                      </label>
+                      <select
+                        id="products-status-filter"
+                        className="form-select form-select-sm"
+                        value={statusFilter}
+                        onChange={handleStatusFilterChange}
+                        aria-label="Filter by status"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="all">All</option>
+                      </select>
+                    </div>
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="products-type-filter"
+                      >
+                        Type
+                      </label>
+                      <select
+                        id="products-type-filter"
+                        className="form-select form-select-sm"
+                        value={typeFilter}
+                        onChange={handleTypeFilterChange}
+                        aria-label="Filter by product type"
+                      >
+                        <option value="all">All</option>
+                        <option value="single">Single</option>
+                        <option value="variant">Variant</option>
+                      </select>
+                    </div>
+                    <div className="col-xl-3 col-md-12 d-flex flex-wrap align-items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm mb-0"
+                        onClick={handleClearProductFilters}
+                        disabled={activeFilterCount === 0}
+                      >
+                        <i className="fas fa-rotate-left me-1" aria-hidden="true" />
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  {canView ? (
+                    <>
+                      <hr className="my-3 opacity-50" />
+                      <div className="d-flex flex-wrap align-items-center gap-2">
+                        <span className="text-xs text-uppercase fw-bold text-muted me-1">
+                          <i className="fas fa-download me-1" aria-hidden="true" />
+                          Download all
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-outline-success btn-sm mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('csv')}
+                          title="Export all products with stock (CSV)"
+                        >
+                          <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                          {exporting ? 'Exporting…' : 'CSV'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-success btn-sm mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('excel')}
+                          title="Export all products with stock (Excel)"
+                        >
+                          <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                          Excel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm mb-0"
+                          disabled={exporting}
+                          onClick={() => handleExport('pdf')}
+                          title="Export all products with stock (PDF)"
+                        >
+                          <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                          PDF
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 className="list-data-table--products"
