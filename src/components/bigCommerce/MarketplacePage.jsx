@@ -317,6 +317,11 @@ export default function MarketplacePage({ companyId }) {
     [state.alreadyMeTooIds]
   );
 
+  const alreadyMeTooIdSet = useMemo(
+    () => new Set((state.alreadyMeTooIds || []).map(String).filter(Boolean)),
+    [state.alreadyMeTooIds]
+  );
+
   const meTooFromCatalog = useMemo(
     () =>
       visibleProducts.filter((item) =>
