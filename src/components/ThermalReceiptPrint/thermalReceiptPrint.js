@@ -236,7 +236,16 @@ export function buildThermalReceiptHtml(data, options = {}) {
     )
     .join('');
 
+  const totalQty = d.lines.reduce((sum, line) => {
+    const n = parseFloat(String(line.qtyLabel || '').replace(/,/g, ''));
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
+  const totalQtyLabel = Number.isInteger(totalQty)
+    ? String(totalQty)
+    : totalQty.toFixed(2).replace(/\.?0+$/, '');
+
   const summaryHtml = [
+    summaryRow('Total Qty', escapeHtml(totalQtyLabel)),
     summaryRow('Subtotal', escapeHtml(fmt(d.summary.subTotal))),
     summaryRow('Tax', escapeHtml(fmt(d.summary.tax))),
     ps.show_discount

@@ -53,6 +53,16 @@ export class ReceiptRenderer {
     }
 
     b.blank().separator('-');
+    if (t.show_items !== false && Array.isArray(receipt.lines) && receipt.lines.length) {
+      const totalQty = receipt.lines.reduce((sum, line) => {
+        const n = Number(line.qty);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      const totalQtyLabel = Number.isInteger(totalQty)
+        ? String(totalQty)
+        : totalQty.toFixed(2).replace(/\.?0+$/, '');
+      b.text(`Total Qty: ${totalQtyLabel}`);
+    }
     if (t.show_discount !== false && receipt.discount) b.text(`Discount: ${money(receipt.discount)}`);
     if (t.show_tax !== false && receipt.tax) b.text(`Tax: ${money(receipt.tax)}`);
     if (t.show_grand_total !== false) b.bold(true).text(`TOTAL: ${money(receipt.total)}`).bold(false);
