@@ -12,7 +12,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
-import { withBase } from '../../config/appBase.js';
+import { absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 
@@ -241,11 +241,17 @@ const WarehouseInventoryListing = () => {
                             <td className="text-sm font-weight-normal">
                               {item.productId ? (
                                 <a
-                                  href={withBase(`/products/edit/${item.productId}`)}
+                                  href={absoluteAppUrl(`/products/edit/${item.productId}`)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark text-decoration-none text-start"
                                   title={`Open ${item.productName || 'product'} in new tab`}
+                                  onClick={(e) => {
+                                    if (e.defaultPrevented || e.button !== 0) return;
+                                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                                    e.preventDefault();
+                                    openAppPathInNewTab(`/products/edit/${item.productId}`);
+                                  }}
                                 >
                                   {item.productName || '—'}
                                 </a>

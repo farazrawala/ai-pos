@@ -25,6 +25,11 @@ import {
 } from '../../components/product/productVariationUtils.js';
 import '../../components/product/product-variations-modal.css';
 import './product-form.css';
+import {
+  PRODUCT_IMAGE_ACCEPT,
+  PRODUCT_IMAGE_HINT,
+  validateProductImageFile,
+} from '../../utils/productImageUpload.js';
 
 const isPersistedProductId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? '').trim());
 
@@ -744,18 +749,13 @@ const ProductEdit = () => {
   const handleSingleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
+      const validationError = validateProductImageFile(file);
+      if (validationError) {
         setErrors((prev) => ({
           ...prev,
-          singleImage: 'Image size must be less than 5MB',
+          singleImage: validationError,
         }));
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        setErrors((prev) => ({
-          ...prev,
-          singleImage: 'Please select a valid image file',
-        }));
+        if (singleImageInputRef.current) singleImageInputRef.current.value = '';
         return;
       }
       setSingleImage(file);
@@ -785,10 +785,9 @@ const ProductEdit = () => {
     const invalidFiles = [];
 
     files.forEach((file) => {
-      if (file.size > 5 * 1024 * 1024) {
-        invalidFiles.push(`${file.name} is larger than 5MB`);
-      } else if (!file.type.startsWith('image/')) {
-        invalidFiles.push(`${file.name} is not a valid image`);
+      const validationError = validateProductImageFile(file);
+      if (validationError) {
+        invalidFiles.push(`${file.name}: ${validationError}`);
       } else {
         validFiles.push(file);
       }
@@ -1645,7 +1644,7 @@ const ProductEdit = () => {
                     ref={singleImageInputRef}
                     type="file"
                     className="form-control"
-                    accept="image/*"
+                    accept={PRODUCT_IMAGE_ACCEPT}
                     onChange={handleSingleImageChange}
                     disabled={isSubmitting}
                   />
@@ -1688,7 +1687,9 @@ const ProductEdit = () => {
                       </small>
                     </div>
                   )}
-                  <small className="text-muted">Upload a single main product image (max 5MB)</small>
+                  <small className="text-muted">
+                    Upload a single main product image ({PRODUCT_IMAGE_HINT})
+                  </small>
                 </div>
 
                 {/* Bulk Images Upload */}
@@ -1738,7 +1739,7 @@ const ProductEdit = () => {
                     ref={bulkImagesInputRef}
                     type="file"
                     className="form-control"
-                    accept="image/*"
+                    accept={PRODUCT_IMAGE_ACCEPT}
                     multiple
                     onChange={handleBulkImagesChange}
                     disabled={isSubmitting}
@@ -1787,7 +1788,7 @@ const ProductEdit = () => {
                     </div>
                   )}
                   <small className="text-muted">
-                    Upload multiple additional images (max 10 images, 5MB each)
+                    Upload multiple additional images (max 10, {PRODUCT_IMAGE_HINT} each)
                   </small>
                 </div>
 

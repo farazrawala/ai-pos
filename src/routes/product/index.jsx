@@ -15,7 +15,7 @@ import {
   setListProductsStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-import { withBase } from '../../config/appBase.js';
+import { withBase, absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -960,11 +960,18 @@ const Product = () => {
                             >
                               {canEdit ? (
                                 <a
-                                  href={withBase(`/products/edit/${productEditId}`)}
+                                  href={absoluteAppUrl(`/products/edit/${productEditId}`)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
                                   title={`Edit ${productName}`}
+                                  onClick={(e) => {
+                                    // Keep middle-click / Ctrl+click native; left-click uses absolute URL open.
+                                    if (e.defaultPrevented || e.button !== 0) return;
+                                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                                    e.preventDefault();
+                                    openAppPathInNewTab(`/products/edit/${productEditId}`);
+                                  }}
                                 >
                                   {productName}
                                 </a>

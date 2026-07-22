@@ -5,6 +5,7 @@
   "start_url": "/pos",
   "scope": "/",
   "display": "standalone",
+  "handle_links": "not-preferred",
   "orientation": "any",
   "theme_color": "#5e72e4",
   "background_color": "#f8f9fe",
