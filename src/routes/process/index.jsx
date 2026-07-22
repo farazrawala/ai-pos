@@ -4,6 +4,7 @@ import moment from 'moment';
 import {
   fetchProcesses,
   setSearch,
+  setProgressFilter,
   setPage,
   setLimit,
   setSort,
@@ -152,6 +153,7 @@ const ProcessIndex = () => {
     error,
     pagination,
     search: searchTerm,
+    progressFilter,
     sort,
   } = useSelector((state) => state.process);
   useRequireModuleAccess('process');
@@ -169,6 +171,7 @@ const ProcessIndex = () => {
   const buildFetchParams = () => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
+    if (progressFilter) params.progress = progressFilter;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -182,7 +185,15 @@ const ProcessIndex = () => {
 
   useEffect(() => {
     refreshProcesses();
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    progressFilter,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   const handleExecuteProcess = async (processId) => {
     if (!processId) return;
@@ -331,7 +342,19 @@ const ProcessIndex = () => {
                   ) : null}
                 </div>
                 <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0 flex-wrap">
+                    <select
+                      className="form-select"
+                      style={{ maxWidth: '180px' }}
+                      value={progressFilter}
+                      onChange={(event) => dispatch(setProgressFilter(event.target.value))}
+                      aria-label="Filter by progress"
+                    >
+                      <option value="">All progress</option>
+                      <option value="not_started">Not started</option>
+                      <option value="completed">Success</option>
+                      <option value="failed">Failed</option>
+                    </select>
                     <div className="input-group" style={{ maxWidth: '300px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />

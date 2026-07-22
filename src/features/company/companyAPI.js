@@ -656,6 +656,7 @@ export async function patchCompanyBarcodeSettings(companyId, settingsObject) {
 }
 
 export const COMPANY_LOGO_FIELD = 'company_logo';
+export const COMPANY_BANNER_FIELD = 'company_banner';
 
 /** Top-level company Boolean field (not inside `bigcommerce_settings`). */
 export const DISPLAY_STORE_ON_BIGCOMMERCE_FIELD = 'display_store_on_bigcommerce';
@@ -673,6 +674,24 @@ export function pickCompanyLogoUrl(company) {
     company.company_logo ?? company.companyLogo ?? company.logo ?? company.logo_image ?? '';
   if (raw == null || raw === '') return '';
   // Reject File/Blob leftovers from a bad merge (would stringify to "[object File]").
+  if (typeof File !== 'undefined' && raw instanceof File) return '';
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
+  if (typeof raw === 'object' && raw !== null && !('url' in raw)) return '';
+  const resolved = resolveCategoryMediaUrl(raw);
+  if (!resolved || /\[object\s/i.test(resolved)) return '';
+  return resolved;
+}
+
+export function pickCompanyBannerUrl(company) {
+  if (!company || typeof company !== 'object') return '';
+  const raw =
+    company.company_banner ??
+    company.companyBanner ??
+    company.banner ??
+    company.cover_image ??
+    company.coverImage ??
+    '';
+  if (raw == null || raw === '') return '';
   if (typeof File !== 'undefined' && raw instanceof File) return '';
   if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
   if (typeof raw === 'object' && raw !== null && !('url' in raw)) return '';
@@ -739,9 +758,9 @@ async function patchCompanyFormFields(companyId, fields = {}, fileField = null) 
   return normalizeSingleCompanyPayload(data) || data;
 }
 
-/** PATCH company profile fields (name, contact, address, logo, display_store_on_bigcommerce). */
+/** PATCH company profile fields (name, contact, address, logo, banner, display_store_on_bigcommerce). */
 export async function updateCompanyDetailsRequest(companyId, payload = {}) {
-  const { company_logo, ...rest } = payload;
+  const { company_logo, company_banner, ...rest } = payload;
   const fields = {};
   if (rest.company_name !== undefined) fields.company_name = String(rest.company_name).trim();
   if (rest.company_phone !== undefined) fields.company_phone = String(rest.company_phone).trim();
@@ -752,12 +771,16 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
     fields[DISPLAY_STORE_ON_BIGCOMMERCE_FIELD] = Boolean(rest.display_store_on_bigcommerce);
   }
 
-  const useMultipart = isUserUploadFilePart(company_logo);
-  if (useMultipart) {
-    return patchCompanyFormFields(companyId, fields, {
-      name: COMPANY_LOGO_FIELD,
-      file: company_logo,
-    });
+  const fileFields = [];
+  if (isUserUploadFilePart(company_logo)) {
+    fileFields.push({ name: COMPANY_LOGO_FIELD, file: company_logo });
+  }
+  if (isUserUploadFilePart(company_banner)) {
+    fileFields.push({ name: COMPANY_BANNER_FIELD, file: company_banner });
+  }
+
+  if (fileFields.length > 0) {
+    return patchCompanyFormFields(companyId, fields, fileFields);
   }
   return patchCompanyFormFields(companyId, fields);
 }

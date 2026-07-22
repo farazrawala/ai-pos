@@ -643,6 +643,8 @@ export function normalizeCompanyProfile(company, stats = {}) {
   );
 
   const coverRaw =
+    company.company_banner ||
+    company.companyBanner ||
     settings?.banner ||
     settings?.bigcommerce_banner ||
     company.bigcommerce_banner ||
@@ -651,7 +653,6 @@ export function normalizeCompanyProfile(company, stats = {}) {
     company.cover_image ||
     company.coverImage ||
     company.banner ||
-    company.company_banner ||
     '';
 
   const logoFromSettings = settings?.logo || settings?.bigcommerce_logo || '';

@@ -66,6 +66,7 @@ export const fetchProcessesRequest = async (params = {}) => {
   }
   if (params.limit) queryParams.append('limit', params.limit);
   if (params.search) queryParams.append('search', params.search);
+  if (params.progress) queryParams.append('progress', params.progress);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   queryParams.append(

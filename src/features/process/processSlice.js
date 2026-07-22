@@ -18,6 +18,7 @@ const initialState = {
   error: null,
   pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   search: '',
+  progressFilter: '',
   sort: { sortBy: null, sortOrder: 'asc' },
 };
 
@@ -27,6 +28,10 @@ const processSlice = createSlice({
   reducers: {
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setProgressFilter: (state, action) => {
+      state.progressFilter = String(action.payload || '');
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -74,6 +79,6 @@ const processSlice = createSlice({
   },
 });
 
-export const { setSearch, setPage, setLimit, setSort } = processSlice.actions;
+export const { setSearch, setProgressFilter, setPage, setLimit, setSort } = processSlice.actions;
 
 export default processSlice.reducer;

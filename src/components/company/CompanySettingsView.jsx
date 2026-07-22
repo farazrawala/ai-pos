@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setCompany, selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
 import {
   COMPANY_LOGO_FIELD,
-  BIGCOMMERCE_SETTINGS_FIELD,
+  COMPANY_BANNER_FIELD,
   BIGCOMMERCE_SETTING_DEFS,
   DISPLAY_STORE_ON_BIGCOMMERCE_META,
   PRINTER_SETTING_DEFS,
@@ -55,9 +55,8 @@ import {
   patchCompanyApiSmsSettings,
   patchCompanyEmailAlertsSettings,
   pickCompanyLogoUrl,
+  pickCompanyBannerUrl,
   pickDisplayStoreOnBigcommerce,
-  pickBigCommerceLogoUrl,
-  pickBigCommerceBannerUrl,
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
@@ -65,7 +64,17 @@ import { showToast } from '../../utils/toast.js';
 
 function applyCompanyToForm(company, setters) {
   if (!company) return;
-  const { setForm, setExistingLogoUrl, setLogoFile, setLogoPreview, logoInputRef } = setters;
+  const {
+    setForm,
+    setExistingLogoUrl,
+    setLogoFile,
+    setLogoPreview,
+    logoInputRef,
+    setExistingBannerUrl,
+    setBannerFile,
+    setBannerPreview,
+    bannerInputRef,
+  } = setters;
   setForm({
     company_name: company.company_name || company.name || '',
     company_phone: company.company_phone || company.phone || '',
@@ -79,6 +88,13 @@ function applyCompanyToForm(company, setters) {
     return null;
   });
   if (logoInputRef.current) logoInputRef.current.value = '';
+  setExistingBannerUrl(pickCompanyBannerUrl(company));
+  setBannerFile(null);
+  setBannerPreview((prev) => {
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+    return null;
+  });
+  if (bannerInputRef.current) bannerInputRef.current.value = '';
 }
 
 export default function CompanySettingsView() {
@@ -102,6 +118,10 @@ export default function CompanySettingsView() {
   const [logoPreview, setLogoPreview] = useState(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
   const logoInputRef = useRef(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
+  const [existingBannerUrl, setExistingBannerUrl] = useState('');
+  const bannerInputRef = useRef(null);
 
   const [printerSettings, setPrinterSettings] = useState(() => defaultPrinterSettings());
   const [togglingPrinterKey, setTogglingPrinterKey] = useState('');
@@ -118,15 +138,6 @@ export default function CompanySettingsView() {
   const [togglingBigCommerceKey, setTogglingBigCommerceKey] = useState('');
   const [togglingDisplayStore, setTogglingDisplayStore] = useState(false);
   const [bigCommerceSaveError, setBigCommerceSaveError] = useState('');
-  const [bigCommerceSaving, setBigCommerceSaving] = useState(false);
-  const [bcLogoFile, setBcLogoFile] = useState(null);
-  const [bcLogoPreview, setBcLogoPreview] = useState(null);
-  const [existingBcLogoUrl, setExistingBcLogoUrl] = useState('');
-  const bcLogoInputRef = useRef(null);
-  const [bcBannerFile, setBcBannerFile] = useState(null);
-  const [bcBannerPreview, setBcBannerPreview] = useState(null);
-  const [existingBcBannerUrl, setExistingBcBannerUrl] = useState('');
-  const bcBannerInputRef = useRef(null);
 
   const [smsSettings, setSmsSettings] = useState(() => defaultLocalSmsSettings());
   const [togglingSmsKey, setTogglingSmsKey] = useState('');
@@ -184,19 +195,11 @@ export default function CompanySettingsView() {
 
   useEffect(() => {
     return () => {
-      if (bcLogoPreview && bcLogoPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(bcLogoPreview);
+      if (bannerPreview && bannerPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(bannerPreview);
       }
     };
-  }, [bcLogoPreview]);
-
-  useEffect(() => {
-    return () => {
-      if (bcBannerPreview && bcBannerPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(bcBannerPreview);
-      }
-    };
-  }, [bcBannerPreview]);
+  }, [bannerPreview]);
 
   const hydrateFromCompany = useCallback((company, body) => {
     applyCompanyToForm(company, {
@@ -205,6 +208,10 @@ export default function CompanySettingsView() {
       setLogoFile,
       setLogoPreview,
       logoInputRef,
+      setExistingBannerUrl,
+      setBannerFile,
+      setBannerPreview,
+      bannerInputRef,
     });
     const parsed = extractPrinterSettingsFromCompanyBody(body ?? { data: company });
     setPrinterSettings(mergePrinterSettings(parsed));
@@ -214,20 +221,6 @@ export default function CompanySettingsView() {
     const bcSettings = mergeBigCommerceSettings(bigCommerceParsed);
     setBigCommerceSettings(bcSettings);
     setDisplayStoreOnBigcommerce(pickDisplayStoreOnBigcommerce(company));
-    setExistingBcLogoUrl(pickBigCommerceLogoUrl(company));
-    setBcLogoFile(null);
-    setBcLogoPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return null;
-    });
-    if (bcLogoInputRef.current) bcLogoInputRef.current.value = '';
-    setExistingBcBannerUrl(pickBigCommerceBannerUrl(company));
-    setBcBannerFile(null);
-    setBcBannerPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return null;
-    });
-    if (bcBannerInputRef.current) bcBannerInputRef.current.value = '';
     const smsParsed = extractLocalSmsSettingsFromCompanyBody(body ?? { data: company });
     setSmsSettings(mergeLocalSmsSettings(smsParsed));
     const whatsappParsed = extractLocalWhatsappSettingsFromCompanyBody(body ?? { data: company });
@@ -307,6 +300,34 @@ export default function CompanySettingsView() {
     if (logoInputRef.current) logoInputRef.current.value = '';
   };
 
+  const handleBannerChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, company_banner: 'Please choose an image file.' }));
+      return;
+    }
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.company_banner;
+      return next;
+    });
+    setBannerFile(file);
+    setBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearBannerSelection = () => {
+    setBannerFile(null);
+    setBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (bannerInputRef.current) bannerInputRef.current.value = '';
+  };
+
   const validateCompany = () => {
     const next = {};
     if (!form.company_name.trim()) next.company_name = 'Company name is required.';
@@ -339,13 +360,19 @@ export default function CompanySettingsView() {
         display_store_on_bigcommerce: Boolean(displayStoreOnBigcommerce),
       };
       if (isUserUploadFilePart(logoFile)) payload.company_logo = logoFile;
+      if (isUserUploadFilePart(bannerFile)) payload.company_banner = bannerFile;
 
       const updated = await updateCompanyDetailsRequest(companyId, payload);
       const fromApi = getCompanyFromApiBody(updated) || updated;
-      // Never spread the File upload into company state — String(File) becomes "[object File]".
-      const { company_logo: _uploadedLogo, ...savedFields } = payload;
+      // Never spread File uploads into company state — String(File) becomes "[object File]".
+      const {
+        company_logo: _uploadedLogo,
+        company_banner: _uploadedBanner,
+        ...savedFields
+      } = payload;
       const merged = { ...(authCompany || {}), ...(fromApi || {}), ...savedFields };
       if (isUserUploadFilePart(merged.company_logo)) delete merged.company_logo;
+      if (isUserUploadFilePart(merged.company_banner)) delete merged.company_banner;
       dispatch(setCompany(merged));
       setDisplayStoreOnBigcommerce(pickDisplayStoreOnBigcommerce(merged));
       const nextLogoUrl = pickCompanyLogoUrl(merged);
@@ -357,6 +384,16 @@ export default function CompanySettingsView() {
           // Keep blob preview if API did not return a logo path yet.
           setLogoFile(null);
           if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+      }
+      const nextBannerUrl = pickCompanyBannerUrl(merged);
+      setExistingBannerUrl(nextBannerUrl);
+      if (isUserUploadFilePart(bannerFile)) {
+        if (nextBannerUrl) {
+          clearBannerSelection();
+        } else {
+          setBannerFile(null);
+          if (bannerInputRef.current) bannerInputRef.current.value = '';
         }
       }
       showToast({ message: 'Company details saved.', variant: 'success' });
@@ -458,26 +495,12 @@ export default function CompanySettingsView() {
       ...(payloadObject || {}),
     });
     setBigCommerceSettings(nextSettings);
-    setExistingBcLogoUrl(pickBigCommerceLogoUrl({ bigcommerce_settings: nextSettings }) || '');
-    setExistingBcBannerUrl(pickBigCommerceBannerUrl({ bigcommerce_settings: nextSettings }) || '');
     return merged;
   };
 
-  const persistBigCommerceSettings = async (nextSettings, files = {}) => {
-    const payload = buildBigCommerceSettingsPayload({
-      ...nextSettings,
-      logo:
-        nextSettings.logo ||
-        (existingBcLogoUrl && !existingBcLogoUrl.startsWith('blob:') ? existingBcLogoUrl : '') ||
-        '',
-      banner:
-        nextSettings.banner ||
-        (existingBcBannerUrl && !existingBcBannerUrl.startsWith('blob:')
-          ? existingBcBannerUrl
-          : '') ||
-        '',
-    });
-    const { company, settings } = await patchCompanyBigCommerceSettings(companyId, payload, files);
+  const persistBigCommerceSettings = async (nextSettings) => {
+    const payload = buildBigCommerceSettingsPayload(nextSettings);
+    const { company, settings } = await patchCompanyBigCommerceSettings(companyId, payload);
     return applyBigCommerceCompanyUpdate(company, settings);
   };
 
@@ -521,7 +544,7 @@ export default function CompanySettingsView() {
   };
 
   const handleToggleBigCommerceSetting = async (key) => {
-    if (!companyId || togglingBigCommerceKey || bigCommerceSaving) return;
+    if (!companyId || togglingBigCommerceKey) return;
 
     const previous = bigCommerceSettings;
     const next = { ...previous, [key]: !previous[key] };
@@ -538,80 +561,6 @@ export default function CompanySettingsView() {
       showToast({ message, variant: 'error' });
     } finally {
       setTogglingBigCommerceKey('');
-    }
-  };
-
-  const handleBcLogoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith('image/')) {
-      setBigCommerceSaveError('Please choose an image file for the logo.');
-      return;
-    }
-    setBigCommerceSaveError('');
-    setBcLogoPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setBcLogoFile(file);
-  };
-
-  const handleBcBannerChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith('image/')) {
-      setBigCommerceSaveError('Please choose an image file for the banner.');
-      return;
-    }
-    setBigCommerceSaveError('');
-    setBcBannerPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setBcBannerFile(file);
-  };
-
-  const clearBcLogoSelection = () => {
-    setBcLogoFile(null);
-    setBcLogoPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return null;
-    });
-    if (bcLogoInputRef.current) bcLogoInputRef.current.value = '';
-  };
-
-  const clearBcBannerSelection = () => {
-    setBcBannerFile(null);
-    setBcBannerPreview((prev) => {
-      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-      return null;
-    });
-    if (bcBannerInputRef.current) bcBannerInputRef.current.value = '';
-  };
-
-  const handleSaveBigCommerceMedia = async () => {
-    if (!companyId || bigCommerceSaving) return;
-    if (!isUserUploadFilePart(bcLogoFile) && !isUserUploadFilePart(bcBannerFile)) {
-      setBigCommerceSaveError('Choose a logo or banner image to upload.');
-      return;
-    }
-
-    setBigCommerceSaving(true);
-    setBigCommerceSaveError('');
-    try {
-      await persistBigCommerceSettings(bigCommerceSettings, {
-        logo: bcLogoFile,
-        banner: bcBannerFile,
-      });
-      if (isUserUploadFilePart(bcLogoFile)) clearBcLogoSelection();
-      if (isUserUploadFilePart(bcBannerFile)) clearBcBannerSelection();
-      showToast({ message: 'Big Commerce images saved.', variant: 'success' });
-    } catch (err) {
-      const message = err?.message || 'Failed to save Big Commerce images';
-      setBigCommerceSaveError(message);
-      showToast({ message, variant: 'error' });
-    } finally {
-      setBigCommerceSaving(false);
     }
   };
 
@@ -1120,6 +1069,7 @@ export default function CompanySettingsView() {
   }
 
   const logoSrc = logoPreview || existingLogoUrl;
+  const bannerSrc = bannerPreview || existingBannerUrl;
 
   return (
     <>
@@ -1141,8 +1091,9 @@ export default function CompanySettingsView() {
           <form onSubmit={handleCompanySubmit}>
             <div className="row g-4">
               {/* Logo */}
-              <div className="col-lg-4">
+              <div className="col-md-4">
                 <div className="company-logo-panel">
+                  <div className="company-label mb-2">Logo</div>
                   <div className="company-logo-frame">
                     {logoSrc ? (
                       <img src={logoSrc} alt="Company logo" />
@@ -1163,7 +1114,7 @@ export default function CompanySettingsView() {
                     onChange={handleLogoChange}
                     disabled={companySaving || !companyId}
                   />
-                  <div className="d-flex gap-2">
+                  <div className="d-flex gap-2 flex-wrap">
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-primary mb-0"
@@ -1194,8 +1145,63 @@ export default function CompanySettingsView() {
                 </div>
               </div>
 
+              {/* Banner */}
+              <div className="col-md-8">
+                <div className="company-logo-panel">
+                  <div className="company-label mb-2">Banner</div>
+                  <div className="company-banner-frame">
+                    {bannerSrc ? (
+                      <img src={bannerSrc} alt="Company banner" />
+                    ) : (
+                      <div className="company-logo-empty">
+                        <i className="fas fa-image" aria-hidden="true" />
+                        <span>No banner</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    ref={bannerInputRef}
+                    id="company-banner"
+                    type="file"
+                    className="d-none"
+                    accept="image/*"
+                    onChange={handleBannerChange}
+                    disabled={companySaving || !companyId}
+                  />
+                  <div className="d-flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary mb-0"
+                      onClick={() => bannerInputRef.current?.click()}
+                      disabled={companySaving || !companyId}
+                    >
+                      <i className="fas fa-upload me-1" aria-hidden="true" />
+                      {bannerSrc ? 'Change banner' : 'Upload banner'}
+                    </button>
+                    {bannerPreview ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary mb-0"
+                        onClick={clearBannerSelection}
+                        disabled={companySaving}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  {errors.company_banner ? (
+                    <div className="text-danger small mt-2">{errors.company_banner}</div>
+                  ) : null}
+                  <p className="company-logo-hint">
+                    Saved to <code className="text-xs">{COMPANY_BANNER_FIELD}</code>. Used as the
+                    store cover on Big Commerce.
+                  </p>
+                </div>
+              </div>
+
               {/* Fields */}
-              <div className="col-lg-8">
+              <div className="col-12">
                 <div className="mb-3">
                   <label className="company-label d-block" htmlFor="company-name">
                     Company name <span className="req">*</span>
@@ -1498,131 +1504,12 @@ export default function CompanySettingsView() {
           <div>
             <h5 className="company-card-title">Big Commerce</h5>
             <p className="company-card-subtitle">
-              Marketplace branding and visibility — settings save to{' '}
+              Marketplace visibility — settings save to{' '}
               <code className="text-xs">bigcommerce_settings</code>.
             </p>
           </div>
         </div>
         <div className="company-card-body">
-          <div className="row g-4 mb-3">
-            <div className="col-md-6">
-              <div className="company-logo-panel">
-                <div className="company-label mb-2">Logo</div>
-                <div className="company-logo-frame">
-                  {bcLogoPreview || existingBcLogoUrl ? (
-                    <img src={bcLogoPreview || existingBcLogoUrl} alt="Big Commerce logo" />
-                  ) : (
-                    <div className="company-logo-empty">
-                      <i className="fas fa-image" aria-hidden="true" />
-                      <span>No logo</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={bcLogoInputRef}
-                  id="bigcommerce-logo"
-                  type="file"
-                  className="d-none"
-                  accept="image/*"
-                  onChange={handleBcLogoChange}
-                  disabled={bigCommerceSaving || !companyId}
-                />
-                <div className="d-flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary mb-0"
-                    onClick={() => bcLogoInputRef.current?.click()}
-                    disabled={bigCommerceSaving || !companyId}
-                  >
-                    <i className="fas fa-upload me-1" aria-hidden="true" />
-                    {bcLogoPreview || existingBcLogoUrl ? 'Change logo' : 'Upload logo'}
-                  </button>
-                  {bcLogoPreview ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      onClick={clearBcLogoSelection}
-                      disabled={bigCommerceSaving}
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-                <p className="company-logo-hint">
-                  Stored as <code className="text-xs">logo</code> inside{' '}
-                  <code className="text-xs">{BIGCOMMERCE_SETTINGS_FIELD}</code>. Use a file under
-                  ~1.8&nbsp;MB.
-                </p>
-              </div>
-            </div>
-
-            <div className="col-md-6">
-              <div className="company-logo-panel">
-                <div className="company-label mb-2">Banner</div>
-                <div className="company-banner-frame">
-                  {bcBannerPreview || existingBcBannerUrl ? (
-                    <img src={bcBannerPreview || existingBcBannerUrl} alt="Big Commerce banner" />
-                  ) : (
-                    <div className="company-logo-empty">
-                      <i className="fas fa-image" aria-hidden="true" />
-                      <span>No banner</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={bcBannerInputRef}
-                  id="bigcommerce-banner"
-                  type="file"
-                  className="d-none"
-                  accept="image/*"
-                  onChange={handleBcBannerChange}
-                  disabled={bigCommerceSaving || !companyId}
-                />
-                <div className="d-flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary mb-0"
-                    onClick={() => bcBannerInputRef.current?.click()}
-                    disabled={bigCommerceSaving || !companyId}
-                  >
-                    <i className="fas fa-upload me-1" aria-hidden="true" />
-                    {bcBannerPreview || existingBcBannerUrl ? 'Change banner' : 'Upload banner'}
-                  </button>
-                  {bcBannerPreview ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary mb-0"
-                      onClick={clearBcBannerSelection}
-                      disabled={bigCommerceSaving}
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-                <p className="company-logo-hint">
-                  Stored as <code className="text-xs">banner</code> inside{' '}
-                  <code className="text-xs">{BIGCOMMERCE_SETTINGS_FIELD}</code>. Use a file under
-                  ~1.8&nbsp;MB.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="company-card-footer pt-0 border-0 mt-0 mb-3">
-            <button
-              type="button"
-              className="btn btn-primary mb-0"
-              onClick={handleSaveBigCommerceMedia}
-              disabled={
-                bigCommerceSaving ||
-                !companyId ||
-                (!isUserUploadFilePart(bcLogoFile) && !isUserUploadFilePart(bcBannerFile))
-              }
-            >
-              {bigCommerceSaving ? 'Saving…' : 'Save images'}
-            </button>
-          </div>
-
           {BIGCOMMERCE_SETTING_DEFS.map(({ key }) => {
             const { label, hint } = bigCommerceSettingByKey[key] || { label: key };
             const isOn = Boolean(bigCommerceSettings[key]);
@@ -1652,9 +1539,7 @@ export default function CompanySettingsView() {
                     htmlFor={`bigcommerce-setting-${key}`}
                     style={{
                       cursor:
-                        togglingBigCommerceKey || bigCommerceSaving || !companyId
-                          ? 'not-allowed'
-                          : 'pointer',
+                        togglingBigCommerceKey || !companyId ? 'not-allowed' : 'pointer',
                     }}
                   >
                     <input
@@ -1664,7 +1549,7 @@ export default function CompanySettingsView() {
                       id={`bigcommerce-setting-${key}`}
                       checked={isOn}
                       onChange={() => handleToggleBigCommerceSetting(key)}
-                      disabled={!!togglingBigCommerceKey || bigCommerceSaving || !companyId}
+                      disabled={!!togglingBigCommerceKey || !companyId}
                       aria-label={`${label} ${isOn ? 'on' : 'off'}`}
                     />
                   </label>
