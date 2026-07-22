@@ -4,7 +4,10 @@ import {
   fetchProductActiveRequest,
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
-import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
+import {
+  getProductListingImage,
+  getParentProductId,
+} from '../../features/bigCommerce/marketplaceUtils.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
 import { withBase } from '../../config/appBase.js';
@@ -55,7 +58,8 @@ const getProductId = (p) => sellablePosProductId(p);
 
 const getProductName = (p) => p.name || p.product_name || 'Product';
 
-const getProductImageUrl = (p) => getProductListingImage(p) || '';
+const getProductImageUrl = (p, parent = null) =>
+  getProductListingImage(p, { parent }) || '';
 
 function normalizeSearchToken(value) {
   return String(value ?? '')
@@ -221,6 +225,16 @@ const PosProducts = ({
     }
     return list;
   }, [products, hideLowStock, warehouseId, statusFilter]);
+
+  /** Full catalog map so child cards can fall back to parent image even when parents are hidden. */
+  const productsById = useMemo(() => {
+    const map = new Map();
+    for (const item of products) {
+      const id = getProductId(item);
+      if (id) map.set(id, item);
+    }
+    return map;
+  }, [products]);
 
   const tryAddProductFromQuery = useCallback(
     async (query) => {
@@ -461,7 +475,9 @@ const PosProducts = ({
                   const name = getProductName(p);
                   const stock = getProductAvailableStock(p, { warehouseId });
                   const displayName = formatProductNameWithStock(name, stock);
-                  const imgUrl = getProductImageUrl(p);
+                  const parentId = getParentProductId(p);
+                  const parentProduct = parentId ? productsById.get(parentId) || null : null;
+                  const imgUrl = getProductImageUrl(p, parentProduct);
                   return (
                     <div className="col" key={id}>
                       <div

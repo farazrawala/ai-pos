@@ -920,7 +920,7 @@ const Product = () => {
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
-                        const parentId = getParentProductId(item) || parentProductIdFromRecord(item);
+                        const parentId = getParentProductId(item);
                         const parentProduct = parentId ? productsById.get(parentId) || null : null;
                         const mainImage =
                           getProductListingImage(item, { parent: parentProduct }) || null;
