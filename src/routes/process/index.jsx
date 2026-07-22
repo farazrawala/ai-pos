@@ -616,6 +616,83 @@ const ProcessIndex = () => {
                 </div>
               ) : null}
 
+              {workerStatus?.why_slow?.timing ? (
+                <div className="mb-3">
+                  <p className="text-xs text-uppercase text-muted mb-1">Timing</p>
+                  <div className="row g-2 mb-2">
+                    <WorkerStat label="Current batch (human)">
+                      {workerStatus.why_slow.timing.current_batch_running_for?.human || '—'}
+                    </WorkerStat>
+                    <WorkerStat label="Current batch seconds">
+                      {formatCount(workerStatus.why_slow.timing.current_batch_running_for?.seconds)}
+                    </WorkerStat>
+                    <WorkerStat label="Current batch ms">
+                      {formatCount(workerStatus.why_slow.timing.current_batch_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.current_batch_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Current running_for ms">
+                      {formatCount(workerStatus.why_slow.timing.current_batch_running_for?.ms)}
+                    </WorkerStat>
+                    <WorkerStat label="Last batch ms">
+                      {formatCount(workerStatus.why_slow.timing.last_batch_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.last_batch_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Avg batch ms">
+                      {formatCount(workerStatus.why_slow.timing.avg_batch_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.avg_batch_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Batches timed">
+                      {formatCount(workerStatus.why_slow.timing.batches_timed)}
+                    </WorkerStat>
+                    <WorkerStat label="Same process batches">
+                      {formatCount(workerStatus.why_slow.timing.same_process_batches)}
+                    </WorkerStat>
+                    <WorkerStat label="Page unchanged batches">
+                      {formatCount(workerStatus.why_slow.timing.page_unchanged_batches)}
+                    </WorkerStat>
+                    <WorkerStat label="Batch delay ms">
+                      {formatCount(workerStatus.why_slow.timing.batch_delay_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.batch_delay_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Slow threshold ms">
+                      {formatCount(workerStatus.why_slow.timing.slow_batch_threshold_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.slow_batch_threshold_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Stuck threshold ms">
+                      {formatCount(workerStatus.why_slow.timing.stuck_batch_threshold_ms)}
+                      <span className="text-xs text-muted d-block">
+                        {formatMs(workerStatus.why_slow.timing.stuck_batch_threshold_ms)}
+                      </span>
+                    </WorkerStat>
+                    <WorkerStat label="Last batch success">
+                      {workerStatus.why_slow.timing.last_batch_success == null
+                        ? '—'
+                        : boolBadge(
+                            workerStatus.why_slow.timing.last_batch_success,
+                            'Yes',
+                            'No'
+                          )}
+                    </WorkerStat>
+                  </div>
+                  {workerStatus.why_slow.timing.last_batch_message ? (
+                    <div className="border border-radius-md p-2">
+                      <p className="text-xs text-muted mb-1">Last batch message</p>
+                      <p className="text-sm mb-0">{workerStatus.why_slow.timing.last_batch_message}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {workerStatus?.why_slow ? (
                 <div
                   className={`alert ${whySlowAlertClass(workerStatus.why_slow)} text-sm py-2 mb-0`}
@@ -660,7 +737,7 @@ const ProcessIndex = () => {
                   ) : null}
 
                   {workerStatus.why_slow.eta ? (
-                    <div className="border border-radius-md p-2 bg-white bg-opacity-25 mb-2">
+                    <div className="border border-radius-md p-2 bg-white bg-opacity-25">
                       <p className="text-xs text-uppercase mb-1 opacity-75">ETA</p>
                       <div className="row g-2">
                         <div className="col-6 col-md-3">
@@ -692,67 +769,6 @@ const ProcessIndex = () => {
                           {displayValue(workerStatus.why_slow.eta.based_on)}
                         </div>
                       </div>
-                    </div>
-                  ) : null}
-
-                  {workerStatus.why_slow.timing ? (
-                    <div className="border border-radius-md p-2 bg-white bg-opacity-25">
-                      <p className="text-xs text-uppercase mb-1 opacity-75">Timing</p>
-                      <div className="row g-2">
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Current batch</span>
-                          {workerStatus.why_slow.timing.current_batch_running_for?.human ||
-                            formatMs(workerStatus.why_slow.timing.current_batch_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Current batch ms</span>
-                          {formatMs(workerStatus.why_slow.timing.current_batch_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Last batch</span>
-                          {formatMs(workerStatus.why_slow.timing.last_batch_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Avg batch</span>
-                          {formatMs(workerStatus.why_slow.timing.avg_batch_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Batches timed</span>
-                          {formatCount(workerStatus.why_slow.timing.batches_timed)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Same process batches</span>
-                          {formatCount(workerStatus.why_slow.timing.same_process_batches)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Page unchanged</span>
-                          {formatCount(workerStatus.why_slow.timing.page_unchanged_batches)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Batch delay</span>
-                          {formatMs(workerStatus.why_slow.timing.batch_delay_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Slow threshold</span>
-                          {formatMs(workerStatus.why_slow.timing.slow_batch_threshold_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Stuck threshold</span>
-                          {formatMs(workerStatus.why_slow.timing.stuck_batch_threshold_ms)}
-                        </div>
-                        <div className="col-6 col-md-3">
-                          <span className="text-xs text-muted d-block">Last batch success</span>
-                          {workerStatus.why_slow.timing.last_batch_success == null
-                            ? '—'
-                            : boolBadge(workerStatus.why_slow.timing.last_batch_success, 'Yes', 'No')}
-                        </div>
-                      </div>
-                      {workerStatus.why_slow.timing.last_batch_message ? (
-                        <p className="text-xs mb-0 mt-2">
-                          <span className="text-muted">Last batch message: </span>
-                          {workerStatus.why_slow.timing.last_batch_message}
-                        </p>
-                      ) : null}
                     </div>
                   ) : null}
                 </div>
