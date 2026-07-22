@@ -16,7 +16,7 @@ import {
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { withBase, absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
-import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
+import { getProductListingImage, getParentProductId } from '../../features/bigCommerce/marketplaceUtils.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -347,6 +347,16 @@ const Product = () => {
     // Status + type are filtered server-side on get-all-active-pos.
     return Array.isArray(data) ? data : [];
   }, [data]);
+
+  /** Id → product for resolving parent images when a child has none. */
+  const productsById = useMemo(() => {
+    const map = new Map();
+    for (const item of filteredData) {
+      const id = productIdFromRecord(item);
+      if (id) map.set(id, item);
+    }
+    return map;
+  }, [filteredData]);
 
   // Handle sort change
   const handleSort = (column, isDoubleClick = false) => {
@@ -910,7 +920,10 @@ const Product = () => {
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
-                        const mainImage = getProductListingImage(item) || null;
+                        const parentId = getParentProductId(item) || parentProductIdFromRecord(item);
+                        const parentProduct = parentId ? productsById.get(parentId) || null : null;
+                        const mainImage =
+                          getProductListingImage(item, { parent: parentProduct }) || null;
                         const { total: stockTotal, lines: warehouseLines } =
                           getProductStockDisplay(item);
                         const isActive = productIsActive(item);

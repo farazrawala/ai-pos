@@ -341,9 +341,10 @@ function extractMediaPath(raw, { preferThumb = false } = {}) {
 }
 
 /**
- * Listing/card image: prefer thumb, else exact/full product image.
+ * Resolve only this product's own listing image (thumb preferred, then full).
+ * Does not look at parent / children.
  */
-export function getProductListingImage(item) {
+function getOwnProductListingImage(item) {
   if (!item || typeof item !== 'object') return '';
 
   const thumbFields = [
@@ -379,6 +380,35 @@ export function getProductListingImage(item) {
   }
 
   return getProductImages(item)[0] || '';
+}
+
+/**
+ * Listing/card image: prefer thumb, else full image.
+ * Child/variation rows without an image fall back to the parent product image.
+ *
+ * @param {object} item
+ * @param {{ parent?: object|null }} [options]
+ */
+export function getProductListingImage(item, { parent = null } = {}) {
+  if (!item || typeof item !== 'object') return '';
+
+  const own = getOwnProductListingImage(item);
+  if (own) return own;
+
+  // Populated parent_product_id object may already carry image fields.
+  const rawParent = item.parent_product_id ?? item.parentProductId;
+  const nestedParent =
+    parent && typeof parent === 'object'
+      ? parent
+      : rawParent && typeof rawParent === 'object' && !Array.isArray(rawParent)
+        ? rawParent
+        : null;
+
+  if (nestedParent) {
+    return getOwnProductListingImage(nestedParent);
+  }
+
+  return '';
 }
 
 export function getProductStock(item) {
