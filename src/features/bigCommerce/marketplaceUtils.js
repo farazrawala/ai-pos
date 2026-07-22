@@ -395,17 +395,15 @@ export function getProductListingImage(item, { parent = null } = {}) {
   const own = getOwnProductListingImage(item);
   if (own) return own;
 
-  // Populated parent_product_id object may already carry image fields.
-  const rawParent = item.parent_product_id ?? item.parentProductId;
-  const nestedParent =
-    parent && typeof parent === 'object'
-      ? parent
-      : rawParent && typeof rawParent === 'object' && !Array.isArray(rawParent)
-        ? rawParent
-        : null;
+  if (parent && typeof parent === 'object') {
+    const fromListParent = getOwnProductListingImage(parent);
+    if (fromListParent) return fromListParent;
+  }
 
-  if (nestedParent) {
-    return getOwnProductListingImage(nestedParent);
+  // API-populated parent_product_id (includes image fields after POS list fix).
+  const rawParent = item.parent_product_id ?? item.parentProductId;
+  if (rawParent && typeof rawParent === 'object' && !Array.isArray(rawParent)) {
+    return getOwnProductListingImage(rawParent);
   }
 
   return '';
