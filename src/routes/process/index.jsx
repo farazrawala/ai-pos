@@ -37,6 +37,34 @@ const boolBadge = (value, yesLabel = 'Yes', noLabel = 'No') =>
     <span className="badge bg-secondary">{noLabel}</span>
   );
 
+const formatCount = (value) => {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : String(value);
+};
+
+const formatMs = (ms) => {
+  if (ms == null || !Number.isFinite(Number(ms))) return '—';
+  const n = Number(ms);
+  if (n < 1000) return `${Math.round(n)}ms`;
+  return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}s`;
+};
+
+const whySlowAlertClass = (whySlow) => {
+  if (!whySlow) return 'alert-secondary';
+  const top = whySlow.reasons?.[0]?.severity || (whySlow.is_slow ? 'warning' : 'info');
+  if (top === 'error') return 'alert-danger';
+  if (top === 'warning' || whySlow.is_slow) return 'alert-warning';
+  return 'alert-info';
+};
+
+const workerNeedsFastPoll = (data) =>
+  Boolean(
+    data?.draining ||
+      Number(data?.remaining_processes ?? data?.remaining_in_db ?? 0) > 0 ||
+      Number(data?.remaining_in_queue ?? 0) > 0
+  );
+
 /** Processes table columns. `sno`, `action`, `actions` are always visible. */
 const PROCESS_COLUMNS = [
   { key: 'sno', label: 'S.No', alwaysVisible: true },
@@ -201,7 +229,7 @@ const ProcessIndex = () => {
         setWorkerStatus(data && typeof data === 'object' ? data : null);
         setWorkerStatusError(null);
         setWorkerStatusLoading(false);
-        schedule(Boolean(data?.draining));
+        schedule(workerNeedsFastPoll(data));
       } catch (err) {
         if (cancelled) return;
         setWorkerStatusError(err?.message || 'Failed to load queue worker status');
@@ -435,6 +463,8 @@ const ProcessIndex = () => {
                   <span className="text-xs text-muted">Loading…</span>
                 ) : workerStatus?.draining ? (
                   <span className="badge bg-primary">Draining</span>
+                ) : Number(workerStatus?.remaining_processes ?? 0) > 0 ? (
+                  <span className="badge bg-warning text-dark">Backlog</span>
                 ) : (
                   <span className="badge bg-secondary">Idle</span>
                 )}
@@ -445,25 +475,59 @@ const ProcessIndex = () => {
                 </div>
               ) : null}
               <div className="row g-2">
-                <div className="col-6 col-md-3 col-lg-2">
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Remaining (DB)</p>
+                    <p className="h6 mb-0">
+                      {formatCount(
+                        workerStatus?.remaining_processes ?? workerStatus?.remaining_in_db
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">In queue</p>
+                    <p className="h6 mb-0">{formatCount(workerStatus?.remaining_in_queue)}</p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">ETA</p>
+                    <p className="text-sm mb-0">
+                      {workerStatus?.why_slow?.eta?.human || '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Avg batch</p>
+                    <p className="text-sm mb-0">
+                      {formatMs(workerStatus?.why_slow?.timing?.avg_batch_ms)}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-4 col-lg-2">
                   <div className="border border-radius-md p-2 h-100">
                     <p className="text-xs text-muted mb-1">Worker</p>
                     <p className="text-sm mb-0">{boolBadge(workerStatus?.enabled, 'Enabled', 'Disabled')}</p>
                   </div>
                 </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Queue</p>
-                    <p className="text-sm mb-0">
-                      {boolBadge(workerStatus?.queue_enabled, 'Enabled', 'Disabled')}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
+                <div className="col-6 col-md-4 col-lg-2">
                   <div className="border border-radius-md p-2 h-100">
                     <p className="text-xs text-muted mb-1">Action</p>
                     <p className="text-sm mb-0 text-truncate" title={workerStatus?.current_action || ''}>
                       {workerStatus?.current_action ? formatAction(workerStatus.current_action) : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="row g-2 mt-1">
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Queue enabled</p>
+                    <p className="text-sm mb-0">
+                      {boolBadge(workerStatus?.queue_enabled, 'Yes', 'No')}
                     </p>
                   </div>
                 </div>
@@ -497,7 +561,57 @@ const ProcessIndex = () => {
                     </p>
                   </div>
                 </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Current batch</p>
+                    <p className="text-sm mb-0">
+                      {workerStatus?.why_slow?.timing?.current_batch_running_for?.human ||
+                        formatMs(workerStatus?.why_slow?.timing?.current_batch_ms)}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Last batch</p>
+                    <p className="text-sm mb-0">
+                      {formatMs(workerStatus?.why_slow?.timing?.last_batch_ms)}
+                    </p>
+                  </div>
+                </div>
               </div>
+              {workerStatus?.why_slow?.primary_reason ? (
+                <div
+                  className={`alert ${whySlowAlertClass(workerStatus.why_slow)} text-sm py-2 mb-0 mt-2`}
+                  role="status"
+                >
+                  <strong className="d-block mb-1">
+                    {workerStatus.why_slow.is_slow ? 'Why slow' : 'Status'}
+                    {workerStatus.why_slow.eta?.human
+                      ? ` · ETA ${workerStatus.why_slow.eta.human}`
+                      : ''}
+                  </strong>
+                  <span>{workerStatus.why_slow.primary_reason}</span>
+                  {Array.isArray(workerStatus.why_slow.reasons) &&
+                  workerStatus.why_slow.reasons.length > 1 ? (
+                    <ul className="mb-0 mt-2 ps-3">
+                      {workerStatus.why_slow.reasons.slice(1, 4).map((reason) => (
+                        <li key={reason.code || reason.message}>{reason.message}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {workerStatus.why_slow.timing ? (
+                    <p className="text-xs mb-0 mt-2 opacity-75">
+                      Timing: avg {formatMs(workerStatus.why_slow.timing.avg_batch_ms)}
+                      {workerStatus.why_slow.timing.batch_delay_ms != null
+                        ? ` · delay ${formatMs(workerStatus.why_slow.timing.batch_delay_ms)}`
+                        : ''}
+                      {workerStatus.why_slow.timing.batches_timed != null
+                        ? ` · samples ${workerStatus.why_slow.timing.batches_timed}`
+                        : ''}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {(workerStatus?.current_process_id ||
                 workerStatus?.current_company_id ||
                 workerStatus?.current_status ||
