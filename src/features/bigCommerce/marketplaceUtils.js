@@ -347,12 +347,18 @@ export function getProductListingImage(item) {
   if (!item || typeof item !== 'object') return '';
 
   const thumbFields = [
+    item.product_image_thumbnail_url,
+    item.productImageThumbnailUrl,
+    item.product_image_thumbnail,
+    item.productImageThumbnail,
     item.thumb_image,
     item.thumbImage,
     item.product_thumb,
     item.productThumb,
     item.thumbnail,
     item.thumb,
+    Array.isArray(item.multi_image_thumbnails) ? item.multi_image_thumbnails[0] : null,
+    Array.isArray(item.multiImageThumbnails) ? item.multiImageThumbnails[0] : null,
   ];
   for (const field of thumbFields) {
     const url = resolveCategoryMediaUrl(extractMediaPath(field, { preferThumb: true }));

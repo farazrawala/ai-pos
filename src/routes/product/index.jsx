@@ -16,6 +16,7 @@ import {
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { withBase, absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
+import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -909,14 +910,7 @@ const Product = () => {
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
-                        const mainImage =
-                          item.product_image ||
-                          (item.multi_images && item.multi_images.length > 0
-                            ? item.multi_images[0]
-                            : null) ||
-                          (item.images && item.images.length > 0 ? item.images[0] : null) ||
-                          item.image ||
-                          null;
+                        const mainImage = getProductListingImage(item) || null;
                         const { total: stockTotal, lines: warehouseLines } =
                           getProductStockDisplay(item);
                         const isActive = productIsActive(item);

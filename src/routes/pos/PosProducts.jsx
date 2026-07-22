@@ -4,7 +4,7 @@ import {
   fetchProductActiveRequest,
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
-import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
 import { withBase } from '../../config/appBase.js';
@@ -55,18 +55,7 @@ const getProductId = (p) => sellablePosProductId(p);
 
 const getProductName = (p) => p.name || p.product_name || 'Product';
 
-const getProductMainImageRaw = (p) =>
-  p.product_image ||
-  (Array.isArray(p.multi_images) && p.multi_images.length > 0 ? p.multi_images[0] : null) ||
-  (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null) ||
-  p.image ||
-  null;
-
-const getProductImageUrl = (p) => {
-  const raw = getProductMainImageRaw(p);
-  if (raw == null || raw === '') return '';
-  return resolveCategoryMediaUrl(raw);
-};
+const getProductImageUrl = (p) => getProductListingImage(p) || '';
 
 function normalizeSearchToken(value) {
   return String(value ?? '')
