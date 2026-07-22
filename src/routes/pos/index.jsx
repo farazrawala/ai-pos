@@ -1129,6 +1129,11 @@ const Pos = () => {
     [cartLines]
   );
 
+  const cartTotalQty = useMemo(
+    () => cartLines.reduce((sum, l) => sum + parsePosQty(l.quantity), 0),
+    [cartLines]
+  );
+
   const shippingNum = useMemo(() => {
     const n = parseFloat(String(shipping).replace(/,/g, ''));
     return Number.isFinite(n) ? n : 0;
@@ -2016,7 +2021,12 @@ const Pos = () => {
               </div>
 
               <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
-                <div className="pos-section-label mb-0">Cart</div>
+                <div className="pos-section-label mb-0">
+                  Cart
+                  <span className="pos-cart-total-qty ms-2" title="Total quantity in cart">
+                    Total qty: {formatPosQtyLabel(cartTotalQty)}
+                  </span>
+                </div>
                 <div
                   className="btn-group btn-group-sm pos-cart-order-toggle"
                   role="group"

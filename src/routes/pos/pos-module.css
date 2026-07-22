@@ -227,6 +227,13 @@
   margin-bottom: 0.5rem;
 }
 
+.pos-page .pos-cart-total-qty {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pos-text, #344767);
+  text-transform: none;
+}
+
 .pos-page .pos-customer-selected {
   font-size: 0.8125rem;
   color: var(--pos-muted);
