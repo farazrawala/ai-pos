@@ -58,6 +58,34 @@ const whySlowAlertClass = (whySlow) => {
   return 'alert-info';
 };
 
+const reasonSeverityBadge = (severity) => {
+  const value = String(severity || 'info').toLowerCase();
+  if (value === 'error') return 'bg-danger';
+  if (value === 'warning') return 'bg-warning text-dark';
+  return 'bg-info';
+};
+
+const WorkerStat = ({ label, children, title }) => (
+  <div className="col-6 col-md-4 col-lg-2">
+    <div className="border border-radius-md p-2 h-100">
+      <p className="text-xs text-muted mb-1">{label}</p>
+      <div className="text-sm mb-0 text-break" title={title}>
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+const displayId = (value) => {
+  if (value == null || value === '') return '—';
+  return <code className="text-xs">{String(value)}</code>;
+};
+
+const displayValue = (value) => {
+  if (value == null || value === '') return '—';
+  return String(value);
+};
+
 const workerNeedsFastPoll = (data) =>
   Boolean(
     data?.draining ||
@@ -463,7 +491,8 @@ const ProcessIndex = () => {
                   <span className="text-xs text-muted">Loading…</span>
                 ) : workerStatus?.draining ? (
                   <span className="badge bg-primary">Draining</span>
-                ) : Number(workerStatus?.remaining_processes ?? 0) > 0 ? (
+                ) : Number(workerStatus?.remaining_processes ?? workerStatus?.remaining_in_db ?? 0) >
+                  0 ? (
                   <span className="badge bg-warning text-dark">Backlog</span>
                 ) : (
                   <span className="badge bg-secondary">Idle</span>
@@ -474,179 +503,260 @@ const ProcessIndex = () => {
                   {workerStatusError}
                 </div>
               ) : null}
-              <div className="row g-2">
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Remaining (DB)</p>
-                    <p className="h6 mb-0">
-                      {formatCount(
-                        workerStatus?.remaining_processes ?? workerStatus?.remaining_in_db
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">In queue</p>
-                    <p className="h6 mb-0">{formatCount(workerStatus?.remaining_in_queue)}</p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">ETA</p>
-                    <p className="text-sm mb-0">
-                      {workerStatus?.why_slow?.eta?.human || '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Avg batch</p>
-                    <p className="text-sm mb-0">
-                      {formatMs(workerStatus?.why_slow?.timing?.avg_batch_ms)}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Worker</p>
-                    <p className="text-sm mb-0">{boolBadge(workerStatus?.enabled, 'Enabled', 'Disabled')}</p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-4 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Action</p>
-                    <p className="text-sm mb-0 text-truncate" title={workerStatus?.current_action || ''}>
-                      {workerStatus?.current_action ? formatAction(workerStatus.current_action) : '—'}
-                    </p>
-                  </div>
-                </div>
+
+              <p className="text-xs text-uppercase text-muted mb-1">Overview</p>
+              <div className="row g-2 mb-3">
+                <WorkerStat label="Enabled">
+                  {boolBadge(workerStatus?.enabled, 'Yes', 'No')}
+                </WorkerStat>
+                <WorkerStat label="Draining">
+                  {boolBadge(workerStatus?.draining, 'Yes', 'No')}
+                </WorkerStat>
+                <WorkerStat label="Queue enabled">
+                  {boolBadge(workerStatus?.queue_enabled, 'Yes', 'No')}
+                </WorkerStat>
+                <WorkerStat label="Remaining processes">
+                  <span className="h6 mb-0 d-block">
+                    {formatCount(
+                      workerStatus?.remaining_processes ?? workerStatus?.remaining_in_db
+                    )}
+                  </span>
+                </WorkerStat>
+                <WorkerStat label="Remaining in DB">
+                  {formatCount(workerStatus?.remaining_in_db ?? workerStatus?.remaining_processes)}
+                </WorkerStat>
+                <WorkerStat label="Remaining in queue">
+                  {formatCount(workerStatus?.remaining_in_queue)}
+                </WorkerStat>
               </div>
-              <div className="row g-2 mt-1">
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Queue enabled</p>
-                    <p className="text-sm mb-0">
-                      {boolBadge(workerStatus?.queue_enabled, 'Yes', 'No')}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Progress</p>
-                    <p className="text-sm mb-0">
-                      {workerStatus?.current_progress ? (
-                        <span className={`badge ${progressBadgeClass(workerStatus.current_progress)}`}>
-                          {formatProgress(workerStatus.current_progress)}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Running for</p>
-                    <p className="text-sm mb-0">
-                      {workerStatus?.running_for?.human || (workerStatus?.draining ? '…' : '—')}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Batch</p>
-                    <p className="text-sm mb-0">
-                      {workerStatus?.batch_index != null ? workerStatus.batch_index : '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Current batch</p>
-                    <p className="text-sm mb-0">
-                      {workerStatus?.why_slow?.timing?.current_batch_running_for?.human ||
-                        formatMs(workerStatus?.why_slow?.timing?.current_batch_ms)}
-                    </p>
-                  </div>
-                </div>
-                <div className="col-6 col-md-3 col-lg-2">
-                  <div className="border border-radius-md p-2 h-100">
-                    <p className="text-xs text-muted mb-1">Last batch</p>
-                    <p className="text-sm mb-0">
-                      {formatMs(workerStatus?.why_slow?.timing?.last_batch_ms)}
-                    </p>
-                  </div>
-                </div>
+
+              <p className="text-xs text-uppercase text-muted mb-1">Current job</p>
+              <div className="row g-2 mb-3">
+                <WorkerStat label="Action" title={workerStatus?.current_action || ''}>
+                  {workerStatus?.current_action
+                    ? formatAction(workerStatus.current_action)
+                    : '—'}
+                </WorkerStat>
+                <WorkerStat label="Progress">
+                  {workerStatus?.current_progress ? (
+                    <span className={`badge ${progressBadgeClass(workerStatus.current_progress)}`}>
+                      {formatProgress(workerStatus.current_progress)}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </WorkerStat>
+                <WorkerStat label="Status">
+                  {workerStatus?.current_status
+                    ? formatProgress(workerStatus.current_status)
+                    : '—'}
+                </WorkerStat>
+                <WorkerStat label="Batch index">
+                  {displayValue(workerStatus?.batch_index)}
+                </WorkerStat>
+                <WorkerStat label="Page">{displayValue(workerStatus?.current_page)}</WorkerStat>
+                <WorkerStat label="Hits">{displayValue(workerStatus?.current_hits)}</WorkerStat>
+                <WorkerStat label="Running for">
+                  {workerStatus?.running_for?.human || '—'}
+                  {workerStatus?.running_for?.seconds != null ? (
+                    <span className="text-xs text-muted d-block">
+                      {formatCount(workerStatus.running_for.seconds)}s ·{' '}
+                      {formatMs(workerStatus.running_for.ms)}
+                    </span>
+                  ) : null}
+                </WorkerStat>
+                <WorkerStat label="Started at">
+                  {formatProcessTimestamp(workerStatus?.started_at)}
+                </WorkerStat>
               </div>
-              {workerStatus?.why_slow?.primary_reason ? (
+
+              <p className="text-xs text-uppercase text-muted mb-1">Current ids</p>
+              <div className="row g-2 mb-3">
+                <WorkerStat label="Process id">{displayId(workerStatus?.current_process_id)}</WorkerStat>
+                <WorkerStat label="Company id">{displayId(workerStatus?.current_company_id)}</WorkerStat>
+                <WorkerStat label="Product id">{displayId(workerStatus?.current_product_id)}</WorkerStat>
+                <WorkerStat label="Category id">{displayId(workerStatus?.current_category_id)}</WorkerStat>
+                <WorkerStat label="Brand id">{displayId(workerStatus?.current_brand_id)}</WorkerStat>
+                <WorkerStat label="Integration id">
+                  {displayId(workerStatus?.current_integration_id)}
+                </WorkerStat>
+              </div>
+
+              {workerStatus?.current_remarks ? (
+                <div className="border border-radius-md p-2 mb-3">
+                  <p className="text-xs text-muted mb-1">Current remarks</p>
+                  <p className="text-sm mb-0">{workerStatus.current_remarks}</p>
+                </div>
+              ) : null}
+
+              {Array.isArray(workerStatus?.remaining_by_company) &&
+              workerStatus.remaining_by_company.length > 0 ? (
+                <div className="mb-3">
+                  <p className="text-xs text-uppercase text-muted mb-1">Remaining by company</p>
+                  <div className="table-responsive border border-radius-md">
+                    <table className="table table-sm mb-0 align-items-center">
+                      <thead>
+                        <tr>
+                          <th className="text-xs text-muted">Company id</th>
+                          <th className="text-xs text-muted text-end">Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workerStatus.remaining_by_company.map((row) => (
+                          <tr key={String(row.company_id)}>
+                            <td>
+                              <code className="text-xs">{displayValue(row.company_id)}</code>
+                            </td>
+                            <td className="text-end">{formatCount(row.remaining)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+
+              {workerStatus?.why_slow ? (
                 <div
-                  className={`alert ${whySlowAlertClass(workerStatus.why_slow)} text-sm py-2 mb-0 mt-2`}
+                  className={`alert ${whySlowAlertClass(workerStatus.why_slow)} text-sm py-2 mb-0`}
                   role="status"
                 >
-                  <strong className="d-block mb-1">
-                    {workerStatus.why_slow.is_slow ? 'Why slow' : 'Status'}
-                    {workerStatus.why_slow.eta?.human
-                      ? ` · ETA ${workerStatus.why_slow.eta.human}`
-                      : ''}
-                  </strong>
-                  <span>{workerStatus.why_slow.primary_reason}</span>
-                  {Array.isArray(workerStatus.why_slow.reasons) &&
-                  workerStatus.why_slow.reasons.length > 1 ? (
-                    <ul className="mb-0 mt-2 ps-3">
-                      {workerStatus.why_slow.reasons.slice(1, 4).map((reason) => (
-                        <li key={reason.code || reason.message}>{reason.message}</li>
-                      ))}
-                    </ul>
+                  <div className="d-flex align-items-center gap-2 flex-wrap mb-2">
+                    <strong>{workerStatus.why_slow.is_slow ? 'Why slow' : 'Worker health'}</strong>
+                    {workerStatus.why_slow.is_slow ? (
+                      <span className="badge bg-warning text-dark">is_slow</span>
+                    ) : (
+                      <span className="badge bg-success">ok</span>
+                    )}
+                    {workerStatus.why_slow.eta?.human ? (
+                      <span className="badge bg-dark">ETA {workerStatus.why_slow.eta.human}</span>
+                    ) : null}
+                  </div>
+
+                  {workerStatus.why_slow.primary_reason ? (
+                    <p className="mb-2">{workerStatus.why_slow.primary_reason}</p>
                   ) : null}
+
+                  {Array.isArray(workerStatus.why_slow.reasons) &&
+                  workerStatus.why_slow.reasons.length > 0 ? (
+                    <div className="mb-2">
+                      <p className="text-xs text-uppercase mb-1 opacity-75">All reasons</p>
+                      <ul className="mb-0 ps-3">
+                        {workerStatus.why_slow.reasons.map((reason) => (
+                          <li key={reason.code || reason.message} className="mb-1">
+                            <span
+                              className={`badge ${reasonSeverityBadge(reason.severity)} me-1`}
+                            >
+                              {reason.severity || 'info'}
+                            </span>
+                            {reason.code ? (
+                              <code className="text-xs me-1">{reason.code}</code>
+                            ) : null}
+                            {reason.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {workerStatus.why_slow.eta ? (
+                    <div className="border border-radius-md p-2 bg-white bg-opacity-25 mb-2">
+                      <p className="text-xs text-uppercase mb-1 opacity-75">ETA</p>
+                      <div className="row g-2">
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Human</span>
+                          {workerStatus.why_slow.eta.human || '—'}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Seconds</span>
+                          {formatCount(workerStatus.why_slow.eta.seconds)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Ms</span>
+                          {formatCount(workerStatus.why_slow.eta.ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Remaining</span>
+                          {formatCount(workerStatus.why_slow.eta.remaining)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Avg batch</span>
+                          {formatMs(workerStatus.why_slow.eta.avg_batch_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Batch delay</span>
+                          {formatMs(workerStatus.why_slow.eta.batch_delay_ms)}
+                        </div>
+                        <div className="col-12 col-md-6">
+                          <span className="text-xs text-muted d-block">Based on</span>
+                          {displayValue(workerStatus.why_slow.eta.based_on)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {workerStatus.why_slow.timing ? (
-                    <p className="text-xs mb-0 mt-2 opacity-75">
-                      Timing: avg {formatMs(workerStatus.why_slow.timing.avg_batch_ms)}
-                      {workerStatus.why_slow.timing.batch_delay_ms != null
-                        ? ` · delay ${formatMs(workerStatus.why_slow.timing.batch_delay_ms)}`
-                        : ''}
-                      {workerStatus.why_slow.timing.batches_timed != null
-                        ? ` · samples ${workerStatus.why_slow.timing.batches_timed}`
-                        : ''}
-                    </p>
+                    <div className="border border-radius-md p-2 bg-white bg-opacity-25">
+                      <p className="text-xs text-uppercase mb-1 opacity-75">Timing</p>
+                      <div className="row g-2">
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Current batch</span>
+                          {workerStatus.why_slow.timing.current_batch_running_for?.human ||
+                            formatMs(workerStatus.why_slow.timing.current_batch_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Current batch ms</span>
+                          {formatMs(workerStatus.why_slow.timing.current_batch_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Last batch</span>
+                          {formatMs(workerStatus.why_slow.timing.last_batch_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Avg batch</span>
+                          {formatMs(workerStatus.why_slow.timing.avg_batch_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Batches timed</span>
+                          {formatCount(workerStatus.why_slow.timing.batches_timed)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Same process batches</span>
+                          {formatCount(workerStatus.why_slow.timing.same_process_batches)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Page unchanged</span>
+                          {formatCount(workerStatus.why_slow.timing.page_unchanged_batches)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Batch delay</span>
+                          {formatMs(workerStatus.why_slow.timing.batch_delay_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Slow threshold</span>
+                          {formatMs(workerStatus.why_slow.timing.slow_batch_threshold_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Stuck threshold</span>
+                          {formatMs(workerStatus.why_slow.timing.stuck_batch_threshold_ms)}
+                        </div>
+                        <div className="col-6 col-md-3">
+                          <span className="text-xs text-muted d-block">Last batch success</span>
+                          {workerStatus.why_slow.timing.last_batch_success == null
+                            ? '—'
+                            : boolBadge(workerStatus.why_slow.timing.last_batch_success, 'Yes', 'No')}
+                        </div>
+                      </div>
+                      {workerStatus.why_slow.timing.last_batch_message ? (
+                        <p className="text-xs mb-0 mt-2">
+                          <span className="text-muted">Last batch message: </span>
+                          {workerStatus.why_slow.timing.last_batch_message}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}
-              {(workerStatus?.current_process_id ||
-                workerStatus?.current_company_id ||
-                workerStatus?.current_status ||
-                workerStatus?.started_at) && (
-                <p className="text-xs text-muted mb-0 mt-2">
-                  {workerStatus.current_process_id ? (
-                    <>
-                      Process: <code>{workerStatus.current_process_id}</code>
-                    </>
-                  ) : null}
-                  {workerStatus.current_company_id ? (
-                    <>
-                      {workerStatus.current_process_id ? ' · ' : null}
-                      Company: <code>{workerStatus.current_company_id}</code>
-                    </>
-                  ) : null}
-                  {workerStatus.current_status ? (
-                    <>
-                      {(workerStatus.current_process_id || workerStatus.current_company_id)
-                        ? ' · '
-                        : null}
-                      Status: {formatProgress(workerStatus.current_status)}
-                    </>
-                  ) : null}
-                  {workerStatus.started_at ? (
-                    <>
-                      {(workerStatus.current_process_id ||
-                        workerStatus.current_company_id ||
-                        workerStatus.current_status) &&
-                        ' · '}
-                      Started: {formatProcessTimestamp(workerStatus.started_at)}
-                    </>
-                  ) : null}
-                </p>
-              )}
             </div>
             {executeError ? (
               <div className="px-4 pb-2">
