@@ -14,6 +14,7 @@ import {
   stopProcessRequest,
   restartProcessRequest,
   deleteProcessRequest,
+  fetchQueueWorkerStatusRequest,
 } from '../../features/process/processAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -24,7 +25,17 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
 
+const WORKER_POLL_ACTIVE_MS = 4000;
+const WORKER_POLL_IDLE_MS = 15000;
+
 const processIdFromRecord = (item) => item?._id || item?.id || item?.process_id || '';
+
+const boolBadge = (value, yesLabel = 'Yes', noLabel = 'No') =>
+  value ? (
+    <span className="badge bg-success">{yesLabel}</span>
+  ) : (
+    <span className="badge bg-secondary">{noLabel}</span>
+  );
 
 /** Processes table columns. `sno`, `action`, `actions` are always visible. */
 const PROCESS_COLUMNS = [
@@ -165,8 +176,47 @@ const ProcessIndex = () => {
   const [restartingProcessId, setRestartingProcessId] = useState(null);
   const [deletingProcessId, setDeletingProcessId] = useState(null);
   const [executeError, setExecuteError] = useState(null);
+  const [workerStatus, setWorkerStatus] = useState(null);
+  const [workerStatusError, setWorkerStatusError] = useState(null);
+  const [workerStatusLoading, setWorkerStatusLoading] = useState(true);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('processes', PROCESS_COLUMNS);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timerId = null;
+
+    const schedule = (draining) => {
+      if (cancelled) return;
+      if (timerId) clearTimeout(timerId);
+      const delay = draining ? WORKER_POLL_ACTIVE_MS : WORKER_POLL_IDLE_MS;
+      timerId = setTimeout(poll, delay);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const data = await fetchQueueWorkerStatusRequest();
+        if (cancelled) return;
+        setWorkerStatus(data && typeof data === 'object' ? data : null);
+        setWorkerStatusError(null);
+        setWorkerStatusLoading(false);
+        schedule(Boolean(data?.draining));
+      } catch (err) {
+        if (cancelled) return;
+        setWorkerStatusError(err?.message || 'Failed to load queue worker status');
+        setWorkerStatusLoading(false);
+        schedule(false);
+      }
+    };
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, []);
 
   const buildFetchParams = () => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -333,7 +383,7 @@ const ProcessIndex = () => {
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card">
-            <div className="card-header">
+            <div className="card-header pb-0">
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Processes</h5>
@@ -378,8 +428,114 @@ const ProcessIndex = () => {
                 </div>
               </div>
             </div>
+            <div className="card-body pt-3 pb-2">
+              <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                <h6 className="mb-0 text-sm text-uppercase text-muted">Queue worker</h6>
+                {workerStatusLoading ? (
+                  <span className="text-xs text-muted">Loading…</span>
+                ) : workerStatus?.draining ? (
+                  <span className="badge bg-primary">Draining</span>
+                ) : (
+                  <span className="badge bg-secondary">Idle</span>
+                )}
+              </div>
+              {workerStatusError ? (
+                <div className="alert alert-warning text-sm py-2 mb-2" role="alert">
+                  {workerStatusError}
+                </div>
+              ) : null}
+              <div className="row g-2">
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Worker</p>
+                    <p className="text-sm mb-0">{boolBadge(workerStatus?.enabled, 'Enabled', 'Disabled')}</p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Queue</p>
+                    <p className="text-sm mb-0">
+                      {boolBadge(workerStatus?.queue_enabled, 'Enabled', 'Disabled')}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Action</p>
+                    <p className="text-sm mb-0 text-truncate" title={workerStatus?.current_action || ''}>
+                      {workerStatus?.current_action ? formatAction(workerStatus.current_action) : '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Progress</p>
+                    <p className="text-sm mb-0">
+                      {workerStatus?.current_progress ? (
+                        <span className={`badge ${progressBadgeClass(workerStatus.current_progress)}`}>
+                          {formatProgress(workerStatus.current_progress)}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Running for</p>
+                    <p className="text-sm mb-0">
+                      {workerStatus?.running_for?.human || (workerStatus?.draining ? '…' : '—')}
+                    </p>
+                  </div>
+                </div>
+                <div className="col-6 col-md-3 col-lg-2">
+                  <div className="border border-radius-md p-2 h-100">
+                    <p className="text-xs text-muted mb-1">Batch</p>
+                    <p className="text-sm mb-0">
+                      {workerStatus?.batch_index != null ? workerStatus.batch_index : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {(workerStatus?.current_process_id ||
+                workerStatus?.current_company_id ||
+                workerStatus?.current_status ||
+                workerStatus?.started_at) && (
+                <p className="text-xs text-muted mb-0 mt-2">
+                  {workerStatus.current_process_id ? (
+                    <>
+                      Process: <code>{workerStatus.current_process_id}</code>
+                    </>
+                  ) : null}
+                  {workerStatus.current_company_id ? (
+                    <>
+                      {workerStatus.current_process_id ? ' · ' : null}
+                      Company: <code>{workerStatus.current_company_id}</code>
+                    </>
+                  ) : null}
+                  {workerStatus.current_status ? (
+                    <>
+                      {(workerStatus.current_process_id || workerStatus.current_company_id)
+                        ? ' · '
+                        : null}
+                      Status: {formatProgress(workerStatus.current_status)}
+                    </>
+                  ) : null}
+                  {workerStatus.started_at ? (
+                    <>
+                      {(workerStatus.current_process_id ||
+                        workerStatus.current_company_id ||
+                        workerStatus.current_status) &&
+                        ' · '}
+                      Started: {formatProcessTimestamp(workerStatus.started_at)}
+                    </>
+                  ) : null}
+                </p>
+              )}
+            </div>
             {executeError ? (
-              <div className="px-4 pt-3">
+              <div className="px-4 pb-2">
                 <div className="alert alert-danger py-2 mb-0">{executeError}</div>
               </div>
             ) : null}

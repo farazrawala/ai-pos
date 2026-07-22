@@ -683,7 +683,7 @@ const Product = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search products…"
+                        placeholder="Search name, barcode, SKU, or id…"
                         value={localSearch}
                         onChange={handleSearchChange}
                         aria-label="Search products"

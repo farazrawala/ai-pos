@@ -154,6 +154,11 @@ export const fetchProductsRequest = async (params = {}) => {
   }
   if (params.limit) queryParams.append('limit', params.limit);
   if (params.search) queryParams.append('search', params.search);
+  const listSearchFields =
+    params.searchFields != null && String(params.searchFields).trim() !== ''
+      ? String(params.searchFields).trim()
+      : PRODUCT_LIST_SEARCH_FIELDS;
+  queryParams.set('searchFields', listSearchFields);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
@@ -178,8 +183,12 @@ export const fetchProductsRequest = async (params = {}) => {
   return normalizeProductsListResponse(result, params);
 };
 
-/** Fields used by POS product search (name, code, SKU, barcode). */
-export const POS_PRODUCT_SEARCH_FIELDS = 'product_name,product_code,sku,barcode';
+/** Products list + POS search: name/code/SKU/barcode + Mongo `_id` / parent id. */
+export const PRODUCT_LIST_SEARCH_FIELDS =
+  'product_name,product_code,sku,barcode,_id,parent_product_id';
+
+/** Fields used by POS product search (name, code, SKU, barcode, id). */
+export const POS_PRODUCT_SEARCH_FIELDS = PRODUCT_LIST_SEARCH_FIELDS;
 
 /**
  * POS / search: `GET product/get-all-active-pos?...&status=active|inactive&include_inactive=true&product_type=Single|Variable`

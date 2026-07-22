@@ -101,6 +101,36 @@ export const fetchProcessesRequest = async (params = {}) => {
   return parsePaginatedResponse(result, params);
 };
 
+/**
+ * GET /process/queue-worker-status
+ * Live queue worker drain state (enabled, draining, current job, running_for).
+ */
+export const fetchQueueWorkerStatusRequest = async () => {
+  const url = `${BASE_URL}process/queue-worker-status`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  } catch (err) {
+    logProcessModuleError('fetchQueueWorkerStatusRequest network error', { url, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('fetchQueueWorkerStatusRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+  return result?.data && typeof result.data === 'object' ? result.data : result;
+};
+
 export const createProcessRequest = async (processData = {}) => {
   const url = `${BASE_URL}process/create`;
 
