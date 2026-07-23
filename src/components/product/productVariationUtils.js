@@ -58,10 +58,17 @@ export const variationProductIdFromRecord = (variation) => {
 const parentProductIdFromRecord = (item) => {
   const raw = item?.parent_product_id ?? item?.parentProductId;
   if (raw == null || raw === '') return '';
-  if (typeof raw === 'object' && !Array.isArray(raw)) {
-    return String(raw._id ?? raw.id ?? '').trim();
-  }
-  return String(raw).trim();
+  const parentId =
+    typeof raw === 'object' && !Array.isArray(raw)
+      ? String(raw._id ?? raw.id ?? '').trim()
+      : String(raw).trim();
+  if (!parentId) return '';
+
+  // Self-parent (parent_product_id === _id) is not a real parent — treat as root.
+  const selfId = sellablePosProductId(item);
+  if (selfId && parentId === selfId) return '';
+
+  return parentId;
 };
 
 export { parentProductIdFromRecord };

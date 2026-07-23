@@ -490,16 +490,24 @@ export function productHasAlreadyFetchedFlag(item) {
 
 /**
  * Whether the viewer has already Me-too'd this partner product.
- * Uses payload flags and/or a set of known fetched source product ids.
+ * When fetched-product-ids has loaded (non-empty), that list is authoritative
+ * so stale `already_fetched` flags on listing rows cannot keep Delete stuck.
  */
 export function isAlreadyMeTooProduct(item, fetchedIds) {
-  if (productHasAlreadyFetchedFlag(item)) return true;
   const id = productIdFromRecord(item);
-  if (!id) return false;
-  if (fetchedIds instanceof Set) return fetchedIds.has(id);
-  if (Array.isArray(fetchedIds)) return fetchedIds.map(String).includes(id);
-  if (fetchedIds && typeof fetchedIds === 'object') return Boolean(fetchedIds[id]);
-  return false;
+
+  if (fetchedIds instanceof Set) {
+    if (id && fetchedIds.has(id)) return true;
+    if (fetchedIds.size > 0) return false;
+  } else if (Array.isArray(fetchedIds)) {
+    if (id && fetchedIds.map(String).includes(id)) return true;
+    if (fetchedIds.length > 0) return false;
+  } else if (fetchedIds && typeof fetchedIds === 'object') {
+    if (id && fetchedIds[id]) return true;
+    if (Object.keys(fetchedIds).length > 0) return false;
+  }
+
+  return productHasAlreadyFetchedFlag(item);
 }
 
 /** Collect partner product ids flagged as already fetched on a list page. */

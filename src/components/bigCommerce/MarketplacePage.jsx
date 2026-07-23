@@ -412,7 +412,17 @@ export default function MarketplacePage({ companyId }) {
   const isMeTooTab = !isOwnStore && listingTab === LISTING_TAB_ME_TOO;
 
   const displayProducts = useMemo(() => {
-    if (!isMeTooTab) return visibleProducts;
+    if (!isMeTooTab) {
+      // Already Me too products first (from fetched-product-ids).
+      if (alreadyMeTooIdSet.size === 0) return visibleProducts;
+      const done = [];
+      const rest = [];
+      for (const item of visibleProducts) {
+        if (isAlreadyMeTooProduct(item, alreadyMeTooIdSet)) done.push(item);
+        else rest.push(item);
+      }
+      return [...done, ...rest];
+    }
     const q = String(searchDraft || '')
       .trim()
       .toLowerCase();
@@ -428,7 +438,7 @@ export default function MarketplacePage({ companyId }) {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [isMeTooTab, visibleProducts, meTooProducts, searchDraft]);
+  }, [isMeTooTab, visibleProducts, meTooProducts, searchDraft, alreadyMeTooIdSet]);
 
   const priceBounds = useMemo(() => {
     let max = 1000;

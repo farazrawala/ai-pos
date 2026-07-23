@@ -633,7 +633,15 @@ function collectFetchedProductRecords(payload) {
       walk(node[key], depth + 1);
     });
 
-    if (!walkedList && (node._id || node.id || node.fetch_from_product_id || node.fetchFromProductId)) {
+    if (
+      !walkedList &&
+      (node._id ||
+        node.id ||
+        node.product_id ||
+        node.productId ||
+        node.fetch_from_product_id ||
+        node.fetchFromProductId)
+    ) {
       records.push(node);
     }
   };
@@ -643,12 +651,14 @@ function collectFetchedProductRecords(payload) {
 }
 
 /**
- * Build Me too links from GET fetched-products.
+ * Build Me too links from GET fetched-product-ids.
  * - sourceProductId: partner listing id (`fetch_from_product_id`)
- * - localProductId: your copy id (`_id`) — required for soft-delete
+ * - localProductId: your copy id (`product_id`) — preferred for soft-delete
  */
 export function normalizeFetchedProductLinks(payload) {
   const bySourceId = {};
+  const byLocalId = {};
+  const pairs = [];
   const sourceIds = [];
 
   // Plain id arrays (legacy): treat each id as a source id only.
@@ -658,11 +668,22 @@ export function normalizeFetchedProductLinks(payload) {
       if (!id) return;
       sourceIds.push(id);
     });
-    return { sourceIds: [...new Set(sourceIds)], bySourceId };
+    return { sourceIds: [...new Set(sourceIds)], bySourceId, byLocalId, pairs };
   }
 
   collectFetchedProductRecords(payload).forEach((item) => {
-    const localId = unwrapRecordId(item._id ?? item.id ?? item.product_id);
+    // Lightweight ids API: product_id = your copy, fetch_from_product_id = partner.
+    // Prefer product_id for copy when present (ids endpoint has no _id).
+    const hasProductIdField =
+      item.product_id != null ||
+      item.productId != null ||
+      item.fetch_from_product_id != null ||
+      item.fetchFromProductId != null;
+    const localId = unwrapRecordId(
+      hasProductIdField
+        ? (item.product_id ?? item.productId ?? item._id ?? item.id)
+        : (item._id ?? item.id ?? item.product_id ?? item.productId)
+    );
     const sourceId = unwrapRecordId(
       item.fetch_from_product_id ??
         item.fetchFromProductId ??
@@ -673,13 +694,15 @@ export function normalizeFetchedProductLinks(payload) {
     );
 
     // Your copy: has fetch_from_* → map partner id → local copy id.
-    if (sourceId && localId) {
+    if (sourceId && localId && sourceId !== localId) {
       bySourceId[sourceId] = localId;
+      byLocalId[localId] = sourceId;
+      pairs.push({ sourceId, localId });
       sourceIds.push(sourceId);
       return;
     }
 
-    // Fallback: only one id present.
+    // Fallback: only one id present (cannot soft-delete without a copy mapping).
     const only = sourceId || localId;
     if (only) sourceIds.push(only);
   });
@@ -687,13 +710,18 @@ export function normalizeFetchedProductLinks(payload) {
   return {
     sourceIds: [...new Set(sourceIds)],
     bySourceId,
+    byLocalId,
+    pairs,
   };
 }
 
 /**
  * Partner product ids + local copy ids the current company already Me-too'd.
- * GET `big-commerce/fetched-products/:sourceCompanyId`
+ * GET `big-commerce/fetched-product-ids/:sourceCompanyId`
  * (Company 2 token → your copies fetched from company 1.)
+ *
+ * Response shape:
+ * `{ data: [{ product_id, fetch_from_product_id }], total, fetch_from_company_id }`
  */
 export async function fetchAlreadyMeTooProductIdsRequest({
   sourceCompanyId,
@@ -701,18 +729,20 @@ export async function fetchAlreadyMeTooProductIdsRequest({
 } = {}) {
   const sourceId = String(sourceCompanyId || '').trim();
   const ownId = String(ownCompanyId || '').trim();
-  if (!sourceId) return { sourceIds: [], bySourceId: {} };
-  if (ownId && sourceId === ownId) return { sourceIds: [], bySourceId: {} };
+  if (!sourceId) return { sourceIds: [], bySourceId: {}, byLocalId: {}, pairs: [] };
+  if (ownId && sourceId === ownId) {
+    return { sourceIds: [], bySourceId: {}, byLocalId: {}, pairs: [] };
+  }
 
   const response = await fetch(
-    `${BASE_URL}big-commerce/fetched-products/${encodeURIComponent(sourceId)}`,
+    `${BASE_URL}big-commerce/fetched-product-ids/${encodeURIComponent(sourceId)}`,
     { method: 'GET', headers: getHeaders() }
   );
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
     throw new Error(
-      data?.message || data?.error || `Failed to load fetched products (${response.status})`
+      data?.message || data?.error || `Failed to load fetched product ids (${response.status})`
     );
   }
 
@@ -722,8 +752,7 @@ export async function fetchAlreadyMeTooProductIdsRequest({
 /**
  * Soft-delete your Me too copy (deletedAt + status inactive).
  * DELETE `big-commerce/fetched-products/:productId/delete`
- * `productId` must be YOUR copy id (row with fetch_from_company_id).
- * Partner original is not affected; Variable children are soft-deleted too.
+ * Tries each candidate id (copy id first, then partner id) until one succeeds.
  */
 export async function deleteFetchedMarketplaceProductRequest(productId) {
   const id = String(productId || '').trim();
@@ -742,4 +771,39 @@ export async function deleteFetchedMarketplaceProductRequest(productId) {
   }
 
   return data;
+}
+
+/** Try soft-delete with multiple ids (copy + partner) until one works. */
+export async function deleteFetchedMarketplaceProductWithFallback(candidateIds) {
+  const unique = [
+    ...new Set(
+      (Array.isArray(candidateIds) ? candidateIds : [candidateIds])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    ),
+  ];
+  if (unique.length === 0) throw new Error('Product is required');
+
+  let lastError = null;
+  for (const id of unique) {
+    try {
+      const result = await deleteFetchedMarketplaceProductRequest(id);
+      return { result, deletedId: id };
+    } catch (err) {
+      lastError = err;
+      const msg = String(err?.message || '').toLowerCase();
+      // Try next candidate when this id is not the fetched copy.
+      if (
+        msg.includes('not found') ||
+        msg.includes('404') ||
+        msg.includes('does not exist') ||
+        msg.includes('no longer')
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Failed to remove product');
 }
