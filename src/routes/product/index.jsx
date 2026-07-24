@@ -15,7 +15,7 @@ import {
   setListProductsStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
-import { withBase, absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
+import { withBase } from '../../config/appBase.js';
 import { getProductListingImage, getParentProductId } from '../../features/bigCommerce/marketplaceUtils.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -966,22 +966,14 @@ const Product = () => {
                               title={productName !== 'Product' ? productName : undefined}
                             >
                               {canEdit ? (
-                                <a
-                                  href={absoluteAppUrl(`/products/edit/${productEditId}`)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  type="button"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
                                   title={`Edit ${productName}`}
-                                  onClick={(e) => {
-                                    // Keep middle-click / Ctrl+click native; left-click uses absolute URL open.
-                                    if (e.defaultPrevented || e.button !== 0) return;
-                                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                                    e.preventDefault();
-                                    openAppPathInNewTab(`/products/edit/${productEditId}`);
-                                  }}
+                                  onClick={() => navigate(`/products/edit/${productEditId}`)}
                                 >
                                   {productName}
-                                </a>
+                                </button>
                               ) : (
                                 productName
                               )}
