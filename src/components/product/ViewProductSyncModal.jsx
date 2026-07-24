@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import moment from 'moment';
 import {
+  fetchIntegrationByIdRequest,
   fetchIntegrationsRequest,
   fetchStoreProductVariationsRequest,
 } from '../../features/integration/integrationAPI.js';
@@ -11,6 +12,7 @@ import {
   updateSyncProductRequest,
 } from '../../features/syncProduct/syncProductAPI.js';
 import { parseStoreProductLink } from '../../utils/parseStoreProductUrl.js';
+import { toast } from '../../utils/toast.js';
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -29,14 +31,6 @@ const decodeHtml = (value) => {
   return el.value;
 };
 
-const recordName = (record) => {
-  if (!record) return '-';
-  if (typeof record === 'object') {
-    return decodeHtml(record.name || record.product_name || '-');
-  }
-  return String(record);
-};
-
 const integrationLabel = (integration) => {
   if (!integration || typeof integration !== 'object') return '-';
   const name = integration.store_name || integration.storeName || integration.name || 'Integration';
@@ -47,6 +41,106 @@ const integrationLabel = (integration) => {
 const syncIdFromRecord = (item) => item?._id || item?.id || '';
 
 const isSyncActive = (item) => String(item?.status || '').toLowerCase() === 'active';
+
+const pickSyncReferenceId = (item) => {
+  const raw =
+    item?.refference_id ??
+    item?.reference_id ??
+    item?.referenceId ??
+    item?.reffrence_id ??
+    item?.external_id ??
+    item?.externalId ??
+    item?.remote_id ??
+    item?.remoteId ??
+    '';
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object') {
+    return String(raw.id || raw._id || raw.reference_id || raw.refference_id || '').trim();
+  }
+  return String(raw).trim();
+};
+
+/** Parent WooCommerce product id from `123`, `123:456`, or strings containing digits. */
+const pickWooCommerceProductId = (referenceId) => {
+  const raw = String(referenceId || '').trim();
+  if (!raw) return '';
+  const parent = raw.includes(':') ? raw.split(':')[0].trim() : raw;
+  if (/^\d+$/.test(parent)) return parent;
+  const match = parent.match(/(\d{2,})/);
+  return match?.[1] || '';
+};
+
+const normalizeStoreBaseUrl = (rawUrl) => {
+  const raw = String(rawUrl || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.origin}${path === '/' ? '' : path}`;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+};
+
+const pickIntegrationStoreUrl = (integration) =>
+  integration?.url ||
+  integration?.store_url ||
+  integration?.storeUrl ||
+  integration?.website ||
+  integration?.Website ||
+  integration?.URL ||
+  '';
+
+const isWooLikeStore = (integration) => {
+  const storeType = String(integration?.store_type || integration?.storeType || '').toLowerCase();
+  return !storeType || storeType === 'woocommerce' || storeType === 'wordpress';
+};
+
+/** WordPress product edit: /wp-admin/post.php?post={id}&action=edit */
+const buildWooCommerceProductAdminUrl = (integration, referenceId) => {
+  const productId = pickWooCommerceProductId(referenceId);
+  if (!productId || !integration || !isWooLikeStore(integration)) return '';
+
+  const baseUrl = normalizeStoreBaseUrl(pickIntegrationStoreUrl(integration));
+  if (!baseUrl) return '';
+
+  return `${baseUrl}/wp-admin/post.php?post=${encodeURIComponent(productId)}&action=edit`;
+};
+
+const resolveSyncIntegrationId = (item) => {
+  const populated =
+    item?.integration_id && typeof item.integration_id === 'object' ? item.integration_id : null;
+  return String(
+    populated?._id ||
+      populated?.id ||
+      (typeof item?.integration_id === 'string' || typeof item?.integration_id === 'number'
+        ? item.integration_id
+        : '') ||
+      ''
+  ).trim();
+};
+
+const resolveSyncIntegration = (item, integrationsList = []) => {
+  const populated =
+    item?.integration_id && typeof item.integration_id === 'object' ? item.integration_id : null;
+  const integrationId = resolveSyncIntegrationId(item);
+
+  const fromList = Array.isArray(integrationsList)
+    ? integrationsList.find((row) => {
+        const rowId = String(integrationIdFromRecord(row));
+        if (integrationId && rowId === integrationId) return true;
+        const populatedName = populated?.store_name || populated?.storeName;
+        const rowName = row?.store_name || row?.storeName;
+        return Boolean(populatedName && rowName && populatedName === rowName);
+      })
+    : null;
+
+  // Prefer the full active-integrations record (includes `url`); keep populated label fields as fallback.
+  if (fromList || populated) {
+    return { ...(populated || {}), ...(fromList || {}) };
+  }
+  return null;
+};
 
 const looksLikeVariantName = (name) => /\[[^\]]+\]/.test(String(name || ''));
 
@@ -75,6 +169,9 @@ export default function ViewProductSyncModal({
   const [error, setError] = useState(null);
   const [togglingSyncId, setTogglingSyncId] = useState(null);
   const [toggleError, setToggleError] = useState(null);
+  const [syncPriceDrafts, setSyncPriceDrafts] = useState({});
+  const [savingSyncPriceId, setSavingSyncPriceId] = useState(null);
+  const [syncPriceError, setSyncPriceError] = useState(null);
 
   const [integrations, setIntegrations] = useState([]);
   const [integrationsStatus, setIntegrationsStatus] = useState('idle');
@@ -93,6 +190,7 @@ export default function ViewProductSyncModal({
   const [storeVariationsStatus, setStoreVariationsStatus] = useState('idle');
   const [selectedStoreVariationId, setSelectedStoreVariationId] = useState('');
   const [pendingParentRemoteId, setPendingParentRemoteId] = useState('');
+  const hydratedIntegrationIdsRef = useRef(new Set());
 
   const resetVariationPicker = useCallback(() => {
     setStoreVariations([]);
@@ -108,6 +206,9 @@ export default function ViewProductSyncModal({
     setLoadStatus('loading');
     setError(null);
     setToggleError(null);
+    setSyncPriceError(null);
+    setSyncPriceDrafts({});
+    setSavingSyncPriceId(null);
 
     fetchSyncProductsRequest({
       product_id: productId,
@@ -175,6 +276,71 @@ export default function ViewProductSyncModal({
       cancelled = true;
     };
   }, [open, resetVariationPicker]);
+
+  // Populated sync rows often omit integration.url — hydrate from get-by-id when needed.
+  useEffect(() => {
+    if (!open) {
+      hydratedIntegrationIdsRef.current = new Set();
+      return undefined;
+    }
+    if (loadStatus !== 'succeeded' || !list.length) return undefined;
+
+    let cancelled = false;
+    const missingIds = [];
+
+    list.forEach((item) => {
+      const integrationId = resolveSyncIntegrationId(item);
+      if (!integrationId) return;
+      if (hydratedIntegrationIdsRef.current.has(integrationId)) return;
+      const resolved = resolveSyncIntegration(item, integrations);
+      if (pickIntegrationStoreUrl(resolved)) return;
+      missingIds.push(integrationId);
+    });
+
+    const uniqueMissing = [...new Set(missingIds)];
+    if (!uniqueMissing.length) return undefined;
+
+    uniqueMissing.forEach((id) => hydratedIntegrationIdsRef.current.add(id));
+
+    (async () => {
+      const fetched = [];
+      await Promise.all(
+        uniqueMissing.map(async (id) => {
+          try {
+            const result = await fetchIntegrationByIdRequest(id);
+            const record = result?.data && typeof result.data === 'object' ? result.data : result;
+            if (record && typeof record === 'object') fetched.push(record);
+          } catch (err) {
+            console.warn('[Sync product module] Failed to load integration for WP link', {
+              integrationId: id,
+              error: err,
+            });
+          }
+        })
+      );
+
+      if (cancelled || !fetched.length) return;
+
+      setIntegrations((prev) => {
+        const byId = new Map(
+          (Array.isArray(prev) ? prev : []).map((row) => [
+            String(integrationIdFromRecord(row)),
+            row,
+          ])
+        );
+        fetched.forEach((row) => {
+          const id = String(integrationIdFromRecord(row));
+          if (!id) return;
+          byId.set(id, { ...(byId.get(id) || {}), ...row });
+        });
+        return Array.from(byId.values());
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, loadStatus, list, integrations]);
 
   const parsedLink = useMemo(
     () => parseStoreProductLink(linkUrl, integrations),
@@ -381,6 +547,12 @@ export default function ViewProductSyncModal({
     }
   };
 
+  const pickSyncPrice = (item) => {
+    const raw = item?.sync_price ?? item?.syncPrice ?? '';
+    if (raw == null || raw === '') return '';
+    return String(raw);
+  };
+
   const handleToggleStatus = async (syncId, isCurrentlyActive) => {
     if (!syncId) return;
 
@@ -400,6 +572,44 @@ export default function ViewProductSyncModal({
       console.error('[Sync product module] Failed to toggle sync status', { syncId, error: err });
     } finally {
       setTogglingSyncId(null);
+    }
+  };
+
+  const handleSyncPriceChange = (syncId, value) => {
+    setSyncPriceDrafts((prev) => ({ ...prev, [syncId]: value }));
+    if (syncPriceError) setSyncPriceError(null);
+  };
+
+  const handleSyncPriceSave = async (item) => {
+    const syncId = syncIdFromRecord(item);
+    if (!syncId) return;
+
+    const current = pickSyncPrice(item);
+    const next =
+      syncPriceDrafts[syncId] !== undefined ? String(syncPriceDrafts[syncId]) : current;
+    if (String(next) === String(current)) return;
+
+    setSavingSyncPriceId(syncId);
+    setSyncPriceError(null);
+
+    try {
+      await updateSyncProductRequest(syncId, { sync_price: next });
+      setList((prev) =>
+        prev.map((row) =>
+          syncIdFromRecord(row) === syncId ? { ...row, sync_price: next } : row
+        )
+      );
+      setSyncPriceDrafts((prev) => {
+        const copy = { ...prev };
+        delete copy[syncId];
+        return copy;
+      });
+      toast.success('Sync price updated successfully.');
+    } catch (err) {
+      setSyncPriceError(err?.message || 'Failed to update sync price');
+      console.error('[Sync product module] Failed to update sync_price', { syncId, error: err });
+    } finally {
+      setSavingSyncPriceId(null);
     }
   };
 
@@ -652,6 +862,9 @@ export default function ViewProductSyncModal({
               {toggleError ? (
                 <div className="alert alert-danger py-2 mb-3">{toggleError}</div>
               ) : null}
+              {syncPriceError ? (
+                <div className="alert alert-danger py-2 mb-3">{syncPriceError}</div>
+              ) : null}
 
               {loadStatus === 'loading' && (
                 <div className="text-center py-4 text-muted">
@@ -676,34 +889,101 @@ export default function ViewProductSyncModal({
                     <thead>
                       <tr>
                         <th>Integration</th>
-                        <th>Reference ID</th>
-                        <th>Product</th>
-                        <th>Status</th>
-                        <th>Synced At</th>
+                        <th className="text-center" style={{ width: '3rem' }} />
+                        <th className="text-center">Sync Price</th>
+                        <th className="text-center">Status</th>
+                        <th className="text-center">Synced At</th>
                       </tr>
                     </thead>
                     <tbody>
                       {list.map((item, index) => {
                         const rowId = syncIdFromRecord(item);
                         const active = isSyncActive(item);
+                        const priceValue =
+                          syncPriceDrafts[rowId] !== undefined
+                            ? syncPriceDrafts[rowId]
+                            : pickSyncPrice(item);
+                        const referenceId = pickSyncReferenceId(item);
+                        const integration = resolveSyncIntegration(item, integrations);
+                        const wpAdminUrl = buildWooCommerceProductAdminUrl(
+                          integration,
+                          referenceId
+                        );
+                        const wooProductId = pickWooCommerceProductId(referenceId);
                         return (
                           <tr key={rowId || index}>
                             <td className="text-sm">{integrationLabel(item.integration_id)}</td>
-                            <td className="text-sm">
-                              {item.refference_id ?? item.reference_id ?? '-'}
+                            <td className="text-center">
+                              {wpAdminUrl ? (
+                                <a
+                                  href={wpAdminUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-sm btn-outline-primary py-0 px-2"
+                                  title={`Open in WordPress (post ${wooProductId})`}
+                                  aria-label="Open in WordPress"
+                                >
+                                  WP
+                                </a>
+                              ) : (
+                                <span
+                                  className="text-muted"
+                                  title={
+                                    !referenceId
+                                      ? 'No store reference id on this sync record'
+                                      : !pickIntegrationStoreUrl(integration)
+                                        ? 'Integration store URL missing'
+                                        : 'WordPress link unavailable'
+                                  }
+                                >
+                                  —
+                                </span>
+                              )}
                             </td>
-                            <td className="text-sm">{recordName(item.product_id)}</td>
-                            <td className="text-sm">
-                              <div className="d-flex align-items-center gap-2">
-                                <div className="form-check form-switch mb-0">
+                            <td className="text-sm text-center" style={{ minWidth: '7.5rem' }}>
+                              <div className="d-inline-flex align-items-center justify-content-center gap-2">
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm text-center"
+                                  style={{ maxWidth: '6.5rem' }}
+                                  value={priceValue}
+                                  placeholder="0.00"
+                                  step="0.01"
+                                  min="0"
+                                  disabled={!rowId || savingSyncPriceId === rowId}
+                                  onChange={(e) => handleSyncPriceChange(rowId, e.target.value)}
+                                  onBlur={() => handleSyncPriceSave(item)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  aria-label="Sync price"
+                                />
+                                {savingSyncPriceId === rowId ? (
+                                  <span
+                                    className="spinner-border spinner-border-sm text-primary"
+                                    role="status"
+                                    style={{ width: '1rem', height: '1rem' }}
+                                  >
+                                    <span className="visually-hidden">Saving…</span>
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="text-sm text-center">
+                              <div className="d-inline-flex align-items-center justify-content-center gap-2">
+                                <div className="form-check form-switch mb-0 d-flex justify-content-center">
                                   <input
-                                    className="form-check-input"
+                                    className="form-check-input m-0"
                                     type="checkbox"
                                     role="switch"
                                     id={`sync-toggle-${rowId || index}`}
                                     checked={active}
                                     onChange={() => handleToggleStatus(rowId, active)}
                                     disabled={!rowId || togglingSyncId === rowId}
+                                    aria-label={active ? 'Active' : 'Inactive'}
+                                    title={active ? 'Active' : 'Inactive'}
                                     style={{
                                       width: '2.5rem',
                                       height: '1.25rem',
@@ -719,19 +999,18 @@ export default function ViewProductSyncModal({
                                   >
                                     <span className="visually-hidden">Loading...</span>
                                   </span>
-                                ) : (
-                                  <span
-                                    className={`badge ${active ? 'bg-success' : 'bg-secondary'}`}
-                                  >
-                                    {active ? 'Active' : 'Inactive'}
-                                  </span>
-                                )}
+                                ) : null}
                               </div>
                             </td>
-                            <td className="text-sm">
-                              {item.createdAt
-                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                : '-'}
+                            <td
+                              className="text-sm text-center text-nowrap"
+                              title={
+                                item.createdAt
+                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
+                                  : undefined
+                              }
+                            >
+                              {item.createdAt ? moment(item.createdAt).fromNow() : '-'}
                             </td>
                           </tr>
                         );

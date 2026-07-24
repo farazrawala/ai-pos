@@ -18,8 +18,13 @@ const getContainer = () => {
   if (!container) {
     container = document.createElement('div');
     container.id = TOAST_CONTAINER_ID;
-    container.className = 'position-fixed bottom-1 end-1 z-index-2';
+    // Above Bootstrap modal (1050) / backdrop (1040) so toasts stay visible over dialogs.
+    container.className = 'position-fixed bottom-1 end-1';
+    container.style.zIndex = '2000';
     document.body.appendChild(container);
+  } else {
+    container.className = 'position-fixed bottom-1 end-1';
+    container.style.zIndex = '2000';
   }
   return container;
 };
@@ -32,7 +37,10 @@ const escapeHtml = (text) =>
 
 /** Wrap quoted segments (e.g. product names) in <strong> for toast HTML bodies. */
 export function boldQuotedNamesInMessage(message) {
-  return String(message ?? '').replace(/"([^"]+)"/g, (_, name) => `"<strong>${escapeHtml(name)}</strong>"`);
+  return String(message ?? '').replace(
+    /"([^"]+)"/g,
+    (_, name) => `"<strong>${escapeHtml(name)}</strong>"`
+  );
 }
 
 export const showToast = ({
