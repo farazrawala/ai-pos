@@ -204,19 +204,33 @@ function buildThermalReceiptFromCart({
   cartSubtotal,
   shippingNum,
   extraDiscountNum,
+  extraDiscountPercentNum,
   grandTotal,
   invoiceNo,
   publicUrl,
   companyName,
 }) {
+  const discountPct = Number(extraDiscountPercentNum) || 0;
+  const resolvedDiscountPct =
+    discountPct > 0
+      ? discountPct
+      : Number(cartSubtotal) > 0 && Number(extraDiscountNum) > 0
+        ? Math.round((Number(extraDiscountNum) / Number(cartSubtotal)) * 10000) / 100
+        : 0;
   const lines = (cartLines || []).map((line) => {
     const qty = parsePosQty(line.quantity);
     const rate = Number(line.unitPrice) || 0;
+    const amount = qty * rate;
+    const discountSaved =
+      resolvedDiscountPct > 0 && amount > 0
+        ? Math.round(amount * (resolvedDiscountPct / 100) * 100) / 100
+        : 0;
     return {
       description: line.name || 'Product',
       qtyLabel: formatPosQtyLabel(qty),
       rate,
-      amount: qty * rate,
+      amount,
+      discountSaved,
     };
   });
   const paid = Number(payment?.paid ?? 0);
@@ -240,6 +254,7 @@ function buildThermalReceiptFromCart({
       subTotal: Number(cartSubtotal) || 0,
       tax: 0,
       discount: Number(extraDiscountNum) || 0,
+      discountPercentage: resolvedDiscountPct,
       shipping: Number(shippingNum) || 0,
       total,
       paymentMade: paid,
@@ -1653,6 +1668,7 @@ const Pos = () => {
           cartSubtotal,
           shippingNum,
           extraDiscountNum,
+          extraDiscountPercentNum,
           grandTotal,
           invoiceNo,
           publicUrl,
@@ -1721,6 +1737,7 @@ const Pos = () => {
       cartSubtotal,
       shippingNum,
       extraDiscountNum,
+      extraDiscountPercentNum,
       grandTotal,
       printerSettings,
       defaultPrinterSettings,

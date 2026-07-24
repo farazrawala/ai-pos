@@ -10,6 +10,7 @@ const THERMAL_RECEIPT_SOFTWARE_CONTACT = 'For Software Contact : 03361225588';
  * @property {string} [qtyLabel]
  * @property {number} rate
  * @property {number} amount
+ * @property {number} [discountSaved]
  */
 
 /**
@@ -17,6 +18,7 @@ const THERMAL_RECEIPT_SOFTWARE_CONTACT = 'For Software Contact : 03361225588';
  * @property {number} subTotal
  * @property {number} tax
  * @property {number} discount
+ * @property {number} [discountPercentage]
  * @property {number} [shipping]
  * @property {number} total
  * @property {number} paymentMade
@@ -86,6 +88,13 @@ function normalizeData(data) {
   const lines = Array.isArray(data.lines) ? data.lines : [];
   const summary = data.summary || {};
   const billTo = data.billTo || { name: '—' };
+  const subTotal = Number(summary.subTotal) || 0;
+  const discount = Number(summary.discount) || 0;
+  let discountPercentage =
+    Number(summary.discountPercentage ?? summary.discount_percentage) || 0;
+  if (discountPercentage <= 0 && discount > 0 && subTotal > 0) {
+    discountPercentage = Math.round((discount / subTotal) * 10000) / 100;
+  }
   return {
     shopName: data.shopName ?? '',
     invoiceNo: String(data.invoiceNo ?? ''),
@@ -107,11 +116,13 @@ function normalizeData(data) {
       qtyLabel: line.qtyLabel ?? String(line.qty ?? ''),
       rate: Number(line.rate) || 0,
       amount: Number(line.amount) || 0,
+      discountSaved: Number(line.discountSaved) || 0,
     })),
     summary: {
-      subTotal: Number(summary.subTotal) || 0,
+      subTotal,
       tax: Number(summary.tax) || 0,
-      discount: Number(summary.discount) || 0,
+      discount,
+      discountPercentage,
       shipping: Number(summary.shipping) || 0,
       total: Number(summary.total) || 0,
       paymentMade: Number(summary.paymentMade) || 0,
@@ -157,6 +168,14 @@ export function buildThermalReceiptHtml(data, options = {}) {
   } = options;
 
   const fmt = (n) => formatThermalMoney(n, { currencyLabel, locale });
+  const fmtCol = (n) => {
+    const safe = Number.isFinite(Number(n)) ? Number(n) : 0;
+    return safe.toLocaleString(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const companyName = String(brand.name || d.shopName || APP_NAME).trim() || APP_NAME;
   const customFooterThankYou =
     footerThankYou != null && String(footerThankYou).trim() !== ''
@@ -221,21 +240,51 @@ export function buildThermalReceiptHtml(data, options = {}) {
     billToLines.push(`<div class="bill-meta">${escapeHtml(d.billTo.email)}</div>`);
   }
 
-  const linesHtml = d.lines
-    .map(
-      (line, i) => `
+  const discountPct = Number(d.summary.discountPercentage) || 0;
+  const discountPctLabel = Number.isInteger(discountPct)
+    ? String(discountPct)
+    : String(discountPct.toFixed(2)).replace(/\.?0+$/, '');
+
+  const lineRows = d.lines.map((line) => {
+    const savedFromLine = Number(line.discountSaved) || 0;
+    const savedFromPct =
+      discountPct > 0 && line.amount > 0
+        ? Math.round(line.amount * (discountPct / 100) * 100) / 100
+        : 0;
+    const disc = savedFromLine > 0 ? savedFromLine : savedFromPct;
+    const lineTotal = Math.max(0, Math.round((line.amount - disc) * 100) / 100);
+    return { line, disc, lineTotal };
+  });
+
+  const showDiscColumn =
+    lineRows.some((row) => row.disc > 0) || Number(d.summary.discount) > 0;
+
+  const linesHtml = lineRows
+    .map(({ line, disc, lineTotal }, i) => {
+      return `
       <tr class="${i % 2 === 1 ? 'line-alt' : ''}">
         <td>
           <div class="line-title">${i + 1}. ${escapeHtml(line.description)}</div>
-          <div class="line-detail">
-            <span>${escapeHtml(line.qtyLabel)} × ${escapeHtml(fmt(line.rate))}</span>
-            <span class="line-amt">${escapeHtml(fmt(line.amount))}</span>
+          <div class="cols-row${showDiscColumn ? ' has-disc' : ''}">
+            <span>${escapeHtml(line.qtyLabel)}</span>
+            <span>${escapeHtml(fmtCol(line.rate))}</span>
+            ${showDiscColumn ? `<span>${escapeHtml(fmtCol(disc))}</span>` : ''}
+            <span class="line-amt">${escapeHtml(fmtCol(lineTotal))}</span>
           </div>
         </td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join('');
 
+  const colsHeadHtml = `
+    <div class="cols-head${showDiscColumn ? ' has-disc' : ''}" aria-hidden="true">
+      <span>Qty</span>
+      <span>Price</span>
+      ${showDiscColumn ? '<span>Disc</span>' : ''}
+      <span>Total</span>
+    </div>`;
+
+  const itemCount = d.lines.length;
   const totalQty = d.lines.reduce((sum, line) => {
     const n = parseFloat(String(line.qtyLabel || '').replace(/,/g, ''));
     return sum + (Number.isFinite(n) ? n : 0);
@@ -244,12 +293,18 @@ export function buildThermalReceiptHtml(data, options = {}) {
     ? String(totalQty)
     : totalQty.toFixed(2).replace(/\.?0+$/, '');
 
+  const discountLabel =
+    discountPct > 0 ? `Discount ${discountPctLabel}%` : 'Discount';
+
   const summaryHtml = [
-    summaryRow('Total Qty', escapeHtml(totalQtyLabel)),
+    `<div class="row counts-row">
+      <b>No Of Item: ${escapeHtml(String(itemCount))}</b>
+      <b>Qty: ${escapeHtml(totalQtyLabel)}</b>
+    </div>`,
     summaryRow('Subtotal', escapeHtml(fmt(d.summary.subTotal))),
     summaryRow('Tax', escapeHtml(fmt(d.summary.tax))),
     ps.show_discount
-      ? summaryRow('Discount', escapeHtml(fmt(d.summary.discount)))
+      ? summaryRow(discountLabel, escapeHtml(fmt(d.summary.discount)))
       : '',
     ps.show_shipping
       ? summaryRow('Shipping', escapeHtml(fmt(d.summary.shipping)))
@@ -444,18 +499,36 @@ export function buildThermalReceiptHtml(data, options = {}) {
   }
   .bill-name { font-size: 13px; font-weight: 800; }
   .bill-meta { font-size: 10px; font-weight: 700; margin-top: 1px; }
-  table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 4px 0 6px; }
   td { padding: 5px 0; vertical-align: top; border-bottom: 1px dotted #ddd; }
   tr.line-alt td { background: #fafafa; }
   tr:last-child td { border-bottom: none; }
-  .line-title { font-weight: 800; font-size: 12px; margin-bottom: 2px; }
-  .line-detail {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
+  .line-title { font-weight: 800; font-size: 12px; margin-bottom: 3px; }
+  .cols-head,
+  .cols-row {
+    display: grid;
+    grid-template-columns: 0.8fr 1.3fr 1.3fr;
+    column-gap: 2px;
+    font-size: 9px;
     font-weight: 700;
     font-family: ui-monospace, 'Courier New', monospace;
+    text-align: right;
   }
+  .cols-head.has-disc,
+  .cols-row.has-disc {
+    grid-template-columns: 0.7fr 1.15fr 1.05fr 1.15fr;
+  }
+  .cols-head {
+    margin: 4px 0 2px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #111;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .cols-head span:first-child,
+  .cols-row span:first-child { text-align: left; }
   .line-amt { font-weight: 800; }
   .row {
     display: flex;
@@ -463,6 +536,16 @@ export function buildThermalReceiptHtml(data, options = {}) {
     font-size: 11px;
     font-weight: 700;
     padding: 2px 0;
+  }
+  .counts-row {
+    margin: 2px 0 4px;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .counts-row b {
+    font-family: ui-monospace, 'Courier New', monospace;
+    font-weight: 900;
+    font-size: 12px;
   }
   .row span:last-child { font-weight: 800; font-family: ui-monospace, 'Courier New', monospace; }
   .row-muted span:last-child { font-weight: 700; }
@@ -521,6 +604,7 @@ export function buildThermalReceiptHtml(data, options = {}) {
   <div class="section-label">Bill to</div>
   ${billToLines.join('')}
   <hr class="divider-bold" />
+  ${colsHeadHtml}
   <table>${linesHtml}</table>
   <hr class="divider" />
   ${summaryHtml.join('')}
