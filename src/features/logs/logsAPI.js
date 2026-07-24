@@ -12,6 +12,43 @@ const logLogsModuleError = (operation, details) => {
 };
 
 /**
+ * GET updated log filter tags (plain text, one tag per line).
+ * Backend: GET /api/public/log-tags.txt
+ */
+export const fetchLogTagsRequest = async () => {
+  const url = `${BASE_URL}public/log-tags.txt`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+  } catch (err) {
+    logLogsModuleError('fetchLogTagsRequest network error', { url, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const message = `HTTP error! status: ${response.status}`;
+    logLogsModuleError('fetchLogTagsRequest failed', {
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const text = await response.text();
+  const tags = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  // Preserve file order; drop exact duplicates.
+  return [...new Set(tags)];
+};
+
+/**
  * GET paginated active audit logs.
  * Backend: GET /api/logs/get-all-active
  */

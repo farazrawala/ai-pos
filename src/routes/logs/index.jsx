@@ -10,6 +10,7 @@ import {
   setLimit,
   setSort,
 } from '../../features/logs/logsSlice.js';
+import { fetchLogTagsRequest } from '../../features/logs/logsAPI.js';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -68,6 +69,21 @@ const toReadableLabel = (value) => {
   return s
     .replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+/** snake/kebab/camel → Title Case with spaces (`create-product-variation` → `Create Product Variation`). */
+const toPrettyTagLabel = (value) => {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  return s
+    .replace(/[-_]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 };
 
 const formatLogDescriptionJson = (obj) => {
@@ -205,78 +221,6 @@ function LogDetailsModal({ open, text, onClose }) {
   );
 }
 
-const LOG_FILTER_TABS = [
-  { id: '', label: 'ALL' },
-  { id: '404', label: '404' },
-  { id: 'API', label: 'API' },
-  { id: 'Cache', label: 'CACHE' },
-  { id: 'Inventory_movement', label: 'Inventory_movement' },
-  { id: 'account', label: 'account' },
-  { id: 'add', label: 'add' },
-  { id: 'adjustment', label: 'adjustment' },
-  { id: 'amount_transfer', label: 'amount_transfer' },
-  { id: 'api', label: 'api' },
-  { id: 'assets', label: 'assets' },
-  { id: 'authenticated', label: 'authenticated' },
-  { id: 'bulk-create', label: 'bulk-create' },
-  { id: 'company', label: 'company' },
-  { id: 'create', label: 'create' },
-  { id: 'create-product-variation', label: 'create-product-variation' },
-  { id: 'custom-create', label: 'custom-create' },
-  { id: 'custom-update', label: 'custom-update' },
-  { id: 'delete', label: 'DELETE' },
-  { id: 'error', label: 'ERROR' },
-  { id: 'expense', label: 'expense' },
-  { id: 'fetch_order', label: 'fetch_order' },
-  { id: 'generic_create', label: 'generic_create' },
-  { id: 'generic_update', label: 'generic_update' },
-  { id: 'get', label: 'GET' },
-  { id: 'get-all-active', label: 'GET-ALL-ACTIVE' },
-  { id: 'imported_woocommerce', label: 'imported_woocommerce' },
-  { id: 'in', label: 'in' },
-  { id: 'insert', label: 'insert' },
-  { id: 'inventory', label: 'inventory' },
-  { id: 'inventory_movement', label: 'inventory_movement' },
-  { id: 'not_found', label: 'not_found' },
-  { id: 'order', label: 'order' },
-  { id: 'outer', label: 'outer' },
-  { id: 'out', label: 'out' },
-  { id: 'patch', label: 'patch' },
-  { id: 'payment_receipt', label: 'payment_receipt' },
-  { id: 'post', label: 'post' },
-  { id: 'process', label: 'process' },
-  { id: 'product', label: 'product' },
-  { id: 'public', label: 'public' },
-  { id: 'purchase_order', label: 'purchase_order' },
-  { id: 'purchase_order_delete', label: 'purchase_order_delete' },
-  { id: 'purchase_order_update', label: 'purchase_order_update' },
-  { id: 'purchase_return', label: 'purchase_return' },
-  { id: 'put', label: 'put' },
-  { id: 'remove-cache', label: 'REMOVE-CACHE' },
-  { id: 'rollback', label: 'ROLLBACK' },
-  { id: 'sale', label: 'sale' },
-  { id: 'sales_return', label: 'sales_return' },
-  { id: 'save', label: 'save' },
-  { id: 'signup', label: 'signup' },
-  { id: 'skipped_woocommerce', label: 'skipped_woocommerce' },
-  { id: 'soft_delete', label: 'soft_delete' },
-  { id: 'stock', label: 'stock' },
-  { id: 'stock_alert', label: 'Stock Alert' },
-  { id: 'stock_transfer', label: 'stock_transfer' },
-  { id: 'subtract', label: 'subtract' },
-  { id: 'sync', label: 'sync' },
-  { id: 'transaction', label: 'transaction' },
-  { id: 'unexpected', label: 'unexpected' },
-  { id: 'update', label: 'UPDATE' },
-  { id: 'update-product-variation', label: 'update-product-variation' },
-  { id: 'user', label: 'user' },
-  { id: 'user_company', label: 'user_company' },
-  { id: 'wac_replay', label: 'wac_replay' },
-  { id: 'warehouse', label: 'warehouse' },
-  { id: 'wholesale_price', label: 'Wholesale Price' },
-  { id: 'woocommerce', label: 'woocommerce' },
-];
-
 const Logs = () => {
   const dispatch = useDispatch();
   const {
@@ -294,6 +238,8 @@ const Logs = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
+  const [logTags, setLogTags] = useState([]);
+  const [logTagsStatus, setLogTagsStatus] = useState('idle');
   const [logDetailsText, setLogDetailsText] = useState(null);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
@@ -302,6 +248,35 @@ const Logs = () => {
 
   usePermissions('logs');
   useRequireModuleAccess('logs');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLogTagsStatus('loading');
+    (async () => {
+      try {
+        const tags = await fetchLogTagsRequest();
+        if (cancelled) return;
+        setLogTags(tags);
+        setLogTagsStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Logs module] Failed to load log tags for filter', err);
+        setLogTags([]);
+        setLogTagsStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const logFilterTabs = useMemo(
+    () => [
+      { id: '', label: 'All' },
+      ...logTags.map((tag) => ({ id: tag, label: toPrettyTagLabel(tag) })),
+    ],
+    [logTags]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -505,7 +480,10 @@ const Logs = () => {
                 role="group"
                 aria-label="Filter logs by tag"
               >
-                {LOG_FILTER_TABS.map(({ id, label }) => {
+                {logTagsStatus === 'loading' ? (
+                  <span className="text-xs text-muted align-self-center">Loading tags…</span>
+                ) : null}
+                {logFilterTabs.map(({ id, label }) => {
                   const active = logTag === id;
                   return (
                     <button
@@ -514,13 +492,17 @@ const Logs = () => {
                       aria-pressed={active}
                       className={`btn mb-0 ${active ? 'btn-primary' : 'btn-outline-primary'}`}
                       onClick={() => dispatch(setLogTag(id))}
-                      disabled={loading}
+                      disabled={loading || logTagsStatus === 'loading'}
+                      title={id || 'All tags'}
                     >
                       {label}
                     </button>
                   );
                 })}
               </div>
+              {logTagsStatus === 'failed' ? (
+                <p className="text-xs text-danger mb-0 mt-1">Could not load updated tags.</p>
+              ) : null}
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
@@ -645,8 +627,8 @@ const Logs = () => {
                                     <span className="text-muted">—</span>
                                   ) : (
                                     tags.map((t) => (
-                                      <span key={t} className="badge bg-gradient-secondary">
-                                        {t}
+                                      <span key={t} className="badge bg-gradient-secondary" title={t}>
+                                        {toPrettyTagLabel(t)}
                                       </span>
                                     ))
                                   )}
