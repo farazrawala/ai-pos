@@ -61,6 +61,7 @@ import {
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { showToast } from '../../utils/toast.js';
+import GoogleAddressMapField from './GoogleAddressMapField.jsx';
 
 function applyCompanyToForm(company, setters) {
   if (!company) return;
@@ -80,6 +81,13 @@ function applyCompanyToForm(company, setters) {
     company_phone: company.company_phone || company.phone || '',
     company_email: company.company_email || company.email || '',
     company_address: company.company_address || company.address || '',
+    google_address: company.google_address || company.googleAddress || '',
+    address_latitude: String(
+      company.address_latitude ?? company.addressLatitude ?? ''
+    ),
+    address_longitude: String(
+      company.address_longitude ?? company.addressLongitude ?? ''
+    ),
   });
   setExistingLogoUrl(pickCompanyLogoUrl(company));
   setLogoFile(null);
@@ -112,6 +120,9 @@ export default function CompanySettingsView() {
     company_phone: '',
     company_email: '',
     company_address: '',
+    google_address: '',
+    address_latitude: '',
+    address_longitude: '',
   });
   const [errors, setErrors] = useState({});
   const [logoFile, setLogoFile] = useState(null);
@@ -357,6 +368,9 @@ export default function CompanySettingsView() {
         company_phone: form.company_phone.trim(),
         company_email: form.company_email.trim(),
         company_address: form.company_address.trim(),
+        google_address: form.google_address.trim(),
+        address_latitude: String(form.address_latitude ?? '').trim(),
+        address_longitude: String(form.address_longitude ?? '').trim(),
         display_store_on_bigcommerce: Boolean(displayStoreOnBigcommerce),
       };
       if (isUserUploadFilePart(logoFile)) payload.company_logo = logoFile;
@@ -1268,6 +1282,23 @@ export default function CompanySettingsView() {
                       setForm((prev) => ({ ...prev, company_address: e.target.value }))
                     }
                     disabled={companySaving || !companyId}
+                  />
+                </div>
+
+                <div className="mt-3">
+                  <GoogleAddressMapField
+                    googleAddress={form.google_address}
+                    latitude={form.address_latitude}
+                    longitude={form.address_longitude}
+                    disabled={companySaving || !companyId}
+                    onChange={({ google_address, address_latitude, address_longitude }) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        google_address,
+                        address_latitude,
+                        address_longitude,
+                      }));
+                    }}
                   />
                 </div>
 

@@ -767,6 +767,11 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   if (rest.company_email !== undefined) fields.company_email = String(rest.company_email).trim();
   if (rest.company_address !== undefined)
     fields.company_address = String(rest.company_address).trim();
+  if (rest.google_address !== undefined) fields.google_address = String(rest.google_address).trim();
+  if (rest.address_latitude !== undefined)
+    fields.address_latitude = String(rest.address_latitude).trim();
+  if (rest.address_longitude !== undefined)
+    fields.address_longitude = String(rest.address_longitude).trim();
   if (rest.display_store_on_bigcommerce !== undefined) {
     fields[DISPLAY_STORE_ON_BIGCOMMERCE_FIELD] = Boolean(rest.display_store_on_bigcommerce);
   }

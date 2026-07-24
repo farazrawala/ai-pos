@@ -515,3 +515,176 @@ export const resolveOrderTrackingInfo = (row, override = null) => {
     hasTracking: Boolean(trackingId || trackingUrl),
   };
 };
+
+/**
+ * Live tracking status — TCS GetDynamicTrackDetail (sandbox) for now.
+ * GET https://devconnect.tcscourier.com/tracking/api/Tracking/GetDynamicTrackDetail?consignee={CN}
+ * Requires Bearer token (sandbox token via VITE_TCS_TRACKING_BEARER_TOKEN).
+ * @see https://devconnect.tcscourier.com/ecom/index.html
+ */
+export const TCS_TRACKING_DETAIL_URL =
+  'https://devconnect.tcscourier.com/tracking/api/Tracking/GetDynamicTrackDetail';
+
+/** Dev proxy path (vite → TCS) to avoid browser CORS on localhost. */
+const TCS_TRACKING_DEV_PROXY_PATH = '/tcs-tracking/tracking/api/Tracking/GetDynamicTrackDetail';
+
+const DEFAULT_TCS_SANDBOX_BEARER =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjpbIlRyYWNrIiwiRWNvbSJdLCJjbGllbnRpZCI6IjIxNTYxMDA1OSIsInNlcnZpY2VzIjoiIiwiZXhjbHVkZWQtc2VydmljZXMiOiIiLCJpc3MiOiJ1YXQtbWlkZGxld2FyZS50cmFuenVtcGsuY29tIiwianRpIjoiMWZhNDg0ZTYtMTk3OS00ZTVhLThkZDAtM2Q2NjE2Yjk5NjgzIiwibmJmIjoxNzA5NTUzOTE2LCJleHAiOjE3OTU5NTM5MTYsImlhdCI6MTcwOTU1MzkxNn0.DVkL4xAWMaq5tepDfG9_Qevk8iX05RP7fBGGHRtZA4c';
+
+export const resolveTcsTrackingBearerToken = (options = {}) => {
+  const fromOptions = String(
+    options.token || options.bearer || options.accessToken || options.access_token || ''
+  ).trim();
+  if (fromOptions) return fromOptions;
+  const fromEnv = String(import.meta.env.VITE_TCS_TRACKING_BEARER_TOKEN || '').trim();
+  if (fromEnv) return fromEnv;
+  return DEFAULT_TCS_SANDBOX_BEARER;
+};
+
+export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) => {
+  const consignee = String(
+    options.consignee ||
+      options.trackingId ||
+      options.tracking_id ||
+      options.cn ||
+      orderId ||
+      ''
+  ).trim();
+
+  if (!consignee) {
+    throw new Error('Consignment / tracking number is required');
+  }
+
+  const query = new URLSearchParams({ consignee });
+  const useDevProxy = Boolean(import.meta.env.DEV);
+  const baseUrl = useDevProxy ? TCS_TRACKING_DEV_PROXY_PATH : TCS_TRACKING_DETAIL_URL;
+  const url = `${baseUrl}?${query.toString()}`;
+
+  const bearer = resolveTcsTrackingBearerToken(options);
+  const headers = {
+    Accept: 'application/json',
+    Authorization: `Bearer ${bearer}`,
+  };
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error ||
+        payload.message ||
+        payload.Message ||
+        `TCS tracking failed (HTTP ${response.status})`
+    );
+  }
+
+  const normalized = normalizeCourierTrackingStatus(payload, consignee);
+  const hasEvents =
+    Boolean(normalized.status) ||
+    (Array.isArray(normalized.deliveryInfo) && normalized.deliveryInfo.length > 0) ||
+    (Array.isArray(normalized.checkpoints) && normalized.checkpoints.length > 0) ||
+    (Array.isArray(normalized.shipmentInfo) && normalized.shipmentInfo.length > 0) ||
+    Boolean(normalized.summary);
+
+  if (!hasEvents) {
+    return {
+      ...normalized,
+      message:
+        normalized.message && String(normalized.message).toUpperCase() !== 'SUCCESS'
+          ? normalized.message
+          : `No tracking events found for CN ${consignee} on TCS sandbox.`,
+    };
+  }
+
+  return normalized;
+};
+
+/** Normalize TCS GetDynamicTrackDetail (and similar) payloads for the UI. */
+export const normalizeCourierTrackingStatus = (payload = {}, fallbackCn = '') => {
+  const root =
+    (payload?.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? payload.data
+      : null) ||
+    (payload?.result && typeof payload.result === 'object' && !Array.isArray(payload.result)
+      ? payload.result
+      : null) ||
+    (payload?.tracking && typeof payload.tracking === 'object' ? payload.tracking : null) ||
+    payload;
+
+  const asArray = (value) => (Array.isArray(value) ? value : []);
+
+  const shipmentInfo = asArray(
+    root.shipmentinfo || root.shipmentInfo || root.shipment_info || root.ShipmentInfo
+  );
+  const deliveryInfo = asArray(
+    root.deliveryinfo || root.deliveryInfo || root.delivery_info || root.DeliveryInfo
+  );
+  const checkpoints = asArray(
+    root.checkpoints || root.Checkpoints || root.tracking_history || root.history
+  );
+
+  const firstShipment = shipmentInfo[0] || {};
+  const firstDelivery = deliveryInfo[0] || {};
+  const firstCheckpoint = checkpoints[0] || {};
+
+  const consignee = firstNonEmpty(
+    firstShipment.consignmentno,
+    firstShipment.consignmentNo,
+    firstShipment.consignment_no,
+    firstDelivery.consignmentno,
+    payload.consignee,
+    payload.consignment_no,
+    fallbackCn
+  );
+
+  const status = firstNonEmpty(
+    firstDelivery.status,
+    firstCheckpoint.status,
+    root.status,
+    root.current_status,
+    root.currentStatus,
+    payload.status
+  );
+
+  const statusCode = firstNonEmpty(
+    firstDelivery.code,
+    firstDelivery.status_code,
+    firstDelivery.statusCode,
+    root.code,
+    payload.code
+  );
+
+  const summary = firstNonEmpty(
+    root.shipmentsummary,
+    root.shipmentSummary,
+    root.shipment_summary,
+    root.summary,
+    payload.shipmentsummary
+  );
+
+  const message = firstNonEmpty(
+    root.message,
+    payload.message,
+    status ? `Current status: ${status}` : ''
+  );
+
+  return {
+    success: payload.success !== false && String(message).toUpperCase() !== 'FAILED',
+    consignee,
+    status,
+    statusCode,
+    summary,
+    message: message || 'SUCCESS',
+    receivedBy: firstNonEmpty(firstDelivery.recievedby, firstDelivery.receivedby, firstDelivery.received_by),
+    station: firstNonEmpty(firstDelivery.station, firstShipment.destination),
+    datetime: firstNonEmpty(firstDelivery.datetime, firstCheckpoint.datetime),
+    shipmentInfo,
+    deliveryInfo,
+    checkpoints,
+    raw: payload,
+  };
+};

@@ -198,19 +198,39 @@ const ORDER_STATUS_OPTIONS = [
   'shipped',
   'delivered',
   'drafted',
+  'draft',
+  'checkout_draft',
   'pending',
+  'pending_payment',
+  'on_hold',
   'completed',
   'cancelled',
   'refunded',
   'failed',
+  'processing',
 ];
 
 const DEFAULT_ORDER_STATUS = 'placed';
 
+const formatOrderStatusLabel = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 const normalizeOrderStatus = (value) => {
   if (value == null || value === '') return DEFAULT_ORDER_STATUS;
-  const s = String(value).trim().toLowerCase();
-  return ORDER_STATUS_OPTIONS.includes(s) ? s : DEFAULT_ORDER_STATUS;
+  const s = String(value).trim().toLowerCase().replace(/-/g, '_');
+  if (ORDER_STATUS_OPTIONS.includes(s)) return s;
+  // Keep unknown values selectable so an existing order status is not silently changed.
+  return String(value).trim().toLowerCase() || DEFAULT_ORDER_STATUS;
 };
 
 const orderSnapshotMatchesId = (row, invoiceId) => {
@@ -1441,9 +1461,7 @@ const PosInvoice = () => {
     );
   }
 
-  const statusLabel = invoiceOrderStatus
-    ? invoiceOrderStatus.charAt(0).toUpperCase() + invoiceOrderStatus.slice(1)
-    : '—';
+  const statusLabel = formatOrderStatusLabel(invoiceOrderStatus);
 
   return (
     <div className="pos-invoice-page container-fluid py-4 px-0">
@@ -1463,9 +1481,34 @@ const PosInvoice = () => {
                       <span className="pos-inv-ref-badge">POS# {data.invoiceNo}</span>
                     ) : null}
                     {canUpdateInvoice ? (
-                      <span className={`badge text-xxs ${poStatusBadgeClass(invoiceOrderStatus)}`}>
-                        {statusLabel}
-                      </span>
+                      <div className="d-inline-flex align-items-center gap-2">
+                        <label
+                          className="text-xs text-muted mb-0 text-nowrap"
+                          htmlFor="pos-inv-order-status-header"
+                        >
+                          Order status
+                        </label>
+                        <select
+                          id="pos-inv-order-status-header"
+                          className="form-select form-select-sm"
+                          style={{ minWidth: '10rem', width: 'auto' }}
+                          value={invoiceOrderStatus}
+                          onChange={(e) => setInvoiceOrderStatus(e.target.value)}
+                          aria-label="Order status"
+                        >
+                          {!ORDER_STATUS_OPTIONS.includes(invoiceOrderStatus) &&
+                          invoiceOrderStatus ? (
+                            <option value={invoiceOrderStatus}>
+                              {formatOrderStatusLabel(invoiceOrderStatus)}
+                            </option>
+                          ) : null}
+                          {ORDER_STATUS_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {formatOrderStatusLabel(s)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     ) : sourceOrder ? (
                       <span className={`badge text-xxs ${poStatusBadgeClass(invoiceOrderStatus)}`}>
                         {statusLabel}
@@ -1752,9 +1795,15 @@ const PosInvoice = () => {
                           value={invoiceOrderStatus}
                           onChange={(e) => setInvoiceOrderStatus(e.target.value)}
                         >
+                          {!ORDER_STATUS_OPTIONS.includes(invoiceOrderStatus) &&
+                          invoiceOrderStatus ? (
+                            <option value={invoiceOrderStatus}>
+                              {formatOrderStatusLabel(invoiceOrderStatus)}
+                            </option>
+                          ) : null}
                           {ORDER_STATUS_OPTIONS.map((s) => (
                             <option key={s} value={s}>
-                              {s.charAt(0).toUpperCase() + s.slice(1)}
+                              {formatOrderStatusLabel(s)}
                             </option>
                           ))}
                         </select>

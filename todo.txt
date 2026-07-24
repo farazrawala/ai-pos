@@ -89,8 +89,10 @@ in user add multiple accounts to be include and not to be include.
 
 
 // OMS
-draft orders
+  draft orders
+
 cron jobs to fetch orders.
 cron jobs to sync products stock(which are in sales,sales return , purchase, purchase return)
+
 order status sync to stores
 

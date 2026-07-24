@@ -164,6 +164,13 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        // TCS tracking sandbox (GetDynamicTrackDetail) — avoids browser CORS on localhost.
+        '/tcs-tracking': {
+          target: 'https://devconnect.tcscourier.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/tcs-tracking/, ''),
+        },
         // Category (and other) uploads are often served outside /api; proxy so /uploads works on :5173
         '/uploads': {
           target: apiProxyTarget,

@@ -170,7 +170,7 @@ const ORDER_BY_ORDER_ITEM_PATH = 'order/get-order-by-order-item';
 /** Soft-deleted orders list. */
 export const DELETED_ORDER_BY_ORDER_ITEM_PATH = 'orders/get-deleted-order-by-order-item';
 const DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH = 'order/get-deleted-order-by-order-item';
-/** OMS / online-channel orders (Woo, Shopify, etc.). */
+/** OMS / non-POS orders (`order_type != offline`: online, bigcommerce, website, …). */
 export const ONLINE_ORDER_BY_ORDER_ITEM_PATH = 'order/get-online-order-by-order-item';
 const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
 
@@ -1023,6 +1023,13 @@ function buildOrderListQueryParams(listParams = {}) {
   if (listParams.search) queryParams.append('search', String(listParams.search));
   if (listParams.startDate) queryParams.append('startDate', String(listParams.startDate));
   if (listParams.endDate) queryParams.append('endDate', String(listParams.endDate));
+  const integrationId =
+    listParams.integrationId || listParams.integration_id || listParams.integrationID;
+  if (integrationId) queryParams.append('integration_id', String(integrationId));
+  const orderType = listParams.orderType || listParams.order_type;
+  if (orderType) queryParams.append('order_type', String(orderType));
+  const orderStatus = listParams.orderStatus || listParams.order_status;
+  if (orderStatus) queryParams.append('order_status', String(orderStatus));
   if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
   if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
   return queryParams;

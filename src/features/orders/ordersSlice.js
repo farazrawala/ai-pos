@@ -49,6 +49,9 @@ const initialState = {
   filters: {
     startDate: '',
     endDate: '',
+    integrationId: '',
+    orderType: '',
+    orderStatus: '',
   },
   sort: { sortBy: null, sortOrder: 'asc' },
   deleteStatus: 'idle',
@@ -68,9 +71,24 @@ const ordersSlice = createSlice({
       state.filters.endDate = action.payload?.endDate || '';
       state.pagination.page = 1;
     },
+    setIntegrationFilter: (state, action) => {
+      state.filters.integrationId = action.payload ? String(action.payload) : '';
+      state.pagination.page = 1;
+    },
+    setOrderTypeFilter: (state, action) => {
+      state.filters.orderType = action.payload ? String(action.payload) : '';
+      state.pagination.page = 1;
+    },
+    setOrderStatusFilter: (state, action) => {
+      state.filters.orderStatus = action.payload ? String(action.payload) : '';
+      state.pagination.page = 1;
+    },
     clearDateFilters: (state) => {
       state.filters.startDate = '';
       state.filters.endDate = '';
+      state.filters.integrationId = '';
+      state.filters.orderType = '';
+      state.filters.orderStatus = '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -152,6 +170,16 @@ const ordersSlice = createSlice({
   },
 });
 
-export const { setSearch, setDateFilters, clearDateFilters, setPage, setLimit, setSort, clearDeleteStatus } =
-  ordersSlice.actions;
+export const {
+  setSearch,
+  setDateFilters,
+  setIntegrationFilter,
+  setOrderTypeFilter,
+  setOrderStatusFilter,
+  clearDateFilters,
+  setPage,
+  setLimit,
+  setSort,
+  clearDeleteStatus,
+} = ordersSlice.actions;
 export default ordersSlice.reducer;

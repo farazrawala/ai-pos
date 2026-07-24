@@ -34,6 +34,9 @@ import {
   deleteOrder,
   setSearch,
   setDateFilters,
+  setIntegrationFilter,
+  setOrderTypeFilter,
+  setOrderStatusFilter,
   clearDateFilters,
   setPage,
   setLimit,
@@ -62,6 +65,11 @@ import FetchOrdersModal from '../../components/order/FetchOrdersModal.jsx';
 import SyncOrdersModal from '../../components/order/SyncOrdersModal.jsx';
 import CreateShipmentModal from '../../components/order/CreateShipmentModal.jsx';
 import ParcelBarcodePrintModal from '../../components/order/ParcelBarcodePrintModal.jsx';
+import TrackingStatusModal from '../../components/order/TrackingStatusModal.jsx';
+import ChangeOrderStatusModal, {
+  OMS_ORDER_STATUS_OPTIONS,
+  formatOrderStatusOptionLabel,
+} from '../../components/order/ChangeOrderStatusModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
@@ -73,6 +81,7 @@ import { posInvoiceRoutePath } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import {
+  integrationIdFromRecord as integrationIdFromFormRecord,
   integrationNameFromRecord,
   storeTypeLabel,
 } from '../integration/integrationForm.js';
@@ -271,7 +280,6 @@ function OrderIntegrationMergedCell({
 const ORDER_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
   { key: 'order_no', label: 'Order no', alwaysVisible: true },
-  { key: 'channel', label: 'Online/Offline' },
   { key: 'integration', label: 'Integration' },
   { key: 'name', label: 'Customer' },
   { key: 'email', label: 'Email' },
@@ -279,6 +287,8 @@ const ORDER_COLUMNS = [
   { key: 'items', label: 'Items' },
   { key: 'total', label: 'Total' },
   { key: 'status', label: 'Status' },
+  { key: 'order_website_status', label: 'Website status' },
+  { key: 'channel', label: 'Order type' },
   { key: 'tracking', label: 'Tracking' },
   { key: 'created', label: 'Created' },
   { key: 'updated', label: 'Last updated' },
@@ -286,7 +296,20 @@ const ORDER_COLUMNS = [
 ];
 
 const integrationIdFromRecord = (item) =>
-  item?._id || item?.id || item?.integration_id || '';
+  integrationIdFromFormRecord(item) || item?._id || item?.id || item?.integration_id || '';
+
+const integrationFilterLabel = (item) => {
+  const name = integrationNameFromRecord(item);
+  const storeType = item?.store_type || item?.storeType || '';
+  return storeType ? `${name} (${storeTypeLabel(storeType)})` : name;
+};
+
+const ORDER_TYPE_FILTER_OPTIONS = [
+  { value: 'offline', label: 'Offline' },
+  { value: 'online', label: 'Online' },
+  { value: 'bigcommerce', label: 'BigCommerce' },
+  { value: 'website', label: 'Website' },
+];
 
 /** True when the order came from an online channel (Woo/Shopify/etc.), else POS/offline. */
 function isOnlineOrder(row) {
@@ -345,14 +368,77 @@ function isOnlineOrder(row) {
 const channelBadgeClass = (online) =>
   online ? 'bg-gradient-info' : 'bg-gradient-secondary';
 
+const getOrderType = (row) => {
+  const raw = row?.order_type ?? row?.orderType ?? '';
+  return String(raw ?? '').trim();
+};
+
+const formatOrderTypeLabel = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 const statusBadgeClass = (status) => {
   const s = String(status || '').toLowerCase();
-  if (s === 'active' || s === 'completed' || s === 'posted' || s === 'delivered') {
+  if (
+    s === 'active' ||
+    s === 'completed' ||
+    s === 'posted' ||
+    s === 'delivered' ||
+    s === 'confirmed' ||
+    s === 'shipped'
+  ) {
     return 'bg-gradient-success';
   }
-  if (s === 'pending' || s === 'draft' || s === 'placed') return 'bg-gradient-warning';
-  if (s === 'cancelled' || s === 'void' || s === 'refunded') return 'bg-gradient-danger';
+  if (
+    s === 'pending' ||
+    s === 'draft' ||
+    s === 'placed' ||
+    s === 'processing' ||
+    s === 'on-hold' ||
+    s === 'checkout-draft' ||
+    s === 'auto-draft'
+  ) {
+    return 'bg-gradient-warning';
+  }
+  if (
+    s === 'cancelled' ||
+    s === 'canceled' ||
+    s === 'void' ||
+    s === 'refunded' ||
+    s === 'failed' ||
+    s === 'trash'
+  ) {
+    return 'bg-gradient-danger';
+  }
   return 'bg-gradient-secondary';
+};
+
+const formatWebsiteStatusLabel = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
+const getOrderWebsiteStatus = (row) => {
+  const raw = row?.order_website_status ?? row?.orderWebsiteStatus ?? '';
+  const s = String(raw ?? '').trim();
+  return s || '';
 };
 
 /**
@@ -368,7 +454,12 @@ const statusBadgeClass = (status) => {
  *     showFetchSyncToolbar?: boolean,
  *     showRowSyncButton?: boolean,
  *     showIntegrationColumn?: boolean,
+ *     showIntegrationFilter?: boolean,
+ *     showOrderTypeFilter?: boolean,
+ *     showOrderStatusFilter?: boolean,
  *     showTrackingColumn?: boolean,
+ *     showWebsiteStatusColumn?: boolean,
+ *     showStatusChangeModal?: boolean,
  *     showDeletedTab?: boolean,
  *     viewReadOnly?: boolean,
  *     listPath?: string,
@@ -387,7 +478,12 @@ export default function OrdersListPage({ config }) {
     showFetchSyncToolbar = false,
     showRowSyncButton = false,
     showIntegrationColumn = false,
+    showIntegrationFilter = false,
+    showOrderTypeFilter = false,
+    showOrderStatusFilter = false,
     showTrackingColumn = false,
+    showWebsiteStatusColumn = false,
+    showStatusChangeModal = false,
     showDeletedTab = false,
     viewReadOnly = false,
     topSummaryName = '',
@@ -418,7 +514,14 @@ export default function OrdersListPage({ config }) {
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
   const [shipmentModal, setShipmentModal] = useState({ open: false, orderId: '', orderNo: '' });
+  const [statusModal, setStatusModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
+    currentStatus: '',
+  });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
+  const [statusOverrides, setStatusOverrides] = useState({});
   const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
     open: false,
     orderId: '',
@@ -428,10 +531,27 @@ export default function OrdersListPage({ config }) {
     customerName: '',
     city: '',
   });
+  const [trackingStatusModal, setTrackingStatusModal] = useState({
+    open: false,
+    orderId: '',
+    trackingId: '',
+    orderNo: '',
+    provider: '',
+  });
   const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
+  const [showFilters, setShowFilters] = useState(
+    Boolean(
+      filters.startDate ||
+        filters.endDate ||
+        filters.integrationId ||
+        filters.orderType ||
+        filters.orderStatus
+    )
+  );
   const [showDeleted, setShowDeleted] = useState(false);
+  const [integrations, setIntegrations] = useState([]);
+  const [integrationsStatus, setIntegrationsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
   const isDeletedView = Boolean(showDeletedTab && showDeleted);
   const canViewOrder = canEdit || isDeletedView || viewReadOnly;
@@ -440,15 +560,46 @@ export default function OrdersListPage({ config }) {
     let cols = ORDER_COLUMNS;
     if (!showIntegrationColumn) cols = cols.filter((col) => col.key !== 'integration');
     if (!showTrackingColumn) cols = cols.filter((col) => col.key !== 'tracking');
+    if (!showWebsiteStatusColumn) cols = cols.filter((col) => col.key !== 'order_website_status');
     return cols;
-  }, [showIntegrationColumn, showTrackingColumn]);
+  }, [showIntegrationColumn, showTrackingColumn, showWebsiteStatusColumn]);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     permissionModule,
     orderColumns
   );
 
-  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
+  const activeFilterCount =
+    (filters.startDate ? 1 : 0) +
+    (filters.endDate ? 1 : 0) +
+    (filters.integrationId ? 1 : 0) +
+    (filters.orderType ? 1 : 0) +
+    (filters.orderStatus ? 1 : 0);
+
+  useEffect(() => {
+    if (!showIntegrationFilter) return undefined;
+
+    let cancelled = false;
+    setIntegrationsStatus('loading');
+
+    fetchIntegrationsRequest()
+      .then((result) => {
+        if (cancelled) return;
+        const list = Array.isArray(result?.data) ? result.data : [];
+        setIntegrations(list);
+        setIntegrationsStatus('succeeded');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIntegrations([]);
+          setIntegrationsStatus('failed');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showIntegrationFilter]);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
@@ -456,6 +607,9 @@ export default function OrdersListPage({ config }) {
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.integrationId) params.integrationId = filters.integrationId;
+    if (filters.orderType) params.orderType = filters.orderType;
+    if (filters.orderStatus) params.orderStatus = filters.orderStatus;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -473,6 +627,9 @@ export default function OrdersListPage({ config }) {
     searchTerm,
     filters.startDate,
     filters.endDate,
+    filters.integrationId,
+    filters.orderType,
+    filters.orderStatus,
     sort.sortBy,
     sort.sortOrder,
     isDeletedView,
@@ -539,6 +696,18 @@ export default function OrdersListPage({ config }) {
     dispatch(clearDateFilters());
   };
 
+  const handleIntegrationFilterChange = (e) => {
+    dispatch(setIntegrationFilter(e.target.value));
+  };
+
+  const handleOrderTypeFilterChange = (e) => {
+    dispatch(setOrderTypeFilter(e.target.value));
+  };
+
+  const handleOrderStatusFilterChange = (e) => {
+    dispatch(setOrderStatusFilter(e.target.value));
+  };
+
   const buildExportParams = () => {
     const params = {};
     if (isDeletedView) {
@@ -549,6 +718,9 @@ export default function OrdersListPage({ config }) {
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.integrationId) params.integrationId = filters.integrationId;
+    if (filters.orderType) params.orderType = filters.orderType;
+    if (filters.orderStatus) params.orderStatus = filters.orderStatus;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -711,6 +883,8 @@ export default function OrdersListPage({ config }) {
     if (searchTerm) params.search = searchTerm;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.integrationId) params.integrationId = filters.integrationId;
+    if (filters.orderType) params.orderType = filters.orderType;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -728,6 +902,8 @@ export default function OrdersListPage({ config }) {
     searchTerm,
     filters.startDate,
     filters.endDate,
+    filters.integrationId,
+    filters.orderType,
     sort.sortBy,
     sort.sortOrder,
     isDeletedView,
@@ -739,6 +915,34 @@ export default function OrdersListPage({ config }) {
       return;
     }
     setShipmentModal({ open: true, orderId: String(orderId), orderNo: orderNo || '' });
+  };
+
+  const handleOpenStatusModal = (row) => {
+    const orderId = pickOrderDocumentId(row);
+    if (!orderId) {
+      toast.error('Could not change status: missing order id.');
+      return;
+    }
+    const orderNo = row?.order_no || row?.orderNo || '';
+    const override = statusOverrides[String(orderId)];
+    const currentStatus = override || orderDisplayStatus(row);
+    setStatusModal({
+      open: true,
+      orderId: String(orderId),
+      orderNo: orderNo || '',
+      currentStatus: currentStatus === '—' ? '' : String(currentStatus),
+    });
+  };
+
+  const handleStatusUpdated = ({ orderId, orderStatus } = {}) => {
+    if (orderId && orderStatus) {
+      setStatusOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: orderStatus,
+      }));
+    }
+    toast.success('Order status updated.');
+    refreshOrderList();
   };
 
   const handleOpenParcelBarcode = ({
@@ -763,6 +967,22 @@ export default function OrdersListPage({ config }) {
       provider: provider || '',
       customerName: customerName || '',
       city: city || '',
+    });
+  };
+
+  const handleOpenTrackingStatus = ({ orderId, trackingId, orderNo, provider } = {}) => {
+    const cn = String(trackingId || '').trim();
+    const oid = String(orderId || '').trim();
+    if (!cn && !oid) {
+      toast.error('No tracking id / order to check status.');
+      return;
+    }
+    setTrackingStatusModal({
+      open: true,
+      orderId: oid,
+      trackingId: cn,
+      orderNo: orderNo || '',
+      provider: provider || '',
     });
   };
 
@@ -1005,6 +1225,57 @@ export default function OrdersListPage({ config }) {
               <div className="card-body pt-0 px-3 pb-0">
                 <div className="orders-filter-panel" id={`${idPrefix}-filter-panel`}>
                   <div className="row g-3 align-items-end">
+                    {showIntegrationFilter ? (
+                      <div className="col-xl-3 col-md-4 col-sm-6">
+                        <label
+                          className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                          htmlFor={`${idPrefix}-integration-filter`}
+                        >
+                          Integration
+                        </label>
+                        <select
+                          id={`${idPrefix}-integration-filter`}
+                          className="form-select form-select-sm"
+                          value={filters.integrationId || ''}
+                          onChange={handleIntegrationFilterChange}
+                          disabled={integrationsStatus === 'loading'}
+                        >
+                          <option value="">All integrations</option>
+                          {integrations.map((item) => {
+                            const id = String(integrationIdFromRecord(item) || '');
+                            if (!id) return null;
+                            return (
+                              <option key={id} value={id}>
+                                {integrationFilterLabel(item)}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    ) : null}
+                    {showOrderTypeFilter ? (
+                      <div className="col-xl-3 col-md-4 col-sm-6">
+                        <label
+                          className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                          htmlFor={`${idPrefix}-order-type-filter`}
+                        >
+                          Order type
+                        </label>
+                        <select
+                          id={`${idPrefix}-order-type-filter`}
+                          className="form-select form-select-sm"
+                          value={filters.orderType || ''}
+                          onChange={handleOrderTypeFilterChange}
+                        >
+                          <option value="">All order types</option>
+                          {ORDER_TYPE_FILTER_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
                     <div className="col-xl-3 col-md-4 col-sm-6">
                       <label
                         className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
@@ -1035,7 +1306,7 @@ export default function OrdersListPage({ config }) {
                         onChange={(e) => setLocalEndDate(e.target.value)}
                       />
                     </div>
-                    <div className="col-xl-6 col-md-4 d-flex flex-wrap align-items-center gap-2">
+                    <div className="col-xl-3 col-md-4 d-flex flex-wrap align-items-center gap-2">
                       <button
                         type="button"
                         className="btn btn-primary btn-sm mb-0"
@@ -1110,11 +1381,6 @@ export default function OrdersListPage({ config }) {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('order_no', 'Order no')}
-                      {isVisible('channel') ? (
-                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
-                          Online/Offline
-                        </th>
-                      ) : null}
                       {showIntegrationColumn && isVisible('integration')
                         ? sortableTh('integration_order_id', 'Integration', 'list-col-truncate')
                         : null}
@@ -1134,6 +1400,14 @@ export default function OrdersListPage({ config }) {
                         ? sortableTh('order_items_total', 'Total', 'text-end list-col-amount')
                         : null}
                       {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                      {showWebsiteStatusColumn && isVisible('order_website_status')
+                        ? sortableTh('order_website_status', 'Website status')
+                        : null}
+                      {isVisible('channel') ? (
+                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Order type
+                        </th>
+                      ) : null}
                       {showTrackingColumn && isVisible('tracking') ? (
                         <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                           Tracking
@@ -1170,8 +1444,17 @@ export default function OrdersListPage({ config }) {
                           integrationRecord,
                           integrationOrderId
                         );
-                        const statusVal = orderDisplayStatus(item);
+                        const statusVal = (() => {
+                          const override = orderId ? statusOverrides[String(orderId)] : '';
+                          return override || orderDisplayStatus(item);
+                        })();
+                        const canChangeStatus =
+                          showStatusChangeModal && !isDeletedView && !viewReadOnly && (canEdit || canCreate);
+                        const websiteStatus = showWebsiteStatusColumn
+                          ? getOrderWebsiteStatus(item)
+                          : '';
                         const onlineChannel = isOnlineOrder(item);
+                        const orderType = getOrderType(item);
                         const rowKey = String(orderId || item._id || item.id || index);
                         const isRowLoading = editLoadingId === rowKey;
                         const isSyncing = syncingOrderId === rowKey;
@@ -1205,13 +1488,6 @@ export default function OrdersListPage({ config }) {
                                 orderNo
                               )}
                             </td>
-                            {isVisible('channel') ? (
-                              <td className="text-sm">
-                                <span className={`badge text-xxs ${channelBadgeClass(onlineChannel)}`}>
-                                  {onlineChannel ? 'Online' : 'Offline'}
-                                </span>
-                              </td>
-                            ) : null}
                             {showIntegrationColumn && isVisible('integration') ? (
                               <td className="text-sm">
                                 <OrderIntegrationMergedCell
@@ -1250,9 +1526,53 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                  {String(statusVal)}
-                                </span>
+                                {canChangeStatus && orderId ? (
+                                  <button
+                                    type="button"
+                                    className={`badge text-xxs border-0 ${statusBadgeClass(statusVal)}`}
+                                    style={{ cursor: 'pointer' }}
+                                    title="Change status"
+                                    onClick={() => handleOpenStatusModal(item)}
+                                  >
+                                    {String(statusVal)}
+                                  </button>
+                                ) : (
+                                  <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                    {String(statusVal)}
+                                  </span>
+                                )}
+                              </td>
+                            ) : null}
+                            {showWebsiteStatusColumn && isVisible('order_website_status') ? (
+                              <td className="text-sm">
+                                {websiteStatus ? (
+                                  <span
+                                    className={`badge text-xxs ${statusBadgeClass(websiteStatus)}`}
+                                    title={websiteStatus}
+                                  >
+                                    {formatWebsiteStatusLabel(websiteStatus)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted">—</span>
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('channel') ? (
+                              <td className="text-sm">
+                                {orderType ? (
+                                  <span
+                                    className={`badge text-xxs ${channelBadgeClass(
+                                      orderType.toLowerCase() !== 'offline'
+                                    )}`}
+                                    title={orderType}
+                                  >
+                                    {formatOrderTypeLabel(orderType)}
+                                  </span>
+                                ) : (
+                                  <span className={`badge text-xxs ${channelBadgeClass(onlineChannel)}`}>
+                                    {onlineChannel ? 'Online' : 'Offline'}
+                                  </span>
+                                )}
                               </td>
                             ) : null}
                             {showTrackingColumn && isVisible('tracking') ? (
@@ -1285,24 +1605,41 @@ export default function OrdersListPage({ config }) {
                                       <span className="text-xs text-muted">{trackingInfo.provider}</span>
                                     ) : null}
                                     {trackingInfo.trackingId ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-dark mb-0 px-2"
-                                        title="Print barcode for parcel"
-                                        onClick={() =>
-                                          handleOpenParcelBarcode({
-                                            orderId,
-                                            trackingId: trackingInfo.trackingId,
-                                            orderNo,
-                                            provider: trackingInfo.provider,
-                                            customerName:
-                                              customerName !== '—' ? customerName : '',
-                                            city: item.city || '',
-                                          })
-                                        }
-                                      >
-                                        Print barcode
-                                      </button>
+                                      <div className="d-flex flex-wrap gap-1">
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-info mb-0 px-2"
+                                          title="Get live tracking status"
+                                          onClick={() =>
+                                            handleOpenTrackingStatus({
+                                              orderId,
+                                              trackingId: trackingInfo.trackingId,
+                                              orderNo,
+                                              provider: trackingInfo.provider,
+                                            })
+                                          }
+                                        >
+                                          Get status
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-dark mb-0 px-2"
+                                          title="Print barcode for parcel"
+                                          onClick={() =>
+                                            handleOpenParcelBarcode({
+                                              orderId,
+                                              trackingId: trackingInfo.trackingId,
+                                              orderNo,
+                                              provider: trackingInfo.provider,
+                                              customerName:
+                                                customerName !== '—' ? customerName : '',
+                                              city: item.city || '',
+                                            })
+                                          }
+                                        >
+                                          Print barcode
+                                        </button>
+                                      </div>
                                     ) : null}
                                   </div>
                                 ) : (
@@ -1407,6 +1744,19 @@ export default function OrdersListPage({ config }) {
         </>
       ) : null}
 
+      {showStatusChangeModal ? (
+        <ChangeOrderStatusModal
+          open={statusModal.open}
+          orderId={statusModal.orderId}
+          orderNo={statusModal.orderNo}
+          currentStatus={statusModal.currentStatus}
+          onClose={() =>
+            setStatusModal({ open: false, orderId: '', orderNo: '', currentStatus: '' })
+          }
+          onSaved={handleStatusUpdated}
+        />
+      ) : null}
+
       {showTrackingColumn ? (
         <>
           <CreateShipmentModal
@@ -1433,6 +1783,22 @@ export default function OrdersListPage({ config }) {
                 provider: '',
                 customerName: '',
                 city: '',
+              })
+            }
+          />
+          <TrackingStatusModal
+            open={trackingStatusModal.open}
+            orderId={trackingStatusModal.orderId}
+            trackingId={trackingStatusModal.trackingId}
+            orderNo={trackingStatusModal.orderNo}
+            provider={trackingStatusModal.provider}
+            onClose={() =>
+              setTrackingStatusModal({
+                open: false,
+                orderId: '',
+                trackingId: '',
+                orderNo: '',
+                provider: '',
               })
             }
           />
