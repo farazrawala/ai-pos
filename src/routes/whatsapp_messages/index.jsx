@@ -11,14 +11,67 @@ import {
   setSort,
   setStatusFilter,
 } from '../../features/whatsappMessages/whatsappMessagesSlice.js';
-import { selectCompanyId } from '../../features/user/userSlice.js';
-import { formatDisplayApiUrl } from '../../config/apiConfig.js';
+import { createWhatsappMessageRequest } from '../../features/whatsappMessages/whatsappMessagesAPI.js';
+import {
+  fetchCompanyById,
+  getCompanyFromApiBody,
+} from '../../features/company/companyAPI.js';
+import { selectCompany, selectCompanyId, setCompany } from '../../features/user/userSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
+
+const DEFAULT_UNKNOWN_WHATSAPP_SETTINGS = {
+  daily_limit: 5,
+  usage: 0,
+  increase_daily: 1,
+};
+
+const WHATSAPP_NUMBER_PREFIX = '92';
+const WHATSAPP_NUMBER_MAX_LENGTH = 12;
+
+/** Digits only, always starts with 92, max 12 characters. */
+function normalizeWhatsappNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.startsWith(WHATSAPP_NUMBER_PREFIX)) {
+    return digits.slice(0, WHATSAPP_NUMBER_MAX_LENGTH);
+  }
+  if (!digits || WHATSAPP_NUMBER_PREFIX.startsWith(digits)) {
+    return WHATSAPP_NUMBER_PREFIX;
+  }
+  return `${WHATSAPP_NUMBER_PREFIX}${digits.replace(/^0+/, '')}`.slice(
+    0,
+    WHATSAPP_NUMBER_MAX_LENGTH
+  );
+}
+
+/** Read first `unknown_whatsapp_settings` entry from company (with schema defaults). */
+function pickUnknownWhatsappSettings(company) {
+  const raw =
+    company?.unknown_whatsapp_settings ?? company?.unknownWhatsappSettings ?? null;
+  const entry = Array.isArray(raw) ? raw[0] : raw;
+  if (!entry || typeof entry !== 'object') {
+    return { ...DEFAULT_UNKNOWN_WHATSAPP_SETTINGS };
+  }
+  const toNumber = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  return {
+    daily_limit: toNumber(
+      entry.daily_limit ?? entry.dailyLimit,
+      DEFAULT_UNKNOWN_WHATSAPP_SETTINGS.daily_limit
+    ),
+    usage: toNumber(entry.usage, DEFAULT_UNKNOWN_WHATSAPP_SETTINGS.usage),
+    increase_daily: toNumber(
+      entry.increase_daily ?? entry.increaseDaily,
+      DEFAULT_UNKNOWN_WHATSAPP_SETTINGS.increase_daily
+    ),
+  };
+}
 
 const formatStatus = (value) =>
   String(value || 'unknown')
@@ -63,29 +116,27 @@ const WhatsappMessages = () => {
   const dispatch = useDispatch();
   const { list, status, error, deleteStatus, pagination, search, statusFilter, sort } =
     useSelector((state) => state.whatsappMessages);
+  const companyId = useSelector(selectCompanyId);
+  const authCompany = useSelector(selectCompany);
   const { canDelete } = usePermissions('whatsapp-messages');
   useRequireModuleAccess('whatsapp-messages');
-  const companyId = useSelector(selectCompanyId);
-
-  const fetchRandomUrl = useMemo(() => {
-    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : '';
-    return formatDisplayApiUrl(`whatsapp_message/fetch-random${query}`);
-  }, [companyId]);
-
-  const markSentUrl = useMemo(() => {
-    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : '';
-    return formatDisplayApiUrl(`whatsapp_message/mark-sent/:id${query}`);
-  }, [companyId]);
-
-  const markNotAvailableUrl = useMemo(() => {
-    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : '';
-    return formatDisplayApiUrl(`whatsapp_message/mark-not-available/:id${query}`);
-  }, [companyId]);
 
   const [localSearch, setLocalSearch] = useState(search || '');
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [stoppingId, setStoppingId] = useState('');
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendForm, setSendForm] = useState({
+    number: WHATSAPP_NUMBER_PREFIX,
+    message: '',
+  });
+  const [sendErrors, setSendErrors] = useState({});
+  const [sending, setSending] = useState(false);
   const searchTimeoutRef = useRef(null);
+
+  const unknownWhatsappSettings = useMemo(
+    () => pickUnknownWhatsappSettings(authCompany),
+    [authCompany]
+  );
 
   const loadMessages = useCallback(() => {
     const params = {
@@ -112,6 +163,26 @@ const WhatsappMessages = () => {
   }, [loadMessages]);
 
   useEffect(() => {
+    if (!companyId) return undefined;
+    let cancelled = false;
+    fetchCompanyById(companyId)
+      .then((body) => {
+        if (cancelled) return;
+        const fetched = getCompanyFromApiBody(body);
+        if (!fetched) return;
+        dispatch(setCompany({ ...(authCompany || {}), ...fetched }));
+      })
+      .catch(() => {
+        /* keep existing company in session */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only re-fetch when companyId changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- authCompany used for merge only
+  }, [companyId, dispatch]);
+
+  useEffect(() => {
     setLocalSearch(search || '');
   }, [search]);
 
@@ -131,6 +202,49 @@ const WhatsappMessages = () => {
 
   const handleSort = (column, isDoubleClick = false) => {
     dispatch(setSort({ sortBy: isDoubleClick ? null : column }));
+  };
+
+  const openSendModal = () => {
+    setSendForm({ number: WHATSAPP_NUMBER_PREFIX, message: '' });
+    setSendErrors({});
+    setShowSendModal(true);
+  };
+
+  const closeSendModal = () => {
+    if (sending) return;
+    setShowSendModal(false);
+    setSendErrors({});
+  };
+
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+    const number = normalizeWhatsappNumber(sendForm.number);
+    const message = String(sendForm.message || '').trim();
+    const nextErrors = {};
+    if (!number.startsWith(WHATSAPP_NUMBER_PREFIX) || number.length < 3) {
+      nextErrors.number = 'Enter a valid WhatsApp number starting with 92.';
+    } else if (number.length > WHATSAPP_NUMBER_MAX_LENGTH) {
+      nextErrors.number = 'Number must be 12 digits or less.';
+    }
+    if (!message) nextErrors.message = 'Message is required.';
+    setSendErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSending(true);
+    try {
+      const result = await createWhatsappMessageRequest({
+        number,
+        message,
+      });
+      toast.success(result?.message || 'Message sent successfully.');
+      setShowSendModal(false);
+      setSendForm({ number: WHATSAPP_NUMBER_PREFIX, message: '' });
+      loadMessages();
+    } catch (err) {
+      toast.error(err?.message || err || 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleStopSending = async (item) => {
@@ -176,32 +290,16 @@ const WhatsappMessages = () => {
                 <div className="col-md-5">
                   <h5 className="mb-0">WhatsApp Messages</h5>
                   <p className="text-sm text-muted mb-0">Queued and delivered WhatsApp messages.</p>
-                  <div className="mt-2 p-2 bg-gray-100 border-radius-md">
-                    <span className="text-xs text-uppercase text-muted d-block mb-1">
-                      API endpoints
-                    </span>
-                    <code className="text-xs text-break d-block user-select-all mb-1">
-                      GET {fetchRandomUrl}
-                    </code>
-                    <code className="text-xs text-break d-block user-select-all mb-1">
-                      GET {markSentUrl}
-                    </code>
-                    <code className="text-xs text-break d-block user-select-all">
-                      GET {markNotAvailableUrl}
-                    </code>
-                    {companyId ? (
-                      <span className="text-xs text-muted d-block mt-1">
-                        Company ID: <code>{companyId}</code>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-warning d-block mt-1">
-                        Company ID not found in session.
-                      </span>
-                    )}
-                  </div>
                 </div>
                 <div className="col-md-7">
                   <div className="d-flex justify-content-md-end gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary mb-0"
+                      onClick={openSendModal}
+                    >
+                      Send message
+                    </button>
                     <select
                       className="form-select form-select-sm"
                       style={{ maxWidth: '180px' }}
@@ -227,6 +325,36 @@ const WhatsappMessages = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                  </div>
+                </div>
+              </div>
+              <div className="row g-2 mt-3">
+                <div className="col-sm-4">
+                  <div className="p-2 bg-gray-100 border-radius-md h-100">
+                    <span className="text-xs text-uppercase text-muted d-block mb-1">
+                      Daily Limit
+                    </span>
+                    <span className="text-sm mb-0 font-weight-bold">
+                      {unknownWhatsappSettings.daily_limit}
+                    </span>
+                  </div>
+                </div>
+                <div className="col-sm-4">
+                  <div className="p-2 bg-gray-100 border-radius-md h-100">
+                    <span className="text-xs text-uppercase text-muted d-block mb-1">Usage</span>
+                    <span className="text-sm mb-0 font-weight-bold">
+                      {unknownWhatsappSettings.usage}
+                    </span>
+                  </div>
+                </div>
+                <div className="col-sm-4">
+                  <div className="p-2 bg-gray-100 border-radius-md h-100">
+                    <span className="text-xs text-uppercase text-muted d-block mb-1">
+                      Increase Daily
+                    </span>
+                    <span className="text-sm mb-0 font-weight-bold">
+                      {unknownWhatsappSettings.increase_daily}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -414,6 +542,124 @@ const WhatsappMessages = () => {
           <div
             className="modal-backdrop fade show"
             onClick={() => setSelectedMessage(null)}
+            aria-hidden="true"
+          />
+        </>
+      ) : null}
+
+      {showSendModal ? (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block' }}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="whatsappSendMessageTitle"
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <form onSubmit={handleSendMessage}>
+                  <div className="modal-header">
+                    <h5 className="modal-title" id="whatsappSendMessageTitle">
+                      Send message
+                    </h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      aria-label="Close"
+                      onClick={closeSendModal}
+                      disabled={sending}
+                    />
+                  </div>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="whatsapp-send-number">
+                        Number
+                      </label>
+                      <input
+                        id="whatsapp-send-number"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={WHATSAPP_NUMBER_MAX_LENGTH}
+                        className={`form-control ${sendErrors.number ? 'is-invalid' : ''}`}
+                        value={sendForm.number}
+                        onChange={(e) => {
+                          const number = normalizeWhatsappNumber(e.target.value);
+                          setSendForm((prev) => ({ ...prev, number }));
+                          if (sendErrors.number) {
+                            setSendErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.number;
+                              return next;
+                            });
+                          }
+                        }}
+                        disabled={sending}
+                        autoFocus
+                      />
+                      {sendErrors.number ? (
+                        <div className="invalid-feedback">{sendErrors.number}</div>
+                      ) : null}
+                    </div>
+                    <div className="mb-0">
+                      <label className="form-label" htmlFor="whatsapp-send-message">
+                        Message
+                      </label>
+                      <textarea
+                        id="whatsapp-send-message"
+                        className={`form-control ${sendErrors.message ? 'is-invalid' : ''}`}
+                        rows={4}
+                        value={sendForm.message}
+                        onChange={(e) => {
+                          setSendForm((prev) => ({ ...prev, message: e.target.value }));
+                          if (sendErrors.message) {
+                            setSendErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.message;
+                              return next;
+                            });
+                          }
+                        }}
+                        disabled={sending}
+                        placeholder="Type your message…"
+                      />
+                      {sendErrors.message ? (
+                        <div className="invalid-feedback">{sendErrors.message}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary mb-0"
+                      onClick={closeSendModal}
+                      disabled={sending}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn-primary mb-0" disabled={sending}>
+                      {sending ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-1"
+                            role="status"
+                            aria-hidden="true"
+                          />
+                          Sending…
+                        </>
+                      ) : (
+                        'Send message'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div
+            className="modal-backdrop fade show"
+            onClick={closeSendModal}
             aria-hidden="true"
           />
         </>

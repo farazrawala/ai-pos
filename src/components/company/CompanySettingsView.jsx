@@ -63,6 +63,25 @@ import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { showToast } from '../../utils/toast.js';
 import GoogleAddressMapField from './GoogleAddressMapField.jsx';
 
+const WHATSAPP_NUMBER_MAX_LENGTH = 12;
+const WHATSAPP_NUMBER_PREFIX = '92';
+
+/** Digits only, always starts with 92, max 12 characters. */
+function normalizeWhatsappNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.startsWith(WHATSAPP_NUMBER_PREFIX)) {
+    return digits.slice(0, WHATSAPP_NUMBER_MAX_LENGTH);
+  }
+  // Keep prefix intact when the user backspaces into it.
+  if (!digits || WHATSAPP_NUMBER_PREFIX.startsWith(digits)) {
+    return WHATSAPP_NUMBER_PREFIX;
+  }
+  return `${WHATSAPP_NUMBER_PREFIX}${digits.replace(/^0+/, '')}`.slice(
+    0,
+    WHATSAPP_NUMBER_MAX_LENGTH
+  );
+}
+
 function applyCompanyToForm(company, setters) {
   if (!company) return;
   const {
@@ -79,6 +98,9 @@ function applyCompanyToForm(company, setters) {
   setForm({
     company_name: company.company_name || company.name || '',
     company_phone: company.company_phone || company.phone || '',
+    whatsapp_number: normalizeWhatsappNumber(
+      company.whatsapp_number || company.whatsappNumber || WHATSAPP_NUMBER_PREFIX
+    ),
     company_email: company.company_email || company.email || '',
     company_address: company.company_address || company.address || '',
     google_address: company.google_address || company.googleAddress || '',
@@ -118,6 +140,7 @@ export default function CompanySettingsView() {
   const [form, setForm] = useState({
     company_name: '',
     company_phone: '',
+    whatsapp_number: WHATSAPP_NUMBER_PREFIX,
     company_email: '',
     company_address: '',
     google_address: '',
@@ -348,6 +371,12 @@ export default function CompanySettingsView() {
     ) {
       next.company_email = 'Enter a valid email address.';
     }
+    const whatsappNumber = normalizeWhatsappNumber(form.whatsapp_number);
+    if (!whatsappNumber.startsWith(WHATSAPP_NUMBER_PREFIX)) {
+      next.whatsapp_number = 'Whatsapp Number must start with 92.';
+    } else if (whatsappNumber.length > WHATSAPP_NUMBER_MAX_LENGTH) {
+      next.whatsapp_number = 'Whatsapp Number must be 12 digits or less.';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -366,6 +395,7 @@ export default function CompanySettingsView() {
       const payload = {
         company_name: form.company_name.trim(),
         company_phone: form.company_phone.trim(),
+        whatsapp_number: normalizeWhatsappNumber(form.whatsapp_number),
         company_email: form.company_email.trim(),
         company_address: form.company_address.trim(),
         google_address: form.google_address.trim(),
@@ -1233,7 +1263,7 @@ export default function CompanySettingsView() {
                 </div>
 
                 <div className="row g-3">
-                  <div className="col-md-6">
+                  <div className="col-md-4">
                     <label className="company-label d-block" htmlFor="company-phone">
                       Phone
                     </label>
@@ -1249,7 +1279,36 @@ export default function CompanySettingsView() {
                     />
                   </div>
 
-                  <div className="col-md-6">
+                  <div className="col-md-4">
+                    <label className="company-label d-block" htmlFor="company-whatsapp-number">
+                      Whatsapp Number
+                    </label>
+                    <input
+                      id="company-whatsapp-number"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={WHATSAPP_NUMBER_MAX_LENGTH}
+                      className={`form-control company-control ${errors.whatsapp_number ? 'is-invalid' : ''}`}
+                      value={form.whatsapp_number}
+                      onChange={(e) => {
+                        const whatsapp_number = normalizeWhatsappNumber(e.target.value);
+                        setForm((prev) => ({ ...prev, whatsapp_number }));
+                        if (errors.whatsapp_number) {
+                          setErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.whatsapp_number;
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={companySaving || !companyId}
+                    />
+                    {errors.whatsapp_number ? (
+                      <div className="invalid-feedback">{errors.whatsapp_number}</div>
+                    ) : null}
+                  </div>
+
+                  <div className="col-md-4">
                     <label className="company-label d-block" htmlFor="company-email">
                       Email
                     </label>

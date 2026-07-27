@@ -764,6 +764,8 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   const fields = {};
   if (rest.company_name !== undefined) fields.company_name = String(rest.company_name).trim();
   if (rest.company_phone !== undefined) fields.company_phone = String(rest.company_phone).trim();
+  if (rest.whatsapp_number !== undefined)
+    fields.whatsapp_number = String(rest.whatsapp_number).trim();
   if (rest.company_email !== undefined) fields.company_email = String(rest.company_email).trim();
   if (rest.company_address !== undefined)
     fields.company_address = String(rest.company_address).trim();

@@ -87,3 +87,31 @@ export const deleteWhatsappMessageRequest = async (messageId) => {
     return { success: true };
   }
 };
+
+/**
+ * POST /whatsapp_message/create — create a WhatsApp message (Bearer auth).
+ */
+export const createWhatsappMessageRequest = async ({ number, message } = {}) => {
+  const digits = String(number || '').replace(/\D/g, '');
+  const text = String(message || '').trim();
+  if (!digits) throw new Error('Number is required');
+  if (!text) throw new Error('Message is required');
+
+  const url = `${BASE_URL}whatsapp_message/create`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ number: digits, message: text }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.error || `HTTP error! status: ${response.status}`
+    );
+  }
+  if (data && data.success === false) {
+    throw new Error(data.message || data.error || 'Failed to send message');
+  }
+  return data;
+};
