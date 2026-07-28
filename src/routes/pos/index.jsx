@@ -2201,16 +2201,42 @@ const Pos = () => {
 
               <div className="pos-section-label">Summary</div>
               <div className="pos-order-summary">
-                <div className="pos-field-row mb-2">
-                  <label htmlFor="pos-order-datetime">Date / time</label>
-                  <input
-                    id="pos-order-datetime"
-                    type="datetime-local"
-                    className="form-control form-control-sm"
-                    value={orderDateTime}
-                    onChange={(e) => setOrderDateTime(e.target.value)}
-                    aria-label="Order date and time"
-                  />
+                <div className="pos-field-row mb-2 pos-field-row--datetime">
+                  <label htmlFor="pos-order-date">Date / time</label>
+                  <div className="pos-datetime">
+                    <input
+                      id="pos-order-date"
+                      type="date"
+                      className="form-control form-control-sm pos-datetime__date"
+                      value={orderDateTime.slice(0, 10)}
+                      onChange={(e) => {
+                        const date = e.target.value || moment().format('YYYY-MM-DD');
+                        const time = orderDateTime.slice(11, 16) || moment().format('HH:mm');
+                        setOrderDateTime(`${date}T${time}`);
+                      }}
+                      aria-label="Order date"
+                    />
+                    <input
+                      id="pos-order-time"
+                      type="time"
+                      className="form-control form-control-sm pos-datetime__time"
+                      value={orderDateTime.slice(11, 16)}
+                      onChange={(e) => {
+                        const time = e.target.value || moment().format('HH:mm');
+                        const date = orderDateTime.slice(0, 10) || moment().format('YYYY-MM-DD');
+                        setOrderDateTime(`${date}T${time}`);
+                      }}
+                      aria-label="Order time"
+                    />
+                    <button
+                      type="button"
+                      className="pos-datetime__now"
+                      onClick={() => setOrderDateTime(nowDatetimeLocalValue())}
+                      title="Use current date and time"
+                    >
+                      Now
+                    </button>
+                  </div>
                 </div>
                 <div className="pos-field-row mb-2">
                   <label htmlFor="pos-shipping">Shipping</label>
