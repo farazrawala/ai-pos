@@ -97,6 +97,7 @@ import CourierIntegrationAdd from './routes/courier-integration/add.jsx';
 import CourierIntegrationEdit from './routes/courier-integration/edit.jsx';
 import ProcessIndex from './routes/process/index.jsx';
 import WhatsappMessages from './routes/whatsapp_messages/index.jsx';
+import WhatsappChatPage from './routes/whatsapp_chat/index.jsx';
 import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
 
@@ -202,6 +203,7 @@ const App = () => {
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
+          <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
@@ -339,6 +341,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
+          <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />

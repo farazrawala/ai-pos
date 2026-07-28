@@ -50,7 +50,7 @@ const normalizeListPayload = (result) => {
 };
 
 /**
- * GET /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by&skip=&limit=&search=&sortBy=&sortOrder=
+ * GET /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by&skip=&limit=&search=&product_id=&sortBy=&sortOrder=
  */
 export async function fetchStockMovementsRequest(params = {}) {
   const queryParams = new URLSearchParams();
@@ -67,6 +67,7 @@ export async function fetchStockMovementsRequest(params = {}) {
   }
   if (params.limit) queryParams.append('limit', String(params.limit));
   if (params.search) queryParams.append('search', String(params.search));
+  if (params.product_id) queryParams.append('product_id', String(params.product_id));
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
 

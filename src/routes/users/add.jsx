@@ -39,7 +39,7 @@ const AddUser = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    phone: '',
+    phone: '92',
     password: '',
     initial_balance: '0',
     status: 'active',
@@ -108,8 +108,8 @@ const AddUser = () => {
       nextErrors.phone = 'Phone is required';
     } else if (phoneDigits.length < 7) {
       nextErrors.phone = 'Enter a valid phone number (at least 7 digits)';
-    } else if (phoneDigits.length > 11) {
-      nextErrors.phone = 'Phone number must be 11 digits or less';
+    } else if (phoneDigits.length > 13) {
+      nextErrors.phone = 'Phone number must be 13 digits or less';
     }
     if (!form.password.trim()) nextErrors.password = 'Password is required';
     if (!Array.isArray(form.role) || form.role.length === 0)
@@ -335,13 +335,13 @@ const AddUser = () => {
                         id="user-add-phone"
                         type="tel"
                         inputMode="numeric"
-                        maxLength={11}
+                        maxLength={13}
                         className={`form-control user-form-control ${errors.phone ? 'is-invalid' : ''}`}
                         value={form.phone}
                         onChange={(e) =>
                           setForm((prev) => ({
                             ...prev,
-                            phone: digitsOnlyFromPhone(e.target.value).slice(0, 11),
+                            phone: digitsOnlyFromPhone(e.target.value).slice(0, 13),
                           }))
                         }
                         placeholder="Digits only"

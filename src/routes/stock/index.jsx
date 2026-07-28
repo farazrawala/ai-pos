@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchStockMovements,
   setSearch,
+  setProductId,
   setPage,
   setLimit,
   setSort,
@@ -18,13 +18,18 @@ import {
   getReferenceType,
   getCreatedByLabel,
 } from '../../features/stockMovement/stockMovementAPI.js';
+import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import StockTransferForm from '../../components/stock/StockTransferForm.jsx';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+
+const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
+const productOptionName = (p) => p?.name || p?.product_name || 'Product';
 
 const movementBadgeClass = (type) => {
   if (type === 'in') return 'bg-gradient-success';
@@ -34,33 +39,87 @@ const movementBadgeClass = (type) => {
 
 const StockListing = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const {
     list: data,
     status,
     error,
     pagination,
     search: searchTerm,
+    productId,
     sort,
   } = useSelector((state) => state.stockMovement);
-  const { canView, canCreate, canEdit } = usePermissions('stock');
+  const { canCreate, canEdit } = usePermissions('stock');
   useRequireModuleAccess('stock');
   const canTransfer = canCreate || canEdit;
 
   const loading = status === 'loading';
   const [showTransferForm, setShowTransferForm] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [products, setProducts] = useState([]);
+  const [productsStatus, setProductsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setProductsStatus('loading');
+    (async () => {
+      try {
+        const res = await fetchProductsRequest({ page: 1, limit: 2000 });
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        rows.sort((a, b) =>
+          String(productOptionName(a)).localeCompare(String(productOptionName(b)), undefined, {
+            sensitivity: 'base',
+          })
+        );
+        setProducts(rows);
+        setProductsStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Stock movement module] Failed to load products for filter', err);
+        setProducts([]);
+        setProductsStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const productOptions = useMemo(() => {
+    const rows = products
+      .map((p) => {
+        const id = productOptionId(p);
+        if (!id) return null;
+        const sku = p.sku || p.product_code || '';
+        return {
+          value: id,
+          label: productOptionName(p),
+          subLabel: sku || undefined,
+        };
+      })
+      .filter(Boolean);
+    return [{ value: '', label: 'All products' }, ...rows];
+  }, [products]);
 
   useEffect(() => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
+    if (productId) params.product_id = productId;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchStockMovements(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    productId,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -114,12 +173,21 @@ const StockListing = () => {
   const refreshList = useCallback(() => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
+    if (productId) params.product_id = productId;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
     dispatch(fetchStockMovements(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+  }, [
+    dispatch,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    productId,
+    sort.sortBy,
+    sort.sortOrder,
+  ]);
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -147,13 +215,29 @@ const StockListing = () => {
                       <code className="small">
                         GET
                         /inventory_movements/get-all-active?populate=product_id,warehouse_id,created_by
+                        {productId ? `&product_id=${productId}` : ''}
                       </code>
                     </p>
                   ) : null}
                 </div>
                 <div className="col-lg-7 col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '300px' }}>
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0 flex-wrap">
+                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
+                      <SearchableSelect
+                        options={productOptions}
+                        value={productId}
+                        placeholder="All products"
+                        disabled={loading || productsStatus === 'loading'}
+                        onChange={(next) => dispatch(setProductId(next))}
+                      />
+                      {productsStatus === 'loading' ? (
+                        <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
+                      ) : null}
+                    </div>
+                    <div
+                      className="input-group input-group-sm"
+                      style={{ maxWidth: '300px', flex: '1 1 200px' }}
+                    >
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>

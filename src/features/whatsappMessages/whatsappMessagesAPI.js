@@ -10,13 +10,35 @@ const getHeaders = () => {
 };
 
 const normalizeResponse = (result, params = {}) => {
-  const data = Array.isArray(result?.data)
+  const rawList = Array.isArray(result?.data)
     ? result.data
-    : Array.isArray(result?.whatsapp_messages)
-      ? result.whatsapp_messages
-      : Array.isArray(result)
-        ? result
-        : [];
+    : Array.isArray(result?.chats)
+      ? result.chats
+      : Array.isArray(result?.whatsapp_messages)
+        ? result.whatsapp_messages
+        : Array.isArray(result)
+          ? result
+          : [];
+
+  const data = rawList.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const populated =
+      row.whatsapp_message_id && typeof row.whatsapp_message_id === 'object'
+        ? row.whatsapp_message_id
+        : null;
+    const fromUserId = String(row.from_user_id ?? row.from ?? '').trim();
+    const toUserId = String(row.to_user_id ?? row.to ?? '').trim();
+    const number = fromUserId || row.number || populated?.number || '';
+    const status = row.status ?? populated?.status ?? '';
+    return {
+      ...row,
+      from_user_id: fromUserId || number,
+      to_user_id: toUserId,
+      number,
+      status,
+      message: row.message ?? populated?.message ?? '',
+    };
+  });
 
   if (result?.pagination && typeof result.pagination === 'object') {
     const pagination = result.pagination;
@@ -48,6 +70,7 @@ const normalizeResponse = (result, params = {}) => {
 
 export const fetchWhatsappMessagesRequest = async (params = {}) => {
   const queryParams = new URLSearchParams();
+  queryParams.append('type', params.type || 'sent');
   if (params.page && params.limit) {
     queryParams.append('skip', (params.page - 1) * params.limit);
   }
@@ -58,7 +81,7 @@ export const fetchWhatsappMessagesRequest = async (params = {}) => {
   if (params.status) queryParams.append('status', params.status);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}whatsapp_messages/get-all${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}chat/get-all${queryString ? `?${queryString}` : ''}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
 
   if (!response.ok) {
@@ -73,7 +96,7 @@ export const deleteWhatsappMessageRequest = async (messageId) => {
   const id = String(messageId || '').trim();
   if (!id) throw new Error('Message id is required');
 
-  const url = `${BASE_URL}whatsapp_message/delete/${encodeURIComponent(id)}`;
+  const url = `${BASE_URL}chat/delete/${encodeURIComponent(id)}`;
   const response = await fetch(url, { method: 'DELETE', headers: getHeaders() });
 
   if (!response.ok) {
@@ -89,9 +112,59 @@ export const deleteWhatsappMessageRequest = async (messageId) => {
 };
 
 /**
- * POST /whatsapp_message/create — create a WhatsApp message (Bearer auth).
+ * POST /chat/create/:pos_auth_token/swap — insert a chat message (swap direction).
+ * Auth token is in the URL path (also sent as Bearer for compatibility).
+ * Body: from_user_id (customer), to_user_id (company.whatsapp_number), message, whatsapp_time.
  */
-export const createWhatsappMessageRequest = async ({ number, message } = {}) => {
+export const createWhatsappMessageRequest = async ({
+  number,
+  message,
+  toUserId,
+  whatsappTime,
+} = {}) => {
+  const fromUserId = String(number || '').replace(/\D/g, '');
+  const toDigits = String(toUserId || '').replace(/\D/g, '');
+  const text = String(message || '').trim();
+  if (!fromUserId) throw new Error('Number is required');
+  if (!toDigits) throw new Error('Company WhatsApp number is required');
+  if (!text) throw new Error('Message is required');
+
+  const token =
+    typeof window === 'undefined' ? '' : String(localStorage.getItem('authToken') || '').trim();
+  if (!token) throw new Error('Auth token is required');
+
+  const url = `${BASE_URL}chat/create/${encodeURIComponent(token)}/swap`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      from_user_id: fromUserId,
+      to_user_id: toDigits,
+      message: text,
+      whatsapp_time: whatsappTime || new Date().toISOString(),
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.error || `HTTP error! status: ${response.status}`
+    );
+  }
+  if (data && data.success === false) {
+    throw new Error(data.message || data.error || 'Failed to create chat message');
+  }
+  return data;
+};
+
+/**
+ * POST /whatsapp_message/create — queue an outbound WhatsApp message (Bearer auth).
+ */
+export const createOutboundWhatsappMessageRequest = async ({ number, message } = {}) => {
   const digits = String(number || '').replace(/\D/g, '');
   const text = String(message || '').trim();
   if (!digits) throw new Error('Number is required');

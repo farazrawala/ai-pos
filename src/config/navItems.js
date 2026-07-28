@@ -80,6 +80,7 @@ export const NAV_ITEMS = [
   { to: '/expenses', label: 'Expenses', icon: FaCoins },
   { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
   { to: '/whatsapp-messages', label: 'WhatsApp messages', icon: FaWhatsapp },
+  { to: '/whatsapp-chat', label: 'WhatsApp chat', icon: FaWhatsapp },
   { to: '/logs', label: 'Logs', icon: FaClipboardList },
   { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane },
   { to: '/test-case', label: 'Test case runner', icon: FaFlask },

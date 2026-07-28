@@ -17,12 +17,17 @@ import {
   getCompanyFromApiBody,
 } from '../../features/company/companyAPI.js';
 import { selectCompany, selectCompanyId, setCompany } from '../../features/user/userSlice.js';
+import { getCompanyWhatsappNumber } from '../../features/whatsappChat/whatsappChatAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import { toast } from '../../utils/toast.js';
+import '../../components/common/devApiSources.css';
 
 const DEFAULT_UNKNOWN_WHATSAPP_SETTINGS = {
   daily_limit: 5,
@@ -137,6 +142,10 @@ const WhatsappMessages = () => {
     () => pickUnknownWhatsappSettings(authCompany),
     [authCompany]
   );
+  const companyWhatsappNumber = useMemo(
+    () => getCompanyWhatsappNumber(authCompany),
+    [authCompany]
+  );
 
   const loadMessages = useCallback(() => {
     const params = {
@@ -232,11 +241,21 @@ const WhatsappMessages = () => {
 
     setSending(true);
     try {
+      if (!companyWhatsappNumber) {
+        throw new Error(
+          'Company WhatsApp number is not set. Add it in Company settings.'
+        );
+      }
       const result = await createWhatsappMessageRequest({
         number,
         message,
+        toUserId: companyWhatsappNumber,
       });
-      toast.success(result?.message || 'Message sent successfully.');
+      if (result?.skipped) {
+        toast.info(result?.message || 'Message already exists (skipped).');
+      } else {
+        toast.success(result?.message || 'Message saved successfully.');
+      }
       setShowSendModal(false);
       setSendForm({ number: WHATSAPP_NUMBER_PREFIX, message: '' });
       loadMessages();
@@ -251,7 +270,9 @@ const WhatsappMessages = () => {
     const id = messageIdFromRecord(item);
     if (!id) return;
 
-    const displayNumber = formatWhatsappDisplayNumber(item.number);
+    const displayNumber = formatWhatsappDisplayNumber(
+      item.to_user_id || item.from_user_id || item.number
+    );
     const number = displayNumber === '—' ? 'this number' : displayNumber;
     if (
       !window.confirm(
@@ -279,6 +300,82 @@ const WhatsappMessages = () => {
   };
 
   const showActionsColumn = canDelete;
+
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const listParams = new URLSearchParams();
+    const page = pagination.page || 1;
+    const limit = pagination.limit || 25;
+    listParams.set('type', 'sent');
+    listParams.set('skip', String((page - 1) * limit));
+    listParams.set('limit', String(limit));
+    if (search) listParams.set('search', search);
+    if (sort.sortBy) {
+      listParams.set('sortBy', sort.sortBy);
+      if (sort.sortOrder) listParams.set('sortOrder', sort.sortOrder);
+    }
+    if (statusFilter) listParams.set('status', statusFilter);
+
+    const mapStatus = (s) => {
+      if (s === 'loading') return 'loading';
+      if (s === 'failed') return 'error';
+      if (s === 'succeeded') return 'success';
+      return 'pending';
+    };
+
+    const sources = [
+      {
+        key: 'list',
+        label: 'Messages list',
+        url: buildApiUrl(`chat/get-all?${listParams.toString()}`),
+        status: mapStatus(status),
+        durationMs: null,
+        error: status === 'failed' ? error : null,
+      },
+      {
+        key: 'create',
+        label: 'Insert chat (Send message)',
+        url: buildApiUrl('chat/create/:pos_auth_token/swap'),
+        status: sending ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'delete',
+        label: 'Stop sending (delete)',
+        url: buildApiUrl('chat/delete/:id'),
+        status: mapStatus(deleteStatus),
+        durationMs: null,
+        error: null,
+      },
+    ];
+
+    if (companyId) {
+      sources.push({
+        key: 'company',
+        label: 'Company (usage limits)',
+        url: buildApiUrl(`company/get/${encodeURIComponent(companyId)}`),
+        status: 'success',
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    return sources;
+  }, [
+    pagination.page,
+    pagination.limit,
+    search,
+    sort.sortBy,
+    sort.sortOrder,
+    statusFilter,
+    status,
+    error,
+    sending,
+    deleteStatus,
+    companyId,
+  ]);
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -376,8 +473,14 @@ const WhatsappMessages = () => {
                     <tr>
                       <th>S.No</th>
                       <ListSortableTh
-                        column="number"
-                        label="Number"
+                        column="from_user_id"
+                        label="From"
+                        sort={sort}
+                        onSort={handleSort}
+                      />
+                      <ListSortableTh
+                        column="to_user_id"
+                        label="To"
                         sort={sort}
                         onSort={handleSort}
                       />
@@ -401,7 +504,7 @@ const WhatsappMessages = () => {
                   <tbody>
                     {list.length === 0 ? (
                       <tr>
-                        <td colSpan={showActionsColumn ? 7 : 6} className="text-center text-sm p-4">
+                        <td colSpan={showActionsColumn ? 8 : 7} className="text-center text-sm p-4">
                           No WhatsApp messages found
                         </td>
                       </tr>
@@ -413,7 +516,12 @@ const WhatsappMessages = () => {
                         return (
                           <tr key={id}>
                             <td>{(pagination.page - 1) * pagination.limit + index + 1}</td>
-                            <td className="text-sm">{formatWhatsappDisplayNumber(item.number)}</td>
+                            <td className="text-sm">
+                              {formatWhatsappDisplayNumber(item.from_user_id)}
+                            </td>
+                            <td className="text-sm">
+                              {formatWhatsappDisplayNumber(item.to_user_id)}
+                            </td>
                             <td>
                               <button
                                 type="button"
@@ -476,6 +584,10 @@ const WhatsappMessages = () => {
               </ListDataTable>
             </div>
           </div>
+
+          {DEBUG ? (
+            <DevApiSourcesFooter sources={apiSources} className="mt-3" />
+          ) : null}
         </div>
       </div>
 
@@ -497,7 +609,9 @@ const WhatsappMessages = () => {
                       WhatsApp Message
                     </h5>
                     <span className="text-sm text-muted">
-                      {formatWhatsappDisplayNumber(selectedMessage.number)}
+                      From {formatWhatsappDisplayNumber(selectedMessage.from_user_id)}
+                      {' → '}
+                      To {formatWhatsappDisplayNumber(selectedMessage.to_user_id)}
                     </span>
                   </div>
                   <button

@@ -269,7 +269,7 @@ export const paginateGroupedProducts = (groups, page = 1, limit = 10) => {
 };
 
 /**
- * GET /warehouse_inventory/get-all-active?populate=product_id,warehouse_id&search=&sortBy=&sortOrder=
+ * GET /warehouse_inventory/get-all-active?populate=product_id,warehouse_id&search=&product_id=&sortBy=&sortOrder=
  */
 export async function fetchWarehouseInventoryRequest(params = {}) {
   const queryParams = new URLSearchParams();
@@ -281,6 +281,7 @@ export async function fetchWarehouseInventoryRequest(params = {}) {
   );
 
   if (params.search) queryParams.append('search', String(params.search));
+  if (params.product_id) queryParams.append('product_id', String(params.product_id));
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
 

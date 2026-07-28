@@ -33,6 +33,7 @@ import printersReducer from '../features/printers/printersSlice.js';
 import profitReportReducer from '../features/profitReport/profitReportSlice.js';
 import bigCommerceReducer from '../features/bigCommerce/bigCommerceSlice.js';
 import whatsappMessagesReducer from '../features/whatsappMessages/whatsappMessagesSlice.js';
+import whatsappChatReducer from '../features/whatsappChat/whatsappChatSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -71,6 +72,7 @@ const store = configureStore({
     profitReport: profitReportReducer,
     bigCommerce: bigCommerceReducer,
     whatsappMessages: whatsappMessagesReducer,
+    whatsappChat: whatsappChatReducer,
   },
 });
 

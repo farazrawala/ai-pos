@@ -86,6 +86,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/expenses': 'expenses',
   '/transactions': 'transactions',
   '/whatsapp-messages': 'whatsapp-messages',
+  '/whatsapp-chat': 'whatsapp-messages',
   '/logs': 'logs',
   '/company-cache': null,
   '/company-queues': null,

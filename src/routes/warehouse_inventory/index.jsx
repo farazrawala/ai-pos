@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchWarehouseInventory,
   setSearch,
+  setProductId,
   setPage,
   setLimit,
   setSort,
 } from '../../features/warehouseInventory/warehouseInventorySlice.js';
+import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
+
+const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
+const productOptionName = (p) => p?.name || p?.product_name || 'Product';
 
 const formatQty = (n) => {
   if (n == null || !Number.isFinite(Number(n))) return '—';
@@ -35,6 +41,7 @@ const WarehouseInventoryListing = () => {
     error,
     pagination,
     search: searchTerm,
+    productId,
     sort,
   } = useSelector((state) => state.warehouseInventory);
 
@@ -43,14 +50,60 @@ const WarehouseInventoryListing = () => {
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [products, setProducts] = useState([]);
+  const [productsStatus, setProductsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setProductsStatus('loading');
+    (async () => {
+      try {
+        const res = await fetchProductsRequest({ page: 1, limit: 2000 });
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        rows.sort((a, b) =>
+          String(productOptionName(a)).localeCompare(String(productOptionName(b)), undefined, {
+            sensitivity: 'base',
+          })
+        );
+        setProducts(rows);
+        setProductsStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Warehouse inventory] Failed to load products for filter', err);
+        setProducts([]);
+        setProductsStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const productOptions = useMemo(() => {
+    const rows = products
+      .map((p) => {
+        const id = productOptionId(p);
+        if (!id) return null;
+        const sku = p.sku || p.product_code || '';
+        return {
+          value: id,
+          label: productOptionName(p),
+          subLabel: sku || undefined,
+        };
+      })
+      .filter(Boolean);
+    return [{ value: '', label: 'All products' }, ...rows];
+  }, [products]);
+
+  useEffect(() => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
+    if (productId) params.product_id = productId;
     dispatch(fetchWarehouseInventory(params));
-  }, [dispatch, searchTerm]);
+  }, [dispatch, searchTerm, productId]);
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -119,19 +172,35 @@ const WarehouseInventoryListing = () => {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header">
               <div className="row align-items-center gy-2">
-                <div className="col-md-6">
+                <div className="col-md-5">
                   <h5 className="mb-0">Warehouse inventory</h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
                       <code className="small">
                         GET /warehouse_inventory/get-all-active?populate=product_id,warehouse_id
+                        {productId ? `&product_id=${productId}` : ''}
                       </code>
                     </p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
+                <div className="col-md-7">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
+                      <SearchableSelect
+                        options={productOptions}
+                        value={productId}
+                        placeholder="All products"
+                        disabled={loading || productsStatus === 'loading'}
+                        onChange={(next) => dispatch(setProductId(next))}
+                      />
+                      {productsStatus === 'loading' ? (
+                        <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
+                      ) : null}
+                    </div>
+                    <div
+                      className="input-group input-group-sm"
+                      style={{ maxWidth: '320px', flex: '1 1 200px' }}
+                    >
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>

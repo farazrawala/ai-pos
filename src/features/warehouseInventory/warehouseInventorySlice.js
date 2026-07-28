@@ -43,6 +43,7 @@ const initialState = {
   error: null,
   pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   search: '',
+  productId: '',
   sort: { sortBy: 'product_name', sortOrder: 'asc' },
 };
 
@@ -52,6 +53,10 @@ const warehouseInventorySlice = createSlice({
   reducers: {
     setSearch: (state, action) => {
       state.search = action.payload;
+      state.pagination.page = 1;
+    },
+    setProductId: (state, action) => {
+      state.productId = String(action.payload || '').trim();
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -101,5 +106,6 @@ const warehouseInventorySlice = createSlice({
   },
 });
 
-export const { setSearch, setPage, setLimit, setSort } = warehouseInventorySlice.actions;
+export const { setSearch, setProductId, setPage, setLimit, setSort } =
+  warehouseInventorySlice.actions;
 export default warehouseInventorySlice.reducer;
