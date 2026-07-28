@@ -28,6 +28,7 @@ import {
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { DEBUG } from '../../config/env.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
+import PosContinuousScanModal from './PosContinuousScanModal.jsx';
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
 
@@ -121,6 +122,7 @@ const PosProducts = ({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [hideLowStock, setHideLowStock] = useState(readStoredHideLowStock);
   const [statusFilter, setStatusFilter] = useState('active');
+  const [continuousScanOpen, setContinuousScanOpen] = useState(false);
   const searchInputRef = useRef(null);
   /** Latest search text — scanners fire Enter before React state catches up. */
   const productQueryRef = useRef(productQuery);
@@ -333,6 +335,17 @@ const PosProducts = ({
     [tryAddProductFromQuery, setProductQuery]
   );
 
+  const handleContinuousScan = useCallback(
+    async (code) => {
+      const result = await tryAddProductFromQuery(code);
+      if (result === 'not_found') {
+        toast.info(`No product for “${code}”`);
+      }
+      return result;
+    },
+    [tryAddProductFromQuery]
+  );
+
   return (
     <div className="col-lg-6 col-xl-7">
       <PosPaymentModal
@@ -340,93 +353,110 @@ const PosProducts = ({
         onPayNow={onPaymentComplete}
         onPayNowPrint={onPaymentCompletePrint}
       />
+      <PosContinuousScanModal
+        open={continuousScanOpen}
+        onClose={() => setContinuousScanOpen(false)}
+        onScan={handleContinuousScan}
+      />
       <div className="card shadow-sm pos-panel-card h-100 d-flex flex-column">
         <div className="pos-panel-header">
-          <h5>Products</h5>
-          <p>Search by name, code, SKU, or barcode — scan and press Enter to add</p>
+          <div className="pos-panel-header__row">
+            <div>
+              <h5>Products</h5>
+              <p>Search, filter, or scan barcodes into the cart</p>
+            </div>
+            <button
+              type="button"
+              className="pos-scan-btn"
+              onClick={() => setContinuousScanOpen(true)}
+              title="Open camera and keep scanning barcodes into the cart"
+              aria-label="Open continuous barcode scanner"
+            >
+              <NavIcon icon={FaBarcode} size={14} />
+              <span>Scan</span>
+            </button>
+          </div>
           {DEBUG ? (
-            <p className="text-sm mb-0 text-muted">
-              <code className="small">
+            <p className="pos-panel-header__debug mb-0">
+              <code>
                 {`GET /product/get-all-active-pos?search=&searchFields=${POS_PRODUCT_SEARCH_FIELDS}&status=${statusFilter}&category_id=`}
               </code>
             </p>
           ) : null}
         </div>
         <div className="pos-panel-body flex-grow-1 d-flex flex-column">
-          <div className="row g-2 mb-3 pos-search-bar">
-            <div className="col">
-              <div className="input-group">
-                <span className="input-group-text">
-                  <NavIcon icon={FaBarcode} size={14} className="text-muted" />
-                </span>
-                <input
-                  ref={searchInputRef}
-                  type="search"
-                  className="form-control"
-                  placeholder="Search or scan barcode — press Enter to add"
-                  value={productQuery}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    productQueryRef.current = next;
-                    setProductQuery(next);
-                  }}
-                  onKeyDown={handleSearchKeyDown}
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-label="Search products by name, code, SKU, or barcode"
-                />
-              </div>
+          <div className="pos-products-toolbar">
+            <div className="pos-products-toolbar__search">
+              <span className="pos-products-toolbar__icon" aria-hidden="true">
+                <NavIcon icon={FaBarcode} size={14} />
+              </span>
+              <input
+                ref={searchInputRef}
+                type="search"
+                className="pos-products-toolbar__input"
+                placeholder="Name, SKU, or barcode — Enter to add"
+                value={productQuery}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  productQueryRef.current = next;
+                  setProductQuery(next);
+                }}
+                onKeyDown={handleSearchKeyDown}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Search products by name, code, SKU, or barcode"
+              />
             </div>
-            <div className="col-auto" style={{ minWidth: 160 }}>
-              <select
-                className="form-select"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                disabled={categoriesStatus === 'loading'}
-                title={categoriesError || undefined}
-                aria-label="Filter products by category"
-              >
-                <option value="All">All categories</option>
-                {categories.map((c) => {
-                  const id = String(c._id ?? c.id ?? '');
-                  if (!id) return null;
-                  const label = c.name || c.title || c.category_name || 'Category';
-                  return (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div className="col-auto" style={{ minWidth: 130 }}>
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Filter products by status"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-          </div>
 
-          <div className="form-check mb-3">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="posHideLowStock"
-              checked={hideLowStock}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setHideLowStock(next);
-                persistHideLowStock(next);
-              }}
-            />
-            <label className="form-check-label text-sm" htmlFor="posHideLowStock">
-              Remove stock with less than 1
+            <div className="pos-products-toolbar__filters">
+              <label className="pos-products-toolbar__field">
+                <span>Category</span>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  disabled={categoriesStatus === 'loading'}
+                  title={categoriesError || undefined}
+                  aria-label="Filter products by category"
+                >
+                  <option value="All">All categories</option>
+                  {categories.map((c) => {
+                    const id = String(c._id ?? c.id ?? '');
+                    if (!id) return null;
+                    const label = c.name || c.title || c.category_name || 'Category';
+                    return (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <label className="pos-products-toolbar__field">
+                <span>Status</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter products by status"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="pos-products-toolbar__check" htmlFor="posHideLowStock">
+              <input
+                type="checkbox"
+                id="posHideLowStock"
+                checked={hideLowStock}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setHideLowStock(next);
+                  persistHideLowStock(next);
+                }}
+              />
+              <span>Hide stock below 1</span>
             </label>
           </div>
 
