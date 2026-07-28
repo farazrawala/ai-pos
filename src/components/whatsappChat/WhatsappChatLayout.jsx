@@ -8,6 +8,7 @@ import {
   selectContact,
   clearSelectedContact,
   appendOptimisticMessage,
+  patchMessageById,
   markContactRead,
 } from '../../features/whatsappChat/whatsappChatSlice.js';
 import { createOutboundWhatsappMessageRequest } from '../../features/whatsappMessages/whatsappMessagesAPI.js';
@@ -181,7 +182,10 @@ export default function WhatsappChatLayout() {
         number: selectedContact.phone,
         message: text,
       });
+      // Create API queues the message as SENT — swap pending clock for ticks.
+      dispatch(patchMessageById({ id: tempId, patch: { status: 'sent' } }));
     } catch (err) {
+      dispatch(patchMessageById({ id: tempId, patch: { status: 'failed' } }));
       toast.error(err?.message || 'Failed to send message');
     } finally {
       setSending(false);
@@ -223,7 +227,6 @@ export default function WhatsappChatLayout() {
         number: String(selectedContact.phone),
         page: String(chatPage || 1),
         limit: '50',
-        populate: 'whatsapp_message_id',
       });
       sources.push({
         key: 'chat',

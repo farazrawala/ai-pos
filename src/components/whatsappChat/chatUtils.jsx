@@ -60,16 +60,27 @@ export function groupMessagesByDate(messages) {
 }
 
 export function deliveryTicks(status) {
-  const s = String(status || '').toLowerCase();
+  const s = String(status || '').toLowerCase().replace(/[\s_-]/g, '');
   if (s === 'read') return { kind: 'ticks', text: '✓✓', className: 'wa-ticks read', title: 'Read' };
   if (s === 'delivered') {
     return { kind: 'ticks', text: '✓✓', className: 'wa-ticks', title: 'Delivered' };
   }
-  if (s === 'sent') {
+  if (s === 'sent' || s === 'success' || s === 'completed') {
     return { kind: 'ticks', text: '✓✓', className: 'wa-ticks', title: 'Sent' };
   }
-  if (s === 'not_started' || s === 'pending' || s === 'queued') {
-    return { kind: 'icon', icon: 'clock', className: 'wa-ticks wa-ticks-pending', title: 'Not started' };
+  if (
+    s === 'notstarted' ||
+    s === 'pending' ||
+    s === 'queued' ||
+    s === 'inprocess' ||
+    s === 'inprogress' ||
+    s === 'processing' ||
+    s === 'sending'
+  ) {
+    return { kind: 'icon', icon: 'clock', className: 'wa-ticks wa-ticks-pending', title: 'Sending' };
+  }
+  if (s === 'failed' || s === 'error') {
+    return { kind: 'none', text: '', className: 'wa-ticks', title: 'Failed' };
   }
   return { kind: 'none', text: '', className: 'wa-ticks', title: '' };
 }

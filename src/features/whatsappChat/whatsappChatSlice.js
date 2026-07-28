@@ -122,6 +122,17 @@ const whatsappChatSlice = createSlice({
         state.chatCache[id].messages = state.messages;
       }
     },
+    patchMessageById: (state, action) => {
+      const { id, patch } = action.payload || {};
+      if (!id || !patch || typeof patch !== 'object') return;
+      const apply = (list) =>
+        list.map((m) => (String(m.id) === String(id) ? { ...m, ...patch } : m));
+      state.messages = apply(state.messages);
+      const contactId = state.selectedContactId;
+      if (contactId && state.chatCache[contactId]) {
+        state.chatCache[contactId].messages = state.messages;
+      }
+    },
     markContactRead: (state, action) => {
       const contactId = action.payload;
       state.contacts = state.contacts.map((c) =>
@@ -212,6 +223,7 @@ export const {
   selectContact,
   clearSelectedContact,
   appendOptimisticMessage,
+  patchMessageById,
   markContactRead,
 } = whatsappChatSlice.actions;
 

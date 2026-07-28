@@ -69,6 +69,15 @@ export function resolveMessageDirection(raw, ourNumber) {
     return 'incoming';
   }
 
+  // API uses type: "sent" | "received" (not media type).
+  const typeHint = String(raw?.type ?? '').toLowerCase();
+  if (['sent', 'outgoing', 'outbound', 'out'].includes(typeHint)) {
+    return 'outgoing';
+  }
+  if (['received', 'incoming', 'inbound', 'in'].includes(typeHint)) {
+    return 'incoming';
+  }
+
   if (
     raw?.fromMe === true ||
     raw?.from_me === true ||
@@ -210,14 +219,25 @@ function normalizeMessage(raw, ourNumber = '') {
     'recipient_number',
   ]);
   const direction = resolveMessageDirection(raw, ourNumber);
-  const type = String(raw.type || 'text').toLowerCase();
+  const rawType = String(raw.type || '').toLowerCase();
+  // API `type` is sent/received; media/content type lives on message_type when present.
+  const type = ['sent', 'received', 'outgoing', 'incoming'].includes(rawType)
+    ? String(raw.message_type || raw.media_type || 'text').toLowerCase() || 'text'
+    : rawType || 'text';
   const populatedMsg =
     raw.whatsapp_message_id && typeof raw.whatsapp_message_id === 'object'
       ? raw.whatsapp_message_id
       : null;
-  const status = String(
-    populatedMsg?.status ?? raw.status ?? raw.message_status ?? ''
+  // Delivery ticks use sending_status (sent / not_started / inprocess / …).
+  const sendingStatus = String(
+    raw.sending_status ??
+      populatedMsg?.sending_status ??
+      populatedMsg?.status ??
+      raw.status ??
+      raw.message_status ??
+      ''
   ).toLowerCase();
+  const resolvedStatus = sendingStatus || (direction === 'outgoing' ? 'not_started' : 'sent');
   return {
     id,
     direction,
@@ -228,7 +248,8 @@ function normalizeMessage(raw, ourNumber = '') {
     mediaUrl: raw.mediaUrl || raw.media_url || raw.url || raw.file_url || '',
     fileName: raw.fileName || raw.file_name || raw.filename || '',
     timestamp: raw.timestamp || raw.createdAt || raw.whatsapp_time || null,
-    status: status || 'not_started',
+    status: resolvedStatus,
+    sendingStatus: resolvedStatus,
     unread: Boolean(raw.unread ?? raw.is_unread ?? false),
     latitude: raw.latitude ?? raw.lat ?? null,
     longitude: raw.longitude ?? raw.lng ?? null,
@@ -279,7 +300,7 @@ export async function searchWhatsappContactsRequest(q) {
 }
 
 /**
- * GET /chat/get-all?number=&populate=whatsapp_message_id
+ * GET /chat/get-all?number=&page=&limit=
  * Messages are returned oldest→newest for display.
  * Pass `ourNumber` (company.whatsapp_number) so sent messages align as outgoing.
  */
@@ -294,7 +315,6 @@ export async function fetchWhatsappChatRequest(
     number: phone,
     page: String(page),
     limit: String(limit),
-    populate: 'whatsapp_message_id',
   });
   const url = `${BASE_URL}chat/get-all?${params.toString()}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
