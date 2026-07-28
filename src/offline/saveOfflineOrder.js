@@ -91,7 +91,10 @@ export async function saveOfflineOrder({ payload, cartSnapshot, warehouseId = ''
     payload: orderPayload,
     cart_snapshot: Array.isArray(cartSnapshot) ? cartSnapshot : [],
     status: PENDING_ORDER_STATUS.PENDING,
-    created_at: new Date().toISOString(),
+    created_at:
+      orderPayload.createdAt && String(orderPayload.createdAt).trim() !== ''
+        ? String(orderPayload.createdAt).trim()
+        : new Date().toISOString(),
   });
 
   return {

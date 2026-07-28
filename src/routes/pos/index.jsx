@@ -107,6 +107,23 @@ function persistCartDisplayOrder(order) {
   }
 }
 
+/** Value for `<input type="datetime-local">` (local wall clock). */
+function nowDatetimeLocalValue() {
+  return moment().format('YYYY-MM-DDTHH:mm');
+}
+
+/** Normalize stored / ISO values into `datetime-local` input format. */
+function toDatetimeLocalValue(raw) {
+  if (raw == null || String(raw).trim() === '') return nowDatetimeLocalValue();
+  const m = moment(raw);
+  return m.isValid() ? m.format('YYYY-MM-DDTHH:mm') : nowDatetimeLocalValue();
+}
+
+function formatPosOrderDateTime(raw) {
+  const m = moment(raw);
+  return m.isValid() ? m.format('D MMM YYYY, h:mm a') : moment().format('D MMM YYYY, h:mm a');
+}
+
 function defaultDraftLabel(total = 0) {
   const amount = Number(total);
   const totalLabel = Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
@@ -209,6 +226,7 @@ function buildThermalReceiptFromCart({
   invoiceNo,
   publicUrl,
   companyName,
+  orderDateTime,
 }) {
   const discountPct = Number(extraDiscountPercentNum) || 0;
   const resolvedDiscountPct =
@@ -239,7 +257,7 @@ function buildThermalReceiptFromCart({
   return {
     shopName: companyName || shopName,
     invoiceNo: invoiceNo || '—',
-    invoiceDate: moment().format('D MMM YYYY, h:mm a'),
+    invoiceDate: formatPosOrderDateTime(orderDateTime),
     paymentMethod: payment?.paymentMethod || '—',
     paymentStatus: balanceDue <= 0 ? 'Paid' : 'Partial',
     billTo: {
@@ -695,6 +713,7 @@ const Pos = () => {
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const [categoriesError, setCategoriesError] = useState(null);
   const [shipping, setShipping] = useState('');
+  const [orderDateTime, setOrderDateTime] = useState(nowDatetimeLocalValue);
   const [extraDiscount, setExtraDiscount] = useState('');
   const [extraDiscountPercent, setExtraDiscountPercent] = useState('');
   const discountEditSourceRef = useRef(null);
@@ -1312,6 +1331,9 @@ const Pos = () => {
         posPayMethod: payment?.paymentMethodId || undefined,
         payment_method_id: payment?.paymentMethodId || undefined,
         customer_id: selectedCustomerId || undefined,
+        createdAt: moment(orderDateTime).isValid()
+          ? moment(orderDateTime).toISOString()
+          : moment().toISOString(),
       };
 
       const cartSnapshot = linesForSave.map((line) => ({ ...line }));
@@ -1362,6 +1384,7 @@ const Pos = () => {
       shippingNum,
       extraDiscountNum,
       extraDiscountPercentNum,
+      orderDateTime,
       defaultWarehouseId,
       isOnline,
       allowAddWhenStockInsufficient,
@@ -1433,6 +1456,7 @@ const Pos = () => {
   const clearCartAfterSale = useCallback(() => {
     setCartLines([]);
     setShipping('');
+    setOrderDateTime(nowDatetimeLocalValue());
     setExtraDiscount('');
     setExtraDiscountPercent('');
     discountEditSourceRef.current = null;
@@ -1467,12 +1491,13 @@ const Pos = () => {
       cartLines,
       selectedCustomerId,
       shipping,
+      orderDateTime,
       extraDiscount,
       extraDiscountPercent,
       grandTotal,
       savedAt: new Date().toISOString(),
     }),
-    [cartLines, selectedCustomerId, shipping, extraDiscount, extraDiscountPercent, grandTotal]
+    [cartLines, selectedCustomerId, shipping, orderDateTime, extraDiscount, extraDiscountPercent, grandTotal]
   );
 
   const handleSaveDraft = useCallback(async () => {
@@ -1530,6 +1555,7 @@ const Pos = () => {
       setSelectedCustomerId(String(data.selectedCustomerId));
     }
     setShipping(data.shipping != null ? String(data.shipping) : '');
+    setOrderDateTime(toDatetimeLocalValue(data.orderDateTime ?? data.createdAt));
     setExtraDiscount(data.extraDiscount != null ? String(data.extraDiscount) : '');
     setExtraDiscountPercent(
       data.extraDiscountPercent != null ? String(data.extraDiscountPercent) : ''
@@ -1673,6 +1699,7 @@ const Pos = () => {
           invoiceNo,
           publicUrl,
           companyName: brand.name,
+          orderDateTime,
         });
         const cashierName = resolveBillCurrentUserName(authUser, null, authUserName);
         if (cashierName) {
@@ -1739,6 +1766,7 @@ const Pos = () => {
       extraDiscountNum,
       extraDiscountPercentNum,
       grandTotal,
+      orderDateTime,
       printerSettings,
       defaultPrinterSettings,
       companyBrand,
@@ -2173,6 +2201,17 @@ const Pos = () => {
 
               <div className="pos-section-label">Summary</div>
               <div className="pos-order-summary">
+                <div className="pos-field-row mb-2">
+                  <label htmlFor="pos-order-datetime">Date / time</label>
+                  <input
+                    id="pos-order-datetime"
+                    type="datetime-local"
+                    className="form-control form-control-sm"
+                    value={orderDateTime}
+                    onChange={(e) => setOrderDateTime(e.target.value)}
+                    aria-label="Order date and time"
+                  />
+                </div>
                 <div className="pos-field-row mb-2">
                   <label htmlFor="pos-shipping">Shipping</label>
                   <input

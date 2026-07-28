@@ -1672,6 +1672,9 @@ export async function createPosOrderRequest(payload = {}) {
   if (payload.client_order_id != null && String(payload.client_order_id).trim() !== '') {
     form.append('client_order_id', String(payload.client_order_id).trim());
   }
+  if (payload.createdAt != null && String(payload.createdAt).trim() !== '') {
+    form.append('createdAt', String(payload.createdAt).trim());
+  }
 
   const response = await fetch(`${BASE_URL}order/order_save`, {
     method: 'POST',
