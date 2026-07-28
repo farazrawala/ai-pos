@@ -2065,68 +2065,78 @@ const Pos = () => {
                 })()}
               </div>
 
-              <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
-                <div className="pos-section-label mb-0">
-                  Cart
-                  <span className="pos-cart-total-qty ms-2" title="Total quantity in cart">
-                    Total qty: {formatPosQtyLabel(cartTotalQty)}
-                  </span>
+              <div className="pos-cart-shell">
+                <div className="pos-cart-toolbar">
+                  <div className="pos-cart-toolbar__left">
+                    <span className="pos-cart-toolbar__title">Cart</span>
+                    <span
+                      className="pos-cart-toolbar__qty"
+                      title="Total quantity in cart"
+                    >
+                      <strong>{formatPosQtyLabel(cartTotalQty)}</strong>
+                      <span>qty</span>
+                    </span>
+                    {cartLines.length > 0 ? (
+                      <span className="pos-cart-toolbar__lines">
+                        {cartLines.length} {cartLines.length === 1 ? 'line' : 'lines'}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="pos-cart-toolbar__actions">
+                    <div
+                      className="pos-segment"
+                      role="group"
+                      aria-label="Cart display order"
+                    >
+                      <button
+                        type="button"
+                        className={`pos-segment__btn${
+                          cartDisplayOrder === POS_CART_ORDER_FIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => setCartOrderMode(POS_CART_ORDER_FIFO)}
+                        title="First in, first out — oldest products at the top"
+                        aria-pressed={cartDisplayOrder === POS_CART_ORDER_FIFO}
+                      >
+                        FIFO
+                      </button>
+                      <button
+                        type="button"
+                        className={`pos-segment__btn${
+                          cartDisplayOrder === POS_CART_ORDER_LIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => setCartOrderMode(POS_CART_ORDER_LIFO)}
+                        title="Last in, first out — newest products at the top"
+                        aria-pressed={cartDisplayOrder === POS_CART_ORDER_LIFO}
+                      >
+                        LIFO
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="pos-toolbar-action"
+                      onClick={handleOpenDrafts}
+                      disabled={!isOnline}
+                      title={
+                        isOnline
+                          ? 'View saved draft orders'
+                          : 'Connect to the internet to load drafts'
+                      }
+                    >
+                      <NavIcon icon={FaListUl} size={11} />
+                      <span>Drafts</span>
+                      {draftOrders.length > 0 ? (
+                        <span className="pos-toolbar-action__count">{draftOrders.length}</span>
+                      ) : null}
+                    </button>
+                  </div>
                 </div>
-                <div
-                  className="btn-group btn-group-sm pos-cart-order-toggle"
-                  role="group"
-                  aria-label="Cart display order"
-                >
-                  <button
-                    type="button"
-                    className={`btn ${
-                      cartDisplayOrder === POS_CART_ORDER_FIFO
-                        ? 'btn-primary'
-                        : 'btn-outline-secondary'
-                    }`}
-                    onClick={() => setCartOrderMode(POS_CART_ORDER_FIFO)}
-                    title="First in, first out — oldest products at the top"
-                    aria-pressed={cartDisplayOrder === POS_CART_ORDER_FIFO}
-                  >
-                    FIFO
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${
-                      cartDisplayOrder === POS_CART_ORDER_LIFO
-                        ? 'btn-primary'
-                        : 'btn-outline-secondary'
-                    }`}
-                    onClick={() => setCartOrderMode(POS_CART_ORDER_LIFO)}
-                    title="Last in, first out — newest products at the top"
-                    aria-pressed={cartDisplayOrder === POS_CART_ORDER_LIFO}
-                  >
-                    LIFO
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary pos-drafts-btn"
-                  onClick={handleOpenDrafts}
-                  disabled={!isOnline}
-                  title={
-                    isOnline
-                      ? 'View saved draft orders'
-                      : 'Connect to the internet to load drafts'
-                  }
-                >
-                  <NavIcon icon={FaListUl} size={12} className="me-1" />
-                  Drafts
-                  {draftOrders.length > 0 ? ` (${draftOrders.length})` : ''}
-                </button>
-              </div>
               <div className="pos-cart-header">
                 <div className="text-center">Sr</div>
                 <div>Product</div>
                 <div className="text-center">Qty</div>
                 <div className="text-end">Price</div>
                 <div className="text-end">Total</div>
-                <div aria-hidden="true" />
+                <div className="text-center" aria-hidden="true" />
               </div>
               <div className="pos-cart-body mb-3">
                 {cartLines.length === 0 ? (
@@ -2197,6 +2207,7 @@ const Pos = () => {
                     );
                   })
                 )}
+              </div>
               </div>
 
               <div className="pos-section-label">Summary</div>
