@@ -98,6 +98,11 @@ import CourierIntegrationEdit from './routes/courier-integration/edit.jsx';
 import ProcessIndex from './routes/process/index.jsx';
 import WhatsappMessages from './routes/whatsapp_messages/index.jsx';
 import WhatsappChatPage from './routes/whatsapp_chat/index.jsx';
+import SupportList from './routes/support/SupportList.jsx';
+import CreateTicket from './routes/support/CreateTicket.jsx';
+import TicketDetails from './routes/support/TicketDetails.jsx';
+import AdminTicketList from './routes/support/admin/AdminTicketList.jsx';
+import AdminTicketDetails from './routes/support/admin/AdminTicketDetails.jsx';
 import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
 
@@ -204,6 +209,11 @@ const App = () => {
           <Route path="/logs" element={<Logs />} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
+          <Route path="/support" element={<SupportList />} />
+          <Route path="/support/new" element={<CreateTicket />} />
+          <Route path="/support/:id" element={<TicketDetails />} />
+          <Route path="/admin/support" element={<AdminTicketList />} />
+          <Route path="/admin/support/:id" element={<AdminTicketDetails />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
@@ -342,6 +352,11 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/logs" element={<Logs />} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
+          <Route path="/support" element={<SupportList />} />
+          <Route path="/support/new" element={<CreateTicket />} />
+          <Route path="/support/:id" element={<TicketDetails />} />
+          <Route path="/admin/support" element={<AdminTicketList />} />
+          <Route path="/admin/support/:id" element={<AdminTicketDetails />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />

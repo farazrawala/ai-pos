@@ -25,6 +25,7 @@ import {
   FaFileLines,
   FaFolder,
   FaGear,
+  FaHeadset,
   FaLandmark,
   FaLaptop,
   FaLayerGroup,
@@ -42,6 +43,7 @@ import {
   FaSliders,
   FaStore,
   FaTags,
+  FaTicket,
   FaTrademark,
   FaTruck,
   FaTruckFast,
@@ -150,6 +152,16 @@ export const NAV_ITEMS = [
     children: [
       { to: '/whatsapp-messages', label: 'WhatsApp messages', icon: FaEnvelope },
       { to: '/whatsapp-chat', label: 'WhatsApp chat', icon: FaComments },
+    ],
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    icon: FaHeadset,
+    children: [
+      { to: '/support', label: 'My tickets', icon: FaClipboardList },
+      { to: '/support/new', label: 'Create ticket', icon: FaTicket },
+      { to: '/admin/support', label: 'Ticket management', icon: FaClipboardList, adminOnly: true },
     ],
   },
   {
