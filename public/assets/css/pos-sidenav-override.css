@@ -133,6 +133,11 @@
   transform: none !important;
 }
 
+/* Keep sidebar navigation vertically scrollable without a horizontal scrollbar. */
+#sidenav-collapse-main {
+  overflow-x: hidden !important;
+}
+
 /* Navbar sidenav toggle (sits before the breadcrumb). */
 .navbar-sidenav-toggle {
   width: 2.25rem;

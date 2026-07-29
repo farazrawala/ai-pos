@@ -56,7 +56,8 @@ describe('filterNavItems admin access', () => {
       debug: false,
     });
     expect(items).toHaveLength(NAV_ITEMS.length);
-    expect(items.some((i) => i.to === '/profit-report')).toBe(true);
+    const accounts = items.find((i) => i.id === 'accounts');
+    expect(accounts?.children?.some((c) => c.to === '/profit-report')).toBe(true);
   });
 
   it('hides permission-gated items for non-admin without view', () => {
@@ -66,7 +67,21 @@ describe('filterNavItems admin access', () => {
       routePermissionModule: ROUTE_PERMISSION_MODULE,
       debug: false,
     });
-    expect(items.some((i) => i.to === '/profit-report')).toBe(false);
+    expect(items.some((i) => i.id === 'accounts')).toBe(false);
     expect(items.some((i) => i.to === '/')).toBe(true);
+    expect(items.some((i) => i.id === 'pos-products')).toBe(false);
+  });
+
+  it('keeps only permitted children inside a nav group', () => {
+    const items = filterNavItems({
+      isAdmin: false,
+      canView: (moduleKey) => moduleKey === 'pos',
+      routePermissionModule: ROUTE_PERMISSION_MODULE,
+      debug: false,
+    });
+    const group = items.find((i) => i.id === 'pos-products');
+    expect(group).toBeTruthy();
+    expect(group.children).toHaveLength(1);
+    expect(group.children[0].to).toBe('/pos');
   });
 });

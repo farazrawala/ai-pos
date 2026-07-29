@@ -37,9 +37,6 @@ https://testv3.websitedemolynk.com/pos_admin/api/user/get-all-active
 
 
 //remainings:
-QUANTITY SHOULD GO IN MINUS ALSO (done)
-recheck WAC 
-Add/edit variant product 
 
 mark_as_default_customer, mark_as_default_vendor functionality (testing remaining)
 in user add multiple accounts to be include and not to be include.
@@ -89,10 +86,14 @@ in user add multiple accounts to be include and not to be include.
 
 
 // OMS
-  draft orders
-
 cron jobs to fetch orders.
 cron jobs to sync products stock(which are in sales,sales return , purchase, purchase return)
-
 order status sync to stores
 
+
+
+
+
+menus.
+Ticket generation.
+purchase order edit. QA.

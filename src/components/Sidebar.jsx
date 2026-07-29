@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import SidebarNavIcon from './SidebarNavIcon.jsx';
@@ -18,13 +18,22 @@ import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
 
+function childRouteActive(pathname, children) {
+  return children.some(({ to, end }) => {
+    if (end) return pathname === to;
+    return pathname === to || pathname.startsWith(`${to}/`);
+  });
+}
+
 const Sidebar = () => {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { close: closeSidenav, mobileMenuOpen } = useSidenav();
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
   const authUser = useSelector((state) => state.user.user);
+  const [openGroups, setOpenGroups] = useState({});
 
   const mergedCompany = useMemo(() => {
     const fromUser = extractCompanyFromUser(authUser);
@@ -88,6 +97,15 @@ const Sidebar = () => {
     }
   };
 
+  const toggleGroup = (id) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const isGroupOpen = (id, children) => {
+    if (openGroups[id] != null) return openGroups[id];
+    return childRouteActive(location.pathname, children);
+  };
+
   return (
     <>
       {mobileMenuOpen ? (
@@ -142,19 +160,61 @@ const Sidebar = () => {
         <hr className="horizontal dark mt-0" />
         <div className="navbar-collapse w-auto h-auto" id="sidenav-collapse-main">
           <ul className="navbar-nav">
-            {visibleNavItems.map(({ to, label, icon, end }) => (
-              <li className="nav-item" key={to}>
-                <NavLink
-                  to={to}
-                  end={end}
-                  className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                  onClick={handleNavClick}
-                >
-                  <SidebarNavIcon icon={icon} />
-                  <span className="nav-link-text ms-1">{label}</span>
-                </NavLink>
-              </li>
-            ))}
+            {visibleNavItems.map((item) => {
+              if (Array.isArray(item.children)) {
+                const { id, label, icon, children } = item;
+                const open = isGroupOpen(id, children);
+                const childActive = childRouteActive(location.pathname, children);
+                return (
+                  <li className="nav-item" key={id}>
+                    <button
+                      type="button"
+                      className={`nav-link w-100 text-start border-0 bg-transparent${
+                        open || childActive ? ' active' : ''
+                      }`}
+                      aria-controls={id}
+                      aria-expanded={open}
+                      onClick={() => toggleGroup(id)}
+                    >
+                      <SidebarNavIcon icon={icon} />
+                      <span className="nav-link-text ms-1">{label}</span>
+                    </button>
+                    <div className={`collapse${open ? ' show' : ''}`} id={id}>
+                      <ul className="nav ms-4">
+                        {children.map(({ to, label: childLabel, icon: childIcon, end }) => (
+                          <li className="nav-item" key={to}>
+                            <NavLink
+                              to={to}
+                              end={end}
+                              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                              onClick={handleNavClick}
+                            >
+                              <SidebarNavIcon icon={childIcon} />
+                              <span className="nav-link-text ms-1">{childLabel}</span>
+                            </NavLink>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </li>
+                );
+              }
+
+              const { to, label, icon, end } = item;
+              return (
+                <li className="nav-item" key={to}>
+                  <NavLink
+                    to={to}
+                    end={end}
+                    className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                    onClick={handleNavClick}
+                  >
+                    <SidebarNavIcon icon={icon} />
+                    <span className="nav-link-text ms-1">{label}</span>
+                  </NavLink>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </aside>
