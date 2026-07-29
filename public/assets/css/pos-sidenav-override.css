@@ -133,7 +133,11 @@
   transform: none !important;
 }
 
-/* Keep sidebar navigation vertically scrollable without a horizontal scrollbar. */
+/* Keep the sidebar vertically scrollable without horizontal scrollbars. */
+.sidenav.navbar-vertical {
+  overflow-x: hidden !important;
+}
+
 #sidenav-collapse-main {
   overflow-x: hidden !important;
 }
