@@ -21,7 +21,7 @@ import {
   enrichTransactionDescription,
   buildDocumentRefLinkMap,
 } from '../../features/transactions/transactionsAPI.js';
-import { FaFilter } from 'react-icons/fa6';
+import { FaFilter, FaPen } from 'react-icons/fa6';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -485,7 +485,7 @@ const Transactions = () => {
                                               })
                                             }
                                           >
-                                            <i className="fas fa-pen" aria-hidden="true" />
+                                            <NavIcon icon={FaPen} size={12} />
                                           </button>
                                         </td>
                                       ) : null}
@@ -654,7 +654,7 @@ const Transactions = () => {
                                         })
                                       }
                                     >
-                                      <i className="fas fa-pen" aria-hidden="true" />
+                                      <NavIcon icon={FaPen} size={12} />
                                     </button>
                                   </td>
                                 ) : null}
