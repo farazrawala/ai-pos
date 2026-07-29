@@ -76,12 +76,46 @@ function pickWarehouseId(raw) {
   return String(raw).trim();
 }
 
+function unwrapStockPayload(stockPayload) {
+  return stockPayload?.data &&
+    typeof stockPayload.data === 'object' &&
+    !Array.isArray(stockPayload.data)
+    ? stockPayload.data
+    : stockPayload;
+}
+
+/** Total on-hand qty from stock-by-product response. */
+function parseCurrentStockQty(stockPayload) {
+  const root = unwrapStockPayload(stockPayload);
+  if (!root || typeof root !== 'object') return null;
+
+  for (const key of ['available_qty', 'net_qty', 'quantity', 'qty']) {
+    const n = Number(root?.[key]);
+    if (Number.isFinite(n)) return roundAdjustmentQty(n);
+  }
+
+  const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
+  if (warehouses.length === 0) return null;
+
+  let total = 0;
+  let has = false;
+  for (const row of warehouses) {
+    const n = Number(row?.available_qty ?? row?.net_qty ?? row?.quantity ?? row?.qty);
+    if (!Number.isFinite(n)) continue;
+    total += n;
+    has = true;
+  }
+  return has ? roundAdjustmentQty(total) : null;
+}
+
+function formatStockQty(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
 /** Build IN/OUT lines that bring each warehouse net qty to 0. */
 function buildZeroStockMovements(stockPayload, fallbackWarehouseId = '') {
-  const root =
-    stockPayload?.data && typeof stockPayload.data === 'object' && !Array.isArray(stockPayload.data)
-      ? stockPayload.data
-      : stockPayload;
+  const root = unwrapStockPayload(stockPayload);
   const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
   const lines = [];
 
@@ -141,6 +175,8 @@ const AdjustmentAdd = () => {
   const [productResults, setProductResults] = useState([]);
   const [productSearchLoading, setProductSearchLoading] = useState(false);
   const [productSearchError, setProductSearchError] = useState('');
+  const [currentStock, setCurrentStock] = useState(null);
+  const [stockLoading, setStockLoading] = useState(false);
 
   useEffect(() => {
     const q = productQuery.trim();
@@ -170,6 +206,34 @@ const AdjustmentAdd = () => {
       clearTimeout(t);
     };
   }, [productQuery]);
+
+  useEffect(() => {
+    const productId = String(form.product_id || '').trim();
+    if (!productId) {
+      setCurrentStock(null);
+      setStockLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setStockLoading(true);
+    setCurrentStock(null);
+
+    (async () => {
+      try {
+        const payload = await fetchStockByProductRequest(productId);
+        if (!cancelled) setCurrentStock(parseCurrentStockQty(payload));
+      } catch {
+        if (!cancelled) setCurrentStock(null);
+      } finally {
+        if (!cancelled) setStockLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.product_id]);
 
   const missingCost = useMemo(() => {
     if (!form.product_id) return false;
@@ -408,6 +472,16 @@ const AdjustmentAdd = () => {
                       {selectedMetaParts.length > 0 ? (
                         <p className="adj-form-selected-meta">{selectedMetaParts.join(' · ')}</p>
                       ) : null}
+                      <p className="adj-form-selected-meta">
+                        Current stock:{' '}
+                        {stockLoading ? (
+                          <span className="text-muted">Loading…</span>
+                        ) : currentStock != null ? (
+                          <span className="adj-form-cost-ok">{formatStockQty(currentStock)}</span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </p>
                       <p className="adj-form-selected-meta mb-0">
                         Wholesale cost:{' '}
                         {missingCost ? (
