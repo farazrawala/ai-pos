@@ -434,36 +434,60 @@ export default function PaymentManagementPage() {
         <nav aria-label="breadcrumb">
           <ol className="breadcrumb bg-transparent mb-3 pb-0 pt-1">
             <li className="breadcrumb-item">
-              <Link className="text-body" to="/">
+              <Link className="text-white opacity-8" to="/">
                 Dashboard
               </Link>
             </li>
             <li className="breadcrumb-item">
-              <Link className="text-body" to="/accounts">
+              <Link className="text-white opacity-8" to="/accounts">
                 Accounts
               </Link>
             </li>
-            <li className="breadcrumb-item active" aria-current="page">
+            <li className="breadcrumb-item active text-white" aria-current="page">
               Payments
             </li>
           </ol>
         </nav>
 
-        <div className="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <div className="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-4">
           <div>
-            <h5 className="mb-1 font-weight-bolder">Payment Management</h5>
-            <p className="text-sm text-muted mb-0">
-              Record receipts and payments with optional cheque details.
+            <h3 className="text-white mb-1 font-weight-bolder">Payment Management</h3>
+            <p className="text-sm text-white opacity-8 mb-0">
+              Record, track and manage customer payments in one place.
             </p>
           </div>
         </div>
 
-        <div className="card border-0 shadow-sm rounded-3 mb-4">
-          <div className="card-body p-4">
-            <form id="payment-form" onSubmit={handleSubmit}>
+        <div className="card border-0 shadow-lg rounded-3 overflow-hidden mb-4">
+          <div className="card-header bg-white border-bottom px-4 py-3">
+            <div className="d-flex align-items-center">
+              <div
+                className="d-inline-flex align-items-center justify-content-center rounded-circle bg-gradient-primary text-white me-3"
+                style={{ width: 42, height: 42, flexShrink: 0 }}
+              >
+                <i className="fas fa-wallet" />
+              </div>
+              <div>
+                <h5 className="mb-1">Record a payment</h5>
+                <p className="text-sm text-muted mb-0">
+                  Enter the payment details below. Fields marked with * are required.
+                </p>
+              </div>
+            </div>
+          </div>
+          <form id="payment-form" onSubmit={handleSubmit}>
+            <div className="card-body p-4">
+              <div className="d-flex align-items-center mb-3">
+                <span className="text-xs text-uppercase font-weight-bolder text-primary">
+                  Payment details
+                </span>
+                <div className="flex-grow-1 border-top ms-3" />
+              </div>
               <div className="row g-3">
                 <div className="col-lg-6 col-md-12 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">Select User</label>
+                  <label className="form-label text-sm font-weight-bold mb-1">
+                    Select User <span className="text-danger">*</span>
+                  </label>
                   <SearchableSelect
                     options={userOptions}
                     value={form.userId}
@@ -475,7 +499,9 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">Payment Mode</label>
+                  <label className="form-label text-sm font-weight-bold mb-1">
+                    Payment Mode <span className="text-danger">*</span>
+                  </label>
                   <SearchableSelect
                     options={paymentModeOptions}
                     value={form.paymentMode}
@@ -508,7 +534,9 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">Payment Type</label>
+                  <label className="form-label text-sm font-weight-bold mb-1">
+                    Payment Type <span className="text-danger">*</span>
+                  </label>
                   <select
                     className="form-select"
                     disabled={isSubmitting}
@@ -525,7 +553,9 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">Amount</label>
+                  <label className="form-label text-sm font-weight-bold mb-1">
+                    Amount <span className="text-danger">*</span>
+                  </label>
                   <CurrencyPrefixInput
                     value={form.amount}
                     disabled={isSubmitting}
@@ -535,7 +565,9 @@ export default function PaymentManagementPage() {
                 </div>
 
                 <div className="col-lg-3 col-md-6 col-12">
-                  <label className="form-label text-sm font-weight-bold mb-1">Date</label>
+                  <label className="form-label text-sm font-weight-bold mb-1">
+                    Date <span className="text-danger">*</span>
+                  </label>
                   <div className="input-group">
                     <span className="input-group-text bg-transparent text-body">
                       <i className="ni ni-calendar-grid-58 text-primary me-1" />
@@ -573,21 +605,22 @@ export default function PaymentManagementPage() {
                   {errors.submit}
                 </div>
               ) : null}
-
-              <div className="d-flex justify-content-end gap-2 mt-4 flex-wrap">
+            </div>
+            <div className="card-footer bg-light border-top px-4 py-3">
+              <div className="d-flex justify-content-end align-items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-sm btn-outline-secondary"
+                  className="btn btn-sm btn-outline-secondary mb-0 px-4"
                   disabled={isSubmitting}
                   onClick={handleCancel}
                 >
-                  <i className="fas fa-times me-1" />
+                  <i className="fas fa-times me-2" />
                   Cancel
                 </button>
                 <button
                   type="submit"
                   form="payment-form"
-                  className="btn btn-sm btn-primary"
+                  className="btn btn-sm btn-primary mb-0 px-4"
                   disabled={isSubmitting || !canSubmit}
                 >
                   {isSubmitting ? (
@@ -601,14 +634,14 @@ export default function PaymentManagementPage() {
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-save me-1" />
+                      <i className="fas fa-check me-2" />
                       Save Payment
                     </>
                   )}
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
 
         <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
