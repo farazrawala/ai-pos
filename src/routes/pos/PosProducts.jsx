@@ -31,6 +31,7 @@ import { DEBUG } from '../../config/env.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 import PosContinuousScanModal from './PosContinuousScanModal.jsx';
 import { parsePosVoiceCommand } from './posVoiceCommands.js';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
 
@@ -449,6 +450,19 @@ const PosProducts = ({
     }
   }, [voiceSupported, voiceListening, stopVoice, startVoice, handleVoiceFinal]);
 
+  const categoryOptions = useMemo(() => {
+    const opts = [{ value: 'All', label: 'All categories' }];
+    for (const c of categories || []) {
+      const id = String(c._id ?? c.id ?? '').trim();
+      if (!id) continue;
+      opts.push({
+        value: id,
+        label: c.name || c.title || c.category_name || 'Category',
+      });
+    }
+    return opts;
+  }, [categories]);
+
   const handleSearchKeyDown = useCallback(
     async (e) => {
       if (e.key !== 'Enter') return;
@@ -586,25 +600,19 @@ const PosProducts = ({
             <div className="pos-products-toolbar__filters">
               <label className="pos-products-toolbar__field">
                 <span>Category</span>
-                <select
+                <SearchableSelect
+                  options={categoryOptions}
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  placeholder="All categories"
                   disabled={categoriesStatus === 'loading'}
-                  title={categoriesError || undefined}
-                  aria-label="Filter products by category"
-                >
-                  <option value="All">All categories</option>
-                  {categories.map((c) => {
-                    const id = String(c._id ?? c.id ?? '');
-                    if (!id) return null;
-                    const label = c.name || c.title || c.category_name || 'Category';
-                    return (
-                      <option key={id} value={id}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
+                  loading={categoriesStatus === 'loading'}
+                  onChange={setCategoryFilter}
+                />
+                {categoriesError ? (
+                  <span className="pos-products-toolbar__field-error" title={categoriesError}>
+                    {categoriesError}
+                  </span>
+                ) : null}
               </label>
               <label className="pos-products-toolbar__field">
                 <span>Status</span>

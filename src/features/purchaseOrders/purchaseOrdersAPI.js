@@ -469,6 +469,13 @@ export async function createPurchaseOrderRequest(payload = {}) {
     form.append('expected_delivery_date', String(body.expected_delivery_date).trim());
   }
 
+  const createdAt = body.createdAt ?? body.created_at;
+  if (createdAt != null && String(createdAt).trim() !== '') {
+    const createdVal = String(createdAt).trim();
+    form.append('createdAt', createdVal);
+    form.append('created_at', createdVal);
+  }
+
   const paymentMethodAccountId = String(
     body.payment_method_accounts_id ?? body.account_id ?? ''
   ).trim();
@@ -627,6 +634,21 @@ export async function updatePurchaseOrderRequest(purchaseOrderId, payload = {}) 
 
   if (body.order_status != null && String(body.order_status).trim() !== '') {
     form.append('order_status', String(body.order_status).trim());
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'expected_delivery_date') &&
+    body.expected_delivery_date != null &&
+    String(body.expected_delivery_date).trim() !== ''
+  ) {
+    form.append('expected_delivery_date', String(body.expected_delivery_date).trim());
+  }
+
+  const createdAt = body.createdAt ?? body.created_at;
+  if (createdAt != null && String(createdAt).trim() !== '') {
+    const createdVal = String(createdAt).trim();
+    form.append('createdAt', createdVal);
+    form.append('created_at', createdVal);
   }
 
   if (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import moment from 'moment';
 import { FaBarcode } from 'react-icons/fa6';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
 import {
@@ -183,6 +184,22 @@ const localDateInputValue = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 
+/** Value for `<input type="datetime-local">` (local wall clock). */
+const nowDatetimeLocalValue = () => moment().format('YYYY-MM-DDTHH:mm');
+
+/** Normalize stored / ISO values into `datetime-local` input format. */
+const toDatetimeLocalValue = (raw) => {
+  if (raw == null || String(raw).trim() === '') return nowDatetimeLocalValue();
+  const m = moment(raw);
+  return m.isValid() ? m.format('YYYY-MM-DDTHH:mm') : nowDatetimeLocalValue();
+};
+
+/** Convert `datetime-local` value to ISO for the API. */
+const datetimeLocalToIso = (raw) => {
+  const m = moment(raw);
+  return m.isValid() ? m.toISOString() : undefined;
+};
+
 const formatDisplayDate = (yyyyMmDd) => {
   if (!yyyyMmDd || String(yyyyMmDd).length < 10) return '—';
   const d = new Date(`${String(yyyyMmDd).slice(0, 10)}T12:00:00`);
@@ -340,6 +357,7 @@ const recordToForm = (po) => ({
   order_status:
     po?.order_status ?? po?.status ?? po?.purchase_order_status ?? po?.po_status ?? 'placed',
   notes: po?.notes ?? po?.remarks ?? po?.description ?? '',
+  created_at: toDatetimeLocalValue(po?.createdAt ?? po?.created_at),
   expected_delivery_date: (() => {
     const raw = po?.expected_delivery_date ?? po?.expectedDeliveryDate ?? '';
     if (raw == null || String(raw).trim() === '') return localDateInputValue();
@@ -842,6 +860,10 @@ const PurchaseOrderEdit = () => {
   }, [activeCompany]);
 
   const poPrintDate = useMemo(() => {
+    if (form.created_at) {
+      const iso = datetimeLocalToIso(form.created_at);
+      if (iso) return formatInvoiceDate(iso);
+    }
     const raw =
       currentPurchaseOrder?.createdAt ??
       currentPurchaseOrder?.created_at ??
@@ -853,7 +875,7 @@ const PurchaseOrderEdit = () => {
       if (!Number.isNaN(d.getTime())) return formatInvoiceDate(d.toISOString());
     }
     return formatInvoiceDate(new Date().toISOString());
-  }, [currentPurchaseOrder, form.expected_delivery_date]);
+  }, [currentPurchaseOrder, form.created_at, form.expected_delivery_date]);
 
   const printLines = useMemo(
     () =>
@@ -1043,11 +1065,15 @@ const PurchaseOrderEdit = () => {
     const remainingAmount = Math.max(0, totalRounded - paidRounded);
     const accountStr = String(form.account_id ?? '').trim();
 
+    const createdAtIso = datetimeLocalToIso(form.created_at);
+
     return {
       supplier_id: form.supplier_id.trim(),
       purchase_order_no: form.purchase_order_no.trim(),
       notes: form.notes.trim(),
       order_status: form.order_status || 'placed',
+      ...(createdAtIso ? { createdAt: createdAtIso, created_at: createdAtIso } : {}),
+      expected_delivery_date: form.expected_delivery_date || undefined,
       discount: form.discount.trim(),
       shipment: form.shipment.trim() || undefined,
       account_id: accountStr === '' ? undefined : accountStr,
@@ -1407,17 +1433,15 @@ const PurchaseOrderEdit = () => {
                       ) : null}
                     </div>
                     <div className="col-md-6 col-lg-3">
-                      <label className="form-label" htmlFor="po-edit-expected">
-                        Expected delivery
+                      <label className="form-label" htmlFor="po-edit-created-on">
+                        Created on
                       </label>
                       <input
-                        id="po-edit-expected"
-                        type="date"
+                        id="po-edit-created-on"
+                        type="datetime-local"
                         className="form-control form-control-sm"
-                        value={form.expected_delivery_date}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
-                        }
+                        value={form.created_at}
+                        onChange={(e) => setForm((p) => ({ ...p, created_at: e.target.value }))}
                         disabled={isSubmitting}
                       />
                     </div>

@@ -144,7 +144,7 @@ const PurchaseOrders = () => {
 
   const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
-  useEffect(() => {
+  const buildListParams = useCallback(() => {
     const params = {
       page: pagination.page,
       limit: pagination.limit,
@@ -159,9 +159,8 @@ const PurchaseOrders = () => {
     if (filterPurchaseItemId && String(filterPurchaseItemId).trim()) {
       params.filterPurchaseItemId = String(filterPurchaseItemId).trim();
     }
-    dispatch(fetchPurchaseOrders(params));
+    return params;
   }, [
-    dispatch,
     pagination.page,
     pagination.limit,
     searchTerm,
@@ -171,6 +170,14 @@ const PurchaseOrders = () => {
     sort.sortOrder,
     filterPurchaseItemId,
   ]);
+
+  useEffect(() => {
+    dispatch(fetchPurchaseOrders(buildListParams()));
+  }, [dispatch, buildListParams]);
+
+  const handleRetryFetch = useCallback(() => {
+    dispatch(fetchPurchaseOrders(buildListParams()));
+  }, [dispatch, buildListParams]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -431,6 +438,7 @@ const PurchaseOrders = () => {
                 loading={loading}
                 loadingLabel="Loading purchase orders…"
                 error={error}
+                onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
                 onLimitChange={handleLimitChange}

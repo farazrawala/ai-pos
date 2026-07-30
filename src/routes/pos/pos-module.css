@@ -325,6 +325,34 @@
   padding: 0.35rem 0.65rem;
 }
 
+.pos-page .pos-products-toolbar__field .form-select {
+  width: 100%;
+  min-height: 2.35rem;
+  border: 1px solid var(--pos-border);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--pos-ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  box-shadow: none;
+}
+
+.pos-page .pos-products-toolbar__field .form-select:focus {
+  outline: 0;
+  border-color: rgba(94, 114, 228, 0.5);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.pos-page .pos-products-toolbar__field-error {
+  font-size: 0.65rem;
+  color: #c92a2a;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pos-page .pos-products-toolbar__field select:focus {
   outline: 0;
   border-color: rgba(94, 114, 228, 0.5);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import moment from 'moment';
 import { FaBarcode } from 'react-icons/fa6';
 import { createPurchaseOrder } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import {
@@ -115,11 +116,18 @@ const localDateInputValue = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 
-const formatDisplayDate = (yyyyMmDd) => {
-  if (!yyyyMmDd || String(yyyyMmDd).length < 10) return '—';
-  const d = new Date(`${String(yyyyMmDd).slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+/** Value for `<input type="datetime-local">` (local wall clock). */
+const nowDatetimeLocalValue = () => moment().format('YYYY-MM-DDTHH:mm');
+
+/** Convert `datetime-local` value to ISO for the API. */
+const datetimeLocalToIso = (raw) => {
+  const m = moment(raw);
+  return m.isValid() ? m.toISOString() : undefined;
+};
+
+const formatDisplayDateTime = (datetimeLocal) => {
+  const m = moment(datetimeLocal);
+  return m.isValid() ? m.format('D MMM YYYY, h:mm a') : '—';
 };
 
 const productPickerLabel = (p) => {
@@ -171,6 +179,7 @@ const emptyForm = () => ({
   supplier_id: '',
   order_status: 'placed',
   notes: '',
+  created_at: nowDatetimeLocalValue(),
   expected_delivery_date: localDateInputValue(),
   shipment: '',
   discount: '',
@@ -688,6 +697,11 @@ const PurchaseOrderAdd = () => {
     if (form.expected_delivery_date) {
       payload.expected_delivery_date = form.expected_delivery_date;
     }
+    const createdAtIso = datetimeLocalToIso(form.created_at);
+    if (createdAtIso) {
+      payload.createdAt = createdAtIso;
+      payload.created_at = createdAtIso;
+    }
     return Object.fromEntries(
       Object.entries(payload).filter(([key, v]) => {
         if (v === undefined) return false;
@@ -1009,7 +1023,7 @@ const PurchaseOrderAdd = () => {
                     <div className="min-w-0">
                       <div className="po-form-company-name">{shopName}</div>
                       <div className="po-form-company-meta">
-                        Order date: {formatDisplayDate(localDateInputValue())}
+                        Order date: {formatDisplayDateTime(form.created_at)}
                       </div>
                     </div>
                   </div>
@@ -1128,17 +1142,15 @@ const PurchaseOrderAdd = () => {
                       ) : null}
                     </div>
                     <div className="col-md-6 col-lg-3">
-                      <label className="form-label" htmlFor="po-add-expected">
-                        Expected delivery
+                      <label className="form-label" htmlFor="po-add-created-on">
+                        Created on
                       </label>
                       <input
-                        id="po-add-expected"
-                        type="date"
+                        id="po-add-created-on"
+                        type="datetime-local"
                         className="form-control form-control-sm"
-                        value={form.expected_delivery_date}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, expected_delivery_date: e.target.value }))
-                        }
+                        value={form.created_at}
+                        onChange={(e) => setForm((p) => ({ ...p, created_at: e.target.value }))}
                         disabled={isSubmitting}
                       />
                     </div>
