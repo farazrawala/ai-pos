@@ -1,6 +1,6 @@
 import moment from 'moment';
 import TablePagination from '../../TablePagination.jsx';
-import { fmtMoney } from '../ledgerUtils.js';
+import { fmtMoney, balancePositionLabel } from '../ledgerUtils.js';
 
 function formatOrderNo(row) {
   if (row?.linkedRefs?.length) return row.linkedRefs.join(', ');
@@ -10,7 +10,7 @@ function formatOrderNo(row) {
 function formatLineDate(row) {
   if (!row?.date) return '';
   const m = moment(row.date);
-  return m.isValid() ? m.format('DD MMM YYYY') : '';
+  return m.isValid() ? m.format('DD MMM YYYY, hh:mm A') : '';
 }
 
 function TAccountLineContent({ row }) {
@@ -218,7 +218,12 @@ export default function LedgerTAccountView({
                     </div>
                     <div className="ledger-t-classic-hr" />
                     <div className="ledger-t-classic-balance">
-                      <span className="ledger-t-classic-balance-label">Balance</span>
+                      <span className="ledger-t-classic-balance-label">
+                        Balance
+                        <span className="ledger-t-classic-balance-position">
+                          {balancePositionLabel(endingBalance)}
+                        </span>
+                      </span>
                       <span className="ledger-t-classic-balance-pill">{fmtMoney(endingBalance)}</span>
                     </div>
                   </div>

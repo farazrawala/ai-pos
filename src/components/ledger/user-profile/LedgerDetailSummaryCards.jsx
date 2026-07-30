@@ -1,4 +1,4 @@
-import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
+import { fmtMoney, balanceTextClass, balancePositionLabel } from '../ledgerUtils.js';
 
 function Card({ title, value, valueClassName, sub, icon, gradient, shadow }) {
   return (
@@ -43,7 +43,7 @@ export default function LedgerDetailSummaryCards({
         title="Current balance"
         value={fmtMoney(currentBalance)}
         valueClassName={balanceTextClass(currentBalance)}
-        sub={currentBalance >= 0 ? 'Receivable position' : 'Payable position'}
+        sub={`${balancePositionLabel(currentBalance)} position`}
         icon="ni ni-chart-bar-32"
         gradient="bg-gradient-primary"
         shadow="shadow-primary"

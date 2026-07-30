@@ -661,11 +661,25 @@
 }
 
 .ledger-module .ledger-t-classic-balance-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--t-ink);
+}
+
+.ledger-module .ledger-t-classic-balance-position {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--t-muted, #67748e);
+  background: rgba(94, 114, 228, 0.1);
+  border: 1px solid rgba(94, 114, 228, 0.18);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
 }
 
 .ledger-module .ledger-t-classic-balance-pill {

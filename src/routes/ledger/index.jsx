@@ -205,8 +205,8 @@ export default function LedgerListingPage() {
     (label) => {
       let next = { ...draftFilters };
       if (label === 'Active') next = { ...next, status: 'active', balanceType: 'all' };
-      else if (label === 'Receivable') next = { ...next, balanceType: 'positive', status: 'all' };
-      else if (label === 'Payable') next = { ...next, balanceType: 'negative', status: 'all' };
+      else if (label === 'Receivable') next = { ...next, balanceType: 'negative', status: 'all' };
+      else if (label === 'Payable') next = { ...next, balanceType: 'positive', status: 'all' };
       else if (label === 'Recent activity') {
         next = { ...next };
         setSortKey('lastTransactionAt');

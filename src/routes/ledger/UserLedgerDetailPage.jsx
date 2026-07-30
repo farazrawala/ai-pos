@@ -15,7 +15,10 @@ import { fetchUserByIdRequest } from '../../features/users/usersAPI.js';
 import { mapApiUserToLedgerRow } from '../../components/ledger/ledgerUserMapper.js';
 import { fetchMyLedgerTransactionsRequest } from '../../features/transactions/transactionsAPI.js';
 import { mapApiTransactionToLedgerTransaction } from '../../components/ledger/ledgerTransactionMapper.js';
-import { computeRunningBalances } from '../../components/ledger/ledgerUtils.js';
+import {
+  computeRunningBalances,
+  isOpeningBalanceTransaction,
+} from '../../components/ledger/ledgerUtils.js';
 import { buildMonthlyDebitCreditSeries, buildLedgerTimelineEvents } from '../../components/ledger/ledgerChartData.js';
 import { filterDetailTransactions } from '../../components/ledger/ledgerDetailTransactionFilters.js';
 import '../../components/ledger/ledger-module.css';
@@ -184,10 +187,20 @@ export default function UserLedgerDetailPage() {
     [filteredRaw]
   );
 
+  /**
+   * The backend posts the user's initial balance as its own ledger line, so seeding the
+   * running balance with `openingBalance` too would count it twice.
+   */
+  const openingSeed = useMemo(() => {
+    const opening = Number(user?.openingBalance) || 0;
+    if (!opening) return 0;
+    return rawTx.some(isOpeningBalanceTransaction) ? 0 : opening;
+  }, [user, rawTx]);
+
   const sortedChrono = useMemo(() => {
     const chrono = [...filteredRaw].sort((a, b) => new Date(a.date) - new Date(b.date));
-    return computeRunningBalances(chrono, user ? user.openingBalance : 0);
-  }, [filteredRaw, user]);
+    return computeRunningBalances(chrono, openingSeed);
+  }, [filteredRaw, openingSeed]);
 
   const displayRows = useMemo(
     () => sortLedgerRows(sortedChrono, sortKey, sortDir),
@@ -207,7 +220,7 @@ export default function UserLedgerDetailPage() {
       credit += Number(t.credit) || 0;
     });
     const lastBal =
-      sortedChrono.length > 0 ? sortedChrono[sortedChrono.length - 1].runningBalance : user?.openingBalance ?? 0;
+      sortedChrono.length > 0 ? sortedChrono[sortedChrono.length - 1].runningBalance : openingSeed;
     const now = moment();
     const monthStart = now.clone().startOf('month');
     const monthEnd = now.clone().endOf('month');
@@ -223,7 +236,7 @@ export default function UserLedgerDetailPage() {
       if (t.status === 'pending') pendingAmt += Math.max(Number(t.debit) || 0, Number(t.credit) || 0);
     });
     return { debit, credit, currentBalance: lastBal, monthlyActivityNet: monthlyNet, pendingAmount: pendingAmt };
-  }, [filteredRaw, sortedChrono, user]);
+  }, [filteredRaw, sortedChrono, openingSeed]);
 
   const timelineEvents = useMemo(
     () => buildLedgerTimelineEvents(filteredRaw, { limit: timelineLimit }),

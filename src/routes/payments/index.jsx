@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import moment from 'moment';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { fetchAccountsByTypeRequest } from '../../features/accounts/accountsAPI.js';
 import {
@@ -57,12 +58,14 @@ function mapReceiptToRecentRow(item) {
   const id = item?._id ?? item?.id;
   return {
     id: String(id || `p_${Date.now()}`),
+    transactionNumber: String(item?.transaction_number || item?.transactionNumber || '—'),
     userName: receiptUserLabel(item),
     paymentType: String(item?.payment_type || '—'),
     paymentMode: receiptPaymentModeLabel(item),
     amount: Number(item?.amount ?? 0),
     date: String(item?.date || item?.createdAt || '').slice(0, 10),
     status: String(item?.status || 'posted').toLowerCase(),
+    createdAt: item?.createdAt || item?.created_at || item?.date || null,
     updatedAt: item?.updatedAt || item?.updated_at || item?.createdAt || null,
   };
 }
@@ -95,7 +98,8 @@ function FieldError({ error }) {
 }
 
 export default function PaymentManagementPage() {
-  const { canView, canCreate, isAdmin } = usePermissions('payments');
+  const navigate = useNavigate();
+  const { canView, canCreate, canEdit, isAdmin } = usePermissions('payments');
   useRequireModuleAccess('payments');
   const canSubmit = Boolean(canCreate);
 
@@ -106,6 +110,9 @@ export default function PaymentManagementPage() {
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [recentPayments, setRecentPayments] = useState([]);
   const [recentLoading, setRecentLoading] = useState(false);
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [localReceiptSearch, setLocalReceiptSearch] = useState('');
+  const receiptSearchTimeoutRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +124,7 @@ export default function PaymentManagementPage() {
           limit: 10,
           sortBy: 'updatedAt',
           sortOrder: 'desc',
+          ...(receiptSearch.trim() ? { search: receiptSearch.trim() } : {}),
         });
         if (cancelled) return;
         const rows = Array.isArray(result?.data) ? result.data : [];
@@ -133,6 +141,21 @@ export default function PaymentManagementPage() {
     return () => {
       cancelled = true;
     };
+  }, [receiptSearch]);
+
+  useEffect(() => {
+    return () => {
+      if (receiptSearchTimeoutRef.current) clearTimeout(receiptSearchTimeoutRef.current);
+    };
+  }, []);
+
+  const handleReceiptSearchChange = useCallback((e) => {
+    const value = e.target.value;
+    setLocalReceiptSearch(value);
+    if (receiptSearchTimeoutRef.current) clearTimeout(receiptSearchTimeoutRef.current);
+    receiptSearchTimeoutRef.current = setTimeout(() => {
+      setReceiptSearch(value);
+    }, 500);
   }, []);
 
   useEffect(() => {
@@ -588,54 +611,124 @@ export default function PaymentManagementPage() {
           </div>
         </div>
 
-        <div className="card border-0 shadow-sm rounded-3">
-          <div className="card-header">
-            <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <div>
-                <h6 className="mb-0">Recent transactions</h6>
-                <p className="text-xs text-muted mb-0">Latest payment receipts from the server</p>
+        <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
+          <div className="card-header bg-white border-bottom px-4 py-3">
+            <div className="row align-items-center g-3">
+              <div className="col">
+                <h5 className="mb-1">Payment receipts</h5>
+                <p className="text-sm text-muted mb-0">Latest payment activity from the server.</p>
+              </div>
+              <div className="col-12 col-lg-auto">
+                <div className="d-flex align-items-center justify-content-lg-end gap-2 flex-wrap flex-sm-nowrap">
+                  <div
+                    className="input-group input-group-sm flex-nowrap"
+                    style={{ width: '260px', maxWidth: '100%' }}
+                  >
+                  <span className="input-group-text text-body">
+                    <SearchInputIcon />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search receipts..."
+                    value={localReceiptSearch}
+                    onChange={handleReceiptSearchChange}
+                    aria-label="Search payment receipts"
+                  />
+                    {localReceiptSearch ? (
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary mb-0 px-3"
+                        title="Clear search"
+                        aria-label="Clear receipt search"
+                        onClick={() => {
+                          if (receiptSearchTimeoutRef.current) {
+                            clearTimeout(receiptSearchTimeoutRef.current);
+                          }
+                          setLocalReceiptSearch('');
+                          setReceiptSearch('');
+                        }}
+                      >
+                        <i className="fas fa-times" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <Link
+                    to="/payment-receipts"
+                    className="btn btn-sm btn-outline-primary mb-0 text-nowrap px-3"
+                  >
+                    <i className="fas fa-receipt me-2" />
+                    View all receipts
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-          <div className="card-body px-0 pt-0 pb-3">
-            <div className="table-responsive">
-              <table className="table table-flush table-hover table-sm align-middle mb-0">
-                <thead className="thead-light">
+          <div className="card-body p-0">
+            <div className="list-data-table border-0 rounded-0 mx-0 mb-0">
+              <div className="list-data-table-scroll">
+                <table className="table table-hover align-items-center mb-0">
+                <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Payment Type</th>
-                    <th>Payment Mode</th>
-                    <th className="text-end">Amount</th>
-                    <th>Date</th>
-                    <th>Last Updated At</th>
-                    <th>Status</th>
+                    <th className="ps-4 text-nowrap">S.No</th>
+                    <th className="text-nowrap">Transaction #</th>
+                    <th className="text-end text-nowrap">Amount</th>
+                    <th className="text-nowrap">Type</th>
+                    <th className="text-nowrap">Payment mode</th>
+                    <th className="text-nowrap">User</th>
+                    <th className="text-nowrap">Created</th>
+                    <th className="text-nowrap">Last updated</th>
+                    <th className="text-nowrap">Status</th>
+                    <th className="text-end pe-4 text-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentLoading ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-4 text-muted">
-                        <p className="mb-0 text-sm">Loading recent payments…</p>
+                      <td colSpan={10} className="text-center py-5 text-muted">
+                        <span className="spinner-border spinner-border-sm text-primary me-2" />
+                        <span className="text-sm">Loading payment receipts…</span>
                       </td>
                     </tr>
                   ) : recentPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-4 text-muted">
-                        <p className="mb-0 text-sm">No payments recorded yet.</p>
+                      <td colSpan={10} className="text-center py-5 text-muted">
+                        <i className="fas fa-receipt d-block mb-2 fs-5 opacity-6" />
+                        <p className="mb-0 text-sm">
+                          {receiptSearch.trim()
+                            ? 'No receipts match your search.'
+                            : 'No payment receipts recorded yet.'}
+                        </p>
                       </td>
                     </tr>
                   ) : (
-                    recentPayments.map((r) => (
+                    recentPayments.map((r, index) => (
                       <tr key={r.id}>
-                        <td className="text-sm font-weight-bold">{r.userName}</td>
-                        <td className="text-sm">{r.paymentType}</td>
-                        <td className="text-sm">{r.paymentMode}</td>
-                        <td className="text-end text-sm font-weight-bold">
-                          {formatPKR(r.amount ?? 0)}
+                        <td className="ps-4 text-sm text-secondary">{index + 1}</td>
+                        <td className="text-sm font-monospace text-dark">
+                          {r.transactionNumber}
                         </td>
-                        <td className="text-sm text-muted">{r.date}</td>
+                        <td className="text-end text-sm font-weight-bold text-dark">
+                          PKR {formatPKR(r.amount ?? 0)}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              r.paymentType.toLowerCase() === 'receive'
+                                ? 'bg-gradient-info'
+                                : 'bg-gradient-warning'
+                            }`}
+                          >
+                            {r.paymentType}
+                          </span>
+                        </td>
+                        <td className="text-sm">{r.paymentMode}</td>
+                        <td className="text-sm font-weight-bold">{r.userName}</td>
+                        <td className="text-sm text-muted text-nowrap">
+                          {r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm') : r.date || '—'}
+                        </td>
                         <td
-                          className="text-sm text-muted"
+                          className="text-sm text-muted text-nowrap"
                           title={
                             r.updatedAt
                               ? moment(r.updatedAt).format('MM-DD-YYYY h:mm a')
@@ -646,23 +739,48 @@ export default function PaymentManagementPage() {
                         </td>
                         <td>
                           <span
-                            className={`badge text-xs ${
-                              r.status === 'posted'
-                                ? 'bg-gradient-success text-white'
+                            className={`badge ${
+                              r.status === 'posted' || r.status === 'active'
+                                ? 'bg-gradient-success'
                                 : r.status === 'pending'
-                                  ? 'bg-gradient-warning text-white'
-                                  : 'bg-gradient-secondary text-white'
+                                  ? 'bg-gradient-warning'
+                                  : 'bg-gradient-secondary'
                             }`}
                           >
                             {r.status}
                           </span>
                         </td>
+                        <td className="text-end pe-4">
+                          {canEdit || isAdmin ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary mb-0 px-3"
+                              onClick={() => navigate(`/payment-receipts/edit/${r.id}`)}
+                            >
+                              <i className="fas fa-pen me-2" />
+                              Edit
+                            </button>
+                          ) : (
+                            <span className="text-muted text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
+            {!recentLoading && recentPayments.length > 0 ? (
+              <div className="d-flex justify-content-between align-items-center border-top px-4 py-3">
+                <span className="text-xs text-muted">
+                  Showing {recentPayments.length}{' '}
+                  {receiptSearch.trim() ? 'matching' : 'latest'}{' '}
+                  {recentPayments.length === 1 ? 'receipt' : 'receipts'}
+                </span>
+                <span className="text-xs text-muted">Sorted by most recently updated</span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

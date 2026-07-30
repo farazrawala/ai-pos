@@ -19,6 +19,22 @@ export const balanceTextClass = (value) => {
 };
 
 /**
+ * Running balance is `credit - debit`, so amounts billed to the party (debits)
+ * push it negative — a negative balance is money receivable from them.
+ * @param {number} value
+ */
+export const balancePositionLabel = (value) => {
+  const x = Number(value);
+  if (!Number.isFinite(x) || x === 0) return 'Settled';
+  return x < 0 ? 'Receivable' : 'Payable';
+};
+
+/** Opening balance the backend posts as its own ledger line. */
+export function isOpeningBalanceTransaction(t) {
+  return /(initial|opening)\s+balance/i.test(String(t?.description ?? ''));
+}
+
+/**
  * @param {import('./mock/ledgerTypes.js').LedgerTransaction[]} sortedChrono
  * @param {number} openingBalance
  */

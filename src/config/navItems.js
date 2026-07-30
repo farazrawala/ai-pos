@@ -109,7 +109,7 @@ export const NAV_ITEMS = [
       { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
       { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
       { to: '/payments', label: 'Payments', icon: FaBasketShopping },
-      { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
+      // { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
       { to: '/expenses', label: 'Expenses', icon: FaCoins },
       { to: '/transactions', label: 'Transactions', icon: FaCreditCard },
     ],
