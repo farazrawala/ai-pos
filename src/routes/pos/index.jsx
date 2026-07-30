@@ -721,6 +721,7 @@ const Pos = () => {
   const [cartDisplayOrder, setCartDisplayOrder] = useState(readStoredCartDisplayOrder);
   const cartDisplayOrderRef = useRef(cartDisplayOrder);
   cartDisplayOrderRef.current = cartDisplayOrder;
+  const [cartProductFilter, setCartProductFilter] = useState('');
   const [activeDraftId, setActiveDraftId] = useState(null);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDeletingId, setDraftDeletingId] = useState(null);
@@ -1167,6 +1168,18 @@ const Pos = () => {
     () => cartLines.reduce((sum, l) => sum + parsePosQty(l.quantity), 0),
     [cartLines]
   );
+
+  const filteredCartLines = useMemo(() => {
+    const q = String(cartProductFilter ?? '')
+      .trim()
+      .toLowerCase();
+    if (!q) return cartLines;
+    return cartLines.filter((line) => {
+      const name = String(line?.name ?? '').toLowerCase();
+      const productId = String(line?.productId ?? '').toLowerCase();
+      return name.includes(q) || productId.includes(q);
+    });
+  }, [cartLines, cartProductFilter]);
 
   const shippingNum = useMemo(() => {
     const n = parseFloat(String(shipping).replace(/,/g, ''));
@@ -2082,6 +2095,22 @@ const Pos = () => {
                       </span>
                     ) : null}
                   </div>
+                  <div className="pos-cart-toolbar__search">
+                    <span className="pos-cart-toolbar__search-icon" aria-hidden="true">
+                      <SearchInputIcon />
+                    </span>
+                    <input
+                      type="search"
+                      className="pos-cart-toolbar__search-input"
+                      placeholder="Search cart…"
+                      value={cartProductFilter}
+                      onChange={(e) => setCartProductFilter(e.target.value)}
+                      disabled={cartLines.length === 0}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-label="Search products in cart"
+                    />
+                  </div>
                   <div className="pos-cart-toolbar__actions">
                     <div
                       className="pos-segment"
@@ -2141,8 +2170,12 @@ const Pos = () => {
               <div className="pos-cart-body mb-3">
                 {cartLines.length === 0 ? (
                   <div className="text-center text-muted text-sm py-5">No products in cart</div>
+                ) : filteredCartLines.length === 0 ? (
+                  <div className="text-center text-muted text-sm py-5">
+                    No cart products match “{cartProductFilter.trim()}”
+                  </div>
                 ) : (
-                  cartLines.map((line, index) => {
+                  filteredCartLines.map((line, index) => {
                     const qtyNum = parsePosQty(line.quantity);
                     const lineTotal = qtyNum * line.unitPrice;
                     const displayName = formatProductNameWithStock(line.name, line.availableStock);
