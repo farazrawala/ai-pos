@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { FaBarcode, FaFloppyDisk, FaMoneyBill1 } from 'react-icons/fa6';
+import { FaBarcode, FaFloppyDisk, FaMicrophone, FaMoneyBill1 } from 'react-icons/fa6';
 import {
   fetchProductActiveRequest,
   POS_PRODUCT_SEARCH_FIELDS,
@@ -20,6 +20,7 @@ import { isVariableParentProduct, sellablePosProductId, isProductInactive } from
 import { toast } from '../../utils/toast.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition.js';
 import {
   countProducts,
   lookupProductsForScan,
@@ -29,6 +30,7 @@ import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { DEBUG } from '../../config/env.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 import PosContinuousScanModal from './PosContinuousScanModal.jsx';
+import { parsePosVoiceCommand } from './posVoiceCommands.js';
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
 
@@ -91,6 +93,31 @@ function pickScannedProduct(products, query) {
   if (!Array.isArray(products) || products.length === 0) return null;
   const exact = products.filter((p) => productMatchesExactQuery(p, query));
   if (exact.length === 1) return exact[0];
+  return null;
+}
+
+/** Soft name/code match for voice — equality or contains, single unambiguous hit only. */
+function productMatchesSoftQuery(product, query) {
+  const needle = normalizeSearchToken(query);
+  if (!needle || needle.length < 2) return false;
+  const haystacks = [
+    product?.barcode,
+    product?.sku,
+    product?.product_code,
+    product?.product_name,
+    product?.name,
+  ]
+    .map((v) => normalizeSearchToken(v))
+    .filter(Boolean);
+  return haystacks.some((h) => h === needle || h.includes(needle) || needle.includes(h));
+}
+
+function pickSoftMatchedProduct(products, query) {
+  if (!Array.isArray(products) || products.length === 0) return null;
+  const soft = products.filter(
+    (p) => !isVariableParentProduct(p) && !isProductInactive(p) && productMatchesSoftQuery(p, query)
+  );
+  if (soft.length === 1) return soft[0];
   return null;
 }
 
@@ -238,33 +265,34 @@ const PosProducts = ({
     return map;
   }, [products]);
 
-  const tryAddProductFromQuery = useCallback(
+  const tryAddSellableProduct = useCallback(
+    (product) => {
+      if (isVariableParentProduct(product)) {
+        toast.warning(
+          'This is a variable product. Scan or select a size/color variation instead.'
+        );
+        return 'blocked';
+      }
+      if (
+        hideLowStock &&
+        isProductStockBelowMinimum(product, { warehouseId, minimum: 1 })
+      ) {
+        toast.info('Product hidden — stock is less than 1.');
+        return 'blocked';
+      }
+      onAddToCart?.(product);
+      return 'added';
+    },
+    [hideLowStock, warehouseId, onAddToCart]
+  );
+
+  const findExactProductForQuery = useCallback(
     async (query) => {
       const q = String(query ?? '').trim();
-      if (!q) return 'not_found';
-
-      const tryAdd = (product) => {
-        if (isVariableParentProduct(product)) {
-          toast.warning(
-            'This is a variable product. Scan or select a size/color variation instead.'
-          );
-          return 'blocked';
-        }
-        if (
-          hideLowStock &&
-          isProductStockBelowMinimum(product, { warehouseId, minimum: 1 })
-        ) {
-          toast.info('Product hidden — stock is less than 1.');
-          return 'blocked';
-        }
-        onAddToCart?.(product);
-        return 'added';
-      };
+      if (!q) return null;
 
       const fromList = pickScannedProduct(products, q);
-      if (fromList) {
-        return tryAdd(fromList);
-      }
+      if (fromList) return fromList;
 
       if (isOnline) {
         try {
@@ -278,9 +306,7 @@ const PosProducts = ({
           });
           const arr = Array.isArray(result?.data) ? result.data : [];
           const picked = pickScannedProduct(arr, q);
-          if (picked) {
-            return tryAdd(picked);
-          }
+          if (picked) return picked;
         } catch (err) {
           console.warn('[POS] Barcode lookup failed, trying offline cache', err);
         }
@@ -290,16 +316,138 @@ const PosProducts = ({
         const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
         const cached = await lookupProductsForScan(q, categoryId);
         const picked = pickScannedProduct(cached, q);
-        if (picked) {
-          return tryAdd(picked);
-        }
+        if (picked) return picked;
       } catch (err) {
         console.error('[POS] Offline barcode lookup failed', err);
       }
-      return 'not_found';
+      return null;
     },
-    [products, categoryFilter, onAddToCart, hideLowStock, warehouseId, isOnline]
+    [products, categoryFilter, isOnline]
   );
+
+  const findSoftProductForQuery = useCallback(
+    async (query) => {
+      const q = String(query ?? '').trim();
+      if (!q) return null;
+
+      const fromList = pickSoftMatchedProduct(products, q);
+      if (fromList) return fromList;
+
+      if (isOnline) {
+        try {
+          const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+          const result = await fetchProductActiveRequest({
+            search: q,
+            searchFields: POS_PRODUCT_SEARCH_FIELDS,
+            page: 1,
+            limit: 50,
+            ...(categoryId ? { categoryId } : {}),
+          });
+          const arr = Array.isArray(result?.data) ? result.data : [];
+          const picked = pickSoftMatchedProduct(arr, q);
+          if (picked) return picked;
+        } catch (err) {
+          console.warn('[POS] Voice soft lookup failed', err);
+        }
+      }
+
+      try {
+        const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+        const cached = await searchProducts({
+          query: q,
+          categoryId,
+        });
+        const arr = Array.isArray(cached) ? cached : [];
+        return pickSoftMatchedProduct(arr, q);
+      } catch (err) {
+        console.error('[POS] Offline voice soft lookup failed', err);
+      }
+      return null;
+    },
+    [products, categoryFilter, isOnline]
+  );
+
+  const tryAddProductFromQuery = useCallback(
+    async (query) => {
+      const q = String(query ?? '').trim();
+      if (!q) return 'not_found';
+      const product = await findExactProductForQuery(q);
+      if (!product) return 'not_found';
+      return tryAddSellableProduct(product);
+    },
+    [findExactProductForQuery, tryAddSellableProduct]
+  );
+
+  const {
+    supported: voiceSupported,
+    listening: voiceListening,
+    interimTranscript: voiceInterim,
+    start: startVoice,
+    stop: stopVoice,
+  } = useSpeechRecognition({ lang: 'en-US' });
+
+  const handleVoiceFinal = useCallback(
+    async (transcript) => {
+      const { qty, query } = parsePosVoiceCommand(transcript);
+      if (!query) {
+        toast.info('Could not understand a product. Try again.');
+        return;
+      }
+      if (scanInFlightRef.current) return;
+      scanInFlightRef.current = true;
+      try {
+        let product = await findExactProductForQuery(query);
+        if (!product) {
+          product = await findSoftProductForQuery(query);
+        }
+        if (!product) {
+          productQueryRef.current = query;
+          setProductQuery(query);
+          toast.info(`No clear match for “${query}”. Pick from search results.`);
+          requestAnimationFrame(() => searchInputRef.current?.focus());
+          return;
+        }
+
+        let added = 0;
+        for (let i = 0; i < qty; i += 1) {
+          const result = tryAddSellableProduct(product);
+          if (result !== 'added') break;
+          added += 1;
+        }
+        if (added > 0) {
+          const name = getProductName(product);
+          toast.success(
+            added === 1 ? `Added ${name}` : `Added ${name} × ${added}`
+          );
+          productQueryRef.current = '';
+          setProductQuery('');
+        }
+      } finally {
+        scanInFlightRef.current = false;
+      }
+    },
+    [
+      findExactProductForQuery,
+      findSoftProductForQuery,
+      tryAddSellableProduct,
+      setProductQuery,
+    ]
+  );
+
+  const handleVoiceClick = useCallback(() => {
+    if (!voiceSupported) {
+      toast.info('Voice input is not supported in this browser. Use Chrome or Edge.');
+      return;
+    }
+    if (voiceListening) {
+      stopVoice();
+      return;
+    }
+    const started = startVoice(handleVoiceFinal);
+    if (!started) {
+      toast.info('Could not start the microphone. Check browser permissions.');
+    }
+  }, [voiceSupported, voiceListening, stopVoice, startVoice, handleVoiceFinal]);
 
   const handleSearchKeyDown = useCallback(
     async (e) => {
@@ -363,18 +511,45 @@ const PosProducts = ({
           <div className="pos-panel-header__row">
             <div>
               <h5>Products</h5>
-              <p>Search, filter, or scan barcodes into the cart</p>
+              <p>
+                {voiceListening
+                  ? voiceInterim
+                    ? `Listening… “${voiceInterim}”`
+                    : 'Listening… say a product name or barcode'
+                  : 'Search, filter, scan, or speak a product into the cart'}
+              </p>
             </div>
-            <button
-              type="button"
-              className="pos-scan-btn"
-              onClick={() => setContinuousScanOpen(true)}
-              title="Open camera and keep scanning barcodes into the cart"
-              aria-label="Open continuous barcode scanner"
-            >
-              <NavIcon icon={FaBarcode} size={14} />
-              <span>Scan</span>
-            </button>
+            <div className="pos-panel-header__actions">
+              <button
+                type="button"
+                className={`pos-voice-btn${voiceListening ? ' is-listening' : ''}`}
+                onClick={handleVoiceClick}
+                title={
+                  voiceSupported
+                    ? voiceListening
+                      ? 'Stop listening'
+                      : 'Speak a product name or barcode to add to cart'
+                    : 'Voice input not supported in this browser'
+                }
+                aria-label={
+                  voiceListening ? 'Stop voice input' : 'Add product by voice'
+                }
+                aria-pressed={voiceListening}
+              >
+                <NavIcon icon={FaMicrophone} size={14} />
+                <span>{voiceListening ? 'Listening' : 'Voice'}</span>
+              </button>
+              <button
+                type="button"
+                className="pos-scan-btn"
+                onClick={() => setContinuousScanOpen(true)}
+                title="Open camera and keep scanning barcodes into the cart"
+                aria-label="Open continuous barcode scanner"
+              >
+                <NavIcon icon={FaBarcode} size={14} />
+                <span>Scan</span>
+              </button>
+            </div>
           </div>
           {DEBUG ? (
             <p className="pos-panel-header__debug mb-0">

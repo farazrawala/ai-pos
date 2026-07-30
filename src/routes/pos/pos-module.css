@@ -389,6 +389,72 @@
   box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.28);
 }
 
+.pos-page .pos-panel-header__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.pos-page .pos-voice-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  margin: 0;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--pos-border);
+  border-radius: 0.55rem;
+  background: #fff;
+  color: var(--pos-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0.15rem 0.4rem rgba(15, 23, 42, 0.06);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.pos-page .pos-voice-btn:hover {
+  background: #f8fafc;
+  border-color: #c7d0e0;
+  color: var(--pos-ink);
+}
+
+.pos-page .pos-voice-btn:active {
+  transform: scale(0.98);
+}
+
+.pos-page .pos-voice-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.28);
+}
+
+.pos-page .pos-voice-btn.is-listening {
+  border-color: #e55353;
+  background: #fff5f5;
+  color: #c92a2a;
+  box-shadow: 0 0 0 0.15rem rgba(229, 83, 83, 0.18);
+  animation: pos-voice-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pos-voice-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0.12rem rgba(229, 83, 83, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 0.28rem rgba(229, 83, 83, 0.08);
+  }
+}
+
 .pos-page .pos-search-bar .form-control,
 .pos-page .pos-search-bar .form-select,
 .pos-page .pos-search-bar .input-group-text {
