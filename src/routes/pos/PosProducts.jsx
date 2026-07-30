@@ -684,6 +684,7 @@ const PosProducts = ({
                   const parentId = getParentProductId(p);
                   const parentProduct = parentId ? productsById.get(parentId) || null : null;
                   const imgUrl = getProductImageUrl(p, parentProduct);
+                  const editProductId = parentId || productId;
                   return (
                     <div className="col" key={id}>
                       <div
@@ -719,7 +720,7 @@ const PosProducts = ({
                           <div className="text-center pos-product-name" title={displayName}>
                             {displayName}
                           </div>
-                          {productId ? (
+                          {editProductId ? (
                             <button
                               type="button"
                               className="pos-product-edit-btn"
@@ -728,7 +729,7 @@ const PosProducts = ({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openAppPathInNewTab(`/products/edit/${productId}`);
+                                openAppPathInNewTab(`/products/edit/${editProductId}`);
                               }}
                             >
                               <NavIcon icon={FaPenToSquare} size={11} />
