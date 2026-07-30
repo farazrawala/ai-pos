@@ -653,13 +653,6 @@ export default function PaymentManagementPage() {
                       </button>
                     ) : null}
                   </div>
-                  <Link
-                    to="/payment-receipts"
-                    className="btn btn-sm btn-outline-primary mb-0 text-nowrap px-3"
-                  >
-                    <i className="fas fa-receipt me-2" />
-                    View all receipts
-                  </Link>
                 </div>
               </div>
             </div>
