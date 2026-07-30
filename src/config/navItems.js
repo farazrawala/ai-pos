@@ -56,9 +56,12 @@ import {
 
 /**
  * Single source of truth for app navigation, used by the sidebar.
- * Leaf: `{ to, label, icon, end?, adminOnly?, debugOnly? }`.
+ * Leaf: `{ to, label, icon, end?, adminOnly?, debugOnly?, routePassword?, routePasswordLiveOnly? }`.
  * Group: `{ id, label, icon, children: leaf[] }` — expands to show children.
  */
+/** Shared static password for password-gated routes (warehouses, live developer tools). */
+export const ROUTE_PASSWORD = '1234';
+
 export const NAV_ITEMS = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
   { to: '/pos', label: 'POS', icon: FaLaptop, end: true },
@@ -120,6 +123,7 @@ export const NAV_ITEMS = [
     label: 'Inventory',
     icon: FaWarehouse,
     children: [
+      { to: '/warehouse', label: 'Warehouses', icon: FaStore, routePassword: ROUTE_PASSWORD },
       { to: '/warehouse-inventory', label: 'Warehouse inventory', icon: FaBoxesStacked },
       { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
       { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
@@ -169,11 +173,11 @@ export const NAV_ITEMS = [
     label: 'Developer tools',
     icon: FaCode,
     children: [
-      { to: '/logs', label: 'Logs', icon: FaFileLines },
-      { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane },
-      { to: '/test-case', label: 'Test case runner', icon: FaVial },
-      { to: '/company-cache', label: 'Company cache', icon: FaDatabase },
-      { to: '/company-queues', label: 'Company queues', icon: FaListUl },
+      { to: '/logs', label: 'Logs', icon: FaFileLines, routePassword: ROUTE_PASSWORD, routePasswordLiveOnly: true },
+      { to: '/api-workflow', label: 'API workflow', icon: FaPaperPlane, routePassword: ROUTE_PASSWORD, routePasswordLiveOnly: true },
+      { to: '/test-case', label: 'Test case runner', icon: FaVial, routePassword: ROUTE_PASSWORD, routePasswordLiveOnly: true },
+      { to: '/company-cache', label: 'Company cache', icon: FaDatabase, routePassword: ROUTE_PASSWORD, routePasswordLiveOnly: true },
+      { to: '/company-queues', label: 'Company queues', icon: FaListUl, routePassword: ROUTE_PASSWORD, routePasswordLiveOnly: true },
     ],
   },
 ];

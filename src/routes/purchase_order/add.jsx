@@ -7,6 +7,7 @@ import {
   fetchProductActiveRequest,
   fetchProductByIdRequest,
   generateUniqueProductBarcodeRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
@@ -20,7 +21,12 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
-import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
+import {
+  buildExpenseDefaultAccountFilterParams,
+  EXPENSE_LIST_ACCOUNT_TYPE,
+  resolveDefaultExpenseListFilterIds,
+} from '../../features/expenses/expensesAPI.js';
+import { getCompanyIdFromUser } from '../../features/company/companyAPI.js';
 import {
   PO_STATUS_OPTIONS,
   poStatusBadgeClass,
@@ -28,8 +34,18 @@ import {
 } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import './po-form-module.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading') return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded') return 'success';
+  return 'pending';
+};
 
 const productBarcode = (p) => {
   if (!p || typeof p !== 'object') return '';
@@ -819,6 +835,129 @@ const PurchaseOrderAdd = () => {
     ? form.order_status.charAt(0).toUpperCase() + form.order_status.slice(1)
     : '—';
 
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const { includeId, excludeId } = resolveDefaultExpenseListFilterIds(authUser, authCompany);
+    const accountQuery = new URLSearchParams({
+      skip: '0',
+      limit: '500',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      account_type: EXPENSE_LIST_ACCOUNT_TYPE,
+    });
+    if (includeId) accountQuery.set('include_id', includeId);
+    if (excludeId) accountQuery.set('exclude_id', excludeId);
+
+    const productSearchQuery = new URLSearchParams({
+      searchFields: POS_PRODUCT_SEARCH_FIELDS,
+      skip: '0',
+      limit: '30',
+    });
+    const productQ = addProductQuery.trim();
+    if (productQ) productSearchQuery.set('search', productQ);
+
+    const companyId = getCompanyIdFromUser(authUser);
+    const sources = [
+      {
+        key: 'vendors',
+        label: 'Vendors',
+        url: buildApiUrl('user/get-all-active?limit=2000&skip=0&role=VENDOR'),
+        status: mapLoadStatus(usersStatus),
+        durationMs: null,
+        error: usersStatus === 'failed' ? usersError : null,
+      },
+      {
+        key: 'warehouses',
+        label: 'Warehouses',
+        url: buildApiUrl('warehouse/get-all-active?skip=0&limit=1000'),
+        status: mapLoadStatus(warehousesStatus),
+        durationMs: null,
+        error: null,
+      },
+    ];
+
+    if (companyId) {
+      sources.push({
+        key: 'company',
+        label: 'Company (account defaults)',
+        url: buildApiUrl(`company/get/${encodeURIComponent(companyId)}`),
+        status: accountsStatus === 'loading' ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    sources.push(
+      {
+        key: 'accounts',
+        label: 'Payment accounts',
+        url: buildApiUrl(`account/get-all-active?${accountQuery.toString()}`),
+        status: mapLoadStatus(accountsStatus),
+        durationMs: null,
+        error: accountsStatus === 'failed' ? accountsError : null,
+      },
+      {
+        key: 'product-search',
+        label: 'Product search',
+        url: buildApiUrl(`product/get-all-active-pos?${productSearchQuery.toString()}`),
+        status: addProductLoading ? 'loading' : productQ.length >= 2 ? 'success' : 'pending',
+        durationMs: null,
+        error: addProductError || null,
+      },
+      {
+        key: 'product-get',
+        label: 'Product by id',
+        url: buildApiUrl('product/get/:id'),
+        status: addingSelectedProducts ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'generate-barcode',
+        label: 'Generate barcode',
+        url: buildApiUrl('product/generate-barcode/:id'),
+        status: generatingBarcodeKeys.size > 0 ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'create-vendor',
+        label: 'Create vendor',
+        url: buildApiUrl('user/create'),
+        status: createVendorSubmitting ? 'loading' : 'pending',
+        durationMs: null,
+        error: createVendorError || null,
+      },
+      {
+        key: 'create-po',
+        label: 'Create purchase order',
+        url: buildApiUrl('purchase_order/purchase_order_create'),
+        status: isSubmitting ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      }
+    );
+
+    return sources;
+  }, [
+    authUser,
+    authCompany,
+    usersStatus,
+    usersError,
+    warehousesStatus,
+    accountsStatus,
+    accountsError,
+    addProductQuery,
+    addProductLoading,
+    addProductError,
+    addingSelectedProducts,
+    generatingBarcodeKeys,
+    createVendorSubmitting,
+    createVendorError,
+    isSubmitting,
+  ]);
+
   return (
     <div className="po-form-page container-fluid py-4 px-0">
       <div className="row">
@@ -1508,6 +1647,7 @@ const PurchaseOrderAdd = () => {
               </form>
             </div>
           </div>
+          <DevApiSourcesFooter sources={apiSources} className="mt-3" />
         </div>
       </div>
 

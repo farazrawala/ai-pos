@@ -27,13 +27,28 @@ import { DEBUG } from '../../config/env.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ListDateExportBar from '../../components/list/ListDateExportBar.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+
+const PURCHASE_ORDER_COLUMNS = [
+  { key: 'sno', label: '#', alwaysVisible: true },
+  { key: 'reference', label: 'Reference', alwaysVisible: true },
+  { key: 'transaction', label: 'Transaction' },
+  { key: 'status', label: 'Status' },
+  { key: 'supplier', label: 'Supplier' },
+  { key: 'trace_id', label: 'Trace ID' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'created', label: 'Created' },
+  { key: 'updated', label: 'Last updated' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -70,6 +85,8 @@ const poSupplier = (row) =>
   '—';
 
 const poCreated = (row) => row?.createdAt ?? row?.created_at ?? null;
+
+const poUpdated = (row) => row?.updatedAt ?? row?.updated_at ?? null;
 
 const poTraceId = (row) => row?._id ?? row?.id ?? '';
 
@@ -119,6 +136,11 @@ const PurchaseOrders = () => {
   );
   const searchTimeoutRef = useRef(null);
   const filterTimeoutRef = useRef(null);
+
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
+    'purchase-orders',
+    PURCHASE_ORDER_COLUMNS
+  );
 
   const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
 
@@ -359,6 +381,13 @@ const PurchaseOrders = () => {
                         aria-label="Filter by purchase item id"
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={PURCHASE_ORDER_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="purchaseOrdersColumnVisibilityMenu"
+                    />
                     <AddNewButton to="/purchase-orders/add" label="Create purchase order" size="sm" />
                     <button
                       type="button"
@@ -413,19 +442,30 @@ const PurchaseOrders = () => {
                       <tr>
                         <th className="text-center list-col-sno">#</th>
                         {sortableTh('purchase_order_no', 'Reference')}
-                        {sortableTh('transaction_number', 'Transaction', 'list-col-truncate')}
-                        {sortableTh('order_status', 'Status')}
-                        {sortableTh('supplier_name', 'Supplier')}
-                        <th className="list-col-truncate-sm">Trace ID</th>
-                        {sortableTh('total_amount', 'Amount', 'text-end list-col-amount')}
-                        {sortableTh('createdAt', 'Created', 'list-col-date')}
+                        {isVisible('transaction')
+                          ? sortableTh('transaction_number', 'Transaction', 'list-col-truncate')
+                          : null}
+                        {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                        {isVisible('supplier') ? sortableTh('supplier_name', 'Supplier') : null}
+                        {isVisible('trace_id') ? (
+                          <th className="list-col-truncate-sm">Trace ID</th>
+                        ) : null}
+                        {isVisible('amount')
+                          ? sortableTh('total_amount', 'Amount', 'text-end list-col-amount')
+                          : null}
+                        {isVisible('created')
+                          ? sortableTh('createdAt', 'Created', 'list-col-date')
+                          : null}
+                        {isVisible('updated')
+                          ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
+                          : null}
                         <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="text-center py-5 text-muted">
+                          <td colSpan={visibleCount} className="text-center py-5 text-muted">
                             <p className="mb-3">
                               No purchase orders found. Try adjusting search, date range, or the optional item filter.
                             </p>
@@ -437,32 +477,57 @@ const PurchaseOrders = () => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                           const id = poTraceId(item);
                           const created = poCreated(item);
+                          const updated = poUpdated(item);
                           const txn = poTransactionNumber(item);
                           const statusVal = poStatus(item);
                           return (
                             <tr key={id || index}>
                               <td className="text-center text-muted text-sm">{seriesNumber}</td>
                               <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
-                              <td className="text-sm list-cell-truncate" title={txn !== '—' ? txn : undefined}>
-                                {txn}
-                              </td>
-                              <td className="text-sm">
-                                <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                  {String(statusVal)}
-                                </span>
-                              </td>
-                              <td className="text-sm list-cell-truncate" title={poSupplier(item)}>
-                                {poSupplier(item)}
-                              </td>
-                              <td className="text-sm text-muted list-cell-truncate-sm font-monospace" title={id || undefined}>
-                                {id ? `${id.slice(0, 8)}…` : '—'}
-                              </td>
-                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                                {poTotalAmount(item)}
-                              </td>
-                              <td className="text-sm text-nowrap list-col-date">
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                              </td>
+                              {isVisible('transaction') ? (
+                                <td className="text-sm list-cell-truncate" title={txn !== '—' ? txn : undefined}>
+                                  {txn}
+                                </td>
+                              ) : null}
+                              {isVisible('status') ? (
+                                <td className="text-sm">
+                                  <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
+                                    {String(statusVal)}
+                                  </span>
+                                </td>
+                              ) : null}
+                              {isVisible('supplier') ? (
+                                <td className="text-sm list-cell-truncate" title={poSupplier(item)}>
+                                  {poSupplier(item)}
+                                </td>
+                              ) : null}
+                              {isVisible('trace_id') ? (
+                                <td className="text-sm text-muted list-cell-truncate-sm font-monospace" title={id || undefined}>
+                                  {id ? `${id.slice(0, 8)}…` : '—'}
+                                </td>
+                              ) : null}
+                              {isVisible('amount') ? (
+                                <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
+                                  {poTotalAmount(item)}
+                                </td>
+                              ) : null}
+                              {isVisible('created') ? (
+                                <td className="text-sm text-nowrap list-col-date">
+                                  {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                                </td>
+                              ) : null}
+                              {isVisible('updated') ? (
+                                <td
+                                  className="text-sm text-nowrap list-col-date"
+                                  title={
+                                    updated
+                                      ? moment(updated).format('DD MMM YYYY h:mm a')
+                                      : undefined
+                                  }
+                                >
+                                  {updated ? moment(updated).fromNow() : '—'}
+                                </td>
+                              ) : null}
                               <td className="text-end">
                                 {id ? (
                                   <div className="list-table-actions">

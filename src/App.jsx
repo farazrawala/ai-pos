@@ -14,6 +14,22 @@ import Dashboard from './routes/Dashboard.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
+import RoutePasswordGate from './components/RoutePasswordGate.jsx';
+import { ROUTE_PASSWORD } from './config/navItems.js';
+import { IS_LIVE } from './config/env.js';
+
+/** Password-gate developer tools only in live (`VITE_APP_ENV=live`). */
+function withDevToolsPassword(node) {
+  return (
+    <RoutePasswordGate
+      password={IS_LIVE ? ROUTE_PASSWORD : undefined}
+      storageKey="developer-tools"
+      title="Unlock Developer tools"
+    >
+      {node}
+    </RoutePasswordGate>
+  );
+}
 import Category from './routes/category/index.jsx';
 import CategoryAdd from './routes/category/add.jsx';
 import CategoryEdit from './routes/category/edit.jsx';
@@ -206,7 +222,7 @@ const App = () => {
           <Route path="/invoice" element={<PosInvoice />} />
           <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
-          <Route path="/logs" element={<Logs />} />
+          <Route path="/logs" element={withDevToolsPassword(<Logs />)} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
           <Route path="/support" element={<SupportList />} />
@@ -217,9 +233,30 @@ const App = () => {
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
-          <Route path="/warehouse" element={<Warehouse />} />
-          <Route path="/warehouse/add" element={<WarehouseAdd />} />
-          <Route path="/warehouse/edit/:id" element={<WarehouseEdit />} />
+          <Route
+            path="/warehouse"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <Warehouse />
+              </RoutePasswordGate>
+            }
+          />
+          <Route
+            path="/warehouse/add"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <WarehouseAdd />
+              </RoutePasswordGate>
+            }
+          />
+          <Route
+            path="/warehouse/edit/:id"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <WarehouseEdit />
+              </RoutePasswordGate>
+            }
+          />
           <Route path="/branch" element={<Branch />} />
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
@@ -262,11 +299,11 @@ const App = () => {
           <Route path="/sales-returns" element={<SalesReturnLookup />} />
           <Route path="/sales-returns/add" element={<SalesReturnAdd />} />
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
-          <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
-          <Route path="/test-case" element={<InventoryTestCaseRunner />} />
+          <Route path="/api-workflow" element={withDevToolsPassword(<ApiWorkflowRunner />)} />
+          <Route path="/test-case" element={withDevToolsPassword(<InventoryTestCaseRunner />)} />
           <Route path="/company" element={<CompanyPage />} />
-          <Route path="/company-cache" element={<CompanyCachePage />} />
-          <Route path="/company-queues" element={<CompanyQueuesPage />} />
+          <Route path="/company-cache" element={withDevToolsPassword(<CompanyCachePage />)} />
+          <Route path="/company-queues" element={withDevToolsPassword(<CompanyQueuesPage />)} />
           <Route
             path="/"
             element={isAuthenticated ? <Home /> : <Navigate to="/signin" replace />}
@@ -349,7 +386,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/invoice" element={<PosInvoice />} />
           <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
-          <Route path="/logs" element={<Logs />} />
+          <Route path="/logs" element={withDevToolsPassword(<Logs />)} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
           <Route path="/support" element={<SupportList />} />
@@ -360,9 +397,30 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
-          <Route path="/warehouse" element={<Warehouse />} />
-          <Route path="/warehouse/add" element={<WarehouseAdd />} />
-          <Route path="/warehouse/edit/:id" element={<WarehouseEdit />} />
+          <Route
+            path="/warehouse"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <Warehouse />
+              </RoutePasswordGate>
+            }
+          />
+          <Route
+            path="/warehouse/add"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <WarehouseAdd />
+              </RoutePasswordGate>
+            }
+          />
+          <Route
+            path="/warehouse/edit/:id"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock Warehouses">
+                <WarehouseEdit />
+              </RoutePasswordGate>
+            }
+          />
           <Route path="/branch" element={<Branch />} />
           <Route path="/branch/add" element={<BranchAdd />} />
           <Route path="/branch/edit/:id" element={<BranchEdit />} />
@@ -405,11 +463,11 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/sales-returns" element={<SalesReturnLookup />} />
           <Route path="/sales-returns/add" element={<SalesReturnAdd />} />
           <Route path="/sales-returns/edit/:id" element={<SalesReturnEdit />} />
-          <Route path="/api-workflow" element={<ApiWorkflowRunner />} />
-          <Route path="/test-case" element={<InventoryTestCaseRunner />} />
+          <Route path="/api-workflow" element={withDevToolsPassword(<ApiWorkflowRunner />)} />
+          <Route path="/test-case" element={withDevToolsPassword(<InventoryTestCaseRunner />)} />
           <Route path="/company" element={<CompanyPage />} />
-          <Route path="/company-cache" element={<CompanyCachePage />} />
-          <Route path="/company-queues" element={<CompanyQueuesPage />} />
+          <Route path="/company-cache" element={withDevToolsPassword(<CompanyCachePage />)} />
+          <Route path="/company-queues" element={withDevToolsPassword(<CompanyQueuesPage />)} />
           <Route
             path="/dashboard"
             element={isAuthenticated ? <Dashboard /> : <Navigate to="/signin" replace />}

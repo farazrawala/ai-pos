@@ -16,7 +16,7 @@ import {
   formatInvoiceMoney,
 } from '../../features/orders/invoiceViewMapper.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
-import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import { fetchProductActiveRequest, POS_PRODUCT_SEARCH_FIELDS } from '../../features/products/productsAPI.js';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -39,6 +39,7 @@ import {
 } from '../../features/company/companyAPI.js';
 import { selectAuthUser, selectCompany, selectCompanyId } from '../../features/user/userSlice.js';
 import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -47,7 +48,16 @@ import NavIcon from '../../components/NavIcon.jsx';
 import { FaTrash, FaWhatsapp } from 'react-icons/fa6';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import './pos-invoice-module.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading') return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded') return 'success';
+  return 'pending';
+};
 
 /** Demo payload — replace with API data later */
 const DEMO_INVOICE = {
@@ -1430,6 +1440,119 @@ const PosInvoice = () => {
     sharePublicUrl,
   ]);
 
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const oid = String(invoiceId || '').trim();
+    const productSearchQuery = new URLSearchParams({
+      searchFields: POS_PRODUCT_SEARCH_FIELDS,
+      skip: '0',
+      limit: '30',
+    });
+    const productQ = addProductQuery.trim();
+    if (productQ) productSearchQuery.set('search', productQ);
+
+    const accountQuery = new URLSearchParams({
+      limit: '2000',
+      skip: '0',
+      account_type: 'current_asset',
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    });
+
+    const sources = [];
+
+    if (oid) {
+      sources.push({
+        key: 'invoice-order',
+        label: isDeletedOrderView ? 'Deleted order (invoice)' : 'Order (invoice)',
+        url: buildApiUrl(
+          `order/get-order-by-order-no/${encodeURIComponent(oid)}${
+            isDeletedOrderView ? '?deleted=1' : ''
+          }`
+        ),
+        status: mapLoadStatus(fetchStatus),
+        durationMs: null,
+        error: fetchStatus === 'failed' ? fetchError : null,
+      });
+    }
+
+    if (companyId) {
+      sources.push({
+        key: 'company',
+        label: 'Company (brand / print settings)',
+        url: buildApiUrl(`company/get/${encodeURIComponent(companyId)}`),
+        status: invoiceCompany ? 'success' : 'pending',
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    if (oid) {
+      sources.push(
+        {
+          key: 'customers',
+          label: 'Customers',
+          url: buildApiUrl('user/get-all-active?limit=2000&skip=0'),
+          status: mapLoadStatus(usersStatus),
+          durationMs: null,
+          error: usersStatus === 'failed' ? usersError : null,
+        },
+        {
+          key: 'payment-accounts',
+          label: 'Payment accounts',
+          url: buildApiUrl(`account/get-all-active?${accountQuery.toString()}`),
+          status: mapLoadStatus(paymentMethodsStatus),
+          durationMs: null,
+          error: paymentMethodsStatus === 'failed' ? paymentMethodsError : null,
+        },
+        {
+          key: 'product-search',
+          label: 'Product search',
+          url: buildApiUrl(`product/get-all-active-pos?${productSearchQuery.toString()}`),
+          status: addProductLoading ? 'loading' : productQ.length >= 2 ? 'success' : 'pending',
+          durationMs: null,
+          error: addProductError || null,
+        },
+        {
+          key: 'create-customer',
+          label: 'Create customer',
+          url: buildApiUrl('user/create'),
+          status: createCustomerSubmitting ? 'loading' : 'pending',
+          durationMs: null,
+          error: createCustomerError || null,
+        },
+        {
+          key: 'update-order',
+          label: 'Update order',
+          url: buildApiUrl(`order/order_update/${encodeURIComponent(oid)}`),
+          status: invoiceSaving ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        }
+      );
+    }
+
+    return sources;
+  }, [
+    invoiceId,
+    isDeletedOrderView,
+    fetchStatus,
+    fetchError,
+    companyId,
+    invoiceCompany,
+    usersStatus,
+    usersError,
+    paymentMethodsStatus,
+    paymentMethodsError,
+    addProductQuery,
+    addProductLoading,
+    addProductError,
+    createCustomerSubmitting,
+    createCustomerError,
+    invoiceSaving,
+  ]);
+
   if (fetchStatus === 'loading') {
     return (
       <div className="pos-invoice-page container-fluid py-4">
@@ -2285,6 +2408,7 @@ const PosInvoice = () => {
               ) : null}
             </div>
           </div>
+          <DevApiSourcesFooter sources={apiSources} className="mt-3 pos-inv-no-print" />
         </div>
       </div>
 

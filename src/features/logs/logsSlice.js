@@ -26,7 +26,7 @@ const initialState = {
   search: '',
   /** Filter by exact tag match (`API`, `get`, `Cache`, …). Empty = all (first toggle). */
   logTag: '',
-  /** Filter logs for a specific entity (e.g. product). */
+  /** Filter logs for a specific entity (product, purchase_order, or order). */
   referenceId: '',
   referenceType: '',
   sort: {
@@ -54,6 +54,18 @@ const logsSlice = createSlice({
       const productId = action.payload ?? '';
       state.referenceId = productId;
       state.referenceType = productId ? 'product' : '';
+      state.pagination.page = 1;
+    },
+    setPurchaseOrderReference: (state, action) => {
+      const purchaseOrderId = action.payload ?? '';
+      state.referenceId = purchaseOrderId;
+      state.referenceType = purchaseOrderId ? 'purchase_order' : '';
+      state.pagination.page = 1;
+    },
+    setOrderReference: (state, action) => {
+      const orderId = action.payload ?? '';
+      state.referenceId = orderId;
+      state.referenceType = orderId ? 'order' : '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -102,6 +114,15 @@ const logsSlice = createSlice({
   },
 });
 
-export const { clearError, setSearch, setLogTag, setProductReference, setPage, setLimit, setSort } =
-  logsSlice.actions;
+export const {
+  clearError,
+  setSearch,
+  setLogTag,
+  setProductReference,
+  setPurchaseOrderReference,
+  setOrderReference,
+  setPage,
+  setLimit,
+  setSort,
+} = logsSlice.actions;
 export default logsSlice.reducer;

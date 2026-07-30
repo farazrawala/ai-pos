@@ -23,6 +23,7 @@ import {
   fetchProductActiveRequest,
   fetchProductByIdRequest,
   generateUniqueProductBarcodeRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
@@ -31,15 +32,29 @@ import {
   getUserOptionValue,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
-import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
+import {
+  buildExpenseDefaultAccountFilterParams,
+  EXPENSE_LIST_ACCOUNT_TYPE,
+  resolveDefaultExpenseListFilterIds,
+} from '../../features/expenses/expensesAPI.js';
 import {
   PO_STATUS_OPTIONS,
   poStatusBadgeClass,
   sanitizeAmountPaidInput,
 } from './poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { toast } from '../../utils/toast.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import './po-form-module.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading') return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded') return 'success';
+  return 'pending';
+};
 
 const productBarcode = (p) => {
   if (!p || typeof p !== 'object') return '';
@@ -1085,6 +1100,143 @@ const PurchaseOrderEdit = () => {
   const supplierSelectDisabled = isSubmitting || usersStatus === 'loading';
   const accountSelectDisabled = isSubmitting || accountsStatus === 'loading';
 
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const { includeId, excludeId } = resolveDefaultExpenseListFilterIds(authUser, authCompany);
+    const accountQuery = new URLSearchParams({
+      skip: '0',
+      limit: '500',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      account_type: EXPENSE_LIST_ACCOUNT_TYPE,
+    });
+    if (includeId) accountQuery.set('include_id', includeId);
+    if (excludeId) accountQuery.set('exclude_id', excludeId);
+
+    const productSearchQuery = new URLSearchParams({
+      searchFields: POS_PRODUCT_SEARCH_FIELDS,
+      skip: '0',
+      limit: '30',
+    });
+    const productQ = addProductQuery.trim();
+    if (productQ) productSearchQuery.set('search', productQ);
+
+    const companyId = getCompanyIdFromUser(authUser);
+    const poId = String(id ?? '').trim();
+
+    const sources = [
+      {
+        key: 'purchase-order',
+        label: 'Purchase order',
+        url: buildApiUrl(
+          `purchase_order/get-purchase-order-by-purchase-item/${encodeURIComponent(poId || ':id')}?populate=vendor_id`
+        ),
+        status: mapLoadStatus(fetchStatus),
+        durationMs: null,
+        error: fetchStatus === 'failed' ? fetchError : null,
+      },
+      {
+        key: 'users',
+        label: 'Users / vendors',
+        url: buildApiUrl('user/get-all-active?limit=2000&skip=0'),
+        status: mapLoadStatus(usersStatus),
+        durationMs: null,
+        error: usersStatus === 'failed' ? usersError : null,
+      },
+      {
+        key: 'warehouses',
+        label: 'Warehouses',
+        url: buildApiUrl('warehouse/get-all-active?skip=0&limit=1000'),
+        status: mapLoadStatus(warehousesStatus),
+        durationMs: null,
+        error: null,
+      },
+    ];
+
+    if (companyId) {
+      sources.push({
+        key: 'company',
+        label: 'Company (account defaults / print)',
+        url: buildApiUrl(`company/get/${encodeURIComponent(companyId)}`),
+        status:
+          accountsStatus === 'loading' || !poCompany
+            ? accountsStatus === 'loading'
+              ? 'loading'
+              : 'pending'
+            : 'success',
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    sources.push(
+      {
+        key: 'accounts',
+        label: 'Payment accounts',
+        url: buildApiUrl(`account/get-all-active?${accountQuery.toString()}`),
+        status: mapLoadStatus(accountsStatus),
+        durationMs: null,
+        error: accountsStatus === 'failed' ? accountsError : null,
+      },
+      {
+        key: 'product-search',
+        label: 'Product search',
+        url: buildApiUrl(`product/get-all-active-pos?${productSearchQuery.toString()}`),
+        status: addProductLoading ? 'loading' : productQ.length >= 2 ? 'success' : 'pending',
+        durationMs: null,
+        error: addProductError || null,
+      },
+      {
+        key: 'product-get',
+        label: 'Product by id',
+        url: buildApiUrl('product/get/:id'),
+        status: addingSelectedProducts ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'generate-barcode',
+        label: 'Generate barcode',
+        url: buildApiUrl('product/generate-barcode/:id'),
+        status: generatingBarcodeKeys.size > 0 ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'update-po',
+        label: 'Update purchase order',
+        url: buildApiUrl(
+          `purchase_order/purchase_order_update/${encodeURIComponent(poId || ':id')}`
+        ),
+        status: isSubmitting ? 'loading' : updateError ? 'error' : 'pending',
+        durationMs: null,
+        error: updateError || null,
+      }
+    );
+
+    return sources;
+  }, [
+    authUser,
+    authCompany,
+    id,
+    fetchStatus,
+    fetchError,
+    usersStatus,
+    usersError,
+    warehousesStatus,
+    accountsStatus,
+    accountsError,
+    poCompany,
+    addProductQuery,
+    addProductLoading,
+    addProductError,
+    addingSelectedProducts,
+    generatingBarcodeKeys,
+    isSubmitting,
+    updateError,
+  ]);
+
   if (fetchStatus === 'loading') {
     return (
       <div className="po-form-page container-fluid py-4">
@@ -1799,6 +1951,7 @@ const PurchaseOrderEdit = () => {
               </form>
             </div>
           </div>
+          <DevApiSourcesFooter sources={apiSources} className="mt-3" />
         </div>
       </div>
     </div>
