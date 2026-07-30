@@ -22,17 +22,64 @@ export function absoluteAppUrl(path = '') {
   return new URL(withBase(path), window.location.origin).href;
 }
 
+/** True when running as an installed PWA / desktop app window (not a normal browser tab). */
+export function isInstalledAppDisplay() {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window.matchMedia('(display-mode: standalone)').matches) return true;
+    if (window.matchMedia('(display-mode: window-controls-overlay)').matches) return true;
+    if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+  } catch {
+    /* ignore */
+  }
+  // Legacy iOS home-screen web apps
+  return window.navigator?.standalone === true;
+}
+
 /**
- * Open an in-app path in a new browser tab.
- * Prefer this over relative `target="_blank"` so installed PWAs are less likely to steal the navigation.
+ * Open an in-app path in a real browser tab.
+ *
+ * Avoids two PWA pitfalls:
+ * 1) `window.open(..., 'noopener')` returns null in Chromium and used to fall back to
+ *    navigating the current app window.
+ * 2) Installed PWAs often turn same-origin `target=_blank` into another app window —
+ *    so we prefer OS browser protocol handlers when running standalone.
  */
 export function openAppPathInNewTab(path = '') {
+  if (typeof window === 'undefined') return null;
   const href = absoluteAppUrl(path);
-  const win = window.open(href, '_blank', 'noopener,noreferrer');
-  if (!win) {
-    window.location.assign(href);
+
+  if (isInstalledAppDisplay()) {
+    const ua = String(navigator.userAgent || '');
+    const isEdge = /\bEdg\//.test(ua);
+    const isChrome = /\bChrome\//.test(ua) && !isEdge && !/\bOPR\//.test(ua);
+
+    // Open in the system browser instead of another installed-app window.
+    if (isEdge) {
+      const edgeWin = window.open(`microsoft-edge:${href}`, '_blank');
+      if (edgeWin) return edgeWin;
+    }
+    if (isChrome) {
+      const chromeWin = window.open(`googlechrome:${href}`, '_blank');
+      if (chromeWin) return chromeWin;
+    }
   }
-  return win;
+
+  // Do NOT put noopener/noreferrer in the features string — Chromium then returns null
+  // even when the tab opened, which previously caused a same-window navigation fallback.
+  const win = window.open(href, '_blank');
+  if (win) {
+    try {
+      win.opener = null;
+    } catch {
+      /* ignore */
+    }
+    return win;
+  }
+
+  // Popup blocked: last resort (may stay in the current window).
+  window.location.assign(href);
+  return null;
 }
 
 /** POS invoice route — avoids `/pos/pos/invoice` when the app basename is `/pos`. */

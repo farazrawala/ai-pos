@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { FaBarcode, FaFloppyDisk, FaMicrophone, FaMoneyBill1 } from 'react-icons/fa6';
+import { FaBarcode, FaFloppyDisk, FaMicrophone, FaMoneyBill1, FaPenToSquare } from 'react-icons/fa6';
 import {
   fetchProductActiveRequest,
   POS_PRODUCT_SEARCH_FIELDS,
@@ -10,7 +10,7 @@ import {
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
-import { withBase } from '../../config/appBase.js';
+import { withBase, openAppPathInNewTab } from '../../config/appBase.js';
 import {
   formatProductNameWithStock,
   getProductAvailableStock,
@@ -676,7 +676,8 @@ const PosProducts = ({
             {productsStatus !== 'loading' && visibleProducts.length > 0 && (
               <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-4 g-3">
                 {visibleProducts.map((p, index) => {
-                  const id = getProductId(p) || `idx-${index}`;
+                  const productId = getProductId(p);
+                  const id = productId || `idx-${index}`;
                   const name = getProductName(p);
                   const stock = getProductAvailableStock(p, { warehouseId });
                   const displayName = formatProductNameWithStock(name, stock);
@@ -714,8 +715,25 @@ const PosProducts = ({
                             </div>
                           )}
                         </div>
-                        <div className="text-center pos-product-name flex-grow-1" title={displayName}>
-                          {displayName}
+                        <div className="pos-product-name-row flex-grow-1">
+                          <div className="text-center pos-product-name" title={displayName}>
+                            {displayName}
+                          </div>
+                          {productId ? (
+                            <button
+                              type="button"
+                              className="pos-product-edit-btn"
+                              title="Edit product (opens in browser)"
+                              aria-label={`Edit ${name}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openAppPathInNewTab(`/products/edit/${productId}`);
+                              }}
+                            >
+                              <NavIcon icon={FaPenToSquare} size={11} />
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
