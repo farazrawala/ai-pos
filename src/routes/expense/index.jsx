@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -10,27 +10,26 @@ import {
   setSort,
 } from '../../features/expenses/expensesSlice.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import { DEBUG } from '../../config/env.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
-const shortenId = (id, len = 10) => {
-  if (id == null || id === '') return '—';
-  const s = String(id);
-  if (s.length <= len) return s;
-  return `${s.slice(0, len)}…`;
-};
-
-const IdCell = ({ value }) => {
-  const s = value != null && value !== '' ? String(value) : '';
-  if (!s) return <span className="text-muted">—</span>;
-  return (
-    <span className="font-monospace text-xs" style={{ wordBreak: 'break-all' }} title={s}>
-      {shortenId(s, 12)}
-    </span>
-  );
-};
+const EXPENSE_COLUMNS = [
+  { key: 'sno', label: 'S.No', alwaysVisible: true },
+  { key: 'name', label: 'Name' },
+  { key: 'user_name', label: 'User name' },
+  { key: 'expense_account', label: 'Expense account' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'payment_account', label: 'Payment account' },
+  { key: 'note', label: 'Note' },
+  { key: 'status', label: 'Status' },
+  { key: 'created', label: 'Created' },
+  { key: 'updated', label: 'Last Updated At' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
 
 /** Populated `user_id` object or raw id string from API. */
 const expenseUserDisplayName = (userRef) => {
@@ -76,7 +75,13 @@ const ExpenseIndex = () => {
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
-  useEffect(() => {
+  const expenseColumns = useMemo(() => EXPENSE_COLUMNS, []);
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
+    'expenses',
+    expenseColumns
+  );
+
+  const buildListParams = useCallback(() => {
     const params = {
       page: pagination.page,
       limit: pagination.limit,
@@ -86,8 +91,16 @@ const ExpenseIndex = () => {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
     }
-    dispatch(fetchExpenses(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+    return params;
+  }, [pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  useEffect(() => {
+    dispatch(fetchExpenses(buildListParams()));
+  }, [dispatch, buildListParams]);
+
+  const handleRetryFetch = useCallback(() => {
+    dispatch(fetchExpenses(buildListParams()));
+  }, [dispatch, buildListParams]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -155,11 +168,6 @@ const ExpenseIndex = () => {
     };
   }, []);
 
-  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
-  const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
-
-  const colCount = 12;
-
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
@@ -167,7 +175,7 @@ const ExpenseIndex = () => {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header">
               <div className="row align-items-center">
-                <div className="col-md-6">
+                <div className="col-md-5">
                   <h5 className="mb-0">Expenses</h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
@@ -179,9 +187,9 @@ const ExpenseIndex = () => {
                     </p>
                   ) : null}
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group" style={{ maxWidth: '300px' }}>
+                <div className="col-md-7">
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap mt-2 mt-md-0">
+                    <div className="input-group" style={{ maxWidth: '280px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
@@ -193,6 +201,13 @@ const ExpenseIndex = () => {
                         onChange={handleSearchChange}
                       />
                     </div>
+                    <ColumnVisibilityMenu
+                      columns={expenseColumns}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="expensesColumnVisibilityMenu"
+                    />
                     <AddNewButton to="/expenses/add" label="Add expense" />
                   </div>
                 </div>
@@ -203,6 +218,7 @@ const ExpenseIndex = () => {
                 loading={loading}
                 loadingLabel="Loading expenses…"
                 error={error}
+                onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
                 onLimitChange={handleLimitChange}
@@ -212,59 +228,68 @@ const ExpenseIndex = () => {
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Id</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('name')}
-                        onDoubleClick={() => handleSort('name', true)}
-                      >
-                        Name
-                        {renderSortIcon('name')}
-                      </th>
-                      <th>User name</th>
-                      <th>Expense account</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('amount')}
-                        onDoubleClick={() => handleSort('amount', true)}
-                      >
-                        Amount
-                        {renderSortIcon('amount')}
-                      </th>
-                      <th>Payment account</th>
-                      <th>Note</th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('status')}
-                        onDoubleClick={() => handleSort('status', true)}
-                      >
-                        Status
-                        {renderSortIcon('status')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('createdAt')}
-                        onDoubleClick={() => handleSort('createdAt', true)}
-                      >
-                        Created
-                        {renderSortIcon('createdAt')}
-                      </th>
-                      <th
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleSort('updatedAt')}
-                        onDoubleClick={() => handleSort('updatedAt', true)}
-                      >
-                        Last Updated At
-                        {renderSortIcon('updatedAt')}
-                      </th>
-                      <th>Actions</th>
+                      {isVisible('sno') ? <th>S.No</th> : null}
+                      {isVisible('name') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('name')}
+                          onDoubleClick={() => handleSort('name', true)}
+                        >
+                          Name
+                          {renderSortIcon('name')}
+                        </th>
+                      ) : null}
+                      {isVisible('user_name') ? <th>User name</th> : null}
+                      {isVisible('expense_account') ? <th>Expense account</th> : null}
+                      {isVisible('amount') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('amount')}
+                          onDoubleClick={() => handleSort('amount', true)}
+                        >
+                          Amount
+                          {renderSortIcon('amount')}
+                        </th>
+                      ) : null}
+                      {isVisible('payment_account') ? <th>Payment account</th> : null}
+                      {isVisible('note') ? <th>Note</th> : null}
+                      {isVisible('status') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('status')}
+                          onDoubleClick={() => handleSort('status', true)}
+                        >
+                          Status
+                          {renderSortIcon('status')}
+                        </th>
+                      ) : null}
+                      {isVisible('created') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('createdAt')}
+                          onDoubleClick={() => handleSort('createdAt', true)}
+                        >
+                          Created
+                          {renderSortIcon('createdAt')}
+                        </th>
+                      ) : null}
+                      {isVisible('updated') ? (
+                        <th
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          onClick={() => handleSort('updatedAt')}
+                          onDoubleClick={() => handleSort('updatedAt', true)}
+                        >
+                          Last Updated At
+                          {renderSortIcon('updatedAt')}
+                        </th>
+                      ) : null}
+                      {isVisible('actions') ? <th>Actions</th> : null}
                     </tr>
                   </thead>
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={colCount} className="text-center text-sm p-4 text-muted">
+                        <td colSpan={Math.max(visibleCount, 1)} className="text-center text-sm p-4 text-muted">
                           No expenses found
                         </td>
                       </tr>
@@ -275,74 +300,93 @@ const ExpenseIndex = () => {
                         const note = item.note != null ? String(item.note) : '';
                         return (
                           <tr key={rowKey}>
-                            <td className="text-sm text-muted">{seriesNumber}</td>
-                            <td className="text-sm">
-                              <IdCell value={item._id} />
-                            </td>
-                            <td className="text-sm font-weight-normal">{item.name || '—'}</td>
-                            <td className="text-sm font-weight-normal">
-                              {expenseUserDisplayName(item.user_id)}
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              {expenseAccountDisplayName(item.account_id)}
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              {item.amount != null ? Number(item.amount).toLocaleString() : '—'}
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              {expenseAccountDisplayName(item.payment_method_accounts_id)}
-                            </td>
-                            <td
-                              className="text-sm font-weight-normal"
-                              style={{ maxWidth: '160px' }}
-                              title={note}
-                            >
-                              {note ? (
+                            {isVisible('sno') ? (
+                              <td className="text-sm text-muted">{seriesNumber}</td>
+                            ) : null}
+                            {isVisible('name') ? (
+                              <td className="text-sm font-weight-normal">{item.name || '—'}</td>
+                            ) : null}
+                            {isVisible('user_name') ? (
+                              <td className="text-sm font-weight-normal">
+                                {expenseUserDisplayName(item.user_id)}
+                              </td>
+                            ) : null}
+                            {isVisible('expense_account') ? (
+                              <td className="text-sm font-weight-normal">
+                                {expenseAccountDisplayName(item.account_id)}
+                              </td>
+                            ) : null}
+                            {isVisible('amount') ? (
+                              <td className="text-sm font-weight-normal">
+                                {item.amount != null ? Number(item.amount).toLocaleString() : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('payment_account') ? (
+                              <td className="text-sm font-weight-normal">
+                                {expenseAccountDisplayName(item.payment_method_accounts_id)}
+                              </td>
+                            ) : null}
+                            {isVisible('note') ? (
+                              <td
+                                className="text-sm font-weight-normal"
+                                style={{ maxWidth: '160px' }}
+                                title={note}
+                              >
+                                {note ? (
+                                  <span
+                                    className="text-truncate d-inline-block"
+                                    style={{ maxWidth: '150px' }}
+                                  >
+                                    {note}
+                                  </span>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('status') ? (
+                              <td className="text-sm">
                                 <span
-                                  className="text-truncate d-inline-block"
-                                  style={{ maxWidth: '150px' }}
+                                  className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
                                 >
-                                  {note}
+                                  {item.status || '—'}
                                 </span>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                            <td className="text-sm">
-                              <span
-                                className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
+                              </td>
+                            ) : null}
+                            {isVisible('created') ? (
+                              <td className="text-sm text-muted text-nowrap">
+                                {item.createdAt
+                                  ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
+                                  : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('updated') ? (
+                              <td
+                                className="text-sm text-muted text-nowrap"
+                                title={
+                                  item.updatedAt || item.updated_at
+                                    ? moment(item.updatedAt || item.updated_at).format(
+                                        'MM-DD-YYYY h:mm a'
+                                      )
+                                    : undefined
+                                }
                               >
-                                {item.status || '—'}
-                              </span>
-                            </td>
-                            <td className="text-sm text-muted text-nowrap">
-                              {item.createdAt
-                                ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
-                                : '—'}
-                            </td>
-                            <td
-                              className="text-sm text-muted text-nowrap"
-                              title={
-                                item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).format(
-                                      'MM-DD-YYYY h:mm a'
-                                    )
-                                  : undefined
-                              }
-                            >
-                              {item.updatedAt || item.updated_at
-                                ? moment(item.updatedAt || item.updated_at).fromNow()
-                                : '—'}
-                            </td>
-                            <td className="text-sm font-weight-normal">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                onClick={() => navigate(`/expenses/edit/${item._id || item.id}`)}
-                              >
-                                Edit
-                              </button>
-                            </td>
+                                {item.updatedAt || item.updated_at
+                                  ? moment(item.updatedAt || item.updated_at).fromNow()
+                                  : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('actions') ? (
+                              <td className="text-sm font-weight-normal">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => navigate(`/expenses/edit/${item._id || item.id}`)}
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            ) : null}
                           </tr>
                         );
                       })
