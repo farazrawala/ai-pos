@@ -17,6 +17,7 @@ import {
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { withBase } from '../../config/appBase.js';
 import { getProductListingImage, getParentProductId } from '../../features/bigCommerce/marketplaceUtils.js';
+import { pickCompanyLogoUrl } from '../../features/company/companyAPI.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -30,11 +31,15 @@ import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { productEditIdFromRecord, productIdFromRecord, parentProductIdFromRecord } from '../../components/product/productVariationUtils.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { formatMoney } from '../../utils/formatMoney.js';
 import {
   fetchAllProductsForExportRequest,
   fetchProductVariationRequest,
+  PRODUCT_LIST_SEARCH_FIELDS,
+  PRODUCTS_LIST_POPULATE,
   updateProductRequest,
 } from '../../features/products/productsAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
@@ -44,6 +49,13 @@ import {
 } from '../../features/products/productExportMapper.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import { toast } from '../../utils/toast.js';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === true) return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded' || status === false) return 'success';
+  return 'pending';
+};
 
 const sumWarehouseInventory = (inventory) => {
   if (!Array.isArray(inventory) || inventory.length === 0) return null;
@@ -127,6 +139,76 @@ const getProductStockDisplay = (item) => {
   return { total: getProductStock(item), lines: [] };
 };
 
+/** Company name this product was fetched/copied from (Me too). */
+const getOriginCompanyName = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  const company = item.fetch_from_company_id ?? item.fetchFromCompanyId;
+  if (company && typeof company === 'object' && !Array.isArray(company)) {
+    const name = company.company_name ?? company.companyName ?? company.name;
+    if (name != null && String(name).trim() !== '') return String(name).trim();
+  }
+  return '';
+};
+
+/** Origin company logo URL from fetch_from_company_id.company_logo. */
+const getOriginCompanyLogoUrl = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  const company = item.fetch_from_company_id ?? item.fetchFromCompanyId;
+  if (!company || typeof company !== 'object' || Array.isArray(company)) return '';
+  return pickCompanyLogoUrl(company);
+};
+
+/** Origin cell: company logo when present, otherwise company name. */
+function OriginCell({ name, logoUrl }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const label = name || '—';
+  if (logoUrl && !logoFailed) {
+    return (
+      <span className="list-origin-logo-wrap" title={label} aria-label={label}>
+        <img
+          src={logoUrl}
+          alt={label}
+          className="list-origin-logo"
+          onError={() => setLogoFailed(true)}
+        />
+      </span>
+    );
+  }
+  return (
+    <span className="list-cell-truncate d-inline-block" title={name || undefined}>
+      {label}
+    </span>
+  );
+}
+
+/**
+ * Available qty on the source product:
+ * sum(fetch_from_product_id.warehouse_inventory.quantity) − bigcommerce_hold_qty
+ */
+const getOriginQty = (item) => {
+  if (!item || typeof item !== 'object') return null;
+  const source = item.fetch_from_product_id ?? item.fetchFromProductId;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+
+  const inv = source.warehouse_inventory ?? source.warehouseInventory;
+  let stock = null;
+  if (Array.isArray(inv) && inv.length > 0) {
+    stock = inv.reduce((sum, row) => sum + (Number(row?.quantity) || 0), 0);
+  } else {
+    const direct = source.stock ?? source.total_stock ?? source.quantity;
+    if (direct != null && direct !== '') {
+      const n = Number(direct);
+      if (Number.isFinite(n)) stock = n;
+    }
+  }
+  if (stock == null || !Number.isFinite(stock)) return null;
+
+  const holdRaw = source.bigcommerce_hold_qty ?? source.bigcommerceHoldQty;
+  const hold = holdRaw != null && holdRaw !== '' ? Number(holdRaw) : 0;
+  const holdQty = Number.isFinite(hold) && hold > 0 ? hold : 0;
+  return Math.max(0, Math.round((stock - holdQty) * 100) / 100);
+};
+
 /** Products table columns. `sno`, `name`, `actions` are always visible. */
 const PRODUCT_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
@@ -141,12 +223,24 @@ const PRODUCT_COLUMNS = [
   { key: 'type', label: 'Type' },
   { key: 'status', label: 'Status' },
   { key: 'created', label: 'Created' },
+  { key: 'origin', label: 'Origin' },
+  { key: 'origin_qty', label: 'Origin qty' },
+  { key: 'bigcommerce_sync_status', label: 'BC Sync' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
 /** Product.status enum: "active" | "inactive" (default "active"). */
 const productIsActive = (item) =>
   String(item?.status ?? '').trim().toLowerCase() === 'active';
+
+/** Product.bigcommerce_sync_status — boolean (also accepts active/true strings from older data). */
+const productBigcommerceSyncIsOn = (item) => {
+  const raw = item?.bigcommerce_sync_status ?? item?.bigcommerceSyncStatus;
+  if (raw === true || raw === 1) return true;
+  if (raw === false || raw === 0 || raw == null || raw === '') return false;
+  const s = String(raw).trim().toLowerCase();
+  return s === 'active' || s === 'true' || s === '1' || s === 'synced' || s === 'enabled' || s === 'on';
+};
 
 const collectVariationIds = (product) => {
   if (!product || typeof product !== 'object') return [];
@@ -191,6 +285,7 @@ const Product = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
   const [togglingProductId, setTogglingProductId] = useState(null);
+  const [togglingSyncProductId, setTogglingSyncProductId] = useState(null);
   const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
   const [fetchProductsModalOpen, setFetchProductsModalOpen] = useState(false);
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
@@ -463,6 +558,94 @@ const Product = () => {
     }
   };
 
+  // Toggle BigCommerce sync status (true ↔ false). Parent off/on cascades to children.
+  const handleToggleBigcommerceSync = async (productId, currentlyOn) => {
+    const nextOn = !currentlyOn;
+    const syncValue = Boolean(nextOn);
+    setTogglingSyncProductId(productId);
+
+    try {
+      await dispatch(
+        updateProduct({
+          productId,
+          productData: { bigcommerce_sync_status: syncValue },
+          images: [],
+        })
+      ).unwrap();
+
+      let cascadedCount = 0;
+
+      const product =
+        (Array.isArray(data) ? data : []).find(
+          (item) => String(productIdFromRecord(item)) === String(productId)
+        ) || null;
+
+      const listChildIds = (Array.isArray(data) ? data : [])
+        .filter((item) => String(parentProductIdFromRecord(item)) === String(productId))
+        .map((item) => String(productIdFromRecord(item)))
+        .filter(Boolean);
+
+      let childIds = collectVariationIds(product);
+      const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
+
+      if (looksVariable && childIds.length === 0) {
+        try {
+          const result = await fetchProductVariationRequest(productId);
+          const detail = result?.data ?? result;
+          childIds = collectVariationIds(detail);
+        } catch (err) {
+          console.error('Failed to load variations for BC sync cascade:', err);
+        }
+      }
+
+      childIds = [...new Set([...childIds, ...listChildIds])].filter(
+        (id) => String(id) !== String(productId)
+      );
+
+      // Keep list UI in sync immediately (parent + children).
+      dispatch(
+        setListProductsStatus({
+          ids: [String(productId), ...childIds],
+          parentId: productId,
+          patch: { bigcommerce_sync_status: syncValue },
+        })
+      );
+
+      if (childIds.length > 0) {
+        const results = await Promise.allSettled(
+          childIds.map((childId) =>
+            updateProductRequest(childId, { bigcommerce_sync_status: syncValue }, [])
+          )
+        );
+        const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+        const failed = results.length - succeeded;
+        cascadedCount = succeeded;
+
+        if (failed > 0) {
+          toast.warning(
+            succeeded > 0
+              ? `BigCommerce sync ${nextOn ? 'enabled' : 'disabled'}. ${failed} of ${childIds.length} variation(s) could not be updated.`
+              : `BigCommerce sync ${nextOn ? 'enabled' : 'disabled'}, but variations could not be updated.`
+          );
+          return;
+        }
+      }
+
+      toast.success(
+        cascadedCount > 0
+          ? `BigCommerce sync ${nextOn ? 'enabled' : 'disabled'} for product and ${cascadedCount} variation(s).`
+          : nextOn
+            ? 'BigCommerce sync enabled successfully.'
+            : 'BigCommerce sync disabled successfully.'
+      );
+    } catch (error) {
+      console.error('Toggle bigcommerce_sync_status error:', error);
+      toast.error(error?.message || 'Failed to update BigCommerce sync status');
+    } finally {
+      setTogglingSyncProductId(null);
+    }
+  };
+
   // Handle delete product
   const handleDelete = async (productId, productName) => {
     const productNameDisplay = productName || 'this product';
@@ -583,6 +766,89 @@ const Product = () => {
   const refreshProductList = () => {
     dispatch(fetchProducts(buildListParams()));
   };
+
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const params = buildListParams();
+    const listQuery = new URLSearchParams();
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.max(1, Number(params.limit) || 10);
+    listQuery.set('skip', String((page - 1) * limit));
+    listQuery.set('limit', String(limit));
+    listQuery.set('searchFields', PRODUCT_LIST_SEARCH_FIELDS);
+    if (params.search) listQuery.set('search', String(params.search));
+    if (params.categoryId) listQuery.set('category_id', String(params.categoryId));
+    if (params.includeInactive) {
+      listQuery.set('include_inactive', 'true');
+    } else if (params.status) {
+      listQuery.set('status', String(params.status));
+    }
+    if (params.productType) listQuery.set('product_type', String(params.productType));
+    if (params.sortBy) listQuery.set('sortBy', String(params.sortBy));
+    if (params.sortOrder) listQuery.set('sortOrder', String(params.sortOrder));
+    listQuery.set('populate', PRODUCTS_LIST_POPULATE);
+
+    return [
+      {
+        key: 'products-list',
+        label: 'Products list',
+        url: buildApiUrl(`product/get-all-active-pos?${listQuery.toString()}`),
+        status: mapLoadStatus(status),
+        durationMs: null,
+        error: status === 'failed' ? error : null,
+      },
+      {
+        key: 'categories-filter',
+        label: 'Categories (filter)',
+        url: buildApiUrl('category/get-all?skip=0&limit=2000'),
+        status: mapLoadStatus(categoriesStatus),
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'product-update',
+        label: 'Update product (status)',
+        url: buildApiUrl('product/update/:id'),
+        status: togglingProductId ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'product-variation',
+        label: 'Product variations (status cascade)',
+        url: buildApiUrl('product/get-product-variation/:id'),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'product-delete',
+        label: 'Delete product',
+        url: buildApiUrl('product/delete/:id'),
+        status: mapLoadStatus(deleteStatus),
+        durationMs: null,
+        error: deleteStatus === 'failed' ? deleteError : null,
+      },
+      {
+        key: 'products-export',
+        label: 'Export products (paged list)',
+        url: buildApiUrl(`product/get-all-active-pos?${listQuery.toString()}`),
+        status: exporting ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+    ];
+  }, [
+    buildListParams,
+    status,
+    error,
+    categoriesStatus,
+    togglingProductId,
+    deleteStatus,
+    deleteError,
+    exporting,
+  ]);
 
   const handleFetchProductsSaved = () => {
     showToast('successToast', 'Product fetch process queued successfully!');
@@ -904,6 +1170,15 @@ const Product = () => {
                       {isVisible('created')
                         ? sortableTh('createdAt', 'Created', 'list-col-date')
                         : null}
+                      {isVisible('origin') ? (
+                        <th className="list-col-truncate-sm">Origin</th>
+                      ) : null}
+                      {isVisible('origin_qty') ? (
+                        <th className="text-end list-col-qty">Origin qty</th>
+                      ) : null}
+                      {isVisible('bigcommerce_sync_status') ? (
+                        <th className="text-center">BC Sync</th>
+                      ) : null}
                       <th className="text-end list-col-actions">Actions</th>
                     </tr>
                   </thead>
@@ -928,6 +1203,8 @@ const Product = () => {
                           getProductStockDisplay(item);
                         const isActive = productIsActive(item);
                         const isToggling = togglingProductId === productId;
+                        const syncOn = productBigcommerceSyncIsOn(item);
+                        const isTogglingSync = togglingSyncProductId === productId;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
                         const taxRate = item.tax_rate ?? item.taxRate;
@@ -939,6 +1216,9 @@ const Product = () => {
                               : '—';
                         const productType = item.product_type || item.productType || '—';
                         const barcode = item.barcode ? String(item.barcode) : '—';
+                        const originName = getOriginCompanyName(item);
+                        const originLogoUrl = getOriginCompanyLogoUrl(item);
+                        const originQty = getOriginQty(item);
 
                         return (
                           <tr key={productId || index}>
@@ -1092,6 +1372,46 @@ const Product = () => {
                                 {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
                               </td>
                             ) : null}
+                            {isVisible('origin') ? (
+                              <td className="text-sm list-col-origin">
+                                <OriginCell name={originName} logoUrl={originLogoUrl} />
+                              </td>
+                            ) : null}
+                            {isVisible('origin_qty') ? (
+                              <td className="text-sm text-end list-col-qty">
+                                {formatProductStock(originQty)}
+                              </td>
+                            ) : null}
+                            {isVisible('bigcommerce_sync_status') ? (
+                              <td className="text-sm text-center">
+                                <div className="form-check form-switch mb-0 list-status-switch d-inline-flex align-items-center justify-content-center">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id={`bc-sync-${productId || index}`}
+                                    checked={syncOn}
+                                    onChange={() =>
+                                      handleToggleBigcommerceSync(productId, syncOn)
+                                    }
+                                    disabled={!canEdit || isTogglingSync}
+                                    aria-label={`Toggle ${productName} BigCommerce sync`}
+                                    title={
+                                      syncOn
+                                        ? 'BigCommerce sync: active'
+                                        : 'BigCommerce sync: inactive'
+                                    }
+                                  />
+                                  {isTogglingSync ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm text-primary ms-1"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
+                                  ) : null}
+                                </div>
+                              </td>
+                            ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
                                 <button
@@ -1168,6 +1488,8 @@ const Product = () => {
         parentProductId={viewSyncProduct?.parentProductId || ''}
         onClose={() => setViewSyncProduct(null)}
       />
+
+      <DevApiSourcesFooter sources={apiSources} className="mt-3" />
 
       {/* Toast Notifications */}
       <div className="position-fixed bottom-1 end-1 z-index-2">

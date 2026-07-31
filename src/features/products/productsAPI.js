@@ -54,6 +54,10 @@ const buildApiErrorMessage = (errorData, status) => {
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
 
+/** Populate Me-too origin company + source product (warehouse_inventory, hold qty). */
+export const PRODUCTS_LIST_POPULATE =
+  'fetch_from_company_id,fetch_from_product_id';
+
 /** Append POS status query params per backend contract. */
 const appendPosStatusParams = (queryParams, params = {}) => {
   if (params.includeInactive) {
@@ -166,6 +170,12 @@ export const fetchProductsRequest = async (params = {}) => {
   appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
+  queryParams.set(
+    'populate',
+    params.populate != null && String(params.populate).trim() !== ''
+      ? String(params.populate).trim()
+      : PRODUCTS_LIST_POPULATE
+  );
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${resolveProductsListPath()}${queryString ? `?${queryString}` : ''}`;
@@ -226,6 +236,12 @@ export const fetchProductActiveRequest = async (params = {}) => {
   appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
+  queryParams.set(
+    'populate',
+    params.populate != null && String(params.populate).trim() !== ''
+      ? String(params.populate).trim()
+      : PRODUCTS_LIST_POPULATE
+  );
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${resolveProductsListPath()}${queryString ? `?${queryString}` : ''}`;
@@ -725,6 +741,15 @@ export const updateProductVariationRequest = async (
   if (productData.height !== undefined) {
     formData.append('height', String(productData.height));
   }
+  if (productData.show_on_bigcommerce !== undefined) {
+    formData.append('show_on_bigcommerce', String(Boolean(productData.show_on_bigcommerce)));
+  }
+  if (productData.bigcommerce_price !== undefined) {
+    formData.append('bigcommerce_price', String(productData.bigcommerce_price));
+  }
+  if (productData.bigcommerce_hold_qty !== undefined) {
+    formData.append('bigcommerce_hold_qty', String(productData.bigcommerce_hold_qty));
+  }
 
   // Add category_id array
   if (productData.category_id && Array.isArray(productData.category_id)) {
@@ -781,6 +806,24 @@ export const updateProductVariationRequest = async (
       }
       if (variation.sku !== undefined) {
         formData.append(`variations[${idx}][sku]`, String(variation.sku));
+      }
+      if (variation.show_on_bigcommerce !== undefined) {
+        formData.append(
+          `variations[${idx}][show_on_bigcommerce]`,
+          String(Boolean(variation.show_on_bigcommerce))
+        );
+      }
+      if (variation.bigcommerce_price !== undefined) {
+        formData.append(
+          `variations[${idx}][bigcommerce_price]`,
+          String(variation.bigcommerce_price)
+        );
+      }
+      if (variation.bigcommerce_hold_qty !== undefined) {
+        formData.append(
+          `variations[${idx}][bigcommerce_hold_qty]`,
+          String(variation.bigcommerce_hold_qty)
+        );
       }
       // Add variation image if it's a File. Use `product_image` to match the
       // field name the backend expects for a product's image (a variation is a

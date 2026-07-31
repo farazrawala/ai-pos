@@ -18,15 +18,23 @@ import {
   loadAlreadyMeTooIds,
   selectBigCommerce,
 } from '../../features/bigCommerce/bigCommerceSlice.js';
-import { fetchMarketplaceProductByIdRequest } from '../../features/bigCommerce/bigCommerceAPI.js';
+import {
+  ECOMMERCE_PRODUCT_SEARCH_FIELDS,
+  fetchMarketplaceProductByIdRequest,
+} from '../../features/bigCommerce/bigCommerceAPI.js';
 import {
   excludeChildProducts,
   getProductName,
   isAlreadyMeTooProduct,
   productIdFromRecord,
+  resolveSortParams,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import { selectCompanyId } from '../../features/user/userSlice.js';
 import { showToast } from '../../utils/toast.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
+import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import '../common/devApiSources.css';
 import CompanyProfileHeader from './CompanyProfileHeader.jsx';
 import MarketplaceFilters from './MarketplaceFilters.jsx';
 import MarketplaceListingTabs from './MarketplaceListingTabs.jsx';
@@ -36,6 +44,13 @@ import ProductDetailModal from './ProductDetailModal.jsx';
 
 const LISTING_TAB_ALL = 'all';
 const LISTING_TAB_ME_TOO = 'me-too';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === 'loadingMore') return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded') return 'success';
+  return 'pending';
+};
 
 /**
  * Reusable Facebook-style product marketplace.
@@ -461,6 +476,164 @@ export default function MarketplacePage({ companyId }) {
     !String(searchDraft || '').trim() &&
     (state.alreadyMeTooStatus === 'loading' || meTooResolveStatus === 'loading');
 
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const storeId = String(companyId || state.companyId || '').trim();
+    if (!storeId) return [];
+
+    const encodedId = encodeURIComponent(storeId);
+    const limit = Math.max(1, Number(state.pagination.limit) || 20);
+    const skip = Math.max(0, (Number(state.pagination.page) || 1) - 1) * limit;
+    const sort = resolveSortParams(state.filters.sortBy || 'latest');
+    const productQuery = new URLSearchParams({
+      skip: String(skip),
+      limit: String(limit),
+      status: 'active',
+      searchFields: ECOMMERCE_PRODUCT_SEARCH_FIELDS,
+    });
+    const search = String(state.filters.search || '').trim();
+    if (search) productQuery.set('search', search);
+    const categoryIds = Array.isArray(state.filters.categoryIds)
+      ? state.filters.categoryIds.filter(Boolean)
+      : [];
+    if (categoryIds.length === 1) productQuery.set('category_id', String(categoryIds[0]));
+    const brandIds = Array.isArray(state.filters.brandIds)
+      ? state.filters.brandIds.filter(Boolean)
+      : [];
+    if (brandIds.length === 1) productQuery.set('brand_id', String(brandIds[0]));
+    const stock = String(state.filters.stock || '').trim();
+    if (stock) productQuery.set('stock_status', stock);
+    if (sort.sortBy) productQuery.set('sortBy', sort.sortBy);
+    if (sort.sortOrder) productQuery.set('sortOrder', sort.sortOrder);
+
+    const sources = [
+      {
+        key: 'store-profile',
+        label: 'Company profile',
+        url: buildApiUrl(`big-commerce/company/${encodedId}`),
+        status: mapLoadStatus(state.bootstrapStatus),
+        durationMs: null,
+        error: state.bootstrapStatus === 'failed' ? state.error : null,
+      },
+      {
+        key: 'store-categories',
+        label: 'Categories',
+        url: buildApiUrl(`big-commerce/categories/${encodedId}`),
+        status: mapLoadStatus(state.bootstrapStatus),
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'store-brands',
+        label: 'Brands',
+        url: buildApiUrl(`big-commerce/brands/${encodedId}`),
+        status: mapLoadStatus(state.bootstrapStatus),
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'store-products',
+        label: 'Store products',
+        url: buildApiUrl(
+          `big-commerce/get-all-active-ecommerce-products/${encodedId}?${productQuery}`
+        ),
+        status: mapLoadStatus(state.productsStatus),
+        durationMs: null,
+        error: state.productsStatus === 'failed' ? state.error : null,
+      },
+      {
+        key: 'profile-fallback-listing',
+        label: 'Profile fallback (listing)',
+        url: buildApiUrl(
+          `company/get-all-for-listing?limit=5&skip=0&include_id=${encodedId}`
+        ),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'profile-fallback-get',
+        label: 'Profile fallback (tenant get)',
+        url: buildApiUrl(`company/get/${encodedId}`),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+    ];
+
+    if (!isOwnStore) {
+      sources.push({
+        key: 'already-me-too',
+        label: 'Already Me too ids',
+        url: buildApiUrl(`big-commerce/fetched-product-ids/${encodedId}`),
+        status: mapLoadStatus(state.alreadyMeTooStatus),
+        durationMs: null,
+        error: state.alreadyMeTooStatus === 'failed' ? 'Failed to load fetched product ids' : null,
+      });
+      sources.push({
+        key: 'me-too-duplicate',
+        label: 'Me too (duplicate)',
+        url: buildApiUrl('big-commerce/products/{productId}/duplicate'),
+        status: mapLoadStatus(state.duplicateStatus),
+        durationMs: null,
+        error: state.duplicateStatus === 'failed' ? state.duplicateError : null,
+      });
+      sources.push({
+        key: 'me-too-delete',
+        label: 'Delete Me too',
+        url: buildApiUrl('big-commerce/fetched-products/{productId}/delete'),
+        status: mapLoadStatus(state.deleteFetchedStatus),
+        durationMs: null,
+        error:
+          state.deleteFetchedStatus === 'failed' ? state.deleteFetchedError : null,
+      });
+    }
+
+    if (state.detailOpen && state.selectedProduct) {
+      const productId = productIdFromRecord(state.selectedProduct);
+      if (productId) {
+        const encodedProductId = encodeURIComponent(productId);
+        sources.push({
+          key: 'product-detail',
+          label: 'Product detail',
+          url: buildApiUrl(`product/get/${encodedProductId}`),
+          status: mapLoadStatus(state.detailStatus),
+          durationMs: null,
+          error: state.detailStatus === 'failed' ? state.error : null,
+        });
+        sources.push({
+          key: 'product-variation',
+          label: 'Product variations',
+          url: buildApiUrl(`product/get-product-variation/${encodedProductId}`),
+          status: mapLoadStatus(state.detailStatus),
+          durationMs: null,
+          error: null,
+        });
+      }
+    }
+
+    return sources;
+  }, [
+    companyId,
+    isOwnStore,
+    state.companyId,
+    state.bootstrapStatus,
+    state.productsStatus,
+    state.alreadyMeTooStatus,
+    state.duplicateStatus,
+    state.duplicateError,
+    state.deleteFetchedStatus,
+    state.deleteFetchedError,
+    state.detailOpen,
+    state.detailStatus,
+    state.selectedProduct,
+    state.pagination.page,
+    state.pagination.limit,
+    state.filters,
+    state.error,
+  ]);
+
   return (
     <div className="bc-marketplace">
       <CompanyProfileHeader
@@ -661,6 +834,8 @@ export default function MarketplacePage({ companyId }) {
         hideMeToo={isOwnStore}
         alreadyMeTooIds={alreadyMeTooIdSet}
       />
+
+      <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>
   );
 }

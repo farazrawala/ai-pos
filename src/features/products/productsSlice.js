@@ -198,10 +198,16 @@ const productsSlice = createSlice({
       state.uploadImageStatus = 'idle';
       state.uploadImageError = null;
     },
-    /** Patch status on matching list rows (and nested childproducts) without refetch. */
+    /** Patch fields on matching list rows (and nested childproducts) without refetch. */
     setListProductsStatus: (state, action) => {
-      const { ids = [], parentId = '', status } = action.payload || {};
-      if (!status) return;
+      const { ids = [], parentId = '', status, patch } = action.payload || {};
+      const fields =
+        patch && typeof patch === 'object' && !Array.isArray(patch)
+          ? patch
+          : status
+            ? { status }
+            : null;
+      if (!fields || Object.keys(fields).length === 0) return;
       const idSet = new Set((Array.isArray(ids) ? ids : []).map((id) => String(id).trim()).filter(Boolean));
       const parent = String(parentId || '').trim();
 
@@ -221,15 +227,15 @@ const productsSlice = createSlice({
 
         let next = item;
         if (matches) {
-          next = { ...item, status };
+          next = { ...item, ...fields };
         }
 
         const kids = next.childproducts ?? next.child_products ?? next.variations;
         if (parent && id === parent && Array.isArray(kids) && kids.length > 0) {
           const updatedKids = kids.map((child) => {
             const childId = String(child?._id ?? child?.id ?? child?.product_id ?? '').trim();
-            if (childId && idSet.has(childId)) return { ...child, status };
-            if (parent) return { ...child, status };
+            if (childId && idSet.has(childId)) return { ...child, ...fields };
+            if (parent) return { ...child, ...fields };
             return child;
           });
           if (next.childproducts) next = { ...next, childproducts: updatedKids };

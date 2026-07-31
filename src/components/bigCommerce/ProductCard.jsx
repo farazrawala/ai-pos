@@ -1,5 +1,8 @@
 import { formatMoney } from '../../utils/formatMoney.js';
+import { DEBUG } from '../../config/env.js';
 import {
+  describeProductPriceFields,
+  getBigCommercePrice,
   getProductBadges,
   getProductBarcode,
   getProductBrand,
@@ -31,6 +34,7 @@ export default function ProductCard({
   const name = getProductName(product);
   const image = getProductListingImage(product);
   const price = getProductPrice(product);
+  const bigCommercePrice = getBigCommercePrice(product);
   const compare = getProductComparePrice(product);
   const sku = getProductSku(product);
   const barcode = getProductBarcode(product);
@@ -82,10 +86,19 @@ export default function ProductCard({
           <p className="bc-card-desc">{description.slice(0, 140)}{description.length > 140 ? '…' : ''}</p>
         ) : null}
 
-        <div className="bc-card- bid">
+        <div className="bc-card-foot">
           <div className="bc-price-block">
             <span className="bc-price">{formatMoney(price)}</span>
             {compare != null ? <span className="bc-price-old">{formatMoney(compare)}</span> : null}
+            {DEBUG ? (
+              <span className="bc-price-debug" title="Price fields returned by the listing API">
+                {bigCommercePrice != null
+                  ? `bigcommerce_price ${bigCommercePrice}`
+                  : `bigcommerce_price missing · ${
+                      describeProductPriceFields(product).join(', ') || 'no price fields'
+                    }`}
+              </span>
+            ) : null}
           </div>
           <div className="bc-stock-rating">
             <span className={`bc-stock ${isOutOfStock(stock) ? 'is-out' : ''}`}>

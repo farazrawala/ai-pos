@@ -213,7 +213,46 @@ export function getProductName(item) {
   return String(item?.name || item?.product_name || 'Product').trim() || 'Product';
 }
 
+/** Big Commerce listing price, or null when the field is unset (blank / 0). */
+export function getBigCommercePrice(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  const settings = parseBigcommerceSettings(
+    item.bigcommerce_settings ?? item.bigcommerceSettings
+  );
+
+  const candidates = [
+    item.bigcommerce_price,
+    item.bigcommercePrice,
+    item.big_commerce_price,
+    item.bigCommercePrice,
+    item.bigcommerce?.price,
+    settings?.price,
+    settings?.bigcommerce_price,
+  ];
+
+  for (const raw of candidates) {
+    if (raw == null || String(raw).trim() === '') continue;
+    const n = Number(raw);
+    // 0 means "not set for Big Commerce" — same rule as the product form.
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  return null;
+}
+
+/** Dev helper: every price-like key the API actually returned for a product row. */
+export function describeProductPriceFields(item) {
+  if (!item || typeof item !== 'object') return [];
+  return Object.entries(item)
+    .filter(([key, value]) => /price/i.test(key) && (value == null || typeof value !== 'object'))
+    .map(([key, value]) => `${key}=${value == null ? 'null' : value}`);
+}
+
 export function getProductPrice(item) {
+  const bigCommercePrice = getBigCommercePrice(item);
+  if (bigCommercePrice != null) return bigCommercePrice;
+
   const raw =
     item?.price ??
     item?.product_price ??
@@ -409,6 +448,21 @@ export function getProductListingImage(item, { parent = null } = {}) {
   return '';
 }
 
+/** Qty reserved for BigCommerce — excluded from marketplace available stock. */
+function getBigCommerceHoldQty(item) {
+  if (!item || typeof item !== 'object') return 0;
+  const raw = item.bigcommerce_hold_qty ?? item.bigcommerceHoldQty;
+  if (raw == null || raw === '') return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Available stock after subtracting BigCommerce hold qty (never below 0). */
+function stockAfterHold(stock, item) {
+  if (stock == null || !Number.isFinite(stock)) return null;
+  return Math.max(0, Math.round((stock - getBigCommerceHoldQty(item)) * 100) / 100);
+}
+
 export function getProductStock(item) {
   if (!item || typeof item !== 'object') return null;
 
@@ -420,7 +474,7 @@ export function getProductStock(item) {
     let hasAny = false;
     for (const child of kids) {
       // Resolve each child directly (avoid re-entering variable parent logic).
-      const childStock = getProductAvailableStock(child);
+      const childStock = stockAfterHold(getProductAvailableStock(child), child);
       if (childStock != null && Number.isFinite(childStock)) {
         total += childStock;
         hasAny = true;
@@ -429,9 +483,7 @@ export function getProductStock(item) {
     if (hasAny) return Math.round(total * 100) / 100;
   }
 
-  const stock = getProductAvailableStock(item);
-  if (stock == null || !Number.isFinite(stock)) return null;
-  return stock;
+  return stockAfterHold(getProductAvailableStock(item), item);
 }
 
 export function getAlertQty(item) {

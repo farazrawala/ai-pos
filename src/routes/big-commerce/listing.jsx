@@ -13,8 +13,19 @@ import { normalizeCompanyProfile } from '../../features/bigCommerce/marketplaceU
 import { selectCompanyId } from '../../features/user/userSlice.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import AppModal from '../../components/AppModal.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import { showToast } from '../../utils/toast.js';
+import '../../components/common/devApiSources.css';
 import './big-commerce.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === 'loadingMore') return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded') return 'success';
+  return 'pending';
+};
 
 export default function BigCommerceListingPage() {
   useRequireModuleAccess('big-commerce');
@@ -159,6 +170,55 @@ export default function BigCommerceListingPage() {
     storeRequestStatus === 'loading' &&
     storeRequestTargetId === String(requestTarget?.id || '');
 
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const page = Math.max(1, Number(companiesPagination.page) || 1);
+    const limit = Math.max(1, Number(companiesPagination.limit) || 20);
+    const skip = (page - 1) * limit;
+    const listQuery = new URLSearchParams({
+      limit: String(limit),
+      skip: String(skip),
+    });
+    const search = String(companiesSearch || '').trim();
+    if (search) listQuery.set('search', search);
+
+    return [
+      {
+        key: 'companies-listing',
+        label: 'Company directory',
+        url: buildApiUrl(`company/get-all-for-listing?${listQuery.toString()}`),
+        status: mapLoadStatus(companiesStatus),
+        durationMs: null,
+        error: companiesStatus === 'failed' ? companiesError : null,
+      },
+      {
+        key: 'store-request',
+        label: 'Send store request',
+        url: buildApiUrl('company/store-request'),
+        status: mapLoadStatus(storeRequestStatus),
+        durationMs: null,
+        error: storeRequestStatus === 'failed' ? storeRequestError : null,
+      },
+      {
+        key: 'store-request-alt',
+        label: 'Send store request (fallback)',
+        url: buildApiUrl('bigcommerce/store-request'),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+    ];
+  }, [
+    companiesPagination.page,
+    companiesPagination.limit,
+    companiesSearch,
+    companiesStatus,
+    companiesError,
+    storeRequestStatus,
+    storeRequestError,
+  ]);
+
   return (
     <div className="container-fluid py-4 px-3">
       <div className="bc-listing-page">
@@ -172,6 +232,15 @@ export default function BigCommerceListingPage() {
             <p className="bc-listing-subtitle mb-0">
               Browse companies, send a store request, or open their marketplace.
             </p>
+            {DEBUG ? (
+              <p className="text-sm text-muted mb-0 mt-1">
+                Load{' '}
+                <code className="text-xs">GET /company/get-all-for-listing</code>
+                {' · '}
+                Request{' '}
+                <code className="text-xs">POST /company/store-request</code>
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -414,6 +483,8 @@ export default function BigCommerceListingPage() {
           disabled={requesting}
         />
       </AppModal>
+
+      <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>
   );
 }

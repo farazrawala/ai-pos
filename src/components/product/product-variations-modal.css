@@ -443,6 +443,96 @@
   line-height: 1.35;
 }
 
+.pv-bc-section {
+  grid-column: 1 / -1;
+  margin-top: 0.15rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #e8ecf2;
+}
+
+.pv-bc-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.4rem;
+}
+
+.pv-bc-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pv-bc-switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.pv-bc-switch-track {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 1.25rem;
+  padding: 0.15rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #e2e8f0;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pv-bc-switch-thumb {
+  width: 0.825rem;
+  height: 0.825rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 25%);
+  transition: transform 160ms ease;
+}
+
+.pv-bc-switch-input:checked + .pv-bc-switch-track {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.pv-bc-switch-input:checked + .pv-bc-switch-track .pv-bc-switch-thumb {
+  transform: translateX(1rem);
+}
+
+.pv-bc-switch-input:focus-visible + .pv-bc-switch-track {
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 20%);
+}
+
+.pv-bc-switch-input:disabled + .pv-bc-switch-track {
+  opacity: 0.55;
+}
+
+.pv-bc-switch:has(.pv-bc-switch-input:disabled) {
+  cursor: not-allowed;
+}
+
+.pv-bc-switch-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.pv-bc-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 0.65rem;
+}
+
 .pv-footer-note {
   margin-right: auto;
   font-size: 0.75rem;
@@ -451,6 +541,10 @@
 
 @media (max-width: 767px) {
   .pv-variation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pv-bc-fields {
     grid-template-columns: 1fr;
   }
 }

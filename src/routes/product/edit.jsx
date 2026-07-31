@@ -23,7 +23,11 @@ import {
   generateBarcode,
   parseVariationAttrs,
 } from '../../components/product/productVariationUtils.js';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import '../../components/product/product-variations-modal.css';
+import '../../components/common/devApiSources.css';
 import './product-form.css';
 import {
   PRODUCT_IMAGE_ACCEPT,
@@ -32,6 +36,18 @@ import {
 } from '../../utils/productImageUpload.js';
 
 const isPersistedProductId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? '').trim());
+
+const isUnsetBigCommercePrice = (value) => {
+  const s = String(value ?? '').trim();
+  return s === '' || s === '0' || s === '0.00';
+};
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === true) return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded' || status === false) return 'success';
+  return 'pending';
+};
 
 const ProductEdit = () => {
   const dispatch = useDispatch();
@@ -62,6 +78,9 @@ const ProductEdit = () => {
     product_type: 'Single',
     categoryId: [],
     wholesale_price: '',
+    show_on_bigcommerce: false,
+    bigcommerce_price: '',
+    bigcommerce_hold_qty: '',
   });
   const [errors, setErrors] = useState({});
   const [categories, setCategories] = useState([]);
@@ -78,6 +97,8 @@ const ProductEdit = () => {
   const [existingBulkImages, setExistingBulkImages] = useState([]);
   const singleImageInputRef = useRef(null);
   const bulkImagesInputRef = useRef(null);
+  /** When false, BigCommerce price stays synced with retail price until the user edits it. */
+  const bigcommercePriceManualRef = useRef(false);
 
   // Modal state for variations management
   const [showVariationsModal, setShowVariationsModal] = useState(false);
@@ -89,6 +110,89 @@ const ProductEdit = () => {
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
+
+  const productId = String(id ?? '').trim();
+
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const listQuery = 'skip=0&limit=1000';
+    const saveIsVariation = form.product_type === 'Variable' && variations.length > 0;
+
+    return [
+      {
+        key: 'product-variation',
+        label: 'Product (get variation)',
+        url: buildApiUrl(
+          `product/get-product-variation/${encodeURIComponent(productId || ':id')}`
+        ),
+        status: mapLoadStatus(fetchStatus),
+        durationMs: null,
+        error: fetchStatus === 'failed' ? fetchError : null,
+      },
+      {
+        key: 'categories',
+        label: 'Categories',
+        url: buildApiUrl(`category/get-all?${listQuery}`),
+        status: mapLoadStatus(loadingCategories),
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'brands',
+        label: 'Brands',
+        url: buildApiUrl(`brands/get-all?${listQuery}`),
+        status: mapLoadStatus(loadingBrands),
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'attributes',
+        label: 'Attributes (variations modal)',
+        url: buildApiUrl(`attribute/get-all-active?${listQuery}`),
+        status: showVariationsModal
+          ? mapLoadStatus(loadingAttributes)
+          : attributes.length
+            ? 'success'
+            : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'product-save',
+        label: saveIsVariation ? 'Update product + variations' : 'Update product',
+        url: buildApiUrl(
+          saveIsVariation
+            ? `product/update-product-variation/${encodeURIComponent(productId || ':id')}`
+            : `product/update/${encodeURIComponent(productId || ':id')}`
+        ),
+        status: mapLoadStatus(updateStatus),
+        durationMs: null,
+        error: updateStatus === 'failed' ? updateError : null,
+      },
+      {
+        key: 'generate-barcode',
+        label: 'Generate barcode',
+        url: buildApiUrl(`product/generate-barcode/${encodeURIComponent(productId || ':id')}`),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+    ];
+  }, [
+    productId,
+    fetchStatus,
+    fetchError,
+    loadingCategories,
+    loadingBrands,
+    loadingAttributes,
+    showVariationsModal,
+    attributes.length,
+    form.product_type,
+    variations.length,
+    updateStatus,
+    updateError,
+  ]);
 
   // Get product permissions
   const { canEdit } = usePermissions('products');
@@ -215,49 +319,60 @@ const ProductEdit = () => {
         })
         .filter(Boolean);
 
+      const pricingFields = (() => {
+        const retailRaw = currentProduct.price ?? currentProduct.product_price ?? '';
+        const retailNum = parseFloat(retailRaw);
+        const beforeRaw = currentProduct.price_before_tax;
+        const rateRaw = currentProduct.tax_rate;
+        const beforeNum =
+          beforeRaw !== undefined && beforeRaw !== null && beforeRaw !== ''
+            ? parseFloat(beforeRaw)
+            : NaN;
+        const rateNum =
+          rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? parseFloat(rateRaw) : NaN;
+
+        if (!Number.isNaN(beforeNum)) {
+          const rateStr = !Number.isNaN(rateNum) ? String(rateRaw) : '';
+          const effectiveRate = Number.isNaN(rateNum) ? 0 : rateNum;
+          return {
+            price_before_tax: String(beforeRaw),
+            tax_rate: rateStr,
+            price: !Number.isNaN(retailNum)
+              ? String(retailRaw)
+              : String(Math.round(beforeNum * (1 + effectiveRate / 100) * 100) / 100),
+          };
+        }
+        if (!Number.isNaN(retailNum) && !Number.isNaN(rateNum) && rateNum > 0) {
+          const derivedBefore = retailNum / (1 + rateNum / 100);
+          return {
+            price_before_tax: String(Math.round(derivedBefore * 100) / 100),
+            tax_rate: String(rateRaw),
+            price: String(retailRaw),
+          };
+        }
+        return {
+          price_before_tax: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
+          tax_rate:
+            rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? String(rateRaw) : '',
+          price: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
+        };
+      })();
+
+      const retailPriceStr = String(pricingFields.price ?? '');
+      const savedBcPrice =
+        currentProduct.bigcommerce_price != null
+          ? String(currentProduct.bigcommerce_price).trim()
+          : '';
+      const bcPriceUnset = isUnsetBigCommercePrice(savedBcPrice);
+      bigcommercePriceManualRef.current =
+        !bcPriceUnset && Number(savedBcPrice) !== Number(retailPriceStr);
+
       setForm({
         name: currentProduct.name || currentProduct.product_name || '',
         slug: currentProduct.slug || currentProduct.product_slug || '',
         product_code: currentProduct.product_code || '',
         description: currentProduct.description || currentProduct.product_description || '',
-        ...(() => {
-          const retailRaw = currentProduct.price ?? currentProduct.product_price ?? '';
-          const retailNum = parseFloat(retailRaw);
-          const beforeRaw = currentProduct.price_before_tax;
-          const rateRaw = currentProduct.tax_rate;
-          const beforeNum =
-            beforeRaw !== undefined && beforeRaw !== null && beforeRaw !== ''
-              ? parseFloat(beforeRaw)
-              : NaN;
-          const rateNum =
-            rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? parseFloat(rateRaw) : NaN;
-
-          if (!Number.isNaN(beforeNum)) {
-            const rateStr = !Number.isNaN(rateNum) ? String(rateRaw) : '';
-            const effectiveRate = Number.isNaN(rateNum) ? 0 : rateNum;
-            return {
-              price_before_tax: String(beforeRaw),
-              tax_rate: rateStr,
-              price: !Number.isNaN(retailNum)
-                ? String(retailRaw)
-                : String(Math.round(beforeNum * (1 + effectiveRate / 100) * 100) / 100),
-            };
-          }
-          if (!Number.isNaN(retailNum) && !Number.isNaN(rateNum) && rateNum > 0) {
-            const derivedBefore = retailNum / (1 + rateNum / 100);
-            return {
-              price_before_tax: String(Math.round(derivedBefore * 100) / 100),
-              tax_rate: String(rateRaw),
-              price: String(retailRaw),
-            };
-          }
-          return {
-            price_before_tax: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
-            tax_rate:
-              rateRaw !== undefined && rateRaw !== null && rateRaw !== '' ? String(rateRaw) : '',
-            price: retailRaw !== '' && retailRaw != null ? String(retailRaw) : '',
-          };
-        })(),
+        ...pricingFields,
         alert_qty: currentProduct.alert_qty !== undefined ? currentProduct.alert_qty : '',
         brand_id: currentProduct.brand_id || '',
         unit: currentProduct.unit || 'Piece',
@@ -272,6 +387,18 @@ const ProductEdit = () => {
         categoryId: categoryIds,
         wholesale_price:
           currentProduct.wholesale_price !== undefined ? currentProduct.wholesale_price : '',
+        show_on_bigcommerce: Boolean(
+          currentProduct.show_on_bigcommerce === true ||
+            currentProduct.show_on_bigcommerce === 'true' ||
+            currentProduct.show_on_bigcommerce === 1 ||
+            currentProduct.show_on_bigcommerce === '1'
+        ),
+        bigcommerce_price: bcPriceUnset ? retailPriceStr : savedBcPrice,
+        bigcommerce_hold_qty:
+          currentProduct.bigcommerce_hold_qty !== undefined &&
+          currentProduct.bigcommerce_hold_qty !== null
+            ? String(currentProduct.bigcommerce_hold_qty)
+            : '',
       });
 
       // Set existing images - handle product_image and multi_images
@@ -326,6 +453,18 @@ const ProductEdit = () => {
             barcode: child.barcode || '',
             product_code: child.product_code || '',
             sku: child.sku || '',
+            show_on_bigcommerce: Boolean(
+              child.show_on_bigcommerce === true ||
+                child.show_on_bigcommerce === 'true' ||
+                child.show_on_bigcommerce === 1 ||
+                child.show_on_bigcommerce === '1'
+            ),
+            bigcommerce_price:
+              child.bigcommerce_price != null ? String(child.bigcommerce_price) : '',
+            bigcommerce_hold_qty:
+              child.bigcommerce_hold_qty !== undefined && child.bigcommerce_hold_qty !== null
+                ? String(child.bigcommerce_hold_qty)
+                : '',
             weight: child.weight !== undefined ? child.weight.toString() : '',
             length: child.length !== undefined ? child.length.toString() : '',
             width: child.width !== undefined ? child.width.toString() : '',
@@ -443,6 +582,9 @@ const ProductEdit = () => {
         slug: variationSlug,
         price: '',
         qty: '',
+        show_on_bigcommerce: false,
+        bigcommerce_price: '',
+        bigcommerce_hold_qty: '',
         image: null,
         imagePreview: null,
         attributes: combo.map((v, i) => ({
@@ -518,6 +660,9 @@ const ProductEdit = () => {
         barcode: '',
         product_code: '',
         sku: '',
+        show_on_bigcommerce: false,
+        bigcommerce_price: '',
+        bigcommerce_hold_qty: '',
         image: null,
         imagePreview: null,
         attributes: combo.map((v, i) => ({
@@ -688,7 +833,12 @@ const ProductEdit = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
+    const nextValue = type === 'checkbox' ? checked : value;
+
+    if (name === 'bigcommerce_price') {
+      bigcommercePriceManualRef.current = true;
+    }
 
     // Keep variant names in sync with product name: "Product [attrs]" → "New Name [attrs]"
     if (name === 'name' && variations.length > 0) {
@@ -698,11 +848,11 @@ const ProductEdit = () => {
           const attrs = parseVariationAttrs(variation.name);
           let newVariationName;
           if (attrs.length > 0) {
-            newVariationName = `${value} [${attrs.join(' - ')}]`;
+            newVariationName = `${nextValue} [${attrs.join(' - ')}]`;
           } else if (previousName && String(variation.name || '').startsWith(previousName)) {
-            newVariationName = `${value}${String(variation.name).slice(previousName.length)}`;
+            newVariationName = `${nextValue}${String(variation.name).slice(previousName.length)}`;
           } else {
-            newVariationName = value || variation.name;
+            newVariationName = nextValue || variation.name;
           }
 
           const updated = { ...variation, name: newVariationName };
@@ -715,19 +865,40 @@ const ProductEdit = () => {
     }
 
     setForm((prev) => {
-      const updated = { ...prev, [name]: value };
+      const updated = { ...prev, [name]: nextValue };
 
       if (name === 'price_before_tax' || name === 'tax_rate') {
         const retail = calcRetailFromRate(
           name === 'price_before_tax' ? value : updated.price_before_tax,
           name === 'tax_rate' ? value : updated.tax_rate
         );
-        if (retail != null) updated.price = retail;
+        if (retail != null) {
+          updated.price = retail;
+          if (!bigcommercePriceManualRef.current) {
+            updated.bigcommerce_price = retail;
+          }
+        }
+      }
+
+      if (name === 'price' && !bigcommercePriceManualRef.current) {
+        updated.bigcommerce_price = nextValue;
+      }
+
+      if (name === 'show_on_bigcommerce' && nextValue === true) {
+        if (
+          !bigcommercePriceManualRef.current ||
+          isUnsetBigCommercePrice(updated.bigcommerce_price)
+        ) {
+          updated.bigcommerce_price = String(updated.price ?? '');
+          if (isUnsetBigCommercePrice(prev.bigcommerce_price)) {
+            bigcommercePriceManualRef.current = false;
+          }
+        }
       }
 
       // Auto-generate slug from name
       if (name === 'name' && (!prev.slug || prev.slug === generateSlug(prev.name))) {
-        updated.slug = generateSlug(value);
+        updated.slug = generateSlug(nextValue);
       }
 
       return updated;
@@ -736,6 +907,15 @@ const ProductEdit = () => {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
+
+  const buildBigCommerceSaveFields = () => ({
+    show_on_bigcommerce: Boolean(form.show_on_bigcommerce),
+    bigcommerce_price: String(form.bigcommerce_price ?? '').trim(),
+    bigcommerce_hold_qty:
+      form.bigcommerce_hold_qty !== '' && form.bigcommerce_hold_qty != null
+        ? Number(form.bigcommerce_hold_qty)
+        : 0,
+  });
 
   const handleRegenerateBarcode = () => {
     const barcode = generateBarcode();
@@ -939,6 +1119,7 @@ const ProductEdit = () => {
           product_description: form.description.trim(),
           product_price: parseFloat(form.price),
           ...buildPricingSaveFields(),
+          ...buildBigCommerceSaveFields(),
           category_id: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
           alert_qty: form.alert_qty ? parseInt(form.alert_qty) : 0,
           wholesale_price: form.wholesale_price ? parseFloat(form.wholesale_price) : undefined,
@@ -988,6 +1169,12 @@ const ProductEdit = () => {
           if (variation.sku && variation.sku !== '') {
             mapped.sku = variation.sku;
           }
+          mapped.show_on_bigcommerce = Boolean(variation.show_on_bigcommerce);
+          mapped.bigcommerce_price = String(variation.bigcommerce_price ?? '').trim();
+          mapped.bigcommerce_hold_qty =
+            variation.bigcommerce_hold_qty !== '' && variation.bigcommerce_hold_qty != null
+              ? Number(variation.bigcommerce_hold_qty)
+              : 0;
           if (variation.image instanceof File) {
             mapped.image = variation.image;
           }
@@ -1010,6 +1197,7 @@ const ProductEdit = () => {
           description: form.description.trim(),
           price: parseFloat(form.price),
           ...buildPricingSaveFields(),
+          ...buildBigCommerceSaveFields(),
           categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
           sku: form.sku.trim(),
           product_code: form.product_code.trim(),
@@ -1164,6 +1352,21 @@ const ProductEdit = () => {
                 Update details, images, and variations for{' '}
                 <strong>{form.name || 'this product'}</strong>.
               </p>
+              {DEBUG ? (
+                <p className="text-sm text-muted mb-0 mt-1">
+                  Load{' '}
+                  <code className="text-xs">
+                    GET /product/get-product-variation/{productId || ':id'}
+                  </code>
+                  {' · '}
+                  Save{' '}
+                  <code className="text-xs">
+                    {form.product_type === 'Variable' && variations.length > 0
+                      ? `PATCH /product/update-product-variation/${productId || ':id'}`
+                      : `PATCH /product/update/${productId || ':id'}`}
+                  </code>
+                </p>
+              ) : null}
             </div>
             <button
               type="button"
@@ -1262,7 +1465,7 @@ const ProductEdit = () => {
 
                 {/* Price before tax, Tax rate, Retail, Wholesale, Alert Qty */}
                 <div className="row">
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="price_before_tax" className="form-label">
                       Price before tax
                     </label>
@@ -1282,7 +1485,7 @@ const ProductEdit = () => {
                       <div className="invalid-feedback">{errors.price_before_tax}</div>
                     )}
                   </div>
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="tax_rate" className="form-label">
                       Tax rate (%)
                     </label>
@@ -1301,7 +1504,7 @@ const ProductEdit = () => {
                     />
                     {errors.tax_rate && <div className="invalid-feedback">{errors.tax_rate}</div>}
                   </div>
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="price" className="form-label">
                       Retail price <span className="text-danger">*</span>
                     </label>
@@ -1320,21 +1523,7 @@ const ProductEdit = () => {
                     />
                     {errors.price && <div className="invalid-feedback">{errors.price}</div>}
                   </div>
-                  {form.product_type === 'Variable' && variations.length > 0 && (
-                    <div className="col-md-3 col-6 mb-3 d-flex align-items-end">
-                      <button
-                        type="button"
-                        className="btn btn-outline-primary w-100 mb-0"
-                        onClick={applyRetailPriceToAllVariations}
-                        disabled={isSubmitting || form.price === '' || form.price == null}
-                        title="Set every variant price to this retail price"
-                      >
-                        <i className="fas fa-copy me-1" aria-hidden="true" />
-                        Apply to all variants
-                      </button>
-                    </div>
-                  )}
-                  <div className="col-md-4 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="wholesale_price" className="form-label">
                       Wholesale Price
                     </label>
@@ -1352,7 +1541,7 @@ const ProductEdit = () => {
                       aria-readonly="true"
                     />
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="alert_qty" className="form-label">
                       Alert Quantity
                     </label>
@@ -1368,6 +1557,82 @@ const ProductEdit = () => {
                       disabled={isSubmitting}
                     />
                   </div>
+                  {form.product_type === 'Variable' && variations.length > 0 && (
+                    <div className="col-md col-6 mb-3 d-flex align-items-end">
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary w-100 mb-0"
+                        onClick={applyRetailPriceToAllVariations}
+                        disabled={isSubmitting || form.price === '' || form.price == null}
+                        title="Set every variant price to this retail price"
+                      >
+                        <i className="fas fa-copy me-1" aria-hidden="true" />
+                        Apply to all variants
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* BigCommerce */}
+                <div className="product-form-section mb-4">
+                  <div className="product-form-section-title">
+                    <i className="fas fa-store text-primary" aria-hidden="true" />
+                    BigCommerce
+                  </div>
+                  <p className="product-form-section-hint">
+                    Control listing and pricing for BigCommerce.
+                  </p>
+                  <div className="form-check form-switch mb-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id="show_on_bigcommerce"
+                      name="show_on_bigcommerce"
+                      checked={Boolean(form.show_on_bigcommerce)}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    <label className="form-check-label" htmlFor="show_on_bigcommerce">
+                      Show on BigCommerce?
+                    </label>
+                  </div>
+                  {form.show_on_bigcommerce ? (
+                    <div className="row">
+                      <div className="col-md-6 mb-3 mb-md-0">
+                        <label htmlFor="bigcommerce_price" className="form-label">
+                          BigCommerce Price
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="bigcommerce_price"
+                          name="bigcommerce_price"
+                          placeholder={form.price || '0.00'}
+                          value={form.bigcommerce_price}
+                          onChange={handleChange}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label htmlFor="bigcommerce_hold_qty" className="form-label">
+                          BigCommerce Hold Qty
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="form-control"
+                          id="bigcommerce_hold_qty"
+                          name="bigcommerce_hold_qty"
+                          placeholder="0"
+                          value={form.bigcommerce_hold_qty}
+                          onChange={handleChange}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Product Code, SKU, and Barcode Row */}
@@ -1916,6 +2181,8 @@ const ProductEdit = () => {
         onApply={handleCloseModal}
         isSubmitting={isSubmitting}
       />
+
+      <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>
   );
 };

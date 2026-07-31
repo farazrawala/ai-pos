@@ -1,8 +1,18 @@
-import { FaWhatsapp } from 'react-icons/fa6';
+import {
+  FaBoxOpen,
+  FaCalendarDays,
+  FaLayerGroup,
+  FaLocationDot,
+  FaPhone,
+  FaStar,
+  FaStore,
+  FaWhatsapp,
+} from 'react-icons/fa6';
 import {
   buildWhatsAppUrl,
   formatJoinedDate,
   renderStars,
+  toWhatsAppPhoneDigits,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 
 const PLACEHOLDER_COVER =
@@ -26,15 +36,22 @@ export default function CompanyProfileHeader({ company, loading }) {
   const coverStyle = profile.coverUrl
     ? { backgroundImage: `url(${profile.coverUrl})` }
     : { backgroundImage: PLACEHOLDER_COVER };
-  const whatsappUrl = buildWhatsAppUrl(
-    profile.phone,
-    `Hi, I'm contacting you from ${profile.name || 'your store'} on Big Commerce.`
-  );
+  const hasWhatsAppPhone = Boolean(toWhatsAppPhoneDigits(profile.phone));
+  const whatsappUrl = hasWhatsAppPhone
+    ? buildWhatsAppUrl(
+        profile.phone,
+        `Hi, I'm contacting you from ${profile.name || 'your store'} on Big Commerce.`
+      )
+    : '';
 
   return (
     <section className="bc-profile">
       <div className="bc-cover" style={coverStyle} role="img" aria-label="Company cover">
         <div className="bc-cover-overlay" />
+        <div className="bc-cover-label">
+          <FaStore aria-hidden="true" />
+          Marketplace store
+        </div>
       </div>
 
       <div className="bc-profile-body">
@@ -56,7 +73,13 @@ export default function CompanyProfileHeader({ company, loading }) {
         <div className="bc-profile-main">
           <div className="bc-profile-title-row">
             <div>
-              <h1 className="bc-company-name">{profile.name || 'Company Marketplace'}</h1>
+              <div className="bc-company-heading">
+                <h1 className="bc-company-name">{profile.name || 'Company Marketplace'}</h1>
+                <span className="bc-verified-badge">
+                  <FaStore aria-hidden="true" />
+                  Seller
+                </span>
+              </div>
               {profile.description ? (
                 <p className="bc-company-tagline">{profile.description}</p>
               ) : (
@@ -73,8 +96,13 @@ export default function CompanyProfileHeader({ company, loading }) {
                 rel="noopener noreferrer"
                 title={`WhatsApp ${profile.phone}`}
               >
-                <FaWhatsapp aria-hidden="true" />
-                WhatsApp
+                <span className="bc-whatsapp-icon">
+                  <FaWhatsapp aria-hidden="true" />
+                </span>
+                <span className="bc-whatsapp-copy">
+                  <small>Available on WhatsApp</small>
+                  <strong>Chat with store</strong>
+                </span>
               </a>
             ) : null}
           </div>
@@ -82,33 +110,51 @@ export default function CompanyProfileHeader({ company, loading }) {
           <ul className="bc-profile-meta">
             {profile.location ? (
               <li>
-                <span className="bc-meta-label">Location</span>
-                <span>{profile.location}</span>
+                <span className="bc-meta-icon"><FaLocationDot aria-hidden="true" /></span>
+                <span>
+                  <span className="bc-meta-label">Location</span>
+                  <strong>{profile.location}</strong>
+                </span>
               </li>
             ) : null}
-            {profile.phone ? (
+            {hasWhatsAppPhone ? (
               <li>
-                <span className="bc-meta-label">Phone</span>
-                <span>{profile.phone}</span>
+                <span className="bc-meta-icon"><FaPhone aria-hidden="true" /></span>
+                <span>
+                  <span className="bc-meta-label">Phone</span>
+                  <strong>{profile.phone}</strong>
+                </span>
               </li>
             ) : null}
             <li>
-              <span className="bc-meta-label">Products</span>
-              <span>{Number(profile.totalProducts || 0).toLocaleString()}</span>
-            </li>
-            <li>
-              <span className="bc-meta-label">Categories</span>
-              <span>{Number(profile.totalCategories || 0).toLocaleString()}</span>
-            </li>
-            <li>
-              <span className="bc-meta-label">Rating</span>
-              <span className="bc-stars" title={profile.rating ? `${profile.rating}/5` : 'No rating'}>
-                {profile.rating != null ? renderStars(profile.rating) : '—'}
+              <span className="bc-meta-icon"><FaBoxOpen aria-hidden="true" /></span>
+              <span>
+                <span className="bc-meta-label">Products</span>
+                <strong>{Number(profile.totalProducts || 0).toLocaleString()}</strong>
               </span>
             </li>
             <li>
-              <span className="bc-meta-label">Joined</span>
-              <span>{formatJoinedDate(profile.joinedAt)}</span>
+              <span className="bc-meta-icon"><FaLayerGroup aria-hidden="true" /></span>
+              <span>
+                <span className="bc-meta-label">Categories</span>
+                <strong>{Number(profile.totalCategories || 0).toLocaleString()}</strong>
+              </span>
+            </li>
+            <li>
+              <span className="bc-meta-icon"><FaStar aria-hidden="true" /></span>
+              <span>
+                <span className="bc-meta-label">Rating</span>
+                <strong className="bc-stars" title={profile.rating ? `${profile.rating}/5` : 'No rating'}>
+                  {profile.rating != null ? renderStars(profile.rating) : 'Not rated'}
+                </strong>
+              </span>
+            </li>
+            <li>
+              <span className="bc-meta-icon"><FaCalendarDays aria-hidden="true" /></span>
+              <span>
+                <span className="bc-meta-label">Member since</span>
+                <strong>{formatJoinedDate(profile.joinedAt)}</strong>
+              </span>
             </li>
           </ul>
         </div>

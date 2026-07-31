@@ -14,6 +14,11 @@ import {
   validateProductImageFile,
 } from '../../utils/productImageUpload.js';
 
+const isUnsetBigCommercePrice = (value) => {
+  const s = String(value ?? '').trim();
+  return s === '' || s === '0' || s === '0.00';
+};
+
 const ProductAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -38,6 +43,9 @@ const ProductAdd = () => {
     product_type: 'Single',
     categoryId: [],
     wholesale_price: '',
+    show_on_bigcommerce: false,
+    bigcommerce_price: '',
+    bigcommerce_hold_qty: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,6 +61,8 @@ const ProductAdd = () => {
   const [bulkImagePreviews, setBulkImagePreviews] = useState([]);
   const singleImageInputRef = useRef(null);
   const bulkImagesInputRef = useRef(null);
+  /** When false, BigCommerce price stays synced with retail price until the user edits it. */
+  const bigcommercePriceManualRef = useRef(false);
 
   // Get product permissions
   const { canCreate } = usePermissions('products');
@@ -162,23 +172,50 @@ const ProductAdd = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value, type, checked } = e.target;
+    const nextValue = type === 'checkbox' ? checked : value;
+
+    if (name === 'bigcommerce_price') {
+      bigcommercePriceManualRef.current = true;
+    }
+
     setForm((prev) => {
       const updated = { ...prev };
 
-      updated[name] = value;
+      updated[name] = nextValue;
 
       if (name === 'price_before_tax' || name === 'tax_rate') {
         const retail = calcRetailFromRate(
-          name === 'price_before_tax' ? value : updated.price_before_tax,
-          name === 'tax_rate' ? value : updated.tax_rate
+          name === 'price_before_tax' ? nextValue : updated.price_before_tax,
+          name === 'tax_rate' ? nextValue : updated.tax_rate
         );
-        if (retail != null) updated.price = retail;
+        if (retail != null) {
+          updated.price = retail;
+          if (!bigcommercePriceManualRef.current) {
+            updated.bigcommerce_price = retail;
+          }
+        }
+      }
+
+      if (name === 'price' && !bigcommercePriceManualRef.current) {
+        updated.bigcommerce_price = nextValue;
+      }
+
+      if (name === 'show_on_bigcommerce' && nextValue === true) {
+        if (
+          !bigcommercePriceManualRef.current ||
+          isUnsetBigCommercePrice(updated.bigcommerce_price)
+        ) {
+          updated.bigcommerce_price = String(updated.price ?? '');
+          if (isUnsetBigCommercePrice(prev.bigcommerce_price)) {
+            bigcommercePriceManualRef.current = false;
+          }
+        }
       }
 
       // Auto-generate slug from name
       if (name === 'name' && (!prev.slug || prev.slug === generateSlug(prev.name))) {
-        updated.slug = generateSlug(value);
+        updated.slug = generateSlug(nextValue);
       }
 
       return updated;
@@ -342,6 +379,12 @@ const ProductAdd = () => {
         description: form.description.trim(),
         price: parseFloat(form.price),
         ...buildPricingSaveFields(),
+        show_on_bigcommerce: Boolean(form.show_on_bigcommerce),
+        bigcommerce_price: String(form.bigcommerce_price ?? '').trim(),
+        bigcommerce_hold_qty:
+          form.bigcommerce_hold_qty !== '' && form.bigcommerce_hold_qty != null
+            ? Number(form.bigcommerce_hold_qty)
+            : 0,
         categoryId: Array.isArray(form.categoryId) ? form.categoryId : [form.categoryId],
         sku: form.sku.trim(),
         product_code: form.product_code.trim(),
@@ -538,7 +581,7 @@ const ProductAdd = () => {
 
                 {/* Price before tax, Tax rate, Retail, Wholesale, Alert Qty */}
                 <div className="row">
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="price_before_tax" className="form-label">
                       Price before tax
                     </label>
@@ -557,7 +600,7 @@ const ProductAdd = () => {
                       <div className="invalid-feedback">{errors.price_before_tax}</div>
                     )}
                   </div>
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="tax_rate" className="form-label">
                       Tax rate (%)
                     </label>
@@ -575,7 +618,7 @@ const ProductAdd = () => {
                     />
                     {errors.tax_rate && <div className="invalid-feedback">{errors.tax_rate}</div>}
                   </div>
-                  <div className="col-md-3 col-6 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="price" className="form-label">
                       Retail price <span className="text-danger">*</span>
                     </label>
@@ -594,7 +637,7 @@ const ProductAdd = () => {
                     />
                     {errors.price && <div className="text-danger text-sm mt-1">{errors.price}</div>}
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="wholesale_price" className="form-label">
                       Wholesale Price
                     </label>
@@ -610,7 +653,7 @@ const ProductAdd = () => {
                       onChange={handleChange}
                     />
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-md col-6 mb-3">
                     <label htmlFor="alert_qty" className="form-label">
                       Alert Quantity
                     </label>
@@ -625,6 +668,68 @@ const ProductAdd = () => {
                       onChange={handleChange}
                     />
                   </div>
+                </div>
+
+                {/* BigCommerce */}
+                <div className="product-form-section mb-4">
+                  <div className="product-form-section-title">
+                    <i className="fas fa-store text-primary" aria-hidden="true" />
+                    BigCommerce
+                  </div>
+                  <p className="product-form-section-hint">
+                    Control listing and pricing for BigCommerce.
+                  </p>
+                  <div className="form-check form-switch mb-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id="show_on_bigcommerce"
+                      name="show_on_bigcommerce"
+                      checked={Boolean(form.show_on_bigcommerce)}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    <label className="form-check-label" htmlFor="show_on_bigcommerce">
+                      Show on BigCommerce?
+                    </label>
+                  </div>
+                  {form.show_on_bigcommerce ? (
+                    <div className="row">
+                      <div className="col-md-6 mb-3 mb-md-0">
+                        <label htmlFor="bigcommerce_price" className="form-label">
+                          BigCommerce Price
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="bigcommerce_price"
+                          name="bigcommerce_price"
+                          placeholder={form.price || '0.00'}
+                          value={form.bigcommerce_price}
+                          onChange={handleChange}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label htmlFor="bigcommerce_hold_qty" className="form-label">
+                          BigCommerce Hold Qty
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="form-control"
+                          id="bigcommerce_hold_qty"
+                          name="bigcommerce_hold_qty"
+                          placeholder="0"
+                          value={form.bigcommerce_hold_qty}
+                          onChange={handleChange}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Product Code, SKU, and Barcode Row */}

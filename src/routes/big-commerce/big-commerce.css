@@ -1,31 +1,28 @@
 /* Big Commerce marketplace — glass / light premium theme */
 
 .bc-marketplace {
-  --bc-bg: #f3f6f8;
-  --bc-surface: rgba(255, 255, 255, 0.78);
+  --bc-bg: #f6f8fb;
+  --bc-surface: rgba(255, 255, 255, 0.9);
   --bc-surface-solid: #ffffff;
-  --bc-border: rgba(15, 23, 42, 0.08);
-  --bc-text: #0f172a;
-  --bc-muted: #64748b;
-  --bc-accent: #0f766e;
-  --bc-accent-2: #1d4f6f;
+  --bc-border: #e5eaf1;
+  --bc-text: #172033;
+  --bc-muted: #68758a;
+  --bc-accent: #087f73;
+  --bc-accent-2: #20537a;
   --bc-danger: #b91c1c;
   --bc-warning: #b45309;
   --bc-info: #0369a1;
-  --bc-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
-  --bc-radius: 18px;
+  --bc-shadow: 0 10px 30px rgba(23, 32, 51, 0.07);
+  --bc-radius: 16px;
   --bc-radius-sm: 12px;
   --bc-font: 'Segoe UI', 'Helvetica Neue', Candara, Calibri, sans-serif;
 
   font-family: var(--bc-font);
   color: var(--bc-text);
   padding: 0 0 2.5rem;
-  background:
-    radial-gradient(1200px 400px at 10% -10%, rgba(15, 118, 110, 0.12), transparent 60%),
-    radial-gradient(900px 380px at 100% 0%, rgba(29, 79, 111, 0.1), transparent 55%),
-    var(--bc-bg);
+  background: var(--bc-bg);
   min-height: 70vh;
-  border-radius: 1rem;
+  border-radius: var(--bc-radius);
 }
 
 .bc-marketplace * {
@@ -33,6 +30,49 @@
 }
 
 /* ——— Profile header ——— */
+.bc-store-page {
+  max-width: 1500px;
+  margin-inline: auto;
+}
+
+.bc-store-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.bc-store-back,
+.bc-store-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.bc-store-back {
+  color: #43516a;
+  text-decoration: none;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #dfe5ed;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(23, 32, 51, 0.04);
+  transition: border-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.bc-store-back:hover {
+  color: #087f73;
+  border-color: rgba(8, 127, 115, 0.35);
+  transform: translateX(-2px);
+}
+
+.bc-store-context {
+  color: #7a8799;
+}
+
 .bc-profile {
   position: relative;
   margin: 0 0 1.25rem;
@@ -44,7 +84,7 @@
 }
 
 .bc-cover {
-  height: clamp(160px, 28vw, 280px);
+  height: clamp(180px, 22vw, 260px);
   background-size: cover;
   background-position: center;
   position: relative;
@@ -53,15 +93,35 @@
 .bc-cover-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 40%, rgba(15, 23, 42, 0.35));
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.04) 35%, rgba(15, 23, 42, 0.58));
+}
+
+.bc-cover-label {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(8px);
+  font-size: 0.72rem;
+  font-weight: 650;
 }
 
 .bc-profile-body {
   position: relative;
   display: flex;
   gap: 1.25rem;
-  padding: 0 1.5rem 1.35rem;
-  margin-top: -56px;
+  padding: 0 1.5rem 1.5rem;
+  margin-top: -50px;
   align-items: flex-end;
   flex-wrap: wrap;
 }
@@ -71,9 +131,9 @@
 }
 
 .bc-logo {
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
+  width: 104px;
+  height: 104px;
+  border-radius: 18px;
   object-fit: cover;
   border: 4px solid #fff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
@@ -92,7 +152,7 @@
 .bc-profile-main {
   flex: 1;
   min-width: 220px;
-  padding-top: 3.5rem;
+  padding-top: 3.3rem;
 }
 
 .bc-profile-title-row {
@@ -105,16 +165,35 @@
 
 .bc-company-name {
   margin: 0;
-  font-size: clamp(1.45rem, 2.4vw, 2rem);
-  font-weight: 700;
+  font-size: clamp(1.4rem, 2.2vw, 1.9rem);
+  font-weight: 750;
   letter-spacing: -0.02em;
   color: var(--bc-text);
+}
+
+.bc-company-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.bc-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.24rem 0.5rem;
+  border-radius: 999px;
+  color: var(--bc-accent);
+  background: rgba(8, 127, 115, 0.09);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .bc-company-tagline {
   margin: 0.35rem 0 0;
   color: var(--bc-muted);
-  max-width: 48rem;
+  max-width: 42rem;
   line-height: 1.45;
 }
 
@@ -124,19 +203,47 @@
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1.35rem;
+  gap: 0.6rem;
 }
 
 .bc-profile-meta li {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 112px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e8edf3;
+  border-radius: 10px;
+  background: #f9fafc;
+  font-size: 0.82rem;
+}
+
+.bc-profile-meta li > span:last-child {
+  display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+  gap: 0.05rem;
+}
+
+.bc-profile-meta strong {
+  color: var(--bc-text);
+  font-weight: 700;
+}
+
+.bc-meta-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 8px;
+  color: var(--bc-accent);
+  background: rgba(8, 127, 115, 0.08);
 }
 
 .bc-meta-label {
-  font-size: 0.72rem;
+  display: block;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--bc-muted);
@@ -587,6 +694,7 @@
 .bc-price-block {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 0.45rem;
 }
 
@@ -604,6 +712,13 @@
   font-size: 0.85rem;
   color: var(--bc-muted);
   text-decoration: line-through;
+}
+
+.bc-price-debug {
+  flex-basis: 100%;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--bc-muted);
 }
 
 .bc-stock-rating {
@@ -679,17 +794,55 @@
 .bc-btn-whatsapp {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  background: #25d366;
+  gap: 0.65rem;
+  min-height: 46px;
+  padding: 0.42rem 0.85rem 0.42rem 0.48rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #20bd5a, #128c4a);
   color: #fff;
   text-decoration: none;
-  box-shadow: 0 6px 16px rgba(37, 211, 102, 0.28);
+  box-shadow: 0 8px 20px rgba(18, 140, 74, 0.24);
 }
 
 .bc-btn-whatsapp:hover {
   color: #fff;
-  transform: translateY(-1px);
-  filter: brightness(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 11px 24px rgba(18, 140, 74, 0.3);
+  filter: brightness(1.03);
+}
+
+.bc-whatsapp-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 1.15rem;
+}
+
+.bc-whatsapp-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.bc-whatsapp-copy small {
+  margin-bottom: 0.15rem;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.59rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.bc-whatsapp-copy strong {
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .bc-btn-ghost {

@@ -33,10 +33,10 @@ const LOG_COLUMNS = [
   { key: 'user', label: 'User' },
   { key: 'action', label: 'Action', alwaysVisible: true },
   { key: 'url', label: 'URL' },
-  { key: 'human_readable_description', label: 'Human readable description' },
+  { key: 'human_readable_description', label: 'Description' },
   { key: 'tags', label: 'Tags' },
   { key: 'status', label: 'Status' },
-  { key: 'createdAt', label: 'Created at' },
+  { key: 'createdAt', label: 'Created' },
 ];
 
 const productId = (p) => String(p?._id || p?.id || p?.product_id || '');
@@ -1434,77 +1434,80 @@ const Logs = () => {
     };
   }, []);
 
-  const firstSegment = window.location.pathname.split('/')[1] || 'logs';
-  const title =
-    firstSegment.length > 0 ? firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1) : 'Logs';
-
   const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total);
+  const resultSummary =
+    !loading && !error
+      ? pagination.total === 0
+        ? 'No matching entries'
+        : `Showing ${startItem.toLocaleString()}–${endItem.toLocaleString()} of ${pagination.total.toLocaleString()}`
+      : 'Audit trail of system activity';
+
+  const hasActiveReference = Boolean(selectedProductId || selectedPurchaseOrderId || selectedOrderId);
+  const hasActiveFilters = Boolean(localSearch || logTag || hasActiveReference);
+
+  const clearAllFilters = () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    setLocalSearch('');
+    dispatch(setSearch(''));
+    dispatch(setLogTag(''));
+    dispatch(setProductReference(''));
+    dispatch(setPurchaseOrderReference(''));
+    dispatch(setOrderReference(''));
+  };
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
+    <div className="container-fluid py-4 px-0 logs-module" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header">
-              <div className="row align-items-center">
-                <div className="col-md-6">
-                  <h5 className="mb-0">{title}</h5>
-                  {DEBUG ? (
-                    <p className="text-sm mb-0">
-                      Audit log entries (read-only). Server-side pagination.
-                    </p>
-                  ) : null}
+          <div className="card border-0 shadow-sm logs-card" style={{ maxWidth: '100%' }}>
+            <div className="card-header bg-white border-bottom logs-page-header">
+              <div className="row align-items-center g-3">
+                <div className="col-lg">
+                  <div className="d-flex align-items-center gap-3">
+                    <div className="logs-header-icon" aria-hidden="true">
+                      <i className="fas fa-clipboard-list" />
+                    </div>
+                    <div className="min-w-0">
+                      <h5 className="mb-1">Activity Logs</h5>
+                      <p className="text-sm text-muted mb-0">
+                        {resultSummary}
+                        {DEBUG ? (
+                          <span className="ms-1">· Read-only · Server-side pagination</span>
+                        ) : null}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0 flex-wrap">
-                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
-                      <SearchableSelect
-                        options={productOptions}
-                        value={selectedProductId}
-                        placeholder="All products"
-                        disabled={loading || productsStatus === 'loading'}
-                        onChange={(next) => dispatch(setProductReference(next))}
-                      />
-                      {productsStatus === 'loading' && (
-                        <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
-                      )}
-                    </div>
-                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
-                      <SearchableSelect
-                        options={purchaseOrderOptions}
-                        value={selectedPurchaseOrderId}
-                        placeholder="All purchase orders"
-                        disabled={loading || purchaseOrdersStatus === 'loading'}
-                        onChange={(next) => dispatch(setPurchaseOrderReference(next))}
-                      />
-                      {purchaseOrdersStatus === 'loading' && (
-                        <p className="text-xs text-muted mb-0 mt-1">Loading purchase orders…</p>
-                      )}
-                    </div>
-                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
-                      <SearchableSelect
-                        options={orderOptions}
-                        value={selectedOrderId}
-                        placeholder="All order nos"
-                        disabled={loading || ordersStatus === 'loading'}
-                        onChange={(next) => dispatch(setOrderReference(next))}
-                      />
-                      {ordersStatus === 'loading' && (
-                        <p className="text-xs text-muted mb-0 mt-1">Loading orders…</p>
-                      )}
-                    </div>
-                    <div className="input-group" style={{ maxWidth: '300px', flex: '1 1 200px' }}>
+                <div className="col-lg-auto">
+                  <div className="d-flex align-items-center justify-content-lg-end gap-2 flex-wrap">
+                    <div className="input-group input-group-sm logs-search-group">
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search logs..."
+                        placeholder="Search logs…"
                         value={localSearch}
                         onChange={handleSearchChange}
+                        aria-label="Search logs"
                       />
+                      {localSearch ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary mb-0 px-3"
+                          title="Clear search"
+                          aria-label="Clear search"
+                          onClick={() => {
+                            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                            setLocalSearch('');
+                            dispatch(setSearch(''));
+                          }}
+                        >
+                          <i className="fas fa-times" />
+                        </button>
+                      ) : null}
                     </div>
                     <ColumnVisibilityMenu
                       columns={LOG_COLUMNS}
@@ -1513,40 +1516,106 @@ const Logs = () => {
                       onReset={reset}
                       id="logsColumnVisibilityMenu"
                     />
+                    {hasActiveFilters ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary mb-0"
+                        onClick={clearAllFilters}
+                        title="Clear all filters"
+                      >
+                        <i className="fas fa-times me-1" aria-hidden="true" />
+                        Clear
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
-            <div className="px-3 pt-3 pb-0">
-              <div
-                className="btn-group btn-group-sm flex-wrap logs-tag-tabs"
-                role="group"
-                aria-label="Filter logs by tag"
-              >
-                {logTagsStatus === 'loading' ? (
-                  <span className="text-xs text-muted align-self-center">Loading tags…</span>
-                ) : null}
-                {logFilterTabs.map(({ id, label }) => {
-                  const active = logTag === id;
-                  return (
-                    <button
-                      key={id || 'all'}
-                      type="button"
-                      aria-pressed={active}
-                      className={`btn mb-0 ${active ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => dispatch(setLogTag(id))}
-                      disabled={loading || logTagsStatus === 'loading'}
-                      title={id || 'All tags'}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+
+            <div className="logs-filter-panel">
+              <div className="row g-3 align-items-end">
+                <div className="col-xl-4 col-md-4 col-sm-6">
+                  <label className="form-label mb-1 text-xs text-uppercase fw-bold text-muted">
+                    Product
+                  </label>
+                  <SearchableSelect
+                    options={productOptions}
+                    value={selectedProductId}
+                    placeholder="All products"
+                    disabled={loading || productsStatus === 'loading'}
+                    onChange={(next) => dispatch(setProductReference(next))}
+                  />
+                  {productsStatus === 'loading' ? (
+                    <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
+                  ) : null}
+                </div>
+                <div className="col-xl-4 col-md-4 col-sm-6">
+                  <label className="form-label mb-1 text-xs text-uppercase fw-bold text-muted">
+                    Purchase order
+                  </label>
+                  <SearchableSelect
+                    options={purchaseOrderOptions}
+                    value={selectedPurchaseOrderId}
+                    placeholder="All purchase orders"
+                    disabled={loading || purchaseOrdersStatus === 'loading'}
+                    onChange={(next) => dispatch(setPurchaseOrderReference(next))}
+                  />
+                  {purchaseOrdersStatus === 'loading' ? (
+                    <p className="text-xs text-muted mb-0 mt-1">Loading purchase orders…</p>
+                  ) : null}
+                </div>
+                <div className="col-xl-4 col-md-4 col-sm-6">
+                  <label className="form-label mb-1 text-xs text-uppercase fw-bold text-muted">
+                    Order no.
+                  </label>
+                  <SearchableSelect
+                    options={orderOptions}
+                    value={selectedOrderId}
+                    placeholder="All order nos"
+                    disabled={loading || ordersStatus === 'loading'}
+                    onChange={(next) => dispatch(setOrderReference(next))}
+                  />
+                  {ordersStatus === 'loading' ? (
+                    <p className="text-xs text-muted mb-0 mt-1">Loading orders…</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="logs-tag-bar">
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <span className="logs-tag-bar__label">Tags</span>
+                <div
+                  className="btn-group btn-group-sm flex-wrap logs-tag-tabs"
+                  role="group"
+                  aria-label="Filter logs by tag"
+                >
+                  {logTagsStatus === 'loading' ? (
+                    <span className="text-xs text-muted align-self-center">Loading tags…</span>
+                  ) : null}
+                  {logFilterTabs.map(({ id, label }) => {
+                    const active = logTag === id;
+                    return (
+                      <button
+                        key={id || 'all'}
+                        type="button"
+                        aria-pressed={active}
+                        className={`btn mb-0 logs-tag-chip ${active ? 'is-active' : ''}`}
+                        onClick={() => dispatch(setLogTag(id))}
+                        disabled={loading || logTagsStatus === 'loading'}
+                        title={id || 'All tags'}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               {logTagsStatus === 'failed' ? (
-                <p className="text-xs text-danger mb-0 mt-1">Could not load updated tags.</p>
+                <p className="text-xs text-danger mb-0 mt-2">Could not load updated tags.</p>
               ) : null}
             </div>
+
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 loading={loading}
@@ -1557,13 +1626,15 @@ const Logs = () => {
                 onLimitChange={handleLimitChange}
                 selectId="logs-table-page-size"
                 showPagination={!loading && !error && pagination.total > 0}
+                className="list-data-table--logs"
               >
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
-                      <th>S.No</th>
-                      {isVisible('user') ? <th>User</th> : null}
+                      <th className="ps-3 text-nowrap">S.No</th>
+                      {isVisible('user') ? <th className="text-nowrap">User</th> : null}
                       <th
+                        className="text-nowrap list-data-table-sortable"
                         style={{ cursor: 'pointer', userSelect: 'none' }}
                         onClick={() => handleSort('action')}
                         onDoubleClick={() => handleSort('action', true)}
@@ -1573,6 +1644,7 @@ const Logs = () => {
                       </th>
                       {isVisible('url') ? (
                         <th
+                          className="text-nowrap list-data-table-sortable"
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('url')}
                           onDoubleClick={() => handleSort('url', true)}
@@ -1583,17 +1655,19 @@ const Logs = () => {
                       ) : null}
                       {isVisible('human_readable_description') ? (
                         <th
+                          className="text-nowrap list-data-table-sortable"
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('human_readable_description')}
                           onDoubleClick={() => handleSort('human_readable_description', true)}
                         >
-                          Human readable description
+                          Description
                           {renderSortIcon('human_readable_description')}
                         </th>
                       ) : null}
-                      {isVisible('tags') ? <th>Tags</th> : null}
+                      {isVisible('tags') ? <th className="text-nowrap">Tags</th> : null}
                       {isVisible('status') ? (
                         <th
+                          className="text-nowrap list-data-table-sortable"
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('status')}
                           onDoubleClick={() => handleSort('status', true)}
@@ -1604,11 +1678,12 @@ const Logs = () => {
                       ) : null}
                       {isVisible('createdAt') ? (
                         <th
+                          className="text-nowrap pe-3 list-data-table-sortable"
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('createdAt')}
                           onDoubleClick={() => handleSort('createdAt', true)}
                         >
-                          Created at
+                          Created
                           {renderSortIcon('createdAt')}
                         </th>
                       ) : null}
@@ -1617,11 +1692,27 @@ const Logs = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td
-                          colSpan={visibleCount}
-                          className="text-center text-sm font-weight-normal p-4"
-                        >
-                          No log entries found
+                        <td colSpan={visibleCount} className="logs-empty-cell">
+                          <div className="logs-empty-state">
+                            <div className="logs-empty-icon" aria-hidden="true">
+                              <i className="fas fa-inbox" />
+                            </div>
+                            <p className="logs-empty-title mb-1">No log entries found</p>
+                            <p className="text-sm text-muted mb-0">
+                              {hasActiveFilters
+                                ? 'Try adjusting your filters or search terms.'
+                                : 'Activity will appear here as users perform actions.'}
+                            </p>
+                            {hasActiveFilters ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-primary mb-0 mt-3"
+                                onClick={clearAllFilters}
+                              >
+                                Clear filters
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -1638,11 +1729,16 @@ const Logs = () => {
                           (typeof item?.created_by === 'string' ? item.created_by : '') ||
                           (typeof item?.createdBy === 'string' ? item.createdBy : '') ||
                           '—';
+                        const statusValue = String(item.status || '').toLowerCase();
                         return (
-                          <tr key={item._id || index}>
-                            <td className="text-sm font-weight-normal">{seriesNumber}</td>
+                          <tr key={item._id || index} className="logs-data-row">
+                            <td className="text-sm font-weight-normal ps-3 text-muted">
+                              {seriesNumber}
+                            </td>
                             {isVisible('user') ? (
-                              <td className="text-sm font-weight-normal">{creatorName}</td>
+                              <td className="text-sm font-weight-normal">
+                                <span className="logs-user-name">{creatorName}</span>
+                              </td>
                             ) : null}
                             <td className="text-sm font-weight-normal align-middle">
                               <LogDescriptionCell
@@ -1671,7 +1767,7 @@ const Logs = () => {
                                     <span className="text-muted">—</span>
                                   ) : (
                                     tags.map((t) => (
-                                      <span key={t} className="badge bg-gradient-secondary" title={t}>
+                                      <span key={t} className="badge logs-tag-badge" title={t}>
                                         {toPrettyTagLabel(t)}
                                       </span>
                                     ))
@@ -1682,7 +1778,11 @@ const Logs = () => {
                             {isVisible('status') ? (
                               <td className="text-sm font-weight-normal">
                                 <span
-                                  className={`badge ${item.status === 'active' ? 'bg-success' : 'bg-secondary'}`}
+                                  className={`badge logs-status-badge ${
+                                    statusValue === 'active'
+                                      ? 'logs-status-badge--active'
+                                      : 'logs-status-badge--muted'
+                                  }`}
                                 >
                                   {item.status || '—'}
                                 </span>
@@ -1690,7 +1790,7 @@ const Logs = () => {
                             ) : null}
                             {isVisible('createdAt') ? (
                               <td
-                                className="text-sm font-weight-normal"
+                                className="text-sm font-weight-normal pe-3 text-nowrap"
                                 title={
                                   item.createdAt || item.created_at
                                     ? moment(item.createdAt || item.created_at).format(

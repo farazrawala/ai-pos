@@ -1,6 +1,11 @@
 import { useId, useRef } from 'react';
 import { parseVariationAttrs, generateBarcode } from './productVariationUtils.js';
 
+const isUnsetBigCommercePrice = (value) => {
+  const s = String(value ?? '').trim();
+  return s === '' || s === '0' || s === '0.00';
+};
+
 export default function ProductVariationCard({
   variation,
   onChange,
@@ -12,11 +17,22 @@ export default function ProductVariationCard({
 }) {
   const reactId = useId();
   const inputId = fileInputId || `pv-variation-image-${variation.id}-${reactId}`;
+  const showOnBcId = `pv-show-on-bc-${variation.id}-${reactId}`;
+  const bcPriceId = `pv-bc-price-${variation.id}-${reactId}`;
+  const bcHoldId = `pv-bc-hold-${variation.id}-${reactId}`;
   const fileInputRef = useRef(null);
   const attrPills = parseVariationAttrs(variation.name);
+  const showOnBigCommerce = Boolean(variation.show_on_bigcommerce);
 
   const handleRegenerateBarcode = () => {
     onChange(variation.id, 'barcode', generateBarcode());
+  };
+
+  const handleShowOnBigCommerce = (checked) => {
+    onChange(variation.id, 'show_on_bigcommerce', checked);
+    if (checked && isUnsetBigCommercePrice(variation.bigcommerce_price)) {
+      onChange(variation.id, 'bigcommerce_price', String(variation.price ?? ''));
+    }
   };
 
   const handleImageSelect = (e) => {
@@ -224,6 +240,61 @@ export default function ProductVariationCard({
               </button>
             </div>
             <div className="pv-hint">Leave empty to auto-generate on save.</div>
+          </div>
+
+          <div className="pv-bc-section">
+            <div className="pv-bc-section-title">BigCommerce</div>
+            <label className="pv-bc-switch" htmlFor={showOnBcId}>
+              <input
+                className="pv-bc-switch-input"
+                type="checkbox"
+                role="switch"
+                id={showOnBcId}
+                checked={showOnBigCommerce}
+                disabled={disabled}
+                onChange={(e) => handleShowOnBigCommerce(e.target.checked)}
+              />
+              <span className="pv-bc-switch-track" aria-hidden="true">
+                <span className="pv-bc-switch-thumb" />
+              </span>
+              <span className="pv-bc-switch-label">Show on BigCommerce</span>
+            </label>
+            {showOnBigCommerce ? (
+              <div className="pv-bc-fields">
+                <div className="pv-field">
+                  <label className="pv-field-label" htmlFor={bcPriceId}>
+                    BigCommerce Price
+                  </label>
+                  <input
+                    id={bcPriceId}
+                    type="text"
+                    className="pv-field-input"
+                    placeholder={variation.price || '0.00'}
+                    value={variation.bigcommerce_price ?? ''}
+                    disabled={disabled}
+                    onChange={(e) => onChange(variation.id, 'bigcommerce_price', e.target.value)}
+                  />
+                </div>
+                <div className="pv-field">
+                  <label className="pv-field-label" htmlFor={bcHoldId}>
+                    BigCommerce Hold Qty
+                  </label>
+                  <input
+                    id={bcHoldId}
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="pv-field-input"
+                    placeholder="0"
+                    value={variation.bigcommerce_hold_qty ?? ''}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      onChange(variation.id, 'bigcommerce_hold_qty', e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
