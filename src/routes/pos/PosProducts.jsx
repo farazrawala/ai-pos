@@ -142,6 +142,8 @@ const PosProducts = ({
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
+  columnClassName = 'col-lg-6 col-xl-7',
+  columnStyle,
 }) => {
   const isOnline = useOnlineStatus();
   const [products, setProducts] = useState([]);
@@ -509,7 +511,7 @@ const PosProducts = ({
   );
 
   return (
-    <div className="col-lg-6 col-xl-7">
+    <div className={columnClassName} style={columnStyle}>
       <PosPaymentModal
         orderTotal={orderTotal}
         onPayNow={onPaymentComplete}

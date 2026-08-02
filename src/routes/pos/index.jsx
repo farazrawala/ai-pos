@@ -9,6 +9,8 @@ import {
   FaFolderOpen,
   FaCloudArrowUp,
   FaArrowsRotate,
+  FaGear,
+  FaArrowRightArrowLeft,
 } from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
@@ -66,6 +68,7 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import OfflineStatusBadge from '../../components/OfflineStatusBadge.jsx';
 import OfflineSyncPanel, { openOfflineSyncPanel } from '../../components/OfflineSyncPanel.jsx';
+import AppModal from '../../components/AppModal.jsx';
 import { processSyncQueue } from '../../offline/syncOrders.js';
 import { refreshSyncStatusCounts } from '../../offline/syncStatus.js';
 import { isMasterSyncStale, runMasterSync } from '../../offline/masterSync.js';
@@ -73,6 +76,7 @@ import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { saveOfflineOrder, buildOfflineSaveResult } from '../../offline/saveOfflineOrder.js';
 import { getAllCategories, countCategories } from '../../offline/repositories/categoriesRepo.js';
 import { getAllCustomers, countCustomers } from '../../offline/repositories/customersRepo.js';
+import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
@@ -83,6 +87,13 @@ const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
 const POS_CART_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
 const POS_CART_ORDER_FIFO = 'fifo';
 const POS_CART_ORDER_LIFO = 'lifo';
+const POS_LAYOUT_STORAGE_KEY = 'pos.layout';
+const POS_LAYOUT_META_KEY = 'pos_layout';
+/** Matches Bootstrap xl-5 (~41.67%) for the current-order column. */
+const POS_LAYOUT_DEFAULT_ORDER_WIDTH = 42;
+const POS_LAYOUT_MIN_ORDER_WIDTH = 28;
+const POS_LAYOUT_MAX_ORDER_WIDTH = 72;
+const POS_LAYOUT_DEFAULT = { orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH, swapped: false };
 
 /** Load cart FIFO/LIFO preference from localStorage cache. */
 function readStoredCartDisplayOrder() {
@@ -105,6 +116,101 @@ function persistCartDisplayOrder(order) {
   } catch {
     /* ignore quota / private mode */
   }
+}
+
+function clampOrderPanelWidth(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return POS_LAYOUT_DEFAULT_ORDER_WIDTH;
+  return Math.min(POS_LAYOUT_MAX_ORDER_WIDTH, Math.max(POS_LAYOUT_MIN_ORDER_WIDTH, n));
+}
+
+function normalizePosLayout(raw) {
+  if (!raw || typeof raw !== 'object') return { ...POS_LAYOUT_DEFAULT };
+  return {
+    orderWidth: clampOrderPanelWidth(raw.orderWidth ?? POS_LAYOUT_DEFAULT_ORDER_WIDTH),
+    swapped: Boolean(raw.swapped),
+  };
+}
+
+function posLayoutLocalStorageKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${POS_LAYOUT_STORAGE_KEY}.${id}` : POS_LAYOUT_STORAGE_KEY;
+}
+
+function posLayoutMetaKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${POS_LAYOUT_META_KEY}.${id}` : POS_LAYOUT_META_KEY;
+}
+
+function readLocalStorageJson(key) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Load POS panel width / swap preference from localStorage cache. */
+function readStoredPosLayout(companyId) {
+  const scopedKey = posLayoutLocalStorageKey(companyId);
+  const scoped = readLocalStorageJson(scopedKey);
+  if (scoped) return normalizePosLayout(scoped);
+  // Migrate legacy unscoped key into the company-scoped cache.
+  const legacy = readLocalStorageJson(POS_LAYOUT_STORAGE_KEY);
+  if (legacy) {
+    const normalized = normalizePosLayout(legacy);
+    if (typeof window !== 'undefined' && String(companyId || '').trim()) {
+      try {
+        window.localStorage.setItem(scopedKey, JSON.stringify(normalized));
+      } catch {
+        /* ignore */
+      }
+    }
+    return normalized;
+  }
+  return { ...POS_LAYOUT_DEFAULT };
+}
+
+/** Persist POS layout to localStorage + offline IndexedDB meta cache. */
+function persistPosLayout(layout, companyId) {
+  const next = normalizePosLayout(layout);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(posLayoutLocalStorageKey(companyId), JSON.stringify(next));
+      // Keep legacy key in sync for older builds / missing company id.
+      if (!String(companyId || '').trim()) {
+        window.localStorage.setItem(POS_LAYOUT_STORAGE_KEY, JSON.stringify(next));
+      }
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
+  setMeta(posLayoutMetaKey(companyId), next).catch((err) => {
+    console.warn('[POS] Could not cache layout settings offline', err);
+  });
+  return next;
+}
+
+/** Prefer localStorage; fall back to offline meta cache. */
+async function loadCachedPosLayout(companyId) {
+  const fromLocal = readStoredPosLayout(companyId);
+  const hasScopedLocal = Boolean(readLocalStorageJson(posLayoutLocalStorageKey(companyId)));
+  const hasLegacyLocal = Boolean(readLocalStorageJson(POS_LAYOUT_STORAGE_KEY));
+  if (hasScopedLocal || hasLegacyLocal) return fromLocal;
+  try {
+    const fromMeta = await getMeta(posLayoutMetaKey(companyId));
+    if (fromMeta) {
+      const normalized = normalizePosLayout(fromMeta);
+      persistPosLayout(normalized, companyId);
+      return normalized;
+    }
+  } catch {
+    /* ignore */
+  }
+  return fromLocal;
 }
 
 /** Value for `<input type="datetime-local">` (local wall clock). */
@@ -719,8 +825,12 @@ const Pos = () => {
   const discountEditSourceRef = useRef(null);
   const [cartLines, setCartLines] = useState([]);
   const [cartDisplayOrder, setCartDisplayOrder] = useState(readStoredCartDisplayOrder);
+  const [posLayout, setPosLayout] = useState(() => readStoredPosLayout(companyId));
+  const [layoutSettingsOpen, setLayoutSettingsOpen] = useState(false);
   const cartDisplayOrderRef = useRef(cartDisplayOrder);
   cartDisplayOrderRef.current = cartDisplayOrder;
+  const posLayoutCompanyIdRef = useRef(companyId);
+  posLayoutCompanyIdRef.current = companyId;
   const [cartProductFilter, setCartProductFilter] = useState('');
   const [activeDraftId, setActiveDraftId] = useState(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -733,6 +843,16 @@ const Pos = () => {
   const [orderSaving, setOrderSaving] = useState(false);
   const [masterSyncRunning, setMasterSyncRunning] = useState(false);
   const [masterSyncProgress, setMasterSyncProgress] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadCachedPosLayout(companyId).then((layout) => {
+      if (!cancelled) setPosLayout(layout);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   const runPosMasterSync = useCallback(
     async ({ force = false, showSuccessToast = false } = {}) => {
@@ -1079,6 +1199,50 @@ const Pos = () => {
     setCartDisplayOrder(nextOrder);
     setCartLines((lines) => (lines.length > 1 ? [...lines].reverse() : lines));
     persistCartDisplayOrder(nextOrder);
+  }, []);
+
+  const updatePosLayout = useCallback((patch) => {
+    setPosLayout((prev) => {
+      const next = {
+        orderWidth: clampOrderPanelWidth(
+          patch.orderWidth !== undefined ? patch.orderWidth : prev.orderWidth
+        ),
+        swapped: patch.swapped !== undefined ? Boolean(patch.swapped) : prev.swapped,
+      };
+      persistPosLayout(next, posLayoutCompanyIdRef.current);
+      return next;
+    });
+  }, []);
+
+  const handleOrderPanelWidthChange = useCallback(
+    (e) => {
+      updatePosLayout({ orderWidth: e.target.value });
+    },
+    [updatePosLayout]
+  );
+
+  const handleSwapPanels = useCallback(() => {
+    setPosLayout((prev) => {
+      const next = { ...prev, swapped: !prev.swapped };
+      persistPosLayout(next, posLayoutCompanyIdRef.current);
+      return next;
+    });
+  }, []);
+
+  const handleResetPosLayout = useCallback(() => {
+    const next = persistPosLayout(
+      { orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH, swapped: false },
+      posLayoutCompanyIdRef.current
+    );
+    setPosLayout(next);
+  }, []);
+
+  const closeLayoutSettings = useCallback(() => {
+    setPosLayout((prev) => {
+      persistPosLayout(prev, posLayoutCompanyIdRef.current);
+      return prev;
+    });
+    setLayoutSettingsOpen(false);
   }, []);
 
   const bumpCartQty = useCallback(
@@ -1885,6 +2049,52 @@ const Pos = () => {
   return (
     <div className="pos-page container-fluid py-4 px-3 px-lg-4">
       <OfflineSyncPanel />
+      <AppModal
+        open={layoutSettingsOpen}
+        onClose={closeLayoutSettings}
+        title="Layout settings"
+        subtitle="Resize or swap the Current order and Products panels."
+        size="sm"
+        footer={
+          <>
+            <button type="button" className="btn btn-link btn-sm mb-0" onClick={handleResetPosLayout}>
+              Reset
+            </button>
+            <button type="button" className="btn btn-primary btn-sm mb-0" onClick={closeLayoutSettings}>
+              Done
+            </button>
+          </>
+        }
+      >
+        <div className="pos-layout-settings">
+          <label className="pos-layout-settings__label" htmlFor="posOrderPanelWidth">
+            <span>Current order</span>
+            <span className="pos-layout-settings__value">{posLayout.orderWidth}%</span>
+          </label>
+          <input
+            id="posOrderPanelWidth"
+            type="range"
+            className="pos-layout-settings__range"
+            min={POS_LAYOUT_MIN_ORDER_WIDTH}
+            max={POS_LAYOUT_MAX_ORDER_WIDTH}
+            step={1}
+            value={posLayout.orderWidth}
+            onChange={handleOrderPanelWidthChange}
+            aria-valuemin={POS_LAYOUT_MIN_ORDER_WIDTH}
+            aria-valuemax={POS_LAYOUT_MAX_ORDER_WIDTH}
+            aria-valuenow={posLayout.orderWidth}
+            aria-label="Current order panel width"
+          />
+          <div className="pos-layout-settings__meta">
+            <span>Products {100 - posLayout.orderWidth}%</span>
+            <span>{posLayout.swapped ? 'Products left' : 'Order left'}</span>
+          </div>
+          <button type="button" className="pos-layout-settings__swap" onClick={handleSwapPanels}>
+            <NavIcon icon={FaArrowRightArrowLeft} size={12} />
+            {posLayout.swapped ? 'Unswap sections' : 'Swap sections'}
+          </button>
+        </div>
+      </AppModal>
       <div className="pos-page-header">
         <div className="pos-master-sync-status">
           {masterSyncProgress?.message ? (
@@ -1903,6 +2113,18 @@ const Pos = () => {
           )}
         </div>
         <div className="pos-page-header__actions">
+          <button
+            type="button"
+            className="pos-toolbar-btn"
+            id="posLayoutSettingsBtn"
+            aria-haspopup="dialog"
+            aria-expanded={layoutSettingsOpen}
+            title="Layout settings"
+            onClick={() => setLayoutSettingsOpen(true)}
+          >
+            <NavIcon icon={FaGear} size={12} />
+            Settings
+          </button>
           <button
             type="button"
             className="pos-toolbar-btn pos-toolbar-btn--accent"
@@ -1928,9 +2150,15 @@ const Pos = () => {
           <OfflineStatusBadge />
         </div>
       </div>
-      <div className="row g-4">
+      <div
+        className={`row g-4 pos-layout-row${posLayout.swapped ? ' is-swapped' : ''}`}
+        style={{
+          '--pos-order-width': `${posLayout.orderWidth}%`,
+          '--pos-products-width': `${100 - posLayout.orderWidth}%`,
+        }}
+      >
         {/* Left: checkout */}
-        <div className="col-lg-6 col-xl-5">
+        <div className="pos-layout-col pos-layout-col--order">
           <div className="card shadow-sm pos-panel-card h-100">
             <div className="pos-panel-header">
               <h5>Current order</h5>
@@ -2375,6 +2603,7 @@ const Pos = () => {
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}
+          columnClassName="pos-layout-col pos-layout-col--products"
         />
       </div>
 
