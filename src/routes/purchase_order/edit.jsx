@@ -64,6 +64,33 @@ const productBarcode = (p) => {
 
 const lineHasBarcode = (row) => Boolean(String(row?.barcode ?? '').trim());
 
+function normalizeSearchToken(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Exact barcode / SKU / code / name match for scanner Enter. */
+function productMatchesExactQuery(product, query) {
+  const needle = normalizeSearchToken(query);
+  if (!needle) return false;
+  const haystacks = [
+    product?.barcode,
+    product?.sku,
+    product?.product_code,
+    product?.product_name,
+    product?.name,
+  ];
+  return haystacks.some((v) => v != null && normalizeSearchToken(v) === needle);
+}
+
+function pickScannedProduct(products, query) {
+  if (!Array.isArray(products) || products.length === 0) return null;
+  const exact = products.filter((p) => productMatchesExactQuery(p, query));
+  if (exact.length === 1) return exact[0];
+  return null;
+}
+
 const accountOptionLabel = (a) => {
   if (!a || typeof a !== 'object') return 'Account';
   const name = a.name ?? a.accountName ?? '';
@@ -403,6 +430,9 @@ const PurchaseOrderEdit = () => {
   const [addProductError, setAddProductError] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [addingSelectedProducts, setAddingSelectedProducts] = useState(false);
+  const addProductQueryRef = useRef('');
+  const addProductInputRef = useRef(null);
+  const scanInFlightRef = useRef(false);
   const [accounts, setAccounts] = useState([]);
   const [accountsStatus, setAccountsStatus] = useState('idle');
   const [accountsError, setAccountsError] = useState(null);
@@ -756,6 +786,7 @@ const PurchaseOrderEdit = () => {
         ).filter(Boolean);
         if (!rows.length) return;
         setLines((prev) => [...prev, ...rows]);
+        addProductQueryRef.current = '';
         setAddProductQuery('');
         setAddProductResults([]);
         setSelectedProductIds([]);
@@ -765,6 +796,62 @@ const PurchaseOrderEdit = () => {
       }
     },
     [buildLineFromProduct]
+  );
+
+  const findExactProductForScan = useCallback(async (query) => {
+    const q = String(query ?? '').trim();
+    if (!q) return null;
+
+    const fromResults = pickScannedProduct(addProductResults, q);
+    if (fromResults) return fromResults;
+
+    try {
+      const res = await fetchProductActiveRequest({
+        search: q,
+        searchFields: POS_PRODUCT_SEARCH_FIELDS,
+        page: 1,
+        limit: 50,
+      });
+      return pickScannedProduct(Array.isArray(res?.data) ? res.data : [], q);
+    } catch (err) {
+      console.warn('[Purchase order edit] Barcode lookup failed', err);
+      return null;
+    }
+  }, [addProductResults]);
+
+  const handleProductSearchKeyDown = useCallback(
+    async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const q = String(
+        addProductQueryRef.current ||
+          e.currentTarget?.value ||
+          addProductInputRef.current?.value ||
+          ''
+      ).trim();
+      if (!q || scanInFlightRef.current || isSubmitting || addingSelectedProducts) return;
+
+      scanInFlightRef.current = true;
+      addProductQueryRef.current = '';
+      setAddProductQuery('');
+      setAddProductResults([]);
+      setSelectedProductIds([]);
+
+      try {
+        const product = await findExactProductForScan(q);
+        if (product) {
+          await appendProducts([product]);
+        } else {
+          addProductQueryRef.current = q;
+          setAddProductQuery(q);
+          toast.info('No exact product match for that barcode or code.');
+        }
+        requestAnimationFrame(() => addProductInputRef.current?.focus());
+      } finally {
+        scanInFlightRef.current = false;
+      }
+    },
+    [findExactProductForScan, appendProducts, isSubmitting, addingSelectedProducts]
   );
 
   const toggleProductSelected = useCallback((productId) => {
@@ -1485,13 +1572,19 @@ const PurchaseOrderEdit = () => {
                       </span>
                       <input
                         id="po-edit-product-search"
+                        ref={addProductInputRef}
                         type="search"
                         className="form-control"
-                        placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                        placeholder="Name, SKU, or barcode — Enter / scan to add"
                         value={addProductQuery}
-                        onChange={(e) => setAddProductQuery(e.target.value)}
+                        onChange={(e) => {
+                          addProductQueryRef.current = e.target.value;
+                          setAddProductQuery(e.target.value);
+                        }}
+                        onKeyDown={handleProductSearchKeyDown}
                         autoComplete="off"
                         disabled={isSubmitting}
+                        aria-label="Search products by name, SKU, or barcode. Press Enter to add."
                       />
                     </div>
                     {addProductLoading ? (
