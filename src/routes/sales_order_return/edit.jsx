@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
@@ -21,6 +21,7 @@ import {
 import {
   fetchProductActiveRequest,
   fetchProductByIdRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import { fetchWarehousesRequest } from '../../features/warehouse/warehouseAPI.js';
 import {
@@ -35,6 +36,33 @@ import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
 import '../purchase_order/po-form-module.css';
+
+function normalizeSearchToken(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Exact barcode / SKU / code / name match for scanner Enter. */
+function productMatchesExactQuery(product, query) {
+  const needle = normalizeSearchToken(query);
+  if (!needle) return false;
+  const haystacks = [
+    product?.barcode,
+    product?.sku,
+    product?.product_code,
+    product?.product_name,
+    product?.name,
+  ];
+  return haystacks.some((v) => v != null && normalizeSearchToken(v) === needle);
+}
+
+function pickScannedProduct(products, query) {
+  if (!Array.isArray(products) || products.length === 0) return null;
+  const exact = products.filter((p) => productMatchesExactQuery(p, query));
+  if (exact.length === 1) return exact[0];
+  return null;
+}
 
 const accountOptionLabel = (a) => {
   if (!a || typeof a !== 'object') return 'Account';
@@ -363,6 +391,9 @@ const SalesReturnEdit = () => {
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
+  const addProductQueryRef = useRef('');
+  const addProductInputRef = useRef(null);
+  const scanInFlightRef = useRef(false);
   const [accounts, setAccounts] = useState([]);
   const [accountsStatus, setAccountsStatus] = useState('idle');
   const [accountsError, setAccountsError] = useState(null);
@@ -613,11 +644,67 @@ const SalesReturnEdit = () => {
           presetWarehouseId: '',
         },
       ]);
+      addProductQueryRef.current = '';
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
     },
     [defaultWarehouseId]
+  );
+
+  const findExactProductForScan = useCallback(async (query) => {
+    const q = String(query ?? '').trim();
+    if (!q) return null;
+
+    const fromResults = pickScannedProduct(addProductResults, q);
+    if (fromResults) return fromResults;
+
+    try {
+      const res = await fetchProductActiveRequest({
+        search: q,
+        searchFields: POS_PRODUCT_SEARCH_FIELDS,
+        page: 1,
+        limit: 50,
+      });
+      return pickScannedProduct(Array.isArray(res?.data) ? res.data : [], q);
+    } catch (err) {
+      console.warn('[Sales return edit] Barcode lookup failed', err);
+      return null;
+    }
+  }, [addProductResults]);
+
+  const handleProductSearchKeyDown = useCallback(
+    async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const q = String(
+        addProductQueryRef.current ||
+          e.currentTarget?.value ||
+          addProductInputRef.current?.value ||
+          ''
+      ).trim();
+      if (!q || scanInFlightRef.current || isSubmitting) return;
+
+      scanInFlightRef.current = true;
+      addProductQueryRef.current = '';
+      setAddProductQuery('');
+      setAddProductResults([]);
+
+      try {
+        const product = await findExactProductForScan(q);
+        if (product) {
+          await appendProduct(product);
+        } else {
+          addProductQueryRef.current = q;
+          setAddProductQuery(q);
+          toast.info('No exact product match for that barcode or code.');
+        }
+        requestAnimationFrame(() => addProductInputRef.current?.focus());
+      } finally {
+        scanInFlightRef.current = false;
+      }
+    },
+    [findExactProductForScan, appendProduct, isSubmitting]
   );
 
   const summary = useMemo(() => {
@@ -1112,13 +1199,19 @@ const SalesReturnEdit = () => {
                       </span>
                       <input
                         id="po-edit-product-search"
+                        ref={addProductInputRef}
                         type="search"
                         className="form-control"
-                        placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                        placeholder="Name, SKU, or barcode — Enter / scan to add"
                         value={addProductQuery}
-                        onChange={(e) => setAddProductQuery(e.target.value)}
+                        onChange={(e) => {
+                          addProductQueryRef.current = e.target.value;
+                          setAddProductQuery(e.target.value);
+                        }}
+                        onKeyDown={handleProductSearchKeyDown}
                         autoComplete="off"
                         disabled={isSubmitting}
+                        aria-label="Search products by name, SKU, or barcode. Press Enter to add."
                       />
                     </div>
                     {addProductLoading ? (

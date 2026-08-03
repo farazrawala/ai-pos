@@ -28,12 +28,22 @@ import { buildApiUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
 import { toast } from '../../utils/toast.js';
 import '../../components/common/devApiSources.css';
+import './whatsapp-messages-module.css';
 
 const DEFAULT_UNKNOWN_WHATSAPP_SETTINGS = {
   daily_limit: 5,
   usage: 0,
   increase_daily: 1,
 };
+
+const STATUS_TABS = [
+  { id: '', label: 'All' },
+  { id: 'not_started', label: 'Not started' },
+  { id: 'processing', label: 'Processing' },
+  { id: 'sent', label: 'Sent' },
+  { id: 'failed', label: 'Failed' },
+  { id: 'not_available', label: 'Not available' },
+];
 
 const WHATSAPP_NUMBER_PREFIX = '92';
 const WHATSAPP_NUMBER_MAX_LENGTH = 12;
@@ -89,6 +99,7 @@ const statusClass = (value) => {
   if (['failed', 'error'].includes(status)) return 'bg-danger';
   if (['processing', 'in_progress', 'started'].includes(status)) return 'bg-primary';
   if (['not_started', 'pending', 'queued'].includes(status)) return 'bg-warning text-dark';
+  if (['not_available', 'unavailable'].includes(status)) return 'bg-secondary';
   return 'bg-secondary';
 };
 
@@ -211,6 +222,10 @@ const WhatsappMessages = () => {
 
   const handleSort = (column, isDoubleClick = false) => {
     dispatch(setSort({ sortBy: isDoubleClick ? null : column }));
+  };
+
+  const handleStatusTabChange = (tabId) => {
+    dispatch(setStatusFilter(tabId));
   };
 
   const openSendModal = () => {
@@ -397,19 +412,6 @@ const WhatsappMessages = () => {
                     >
                       Send message
                     </button>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ maxWidth: '180px' }}
-                      value={statusFilter}
-                      onChange={(event) => dispatch(setStatusFilter(event.target.value))}
-                      aria-label="Filter by status"
-                    >
-                      <option value="">All statuses</option>
-                      <option value="not_started">Not started</option>
-                      <option value="processing">Processing</option>
-                      <option value="sent">Sent</option>
-                      <option value="failed">Failed</option>
-                    </select>
                     <div className="input-group input-group-sm" style={{ maxWidth: '320px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -455,6 +457,25 @@ const WhatsappMessages = () => {
                   </div>
                 </div>
               </div>
+              <ul
+                className="nav nav-tabs whatsapp-status-tabs mt-3 border-0"
+                role="tablist"
+                aria-label="Filter by message status"
+              >
+                {STATUS_TABS.map((tab) => (
+                  <li className="nav-item" key={tab.id || 'all'} role="presentation">
+                    <button
+                      type="button"
+                      role="tab"
+                      className={`nav-link ${statusFilter === tab.id ? 'active' : ''}`}
+                      aria-selected={statusFilter === tab.id}
+                      onClick={() => handleStatusTabChange(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
