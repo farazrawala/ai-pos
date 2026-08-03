@@ -75,7 +75,7 @@ import { isMasterSyncStale, runMasterSync } from '../../offline/masterSync.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { saveOfflineOrder, buildOfflineSaveResult } from '../../offline/saveOfflineOrder.js';
 import { getAllCategories, countCategories } from '../../offline/repositories/categoriesRepo.js';
-import { getAllCustomers, countCustomers } from '../../offline/repositories/customersRepo.js';
+import { getAllCustomers, countCustomers, upsertCustomers } from '../../offline/repositories/customersRepo.js';
 import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
@@ -997,25 +997,57 @@ const Pos = () => {
 
   const loadUsers = useCallback(
     async (selectAfter) => {
-      setUsersStatus('loading');
       setUsersError(null);
 
-      const loadUsersFromCache = async () => {
+      const readCachedCustomers = async () => {
         const cached = await getAllCustomers();
-        const arr = cached.filter((u) => getUserOptionValue(u));
-        if ((await countCustomers()) === 0) {
-          setUsers([]);
-          setUsersError(OFFLINE_CATALOG_EMPTY_MESSAGE);
-          setUsersStatus('failed');
-          return false;
-        }
-        applyCustomerList(arr, selectAfter);
-        return true;
+        return cached.filter((u) => getUserOptionValue(u));
       };
 
       if (!isOnline) {
-        await loadUsersFromCache();
+        setUsersStatus('loading');
+        try {
+          const arr = await readCachedCustomers();
+          if (arr.length === 0 || (await countCustomers()) === 0) {
+            setUsers([]);
+            setUsersError(OFFLINE_CATALOG_EMPTY_MESSAGE);
+            setUsersStatus('failed');
+            return;
+          }
+          applyCustomerList(arr, selectAfter);
+        } catch (err) {
+          console.warn('[POS] Failed to load customers from offline cache', err);
+          setUsers([]);
+          setUsersError(err?.message || OFFLINE_CATALOG_EMPTY_MESSAGE);
+          setUsersStatus('failed');
+        }
         return;
+      }
+
+      // Online: paint from IndexedDB first so a slow API never blocks the picker.
+      let hadCache = false;
+      try {
+        const cached = await readCachedCustomers();
+        if (cached.length > 0) {
+          hadCache = true;
+          applyCustomerList(cached, selectAfter);
+        } else {
+          setUsersStatus('loading');
+        }
+      } catch (err) {
+        console.warn('[POS] Failed to read customer cache', err);
+        setUsersStatus('loading');
+      }
+
+      // Fresh offline catalog is enough for the picker; skip the slow 2k user list
+      // unless we must pick a just-created customer (selectAfter).
+      if (hadCache && !selectAfter) {
+        try {
+          const stale = await isMasterSyncStale();
+          if (!stale) return;
+        } catch {
+          /* fall through to network refresh */
+        }
       }
 
       try {
@@ -1028,14 +1060,25 @@ const Pos = () => {
         });
         const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
         applyCustomerList(arr, selectAfter);
+        // Keep the offline catalog warm for the next visit (do not wipe extras beyond this page).
+        upsertCustomers(arr).catch((cacheErr) => {
+          console.warn('[POS] Failed to cache customers', cacheErr);
+        });
       } catch (err) {
         console.warn('[POS] Failed to load users from API, trying offline cache', err);
-        const usedCache = await loadUsersFromCache();
-        if (!usedCache) {
-          setUsers([]);
-          setUsersError(err?.message || 'Could not load users');
-          setUsersStatus('failed');
+        if (hadCache) return;
+        try {
+          const cached = await readCachedCustomers();
+          if (cached.length > 0) {
+            applyCustomerList(cached, selectAfter);
+            return;
+          }
+        } catch (cacheErr) {
+          console.warn('[POS] Offline customer fallback failed', cacheErr);
         }
+        setUsers([]);
+        setUsersError(err?.message || 'Could not load users');
+        setUsersStatus('failed');
       }
     },
     [isOnline, applyCustomerList]
@@ -2232,14 +2275,14 @@ const Pos = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') setCustomerMenuOpen(false);
                       }}
-                      disabled={usersStatus === 'loading'}
+                      disabled={usersStatus === 'loading' && users.length === 0}
                       autoComplete="off"
                       aria-label="Search customers"
                       aria-expanded={customerMenuOpen}
                       aria-controls="pos-customer-picker-list"
                     />
                   </div>
-                  {customerMenuOpen && usersStatus !== 'loading' && (
+                  {customerMenuOpen && !(usersStatus === 'loading' && users.length === 0) && (
                     <div
                       id="pos-customer-picker-list"
                       className="list-group position-absolute w-100 mt-1 shadow-sm border rounded overflow-hidden bg-white pos-customer-menu"
@@ -2298,7 +2341,7 @@ const Pos = () => {
                   Add
                 </button>
               </div>
-              {usersStatus === 'loading' && (
+              {usersStatus === 'loading' && users.length === 0 && (
                 <p className="text-xs text-muted mb-2">
                   <span
                     className="spinner-border spinner-border-sm me-1"
