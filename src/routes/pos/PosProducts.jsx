@@ -25,8 +25,10 @@ import {
   countProducts,
   lookupProductsForScan,
   searchProducts,
+  upsertProducts,
 } from '../../offline/repositories/productsRepo.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
+import { isMasterSyncStale } from '../../offline/masterSync.js';
 import { DEBUG } from '../../config/env.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 import PosContinuousScanModal from './PosContinuousScanModal.jsx';
@@ -190,7 +192,6 @@ const PosProducts = ({
   }, [debouncedQuery, categoryFilter, statusFilter]);
 
   const loadProducts = useCallback(async () => {
-    setProductsStatus('loading');
     setProductsError(null);
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
     const statusParams =
@@ -201,8 +202,41 @@ const PosProducts = ({
           : { status: 'active' };
 
     if (!isOnline) {
+      setProductsStatus('loading');
       await loadProductsFromCache();
       return;
+    }
+
+    // Online: paint from IndexedDB first so a slow API never blocks the grid.
+    let hadCache = false;
+    try {
+      const cached = await searchProducts({
+        query: debouncedQuery,
+        categoryId,
+        status: statusFilter,
+      });
+      const totalCached = await countProducts();
+      if (totalCached > 0) {
+        hadCache = true;
+        setProducts(cached);
+        setProductsError(null);
+        setProductsStatus('succeeded');
+      } else {
+        setProductsStatus('loading');
+      }
+    } catch (err) {
+      console.warn('[POS] Failed to read product cache', err);
+      setProductsStatus('loading');
+    }
+
+    // Fresh offline catalog is enough; skip the slow product list fetch.
+    if (hadCache) {
+      try {
+        const stale = await isMasterSyncStale();
+        if (!stale) return;
+      } catch {
+        /* fall through to network refresh */
+      }
     }
 
     try {
@@ -216,9 +250,14 @@ const PosProducts = ({
       });
       const arr = Array.isArray(result?.data) ? result.data : [];
       setProducts(arr);
+      setProductsError(null);
       setProductsStatus('succeeded');
+      upsertProducts(arr).catch((cacheErr) => {
+        console.warn('[POS] Failed to cache products', cacheErr);
+      });
     } catch (err) {
       console.warn('[POS] Failed to load products from API, trying offline cache', err);
+      if (hadCache) return;
       const usedCache = await loadProductsFromCache();
       if (!usedCache) {
         setProducts([]);
@@ -647,7 +686,7 @@ const PosProducts = ({
           </div>
 
           <div className="pos-product-grid flex-grow-1">
-            {productsStatus === 'loading' && (
+            {productsStatus === 'loading' && products.length === 0 && (
               <div className="text-center text-muted py-5">
                 <span
                   className="spinner-border spinner-border-sm me-2"
@@ -657,10 +696,12 @@ const PosProducts = ({
                 Loading products…
               </div>
             )}
-            {productsStatus !== 'loading' && isRetryingProducts && (
+            {!(productsStatus === 'loading' && products.length === 0) && isRetryingProducts && (
               <FetchRetryStatus countdown={productsRetryCountdown} />
             )}
-            {productsStatus !== 'loading' && productsError && !isRetryingProducts && (
+            {!(productsStatus === 'loading' && products.length === 0) &&
+              productsError &&
+              !isRetryingProducts && (
               <div className="alert alert-warning py-2 small mb-2" role="alert">
                 {productsError}
                 <div className="mt-2">
@@ -674,7 +715,10 @@ const PosProducts = ({
                 </div>
               </div>
             )}
-            {productsStatus !== 'loading' && !productsError && !isRetryingProducts && visibleProducts.length === 0 && (
+            {!(productsStatus === 'loading' && products.length === 0) &&
+              !productsError &&
+              !isRetryingProducts &&
+              visibleProducts.length === 0 && (
               <div className="text-center text-muted py-5">
                 No products found
                 {hideLowStock && products.length > 0 ? (
@@ -684,7 +728,7 @@ const PosProducts = ({
                 ) : null}
               </div>
             )}
-            {productsStatus !== 'loading' && visibleProducts.length > 0 && (
+            {!(productsStatus === 'loading' && products.length === 0) && visibleProducts.length > 0 && (
               <div
                 className="pos-product-grid__row"
                 style={{ '--pos-product-cols': String(productCols) }}
