@@ -13,6 +13,9 @@ export const PRODUCT_IMAGE_ALLOWED_TYPES = [
 
 export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
+/** Max files for “Additional Product Images” on product add/edit. */
+export const PRODUCT_ADDITIONAL_IMAGES_MAX = 20;
+
 export const PRODUCT_IMAGE_HINT =
   'JPEG, PNG, GIF, WebP, or AVIF (max 5MB)';
 

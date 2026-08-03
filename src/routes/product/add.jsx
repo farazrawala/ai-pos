@@ -9,6 +9,7 @@ import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { toast } from '../../utils/toast.js';
 import './product-form.css';
 import {
+  PRODUCT_ADDITIONAL_IMAGES_MAX,
   PRODUCT_IMAGE_ACCEPT,
   PRODUCT_IMAGE_HINT,
   validateProductImageFile,
@@ -253,10 +254,10 @@ const ProductAdd = () => {
   // Handle bulk images upload
   const handleBulkImagesChange = (e) => {
     const files = Array.from(e.target.files);
-    if (files.length > 10) {
+    if (files.length > PRODUCT_ADDITIONAL_IMAGES_MAX) {
       setErrors((prev) => ({
         ...prev,
-        bulkImages: 'Maximum 10 images allowed',
+        bulkImages: `Maximum ${PRODUCT_ADDITIONAL_IMAGES_MAX} images allowed`,
       }));
       return;
     }
@@ -1014,7 +1015,8 @@ const ProductAdd = () => {
                     </div>
                   )}
                   <small className="text-muted">
-                    Upload multiple additional images (max 10, {PRODUCT_IMAGE_HINT} each)
+                    Upload multiple additional images (max {PRODUCT_ADDITIONAL_IMAGES_MAX},{' '}
+                    {PRODUCT_IMAGE_HINT} each)
                   </small>
                 </div>
 
