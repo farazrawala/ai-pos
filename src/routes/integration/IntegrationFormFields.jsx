@@ -265,6 +265,81 @@ export default function IntegrationFormFields({
           </div>
         </div>
       </div>
+
+      <div className="integration-form-section">
+        <div className="integration-form-section-title">
+          <i className="fas fa-envelope text-primary" aria-hidden="true" />
+          SMTP settings
+        </div>
+        <p className="integration-form-section-hint">
+          Optional mail server credentials for sending email from this store connection.
+        </p>
+
+        <div className="row g-3">
+          <div className="col-md-8">
+            <label className="integration-form-label d-block" htmlFor="smtp_host">
+              SMTP Host
+            </label>
+            <input
+              type="text"
+              className="form-control integration-form-control"
+              id="smtp_host"
+              name="smtp_host"
+              value={form.smtp_host}
+              onChange={onChange}
+              disabled={disabled}
+              autoComplete="off"
+            />
+          </div>
+          <div className="col-md-4">
+            <label className="integration-form-label d-block" htmlFor="smtp_port">
+              SMTP Port
+            </label>
+            <input
+              type="number"
+              className="form-control integration-form-control"
+              id="smtp_port"
+              name="smtp_port"
+              value={form.smtp_port}
+              onChange={onChange}
+              disabled={disabled}
+              min={1}
+              max={65535}
+            />
+          </div>
+          <div className="col-md-6">
+            <label className="integration-form-label d-block" htmlFor="smtp_username">
+              SMTP Username
+            </label>
+            <input
+              type="text"
+              className="form-control integration-form-control"
+              id="smtp_username"
+              name="smtp_username"
+              value={form.smtp_username}
+              onChange={onChange}
+              disabled={disabled}
+              autoComplete="off"
+            />
+          </div>
+          <div className="col-md-6">
+            <label className="integration-form-label d-block" htmlFor="smtp_password">
+              SMTP 2FA Password
+            </label>
+            <input
+              type="password"
+              className="form-control integration-form-control"
+              id="smtp_password"
+              name="smtp_password"
+              value={form.smtp_password}
+              onChange={onChange}
+              disabled={disabled}
+              autoComplete="new-password"
+              placeholder={isEdit ? 'Leave blank to keep current password' : undefined}
+            />
+          </div>
+        </div>
+      </div>
     </>
   );
 }

@@ -20,6 +20,10 @@ export const EMPTY_INTEGRATION_FORM = {
   integrationSecret: '',
   token: '',
   description: '',
+  smtp_host: 'ssl://smtp.gmail.com',
+  smtp_port: 465,
+  smtp_username: '',
+  smtp_password: '',
   product_settings: {
     sync_product_name: 'yes',
     sync_product_slug: 'yes',
@@ -99,6 +103,13 @@ export const integrationRecordToForm = (record) => {
     integrationSecret: record.secret || record.secret_key || record.secretKey || '',
     token: record.token || '',
     description: record.description || '',
+    smtp_host: record.smtp_host || record.smtpHost || EMPTY_INTEGRATION_FORM.smtp_host,
+    smtp_port:
+      record.smtp_port != null || record.smtpPort != null
+        ? Number(record.smtp_port ?? record.smtpPort)
+        : EMPTY_INTEGRATION_FORM.smtp_port,
+    smtp_username: record.smtp_username || record.smtpUsername || '',
+    smtp_password: '',
     product_settings: normalizeProductSettingsFromRecord(record),
   };
 };
@@ -122,6 +133,15 @@ export const syncIntegrationFormFromDom = (form, formElement) => {
     integrationKey: formData.get('integrationKey')?.toString() ?? form.integrationKey,
     integrationSecret: formData.get('integrationSecret')?.toString() ?? form.integrationSecret,
     token: formData.get('token')?.toString() ?? form.token,
+    smtp_host: formData.get('smtp_host')?.toString() ?? form.smtp_host,
+    smtp_port: (() => {
+      const raw = formData.get('smtp_port')?.toString();
+      if (raw == null || raw === '') return form.smtp_port;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : form.smtp_port;
+    })(),
+    smtp_username: formData.get('smtp_username')?.toString() ?? form.smtp_username,
+    smtp_password: formData.get('smtp_password')?.toString() ?? form.smtp_password,
   };
 };
 
@@ -172,10 +192,19 @@ export const buildIntegrationPayload = (form, { isEdit = false } = {}) => {
   const email = fieldValue(form, 'email');
   const phone = fieldValue(form, 'phone');
   const token = fieldValue(form, 'token');
+  const smtpHost = fieldValue(form, 'smtp_host');
+  const smtpUsername = fieldValue(form, 'smtp_username');
+  const smtpPassword = fieldValue(form, 'smtp_password');
+  const smtpPortRaw = form?.smtp_port;
+  const smtpPort = smtpPortRaw === '' || smtpPortRaw == null ? null : Number(smtpPortRaw);
 
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
   if (token) payload.token = token;
+  if (smtpHost) payload.smtp_host = smtpHost;
+  if (Number.isFinite(smtpPort)) payload.smtp_port = smtpPort;
+  if (smtpUsername) payload.smtp_username = smtpUsername;
+  if (smtpPassword) payload.smtp_password = smtpPassword;
 
   Object.assign(payload, productSettingsToPayload(form.product_settings));
 
