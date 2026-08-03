@@ -144,6 +144,7 @@ const PosProducts = ({
   onPaymentCompletePrint,
   columnClassName = 'col-lg-6 col-xl-7',
   columnStyle,
+  productCols = 4,
 }) => {
   const isOnline = useOnlineStatus();
   const [products, setProducts] = useState([]);
@@ -684,7 +685,10 @@ const PosProducts = ({
               </div>
             )}
             {productsStatus !== 'loading' && visibleProducts.length > 0 && (
-              <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-4 g-3">
+              <div
+                className="pos-product-grid__row"
+                style={{ '--pos-product-cols': String(productCols) }}
+              >
                 {visibleProducts.map((p, index) => {
                   const productId = getProductId(p);
                   const id = productId || `idx-${index}`;
@@ -696,9 +700,9 @@ const PosProducts = ({
                   const imgUrl = getProductImageUrl(p, parentProduct);
                   const editProductId = parentId || productId;
                   return (
-                    <div className="col" key={id}>
+                    <div className="pos-product-grid__item" key={id}>
                       <div
-                        className="pos-product-card p-2 h-100 d-flex flex-column"
+                        className={`pos-product-card p-2 h-100 d-flex flex-column pos-product-card--cols-${productCols}`}
                         role="button"
                         tabIndex={0}
                         onClick={() => onAddToCart?.(p)}

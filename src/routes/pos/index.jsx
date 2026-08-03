@@ -93,7 +93,14 @@ const POS_LAYOUT_META_KEY = 'pos_layout';
 const POS_LAYOUT_DEFAULT_ORDER_WIDTH = 42;
 const POS_LAYOUT_MIN_ORDER_WIDTH = 28;
 const POS_LAYOUT_MAX_ORDER_WIDTH = 72;
-const POS_LAYOUT_DEFAULT = { orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH, swapped: false };
+const POS_LAYOUT_MIN_PRODUCT_COLS = 2;
+const POS_LAYOUT_MAX_PRODUCT_COLS = 6;
+const POS_LAYOUT_DEFAULT_PRODUCT_COLS = 4;
+const POS_LAYOUT_DEFAULT = {
+  orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH,
+  swapped: false,
+  productCols: POS_LAYOUT_DEFAULT_PRODUCT_COLS,
+};
 
 /** Load cart FIFO/LIFO preference from localStorage cache. */
 function readStoredCartDisplayOrder() {
@@ -124,11 +131,18 @@ function clampOrderPanelWidth(value) {
   return Math.min(POS_LAYOUT_MAX_ORDER_WIDTH, Math.max(POS_LAYOUT_MIN_ORDER_WIDTH, n));
 }
 
+function clampProductCols(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return POS_LAYOUT_DEFAULT_PRODUCT_COLS;
+  return Math.min(POS_LAYOUT_MAX_PRODUCT_COLS, Math.max(POS_LAYOUT_MIN_PRODUCT_COLS, n));
+}
+
 function normalizePosLayout(raw) {
   if (!raw || typeof raw !== 'object') return { ...POS_LAYOUT_DEFAULT };
   return {
     orderWidth: clampOrderPanelWidth(raw.orderWidth ?? POS_LAYOUT_DEFAULT_ORDER_WIDTH),
     swapped: Boolean(raw.swapped),
+    productCols: clampProductCols(raw.productCols ?? POS_LAYOUT_DEFAULT_PRODUCT_COLS),
   };
 }
 
@@ -1208,6 +1222,9 @@ const Pos = () => {
           patch.orderWidth !== undefined ? patch.orderWidth : prev.orderWidth
         ),
         swapped: patch.swapped !== undefined ? Boolean(patch.swapped) : prev.swapped,
+        productCols: clampProductCols(
+          patch.productCols !== undefined ? patch.productCols : prev.productCols
+        ),
       };
       persistPosLayout(next, posLayoutCompanyIdRef.current);
       return next;
@@ -1221,6 +1238,13 @@ const Pos = () => {
     [updatePosLayout]
   );
 
+  const handleProductColsChange = useCallback(
+    (e) => {
+      updatePosLayout({ productCols: e.target.value });
+    },
+    [updatePosLayout]
+  );
+
   const handleSwapPanels = useCallback(() => {
     setPosLayout((prev) => {
       const next = { ...prev, swapped: !prev.swapped };
@@ -1230,10 +1254,7 @@ const Pos = () => {
   }, []);
 
   const handleResetPosLayout = useCallback(() => {
-    const next = persistPosLayout(
-      { orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH, swapped: false },
-      posLayoutCompanyIdRef.current
-    );
+    const next = persistPosLayout({ ...POS_LAYOUT_DEFAULT }, posLayoutCompanyIdRef.current);
     setPosLayout(next);
   }, []);
 
@@ -2053,7 +2074,7 @@ const Pos = () => {
         open={layoutSettingsOpen}
         onClose={closeLayoutSettings}
         title="Layout settings"
-        subtitle="Resize or swap the Current order and Products panels."
+        subtitle="Resize panels, swap sides, and change product card size."
         size="sm"
         footer={
           <>
@@ -2089,6 +2110,32 @@ const Pos = () => {
             <span>Products {100 - posLayout.orderWidth}%</span>
             <span>{posLayout.swapped ? 'Products left' : 'Order left'}</span>
           </div>
+
+          <label className="pos-layout-settings__label" htmlFor="posProductCols">
+            <span>Product size</span>
+            <span className="pos-layout-settings__value">
+              {posLayout.productCols} / row
+            </span>
+          </label>
+          <input
+            id="posProductCols"
+            type="range"
+            className="pos-layout-settings__range"
+            min={POS_LAYOUT_MIN_PRODUCT_COLS}
+            max={POS_LAYOUT_MAX_PRODUCT_COLS}
+            step={1}
+            value={posLayout.productCols}
+            onChange={handleProductColsChange}
+            aria-valuemin={POS_LAYOUT_MIN_PRODUCT_COLS}
+            aria-valuemax={POS_LAYOUT_MAX_PRODUCT_COLS}
+            aria-valuenow={posLayout.productCols}
+            aria-label="Products per row"
+          />
+          <div className="pos-layout-settings__meta">
+            <span>Bigger cards</span>
+            <span>Smaller cards</span>
+          </div>
+
           <button type="button" className="pos-layout-settings__swap" onClick={handleSwapPanels}>
             <NavIcon icon={FaArrowRightArrowLeft} size={12} />
             {posLayout.swapped ? 'Unswap sections' : 'Swap sections'}
@@ -2604,6 +2651,7 @@ const Pos = () => {
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}
           columnClassName="pos-layout-col pos-layout-col--products"
+          productCols={posLayout.productCols}
         />
       </div>
 
