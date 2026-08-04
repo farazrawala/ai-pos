@@ -484,6 +484,7 @@ const PurchaseOrders = () => {
                         data.map((item, index) => {
                           const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                           const id = poTraceId(item);
+                          const ref = poRef(item);
                           const created = poCreated(item);
                           const updated = poUpdated(item);
                           const txn = poTransactionNumber(item);
@@ -491,7 +492,21 @@ const PurchaseOrders = () => {
                           return (
                             <tr key={id || index}>
                               <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                              <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
+                              <td className="text-sm font-weight-bold text-dark">
+                                {id && ref !== '—' ? (
+                                  <a
+                                    href={`/purchase-orders/edit/${encodeURIComponent(id)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary font-weight-bold text-decoration-none text-nowrap"
+                                    title={`Open ${ref} in new tab`}
+                                  >
+                                    {ref}
+                                  </a>
+                                ) : (
+                                  ref
+                                )}
+                              </td>
                               {isVisible('transaction') ? (
                                 <td className="text-sm list-cell-truncate" title={txn !== '—' ? txn : undefined}>
                                   {txn}
