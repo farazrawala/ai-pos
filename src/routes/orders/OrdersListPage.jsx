@@ -49,6 +49,7 @@ import {
   getNoOfItemsDisplay,
   fetchAllOrdersForExportRequest,
   DELETED_ORDER_BY_ORDER_ITEM_PATH,
+  DEFAULT_ORDER_LIST_PATH,
 } from '../../features/orders/ordersAPI.js';
 import {
   ORDER_DETAIL_EXPORT_COLUMNS,
@@ -71,12 +72,15 @@ import ChangeOrderStatusModal, {
   formatOrderStatusOptionLabel,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
+import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
 import {
   resolveOrderTrackingInfo,
+  TCS_TRACKING_DETAIL_URL,
 } from '../../features/courier/courierAPI.js';
 import { DEBUG } from '../../config/env.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
@@ -87,6 +91,14 @@ import {
 } from '../integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
 import './orders-list-page.css';
+import '../../components/common/devApiSources.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === true) return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded' || status === false) return 'success';
+  return 'pending';
+};
 
 const normalizeStatusKey = (raw) => {
   const s = String(raw ?? '')
@@ -537,6 +549,7 @@ export default function OrdersListPage({ config }) {
     trackingId: '',
     orderNo: '',
     provider: '',
+    trackingUrl: '',
   });
   const [syncingOrderId, setSyncingOrderId] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -970,7 +983,13 @@ export default function OrdersListPage({ config }) {
     });
   };
 
-  const handleOpenTrackingStatus = ({ orderId, trackingId, orderNo, provider } = {}) => {
+  const handleOpenTrackingStatus = ({
+    orderId,
+    trackingId,
+    orderNo,
+    provider,
+    trackingUrl,
+  } = {}) => {
     const cn = String(trackingId || '').trim();
     const oid = String(orderId || '').trim();
     if (!cn && !oid) {
@@ -983,6 +1002,7 @@ export default function OrdersListPage({ config }) {
       trackingId: cn,
       orderNo: orderNo || '',
       provider: provider || '',
+      trackingUrl: trackingUrl || '',
     });
   };
 
@@ -1052,6 +1072,168 @@ export default function OrdersListPage({ config }) {
     toast.success('Order sync processes queued successfully!');
     refreshOrderList();
   };
+
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const listQuery = new URLSearchParams();
+    const page = Math.max(1, Number(pagination.page) || 1);
+    const limit = Math.max(1, Number(pagination.limit) || 10);
+    listQuery.set('skip', String((page - 1) * limit));
+    listQuery.set('limit', String(limit));
+    if (searchTerm) listQuery.set('search', String(searchTerm));
+    if (filters.startDate) listQuery.set('startDate', String(filters.startDate));
+    if (filters.endDate) listQuery.set('endDate', String(filters.endDate));
+    if (filters.integrationId) listQuery.set('integration_id', String(filters.integrationId));
+    if (filters.orderType) listQuery.set('order_type', String(filters.orderType));
+    if (filters.orderStatus) listQuery.set('order_status', String(filters.orderStatus));
+    if (sort.sortBy) {
+      listQuery.set('sortBy', String(sort.sortBy));
+      if (sort.sortOrder) listQuery.set('sortOrder', String(sort.sortOrder));
+    }
+
+    const activeListPath = isDeletedView
+      ? DELETED_ORDER_BY_ORDER_ITEM_PATH
+      : String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '');
+    const qs = listQuery.toString();
+
+    const sources = [
+      {
+        key: 'orders-list',
+        label: isDeletedView ? 'Deleted orders list' : `${pageTitle} list`,
+        url: buildApiUrl(`${activeListPath}${qs ? `?${qs}` : ''}`),
+        status: mapLoadStatus(status),
+        durationMs: null,
+        error: status === 'failed' ? error : null,
+      },
+    ];
+
+    if (showIntegrationFilter || showFetchSyncToolbar) {
+      sources.push({
+        key: 'integrations',
+        label: 'Integrations (filter / sync)',
+        url: buildApiUrl('integration/get-all-active'),
+        status: mapLoadStatus(integrationsStatus),
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    if (showFetchSyncToolbar) {
+      sources.push(
+        {
+          key: 'fetch-orders',
+          label: 'Fetch orders (queue)',
+          url: buildApiUrl('process/create'),
+          status: fetchOrdersModalOpen ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'sync-orders',
+          label: 'Sync orders (bulk queue)',
+          url: buildApiUrl('process/bulk-create'),
+          status: syncOrdersModalOpen || syncingOrderId ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        }
+      );
+    }
+
+    if (showStatusChangeModal) {
+      sources.push({
+        key: 'order-status',
+        label: 'Update order status',
+        url: buildApiUrl('order/invoice-update/:orderId'),
+        status: statusModal.open ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      });
+    }
+
+    sources.push({
+      key: 'order-delete',
+      label: 'Delete order',
+      url: buildApiUrl('order/order_delete/:orderId'),
+      status: mapLoadStatus(deleteStatus),
+      durationMs: null,
+      error: null,
+    });
+
+    sources.push(
+      {
+        key: 'couriers',
+        label: 'Couriers (create shipment)',
+        url: buildApiUrl('courier/get-all-active'),
+        status: shipmentModal.open ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'create-shipment',
+        label: 'Create shipment',
+        url: buildApiUrl('courier/create/:orderId'),
+        status: shipmentModal.open ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'courier-label',
+        label: 'Print courier label',
+        url: buildApiUrl('courier/label/:orderId'),
+        status: parcelBarcodeModal.open ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'tracking-status',
+        label: 'Courier tracking (TCS)',
+        url: `${TCS_TRACKING_DETAIL_URL}?consignee={cn}`,
+        status: trackingStatusModal.open ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'orders-export',
+        label: 'Export orders (paged list)',
+        url: buildApiUrl(`${activeListPath}${qs ? `?${qs}` : ''}`),
+        status: exporting ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      }
+    );
+
+    return sources;
+  }, [
+    pageTitle,
+    listPath,
+    isDeletedView,
+    pagination.page,
+    pagination.limit,
+    searchTerm,
+    filters.startDate,
+    filters.endDate,
+    filters.integrationId,
+    filters.orderType,
+    filters.orderStatus,
+    sort.sortBy,
+    sort.sortOrder,
+    status,
+    error,
+    deleteStatus,
+    integrationsStatus,
+    showIntegrationFilter,
+    showFetchSyncToolbar,
+    showStatusChangeModal,
+    fetchOrdersModalOpen,
+    syncOrdersModalOpen,
+    syncingOrderId,
+    statusModal.open,
+    shipmentModal.open,
+    parcelBarcodeModal.open,
+    trackingStatusModal.open,
+    exporting,
+  ]);
 
   const showTopSummary = Boolean(topSummaryName && String(topSummaryName).trim());
   const tiles = Array.isArray(topTiles) ? topTiles : [];
@@ -1616,6 +1798,7 @@ export default function OrdersListPage({ config }) {
                                               trackingId: trackingInfo.trackingId,
                                               orderNo,
                                               provider: trackingInfo.provider,
+                                              trackingUrl: trackingInfo.trackingUrl,
                                             })
                                           }
                                         >
@@ -1792,6 +1975,7 @@ export default function OrdersListPage({ config }) {
             trackingId={trackingStatusModal.trackingId}
             orderNo={trackingStatusModal.orderNo}
             provider={trackingStatusModal.provider}
+            trackingUrl={trackingStatusModal.trackingUrl}
             onClose={() =>
               setTrackingStatusModal({
                 open: false,
@@ -1799,11 +1983,14 @@ export default function OrdersListPage({ config }) {
                 trackingId: '',
                 orderNo: '',
                 provider: '',
+                trackingUrl: '',
               })
             }
           />
         </>
       ) : null}
+
+      <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>
   );
 }

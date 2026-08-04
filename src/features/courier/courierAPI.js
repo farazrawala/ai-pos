@@ -17,6 +17,129 @@ const getHeaders = () => {
   return headers;
 };
 
+/** Generic courier wrappers like "PostEx booking failed" — prefer nested detail when present. */
+const isGenericCourierBookingMessage = (value) => {
+  const msg = String(value ?? '').trim();
+  if (!msg) return true;
+  return /^(?:[a-z0-9 &+_-]+\s+)?booking failed\.?$/i.test(msg) || /^failed to create shipment\.?$/i.test(msg);
+};
+
+const pushUniqueMessage = (bucket, value) => {
+  const text = String(value ?? '').trim();
+  if (!text || text === '[object Object]') return;
+  if (!bucket.includes(text)) bucket.push(text);
+};
+
+const collectCourierErrorMessages = (node, depth = 0, out = []) => {
+  if (node == null || depth > 6) return out;
+
+  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
+    pushUniqueMessage(out, node);
+    return out;
+  }
+
+  if (Array.isArray(node)) {
+    for (const item of node) collectCourierErrorMessages(item, depth + 1, out);
+    return out;
+  }
+
+  if (typeof node !== 'object') return out;
+
+  const messageKeys = [
+    'statusMessage',
+    'status_message',
+    'StatusMessage',
+    'errorMessage',
+    'error_message',
+    'ErrorMessage',
+    'detail',
+    'details',
+    'description',
+    'reason',
+    'msg',
+    'message',
+    'Message',
+    'error',
+    'Error',
+  ];
+
+  for (const key of messageKeys) {
+    if (!(key in node)) continue;
+    const value = node[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      pushUniqueMessage(out, value);
+    } else if (value && typeof value === 'object') {
+      collectCourierErrorMessages(value, depth + 1, out);
+    }
+  }
+
+  if (node.errors != null) {
+    if (typeof node.errors === 'string') {
+      pushUniqueMessage(out, node.errors);
+    } else if (Array.isArray(node.errors)) {
+      for (const item of node.errors) {
+        if (typeof item === 'string') pushUniqueMessage(out, item);
+        else if (item && typeof item === 'object') {
+          pushUniqueMessage(out, item.message || item.msg || item.detail || item.statusMessage);
+          collectCourierErrorMessages(item, depth + 1, out);
+        }
+      }
+    } else if (typeof node.errors === 'object') {
+      for (const [field, value] of Object.entries(node.errors)) {
+        if (Array.isArray(value)) pushUniqueMessage(out, `${field}: ${value.join(', ')}`);
+        else if (value != null && typeof value === 'object') {
+          collectCourierErrorMessages(value, depth + 1, out);
+        } else if (value != null) {
+          pushUniqueMessage(out, `${field}: ${value}`);
+        }
+      }
+    }
+  }
+
+  const nests = [
+    'data',
+    'response',
+    'api_response',
+    'apiResponse',
+    'result',
+    'shipment',
+    'raw',
+    'payload',
+    'body',
+  ];
+  for (const key of nests) {
+    if (node[key] && typeof node[key] === 'object') {
+      collectCourierErrorMessages(node[key], depth + 1, out);
+    }
+  }
+
+  return out;
+};
+
+/**
+ * Prefer the most specific courier/provider error (nested statusMessage, details, validation)
+ * over a generic wrapper like "PostEx booking failed".
+ */
+export const extractCourierShipmentErrorMessage = (payload, fallback = 'Failed to create shipment') => {
+  if (payload == null) return fallback;
+  if (typeof payload === 'string') {
+    const text = payload.trim();
+    return text || fallback;
+  }
+  if (typeof payload !== 'object') return fallback;
+
+  const collected = collectCourierErrorMessages(payload);
+  if (!collected.length) return fallback;
+
+  const specific = collected.filter((msg) => !isGenericCourierBookingMessage(msg));
+  if (specific.length) {
+    // Longest specific message usually carries the real provider reason.
+    return [...specific].sort((a, b) => b.length - a.length)[0];
+  }
+
+  return collected[0] || fallback;
+};
+
 const normalizeListPayload = (result) => {
   if (Array.isArray(result?.data)) return result.data;
   if (Array.isArray(result?.couriers)) return result.couriers;
@@ -125,8 +248,118 @@ export const deleteCourierRequest = async (courierId) => {
   }
 };
 
+/**
+ * Verify courier API credentials via backend healthCheck.
+ * POST /courier/test/:courierId (or /courier/test without id for unsaved form values)
+ * Blank password/token keep stored secrets on edit.
+ */
+export const testCourierCredentialsRequest = async (courierId, overrides = {}) => {
+  const body = {};
+  for (const key of ['type', 'url', 'login', 'password', 'token', 'account_no', 'provider']) {
+    if (overrides[key] != null && String(overrides[key]).trim() !== '') {
+      body[key] = typeof overrides[key] === 'string' ? overrides[key].trim() : overrides[key];
+    }
+  }
+
+  const path = courierId
+    ? `courier/test/${encodeURIComponent(courierId)}`
+    : 'courier/test';
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  const ok = Boolean(payload.ok ?? payload.success);
+  const message =
+    payload.message ||
+    payload.error ||
+    (ok ? 'Credentials OK' : `Credential check failed (HTTP ${response.status})`);
+
+  if (!ok) {
+    const err = new Error(message);
+    err.payload = payload;
+    err.status = response.status;
+    throw err;
+  }
+
+  return {
+    ok: true,
+    success: true,
+    message,
+    provider: payload.provider || null,
+    raw: payload,
+  };
+};
+
 export const pickCourierId = (item) =>
   item?._id || item?.id || item?.courier_id || '';
+
+/** Backend `type` enum for courier integrations (`field_name: Courier`). */
+export const COURIER_TYPES = [
+  { value: 'tcs', label: 'TCS' },
+  { value: 'leopard', label: 'Leopard' },
+  { value: 'blueex', label: 'BlueEx' },
+  { value: 'mnp', label: 'M&P' },
+  { value: 'call_courier', label: 'Call Courier' },
+  { value: 'trax', label: 'Trax' },
+  { value: 'postex', label: 'PostEx' },
+];
+
+/** Suggested API base URLs for the courier integration `url` field. */
+export const COURIER_DEFAULT_API_URLS = {
+  tcs: 'https://devconnect.tcscourier.com',
+  leopard: 'https://merchantapi.leopardscourier.com',
+  /** Production Merchant API */
+  postex: 'https://api.postex.pk/services/integration/api',
+  /** Staging Merchant API (stg-merchant.postex.pk tokens) */
+  postex_staging: 'https://stg-api.postex.pk/services/integration/api',
+};
+
+export const courierApiUrlPlaceholder = (type) => {
+  const key = String(type || '')
+    .trim()
+    .toLowerCase();
+  return COURIER_DEFAULT_API_URLS[key] || 'https://…';
+};
+
+/** True when URL looks like PostEx merchant portal (causes HTTP 405 on booking). */
+export const isPostexMerchantPortalUrl = (url) => {
+  const value = String(url || '')
+    .trim()
+    .toLowerCase();
+  if (!value) return false;
+  return (
+    /(?:^https?:\/\/)?(?:stg-)?merchant\.postex\.pk/i.test(value) ||
+    (/postex\.pk/i.test(value) && /\/login\/?$/i.test(value)) ||
+    /(?:^https?:\/\/)?stg-merchant\.postex\.pk\/?$/i.test(value)
+  );
+};
+
+export const validateCourierApiUrl = (type, url) => {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return 'API URL is required';
+  const key = String(type || '')
+    .trim()
+    .toLowerCase();
+  if (key === 'postex' && isPostexMerchantPortalUrl(trimmed)) {
+    return (
+      'This is the PostEx merchant portal, not the API. Use ' +
+      `${COURIER_DEFAULT_API_URLS.postex} (token goes in the Token field).`
+    );
+  }
+  return '';
+};
+
+export const courierTypeLabel = (type) => {
+  const key = String(type || '')
+    .trim()
+    .toLowerCase();
+  const match = COURIER_TYPES.find((opt) => opt.value === key);
+  if (match) return match.label;
+  return type || '—';
+};
 
 /** Map saved courier integration `type` → shipment API `provider` key. */
 export const courierTypeToProvider = (type) => {
@@ -136,9 +369,12 @@ export const courierTypeToProvider = (type) => {
   if (!key) return '';
   if (key === 'tcs') return 'TCS';
   if (key === 'leopard' || key === 'leopards' || key === 'lcs') return 'Leopard';
+  if (key === 'postex' || key === 'post-ex') return 'PostEx';
   if (key === 'blueex' || key === 'blue-ex') return 'BlueEX';
   if (key === 'm&p' || key === 'mnp' || key === 'mp') return 'M&P';
-  if (key === 'call courier' || key === 'callcourier') return 'Call Courier';
+  if (key === 'call_courier' || key === 'call courier' || key === 'callcourier') {
+    return 'Call Courier';
+  }
   if (key === 'trax') return 'Trax';
   return String(type).trim();
 };
@@ -146,14 +382,27 @@ export const courierTypeToProvider = (type) => {
 /**
  * Create a courier shipment for an order.
  * POST /courier/create/:orderId
- * body: { provider?: string, courier_id?: string }
+ * body: { provider?, courier_id?, account_no?, pickupAddressCode?, storeAddressCode? }
  */
 export const createCourierShipmentRequest = async (orderId, options = {}) => {
   if (!orderId) throw new Error('Order id is required');
 
   const provider =
     typeof options === 'string' ? options : options?.provider || '';
-  const courierId = typeof options === 'object' ? options?.courierId || options?.courier_id || '' : '';
+  const courierId =
+    typeof options === 'object' ? options?.courierId || options?.courier_id || '' : '';
+  const accountNo =
+    typeof options === 'object'
+      ? options?.account_no || options?.accountNo || options?.pickupAddressCode || ''
+      : '';
+  const pickupAddressCode =
+    typeof options === 'object'
+      ? options?.pickupAddressCode || options?.pickup_address_code || accountNo || ''
+      : '';
+  const storeAddressCode =
+    typeof options === 'object'
+      ? options?.storeAddressCode || options?.store_address_code || ''
+      : '';
 
   const body = {
     // Book immediately — do not accept a queue ack without a tracking number.
@@ -163,6 +412,29 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
   const trimmed = typeof provider === 'string' ? provider.trim() : '';
   if (trimmed) body.provider = trimmed;
   if (courierId) body.courier_id = String(courierId);
+  if (accountNo) {
+    body.account_no = String(accountNo).trim();
+  }
+  if (pickupAddressCode) {
+    const code = String(pickupAddressCode).trim();
+    body.pickupAddressCode = code;
+    body.pickup_address_code = code;
+    // Common backend aliases
+    body.pickup_code = code;
+    body.address_code = code;
+    body.addressCode = code;
+  }
+  if (storeAddressCode) {
+    const code = String(storeAddressCode).trim();
+    body.storeAddressCode = code;
+    body.store_address_code = code;
+    body.store_code = code;
+  } else if (pickupAddressCode) {
+    // PostEx requires at least one of pickup/store — mirror pickup when store omitted.
+    const code = String(pickupAddressCode).trim();
+    body.storeAddressCode = code;
+    body.store_address_code = code;
+  }
 
   const response = await fetch(`${BASE_URL}courier/create/${encodeURIComponent(orderId)}`, {
     method: 'POST',
@@ -172,13 +444,37 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
 
   const payload = await response.json().catch(() => ({}));
 
+  const throwShipmentError = (fallback) => {
+    let message = extractCourierShipmentErrorMessage(payload, fallback);
+    const status = response.status;
+    if (status === 405 || /405|not allowed|method not allowed/i.test(message)) {
+      message =
+        `${message || 'HTTP 405 Not Allowed'}. ` +
+        'The courier API URL is likely wrong — use the PostEx API base ' +
+        '(e.g. https://api.postex.pk/services/integration/api), not the merchant login page.';
+    }
+    const err = new Error(message);
+    err.payload = payload;
+    err.status = status;
+    throw err;
+  };
+
   if (!response.ok) {
-    throw new Error(
-      payload.error || payload.message || `HTTP error! status: ${response.status}`
-    );
+    throwShipmentError(`HTTP error! status: ${response.status}`);
   }
 
-  return normalizeCreateShipmentResult(payload, trimmed);
+  const normalized = normalizeCreateShipmentResult(payload, trimmed);
+  const explicitFailure =
+    payload?.success === false ||
+    payload?.ok === false ||
+    String(payload?.status || '').toLowerCase() === 'error' ||
+    String(payload?.status || '').toLowerCase() === 'failed';
+
+  if (explicitFailure && !normalized.tracking_id && !normalized.queued) {
+    throwShipmentError('Failed to create shipment');
+  }
+
+  return normalized;
 };
 
 /**
@@ -444,13 +740,16 @@ export const buildPublicTrackingUrl = (provider, trackingId) => {
   if (key === 'leopard' || key === 'leopards' || key === 'lcs') {
     return `https://www.leopardscourier.com/tracking/?cn=${encodeURIComponent(id)}`;
   }
+  if (key === 'postex' || key === 'post-ex') {
+    return `https://postex.pk/track?trackingNumber=${encodeURIComponent(id)}`;
+  }
   if (key === 'blueex') {
     return `https://www.blue-ex.com/tracking?cn=${encodeURIComponent(id)}`;
   }
   if (key === 'm&p' || key === 'mnp' || key === 'mp') {
     return `https://www.mulphilog.com/tracking/${encodeURIComponent(id)}`;
   }
-  if (key === 'callcourier') {
+  if (key === 'callcourier' || key === 'call_courier') {
     return `https://callcourier.com.pk/tracking/?tc=${encodeURIComponent(id)}`;
   }
   if (key === 'trax') {
@@ -528,6 +827,28 @@ export const TCS_TRACKING_DETAIL_URL =
 /** Dev proxy path (vite → TCS) to avoid browser CORS on localhost. */
 const TCS_TRACKING_DEV_PROXY_PATH = '/tcs-tracking/tracking/api/Tracking/GetDynamicTrackDetail';
 
+/** Absolute TCS status API URL (dev shows proxied path → upstream host). */
+export const resolveTcsTrackingStatusApiUrl = (consignee = '') => {
+  const query = new URLSearchParams({
+    consignee: String(consignee || '').trim(),
+  });
+  const qs = query.toString();
+  const useDevProxy = Boolean(import.meta.env.DEV);
+  if (useDevProxy) {
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : '';
+    return {
+      requestUrl: `${origin}${TCS_TRACKING_DEV_PROXY_PATH}?${qs}`,
+      upstreamUrl: `${TCS_TRACKING_DETAIL_URL}?${qs}`,
+      viaProxy: true,
+    };
+  }
+  const url = `${TCS_TRACKING_DETAIL_URL}?${qs}`;
+  return { requestUrl: url, upstreamUrl: url, viaProxy: false };
+};
+
 const DEFAULT_TCS_SANDBOX_BEARER =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjpbIlRyYWNrIiwiRWNvbSJdLCJjbGllbnRpZCI6IjIxNTYxMDA1OSIsInNlcnZpY2VzIjoiIiwiZXhjbHVkZWQtc2VydmljZXMiOiIiLCJpc3MiOiJ1YXQtbWlkZGxld2FyZS50cmFuenVtcGsuY29tIiwianRpIjoiMWZhNDg0ZTYtMTk3OS00ZTVhLThkZDAtM2Q2NjE2Yjk5NjgzIiwibmJmIjoxNzA5NTUzOTE2LCJleHAiOjE3OTU5NTM5MTYsImlhdCI6MTcwOTU1MzkxNn0.DVkL4xAWMaq5tepDfG9_Qevk8iX05RP7fBGGHRtZA4c';
 
@@ -555,10 +876,10 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
     throw new Error('Consignment / tracking number is required');
   }
 
-  const query = new URLSearchParams({ consignee });
+  const urlInfo = resolveTcsTrackingStatusApiUrl(consignee);
   const useDevProxy = Boolean(import.meta.env.DEV);
   const baseUrl = useDevProxy ? TCS_TRACKING_DEV_PROXY_PATH : TCS_TRACKING_DETAIL_URL;
-  const url = `${baseUrl}?${query.toString()}`;
+  const url = `${baseUrl}?${new URLSearchParams({ consignee }).toString()}`;
 
   const bearer = resolveTcsTrackingBearerToken(options);
   const headers = {
@@ -574,15 +895,30 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
+    const err = new Error(
       payload.error ||
         payload.message ||
         payload.Message ||
         `TCS tracking failed (HTTP ${response.status})`
     );
+    err.requestUrl = urlInfo.requestUrl;
+    err.upstreamUrl = urlInfo.upstreamUrl;
+    throw err;
   }
 
   const normalized = normalizeCourierTrackingStatus(payload, consignee);
+  const withUrls = {
+    ...normalized,
+    requestUrl: urlInfo.requestUrl,
+    upstreamUrl: urlInfo.upstreamUrl,
+    viaProxy: urlInfo.viaProxy,
+    rawEmpty:
+      payload &&
+      typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      Object.keys(payload).length === 0,
+  };
+
   const hasEvents =
     Boolean(normalized.status) ||
     (Array.isArray(normalized.deliveryInfo) && normalized.deliveryInfo.length > 0) ||
@@ -592,15 +928,16 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
 
   if (!hasEvents) {
     return {
-      ...normalized,
-      message:
-        normalized.message && String(normalized.message).toUpperCase() !== 'SUCCESS'
+      ...withUrls,
+      message: withUrls.rawEmpty
+        ? `TCS sandbox returned {} for CN ${consignee}. Booking succeeded, but GetDynamicTrackDetail often has no scan events in sandbox (same empty body for TCS sample CNs). Use production tracking (ociconnect) with a production token for live statuses.`
+        : normalized.message && String(normalized.message).toUpperCase() !== 'SUCCESS'
           ? normalized.message
           : `No tracking events found for CN ${consignee} on TCS sandbox.`,
     };
   }
 
-  return normalized;
+  return withUrls;
 };
 
 /** Normalize TCS GetDynamicTrackDetail (and similar) payloads for the UI. */

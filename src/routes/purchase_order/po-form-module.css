@@ -1,6 +1,7 @@
 /* Purchase order add / edit — professional form layout */
 
 .po-form-page {
+  --po-primary: #5e72e4;
   --po-border: #e9ecef;
   --po-muted: #67748e;
   --po-ink: #344767;
@@ -173,6 +174,84 @@
   font-weight: 600;
   color: var(--po-ink);
   margin-bottom: 0.35rem;
+}
+
+.po-form-page .po-datetime {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.po-form-page .po-datetime__date {
+  flex: 1.35 1 0;
+  min-width: 0;
+}
+
+.po-form-page .po-datetime__time {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.po-form-page .po-datetime .form-control {
+  border-color: var(--po-border);
+  border-radius: 0.45rem;
+  color: var(--po-ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  min-height: 2rem;
+}
+
+.po-form-page .po-datetime .form-control:focus {
+  border-color: rgba(94, 114, 228, 0.45);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.po-form-page .po-datetime .form-control::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.po-form-page .po-datetime .form-control:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+}
+
+.po-form-page .po-datetime__now {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(94, 114, 228, 0.25);
+  background: #fff;
+  color: var(--po-primary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.po-form-page .po-datetime__now:hover:not(:disabled) {
+  background: var(--po-primary);
+  border-color: var(--po-primary);
+  color: #fff;
+}
+
+.po-form-page .po-datetime__now:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.po-form-page .po-datetime__now:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.2);
 }
 
 .po-form-page .form-control,

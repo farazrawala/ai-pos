@@ -2,7 +2,7 @@
 
 ## Overview
 
-CRUD for TCS / Leopard courier API credentials in the AI POS app.
+CRUD for courier API credentials (TCS, Leopard, BlueEx, M&P, Call Courier, Trax, PostEx) in the AI POS app.
 
 ## Structure
 
@@ -28,6 +28,7 @@ Base: `API_BASE_URL` from `src/config/apiConfig.js`. Backend model: `courier`.
 - Create: `POST /courier/create`
 - Update: `PATCH /courier/update/:id`
 - Delete: `DELETE /courier/delete/:id`
+- Test credentials: `POST /courier/test/:id` (optional body overrides: `url`, `login`, `password`, `token`, `account_no`, `type`). Blank password/token keep stored secrets. Also `POST /courier/test` for unsaved form values on Add.
 
 ## Routes
 
@@ -39,7 +40,7 @@ Base: `API_BASE_URL` from `src/config/apiConfig.js`. Backend model: `courier`.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `type` | enum `tcs` \| `leopard` | Required, default `tcs` |
+| `type` | enum `tcs` \| `leopard` \| `blueex` \| `mnp` \| `call_courier` \| `trax` \| `postex` | Required, default `tcs` |
 | `url` | string | Required API base URL |
 | `login` | string | Required courier API login |
 | `password` | string | Required on create; optional on edit (leave blank to keep) |

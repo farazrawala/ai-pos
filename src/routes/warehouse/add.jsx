@@ -17,6 +17,7 @@ const WarehouseAdd = () => {
     phone: '',
     email: '',
     warehouse_image: '',
+    status: 'active',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -138,7 +139,7 @@ const WarehouseAdd = () => {
                   />
                   {errors.email && <div className="invalid-feedback">{errors.email}</div>}
                 </div>
-                <div className="mb-4">
+                <div className="mb-3">
                   <label className="form-label">Warehouse Image (URL)</label>
                   <input
                     className="form-control"
@@ -147,6 +148,21 @@ const WarehouseAdd = () => {
                       setForm((prev) => ({ ...prev, warehouse_image: e.target.value }))
                     }
                   />
+                </div>
+                <div className="mb-4">
+                  <label className="form-label" htmlFor="warehouse-add-status">
+                    Status
+                  </label>
+                  <select
+                    id="warehouse-add-status"
+                    className="form-select"
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                    disabled={isSubmitting}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
                 </div>
                 {errors.submit && <div className="alert alert-danger py-2">{errors.submit}</div>}
                 <div className="d-flex justify-content-end gap-2">

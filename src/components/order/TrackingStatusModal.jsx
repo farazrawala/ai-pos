@@ -1,10 +1,33 @@
-import { useEffect, useState } from 'react';
-import { fetchCourierTrackingStatusRequest } from '../../features/courier/courierAPI.js';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  buildPublicTrackingUrl,
+  fetchCourierTrackingStatusRequest,
+  resolveTcsTrackingStatusApiUrl,
+} from '../../features/courier/courierAPI.js';
 
 const formatLabel = (value) => {
   const raw = String(value ?? '').trim();
   if (!raw) return '—';
   return raw;
+};
+
+const UrlRow = ({ label, url, hint }) => {
+  if (!url) return null;
+  return (
+    <div className="mb-2">
+      <span className="text-xs text-muted d-block">{label}</span>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-break"
+        style={{ wordBreak: 'break-all' }}
+      >
+        {url}
+      </a>
+      {hint ? <div className="text-xs text-muted mt-1">{hint}</div> : null}
+    </div>
+  );
 };
 
 /**
@@ -18,10 +41,43 @@ export default function TrackingStatusModal({
   trackingId = '',
   orderNo = '',
   provider = '',
+  trackingUrl = '',
 }) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
+
+  const publicUrl = useMemo(() => {
+    const explicit = String(trackingUrl || '').trim();
+    if (explicit) return explicit;
+    return buildPublicTrackingUrl(provider, trackingId);
+  }, [trackingUrl, provider, trackingId]);
+
+  const previewApiUrls = useMemo(() => {
+    const cn = String(trackingId || '').trim();
+    if (!cn) return null;
+    return resolveTcsTrackingStatusApiUrl(cn);
+  }, [trackingId]);
+
+  const loadStatus = () => {
+    setStatus('loading');
+    setError('');
+    return fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId })
+      .then((result) => {
+        setDetail(result);
+        setStatus('succeeded');
+      })
+      .catch((err) => {
+        setStatus('failed');
+        setError(err?.message || 'Failed to load tracking status');
+        if (err?.requestUrl || err?.upstreamUrl) {
+          setDetail({
+            requestUrl: err.requestUrl || '',
+            upstreamUrl: err.upstreamUrl || '',
+          });
+        }
+      });
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -41,6 +97,12 @@ export default function TrackingStatusModal({
         if (cancelled) return;
         setStatus('failed');
         setError(err?.message || 'Failed to load tracking status');
+        if (err?.requestUrl || err?.upstreamUrl) {
+          setDetail({
+            requestUrl: err.requestUrl || '',
+            upstreamUrl: err.upstreamUrl || '',
+          });
+        }
       });
 
     return () => {
@@ -54,6 +116,9 @@ export default function TrackingStatusModal({
   const cn = String(trackingId || detail?.consignee || '').trim();
   const checkpoints = Array.isArray(detail?.checkpoints) ? detail.checkpoints : [];
   const deliveryInfo = Array.isArray(detail?.deliveryInfo) ? detail.deliveryInfo : [];
+  const statusApiUrl = detail?.upstreamUrl || previewApiUrls?.upstreamUrl || '';
+  const requestApiUrl = detail?.requestUrl || previewApiUrls?.requestUrl || '';
+  const showProxyHint = Boolean(detail?.viaProxy ?? previewApiUrls?.viaProxy);
 
   return (
     <>
@@ -99,6 +164,26 @@ export default function TrackingStatusModal({
                     <strong>{provider}</strong>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="card border shadow-none mb-3">
+                <div className="card-body py-3">
+                  <h6 className="text-xs text-uppercase text-muted mb-2">Tracking URLs</h6>
+                  <UrlRow
+                    label="Status API (TCS GetDynamicTrackDetail)"
+                    url={statusApiUrl}
+                    hint={
+                      showProxyHint && requestApiUrl && requestApiUrl !== statusApiUrl
+                        ? `Browser request (dev proxy): ${requestApiUrl}`
+                        : 'Sandbox tracking API — live events for production CNs may be empty here.'
+                    }
+                  />
+                  <UrlRow
+                    label="Public tracking page"
+                    url={publicUrl}
+                    hint="Customer-facing track page (opens in a new tab)."
+                  />
+                </div>
               </div>
 
               {isLoading ? (
@@ -229,7 +314,8 @@ export default function TrackingStatusModal({
 
                   {!detail.status && deliveryInfo.length === 0 && checkpoints.length === 0 ? (
                     <div className="alert alert-warning py-2 mb-0">
-                      No tracking events returned for this consignment.
+                      {detail.message ||
+                        'No tracking events returned for this consignment.'}
                     </div>
                   ) : null}
                 </>
@@ -241,17 +327,7 @@ export default function TrackingStatusModal({
                 className="btn btn-outline-primary btn-sm mb-0"
                 disabled={isLoading}
                 onClick={() => {
-                  setStatus('loading');
-                  setError('');
-                  fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId })
-                    .then((result) => {
-                      setDetail(result);
-                      setStatus('succeeded');
-                    })
-                    .catch((err) => {
-                      setStatus('failed');
-                      setError(err?.message || 'Failed to load tracking status');
-                    });
+                  loadStatus();
                 }}
               >
                 Refresh

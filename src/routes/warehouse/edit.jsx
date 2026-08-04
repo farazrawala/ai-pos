@@ -26,6 +26,7 @@ const WarehouseEdit = () => {
     phone: '',
     email: '',
     warehouse_image: '',
+    status: 'active',
   });
   const [errors, setErrors] = useState({});
   const isSubmitting = updateStatus === 'loading';
@@ -53,6 +54,7 @@ const WarehouseEdit = () => {
       phone: currentWarehouse.phone || '',
       email: currentWarehouse.email || '',
       warehouse_image: currentWarehouse.warehouse_image || '',
+      status: currentWarehouse.status || 'active',
     });
   }, [currentWarehouse]);
 
@@ -183,7 +185,7 @@ const WarehouseEdit = () => {
                   />
                   {errors.email && <div className="invalid-feedback">{errors.email}</div>}
                 </div>
-                <div className="mb-4">
+                <div className="mb-3">
                   <label className="form-label">Warehouse Image (URL)</label>
                   <input
                     className="form-control"
@@ -193,6 +195,21 @@ const WarehouseEdit = () => {
                     }
                     disabled={isSubmitting}
                   />
+                </div>
+                <div className="mb-4">
+                  <label className="form-label" htmlFor="warehouse-edit-status">
+                    Status
+                  </label>
+                  <select
+                    id="warehouse-edit-status"
+                    className="form-select"
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                    disabled={isSubmitting}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
                 </div>
                 {(errors.submit || updateError) && (
                   <div className="alert alert-danger py-2">{errors.submit || updateError}</div>

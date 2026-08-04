@@ -11,7 +11,7 @@ import {
   setSort,
   clearDeleteStatus,
 } from '../../features/courier/courierSlice.js';
-import { pickCourierId } from '../../features/courier/courierAPI.js';
+import { pickCourierId, courierTypeLabel } from '../../features/courier/courierAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
@@ -19,13 +19,6 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
-
-const typeLabel = (type) => {
-  const t = String(type || '').toLowerCase();
-  if (t === 'tcs') return 'TCS';
-  if (t === 'leopard') return 'Leopard';
-  return type || '—';
-};
 
 const CourierIntegration = () => {
   const dispatch = useDispatch();
@@ -130,7 +123,7 @@ const CourierIntegration = () => {
               <div className="row align-items-center">
                 <div className="col-md-6">
                   <h5 className="mb-0">Courier Integration</h5>
-                  <p className="text-sm mb-0 text-muted">TCS and Leopard courier API credentials</p>
+                  <p className="text-sm mb-0 text-muted">Courier API credentials for supported providers</p>
                   {DEBUG ? (
                     <p className="text-sm mb-0">Server-side pagination and search enabled.</p>
                   ) : null}
@@ -232,7 +225,7 @@ const CourierIntegration = () => {
                             <td className="text-sm">{item.name || '—'}</td>
                             <td>
                               <span className="badge bg-gradient-info text-xxs mb-0">
-                                {typeLabel(item.type)}
+                                {courierTypeLabel(item.type)}
                               </span>
                             </td>
                             <td
@@ -277,7 +270,7 @@ const CourierIntegration = () => {
                                     onClick={() =>
                                       handleDelete(
                                         id,
-                                        item.name || `${typeLabel(item.type)} · ${item.login || id}`
+                                        item.name || `${courierTypeLabel(item.type)} · ${item.login || id}`
                                       )
                                     }
                                     disabled={deleteStatus === 'loading'}

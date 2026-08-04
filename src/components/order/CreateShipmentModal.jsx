@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
+  COURIER_DEFAULT_API_URLS,
   createCourierShipmentRequest,
   courierTypeToProvider,
+  extractCourierShipmentErrorMessage,
   fetchCouriersRequest,
+  isPostexMerchantPortalUrl,
   pickCourierId,
+  updateCourierRequest,
 } from '../../features/courier/courierAPI.js';
 
 const courierLabel = (item) => {
@@ -21,6 +26,24 @@ const isSuccessMessage = (value) => {
     .toLowerCase();
   return msg === 'success' || msg === 'ok' || msg === 'succeeded';
 };
+
+const postexUrlFixMessage = (currentUrl = '') => {
+  const current = String(currentUrl || '').trim() || 'stg-merchant.postex.pk';
+  return (
+    `HTTP 405: ${current} is the PostEx merchant portal (POST not allowed). ` +
+    `Edit this courier and set API URL to ${COURIER_DEFAULT_API_URLS.postex}, then save and try again.`
+  );
+};
+
+const postexAuthFixMessage = () =>
+  'Authentication failed for PostEx. Tokens from stg-merchant.postex.pk only work with ' +
+  `${COURIER_DEFAULT_API_URLS.postex_staging}. Production tokens use ` +
+  `${COURIER_DEFAULT_API_URLS.postex}. Paste the Merchant API Token (not portal password), Update, retry.`;
+
+const isPostexAuthFailure = (message) =>
+  /authentication failed.*postex|postex.*authentication failed|invalid.?token|unauthorized|unauthorised/i.test(
+    String(message || '')
+  );
 
 /**
  * Select a saved courier integration and create a shipment for an order.
@@ -69,14 +92,21 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     };
   }, [open, orderId]);
 
+  const selectedCourier = useMemo(
+    () => couriers.find((item) => String(pickCourierId(item)) === String(selectedCourierId)),
+    [couriers, selectedCourierId]
+  );
+
+  const selectedHasBadPostexUrl =
+    String(selectedCourier?.type || '').toLowerCase() === 'postex' &&
+    isPostexMerchantPortalUrl(selectedCourier?.url);
+
   const handleSave = async () => {
     if (!orderId) {
       setSaveError('Missing order id.');
       return;
     }
-    const selected = couriers.find(
-      (item) => String(pickCourierId(item)) === String(selectedCourierId)
-    );
+    const selected = selectedCourier;
     if (!selected) {
       setSaveError('Please select a courier.');
       return;
@@ -88,14 +118,54 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
       return;
     }
 
+    if (
+      String(selected.type || '').toLowerCase() === 'postex' &&
+      isPostexMerchantPortalUrl(selected.url)
+    ) {
+      setSaveError(postexUrlFixMessage(selected.url));
+      setSaveStatus('failed');
+      return;
+    }
+
+    // Temporary: PostEx staging pickup/store address code is always 001.
+    const isPostex = String(selected.type || '').toLowerCase() === 'postex';
+    const pickupCode = isPostex
+      ? '001'
+      : String(
+          selected.account_no || selected.accountNo || selected.pickupAddressCode || ''
+        ).trim();
+    const courierId = pickCourierId(selected);
+
     setSaveStatus('loading');
     setSaveError(null);
     setSaveSuccess(null);
 
     try {
+      // Backend builds PostEx payload from the courier record — persist 001 on the courier first.
+      if (isPostex && courierId) {
+        const existingCode = String(selected.account_no || selected.accountNo || '').trim();
+        if (existingCode !== pickupCode) {
+          await updateCourierRequest(courierId, { account_no: pickupCode });
+          setCouriers((prev) =>
+            prev.map((item) =>
+              String(pickCourierId(item)) === String(courierId)
+                ? { ...item, account_no: pickupCode }
+                : item
+            )
+          );
+        }
+      }
+
       const result = await createCourierShipmentRequest(orderId, {
         provider,
-        courierId: pickCourierId(selected),
+        courierId,
+        ...(pickupCode
+          ? {
+              account_no: pickupCode,
+              pickupAddressCode: pickupCode,
+              storeAddressCode: isPostex ? pickupCode : undefined,
+            }
+          : {}),
       });
       if (result?.queued) {
         throw new Error(
@@ -112,9 +182,10 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
 
       if (!trackingId && !apiSaysSuccess) {
         throw new Error(
-          result?.error ||
-            result?.message ||
+          extractCourierShipmentErrorMessage(
+            result,
             'Courier booking succeeded without a tracking id. Check the courier API response.'
+          )
         );
       }
 
@@ -133,7 +204,31 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
       });
       window.setTimeout(() => onClose?.(), 900);
     } catch (err) {
-      const msg = err?.message || 'Failed to create shipment';
+      let msg =
+        extractCourierShipmentErrorMessage(err?.payload || err?.data || err?.response || null, '') ||
+        err?.message ||
+        'Failed to create shipment';
+
+      if (
+        /405|not allowed|method not allowed/i.test(msg) &&
+        String(selected?.type || '').toLowerCase() === 'postex'
+      ) {
+        msg = postexUrlFixMessage(selected?.url);
+      } else if (
+        isPostexAuthFailure(msg) &&
+        String(selected?.type || '').toLowerCase() === 'postex'
+      ) {
+        msg = postexAuthFixMessage();
+      } else if (
+        /pickup address code|store address code/i.test(msg) &&
+        String(selected?.type || '').toLowerCase() === 'postex'
+      ) {
+        msg =
+          `${msg} Frontend sent pickup/store code 001 and saved account_no=001 on the courier. ` +
+          'If this persists, the backend courier/create handler is not mapping account_no → ' +
+          'PostEx pickupAddressCode/storeAddressCode.';
+      }
+
       // Provider sometimes returns "SUCCESS" as the only message — show green, not red.
       if (isSuccessMessage(msg)) {
         setSaveStatus('succeeded');
@@ -152,6 +247,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   const isSaving = saveStatus === 'loading';
   const isLoadingCouriers = couriersStatus === 'loading';
   const titleOrder = orderNo && orderNo !== '—' ? orderNo : orderId || 'order';
+  const selectedCourierEditId = selectedCourier ? pickCourierId(selectedCourier) : '';
 
   return (
     <>
@@ -221,10 +317,46 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 )}
               </div>
 
+              {selectedHasBadPostexUrl ? (
+                <div className="alert alert-warning py-2 mt-3 mb-0">
+                  <div className="mb-2">
+                    This courier API URL is <code>{selectedCourier.url}</code> (merchant portal).
+                    Change it to <code>{COURIER_DEFAULT_API_URLS.postex}</code> or Create shipment
+                    will keep failing with HTTP 405.
+                  </div>
+                  {selectedCourierEditId ? (
+                    <Link
+                      className="btn btn-sm btn-warning mb-0"
+                      to={`/courier-integration/edit/${selectedCourierEditId}`}
+                      onClick={onClose}
+                    >
+                      Fix courier API URL
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+
               {couriersError ? (
                 <div className="alert alert-danger py-2 mt-3 mb-0">{couriersError}</div>
               ) : null}
-              {saveError ? <div className="alert alert-danger py-2 mt-3 mb-0">{saveError}</div> : null}
+              {saveError ? (
+                <div
+                  className="alert alert-danger py-2 mt-3 mb-0"
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                >
+                  <div>{saveError}</div>
+                  {selectedCourierEditId &&
+                  /405|merchant portal|API URL|Authentication failed|API Token/i.test(saveError) ? (
+                    <Link
+                      className="btn btn-sm btn-outline-light mt-2 mb-0"
+                      to={`/courier-integration/edit/${selectedCourierEditId}`}
+                      onClick={onClose}
+                    >
+                      Open courier settings
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
               {saveSuccess ? (
                 <div className="alert alert-success py-2 mt-3 mb-0">{saveSuccess}</div>
               ) : null}
@@ -242,7 +374,13 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 type="button"
                 className="btn btn-primary mb-0"
                 onClick={handleSave}
-                disabled={isSaving || isLoadingCouriers || !selectedCourierId || Boolean(saveSuccess)}
+                disabled={
+                  isSaving ||
+                  isLoadingCouriers ||
+                  !selectedCourierId ||
+                  Boolean(saveSuccess) ||
+                  selectedHasBadPostexUrl
+                }
               >
                 {isSaving ? (
                   <>

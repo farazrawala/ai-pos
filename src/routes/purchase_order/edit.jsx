@@ -1519,20 +1519,53 @@ const PurchaseOrderEdit = () => {
                         <span className="d-block small text-muted mt-1">{supplierLabel}</span>
                       ) : null}
                     </div>
-                    <div className="col-md-6 col-lg-3">
-                      <label className="form-label" htmlFor="po-edit-created-on">
+                    <div className="col-md-6 col-lg-4">
+                      <label className="form-label" htmlFor="po-edit-created-on-date">
                         Created on
                       </label>
-                      <input
-                        id="po-edit-created-on"
-                        type="datetime-local"
-                        className="form-control form-control-sm"
-                        value={form.created_at}
-                        onChange={(e) => setForm((p) => ({ ...p, created_at: e.target.value }))}
-                        disabled={isSubmitting}
-                      />
+                      <div className="po-datetime">
+                        <input
+                          id="po-edit-created-on-date"
+                          type="date"
+                          className="form-control form-control-sm po-datetime__date"
+                          value={(form.created_at || '').slice(0, 10)}
+                          onChange={(e) => {
+                            const date = e.target.value || moment().format('YYYY-MM-DD');
+                            const time =
+                              (form.created_at || '').slice(11, 16) || moment().format('HH:mm');
+                            setForm((p) => ({ ...p, created_at: `${date}T${time}` }));
+                          }}
+                          disabled={isSubmitting}
+                          aria-label="Created on date"
+                        />
+                        <input
+                          id="po-edit-created-on-time"
+                          type="time"
+                          className="form-control form-control-sm po-datetime__time"
+                          value={(form.created_at || '').slice(11, 16)}
+                          onChange={(e) => {
+                            const time = e.target.value || moment().format('HH:mm');
+                            const date =
+                              (form.created_at || '').slice(0, 10) || moment().format('YYYY-MM-DD');
+                            setForm((p) => ({ ...p, created_at: `${date}T${time}` }));
+                          }}
+                          disabled={isSubmitting}
+                          aria-label="Created on time"
+                        />
+                        <button
+                          type="button"
+                          className="po-datetime__now"
+                          onClick={() =>
+                            setForm((p) => ({ ...p, created_at: nowDatetimeLocalValue() }))
+                          }
+                          disabled={isSubmitting}
+                          title="Use current date and time"
+                        >
+                          Now
+                        </button>
+                      </div>
                     </div>
-                    <div className="col-md-6 col-lg-3">
+                    <div className="col-md-6 col-lg-2">
                       <label className="form-label" htmlFor="po-edit-status">
                         Order status
                       </label>

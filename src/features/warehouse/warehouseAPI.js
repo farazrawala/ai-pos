@@ -28,7 +28,7 @@ export const fetchWarehousesRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}warehouse/get-all-active${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}warehouse/get-all${queryString ? `?${queryString}` : ''}`;
   const response = await fetch(url, { method: 'GET', headers: getHeaders() });
 
   if (!response.ok) {

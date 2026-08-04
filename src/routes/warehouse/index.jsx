@@ -4,12 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchWarehouses,
+  updateWarehouse,
   deleteWarehouse,
   setSearch,
   setPage,
   setLimit,
   setSort,
   clearDeleteStatus,
+  clearUpdateStatus,
 } from '../../features/warehouse/warehouseSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -30,11 +32,13 @@ const Warehouse = () => {
     sort,
     deleteStatus,
     deleteError,
+    updateError,
   } = useSelector((state) => state.warehouse);
   const { canView, canCreate, canEdit, canDelete } = usePermissions('warehouse');
   useRequireModuleAccess('warehouse');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [togglingWarehouseId, setTogglingWarehouseId] = useState(null);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -88,6 +92,35 @@ const Warehouse = () => {
       <i className="fas fa-sort-down text-primary ms-1" style={{ fontSize: '0.75rem' }}></i>
     );
 
+  const buildListParams = useCallback(() => {
+    const params = { page: pagination.page, limit: pagination.limit };
+    if (searchTerm) params.search = searchTerm;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    return params;
+  }, [pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+
+  const handleToggleStatus = async (warehouseId, isCurrentlyActive) => {
+    if (!warehouseId || !canEdit || togglingWarehouseId) return;
+    const newStatus = isCurrentlyActive ? 'inactive' : 'active';
+    setTogglingWarehouseId(warehouseId);
+    try {
+      await dispatch(
+        updateWarehouse({
+          warehouseId,
+          warehouseData: { status: newStatus },
+        })
+      ).unwrap();
+      dispatch(fetchWarehouses(buildListParams()));
+    } catch {
+      // updateError is shown from Redux state
+    } finally {
+      setTogglingWarehouseId(null);
+    }
+  };
+
   const handleDelete = async (warehouseId, warehouseName) => {
     if (window.confirm(`Delete "${warehouseName || 'this warehouse'}"?`)) {
       await dispatch(deleteWarehouse(warehouseId));
@@ -99,6 +132,13 @@ const Warehouse = () => {
       setTimeout(() => dispatch(clearDeleteStatus()), 3000);
     }
   }, [deleteStatus, dispatch]);
+
+  useEffect(() => {
+    if (updateError) {
+      const timer = setTimeout(() => dispatch(clearUpdateStatus()), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateError, dispatch]);
 
   useEffect(() => {
     return () => {
@@ -220,15 +260,58 @@ const Warehouse = () => {
                             <td>{item.phone || '-'}</td>
                             <td>{item.email || '-'}</td>
                             <td>
-                              <span
-                                className={`badge ${
-                                  String(item.status || '').toLowerCase() === 'active'
-                                    ? 'bg-success'
-                                    : 'bg-secondary'
-                                }`}
-                              >
-                                {item.status || 'inactive'}
-                              </span>
+                              {canEdit ? (
+                                <div className="d-flex align-items-center gap-2">
+                                  <div className="form-check form-switch mb-0">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`warehouse-status-${id || index}`}
+                                      checked={
+                                        String(item.status || '').toLowerCase() === 'active'
+                                      }
+                                      onChange={() =>
+                                        handleToggleStatus(
+                                          id,
+                                          String(item.status || '').toLowerCase() === 'active'
+                                        )
+                                      }
+                                      disabled={togglingWarehouseId === id}
+                                      aria-label={`${item.name || 'Warehouse'} status ${
+                                        String(item.status || '').toLowerCase() === 'active'
+                                          ? 'active'
+                                          : 'inactive'
+                                      }`}
+                                      style={{
+                                        width: '2.5rem',
+                                        height: '1.25rem',
+                                        cursor:
+                                          togglingWarehouseId === id ? 'not-allowed' : 'pointer',
+                                      }}
+                                    />
+                                  </div>
+                                  {togglingWarehouseId === id ? (
+                                    <span
+                                      className="spinner-border spinner-border-sm text-primary"
+                                      role="status"
+                                      style={{ width: '1rem', height: '1rem' }}
+                                    >
+                                      <span className="visually-hidden">Saving…</span>
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span
+                                  className={`badge ${
+                                    String(item.status || '').toLowerCase() === 'active'
+                                      ? 'bg-success'
+                                      : 'bg-secondary'
+                                  }`}
+                                >
+                                  {item.status || 'inactive'}
+                                </span>
+                              )}
                             </td>
                             <td>
                               {item.createdAt
@@ -276,9 +359,9 @@ const Warehouse = () => {
                   </tbody>
                 </table>
               </ListDataTable>
-              {deleteError && (
+              {(deleteError || updateError) && (
                 <div className="alert alert-danger mx-3 mb-3" role="alert">
-                  {deleteError}
+                  {deleteError || updateError}
                 </div>
               )}
             </div>
