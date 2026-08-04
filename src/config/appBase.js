@@ -42,27 +42,26 @@ export function isInstalledAppDisplay() {
  * Avoids two PWA pitfalls:
  * 1) `window.open(..., 'noopener')` returns null in Chromium and used to fall back to
  *    navigating the current app window.
- * 2) Installed PWAs often turn same-origin `target=_blank` into another app window —
- *    so we prefer OS browser protocol handlers when running standalone.
+ * 2) Installed PWAs capture same-origin `target=_blank` / `window.open` into the desktop
+ *    app — even from a normal browser tab when "Open in app" is enabled — so we prefer OS
+ *    browser protocol handlers (Chrome/Edge) whenever possible.
  */
 export function openAppPathInNewTab(path = '') {
   if (typeof window === 'undefined') return null;
   const href = absoluteAppUrl(path);
 
-  if (isInstalledAppDisplay()) {
-    const ua = String(navigator.userAgent || '');
-    const isEdge = /\bEdg\//.test(ua);
-    const isChrome = /\bChrome\//.test(ua) && !isEdge && !/\bOPR\//.test(ua);
+  const ua = String(navigator.userAgent || '');
+  const isEdge = /\bEdg\//.test(ua);
+  const isChrome = /\bChrome\//.test(ua) && !isEdge && !/\bOPR\//.test(ua);
 
-    // Open in the system browser instead of another installed-app window.
-    if (isEdge) {
-      const edgeWin = window.open(`microsoft-edge:${href}`, '_blank');
-      if (edgeWin) return edgeWin;
-    }
-    if (isChrome) {
-      const chromeWin = window.open(`googlechrome:${href}`, '_blank');
-      if (chromeWin) return chromeWin;
-    }
+  // Force the system browser so Chromium link-capturing cannot hand off to the PWA.
+  if (isEdge) {
+    const edgeWin = window.open(`microsoft-edge:${href}`, '_blank');
+    if (edgeWin) return edgeWin;
+  }
+  if (isChrome) {
+    const chromeWin = window.open(`googlechrome:${href}`, '_blank');
+    if (chromeWin) return chromeWin;
   }
 
   // Do NOT put noopener/noreferrer in the features string — Chromium then returns null
@@ -77,7 +76,7 @@ export function openAppPathInNewTab(path = '') {
     return win;
   }
 
-  // Popup blocked: last resort (may stay in the current window).
+  // Popup blocked: last resort (may stay in the current window / get captured by PWA).
   window.location.assign(href);
   return null;
 }

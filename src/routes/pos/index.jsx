@@ -1565,7 +1565,7 @@ const Pos = () => {
         shipment: shippingNum || 0,
         discount: extraDiscountNum || 0,
         discount_percentage: extraDiscountPercentNum || 0,
-        order_status: 'active',
+        order_status: 'placed',
         amount_received: payment?.paid ?? 0,
         change_given: payment?.change ?? 0,
         remaining_amount: payment?.balanceDue ?? 0,

@@ -288,13 +288,19 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
   if (params.startDate) queryParams.append('startDate', String(params.startDate));
   if (params.endDate) queryParams.append('endDate', String(params.endDate));
 
-  const filterId = params.purchase_item_id ?? params.filterPurchaseItemId;
-  if (filterId != null && String(filterId).trim() !== '') {
-    queryParams.append(getParamKeysToTry()[0], String(filterId).trim());
-  }
+  // Backend filters by purchase_order `_id` when id is in the path
+  // (`…/get-purchase-order-by-purchase-item/:id`), not via query keys.
+  const filterId = String(
+    params.purchase_order_id ??
+      params.filterPurchaseOrderId ??
+      params.purchase_item_id ??
+      params.filterPurchaseItemId ??
+      ''
+  ).trim();
+  const idPath = filterId ? `/${encodeURIComponent(filterId)}` : '';
 
   const queryString = queryParams.toString();
-  const url = `${BASE_URL}${ENDPOINT_PATH}${queryString ? `?${queryString}` : ''}`;
+  const url = `${BASE_URL}${ENDPOINT_PATH}${idPath}${queryString ? `?${queryString}` : ''}`;
 
   let response;
   try {

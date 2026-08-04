@@ -16,7 +16,7 @@ import {
   clearDeleteStatus,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import {
-  PURCHASE_ITEM_QUERY_KEY,
+  fetchPurchaseOrdersListRequest,
   fetchAllPurchaseOrdersForExportRequest,
 } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
 import {
@@ -29,6 +29,7 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ListDateExportBar from '../../components/list/ListDateExportBar.jsx';
 import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
@@ -36,6 +37,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import { openAppPathInNewTab } from '../../config/appBase.js';
 
 const PURCHASE_ORDER_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
@@ -127,15 +129,15 @@ const PurchaseOrders = () => {
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
-  const [localFilterId, setLocalFilterId] = useState(filterPurchaseItemId || '');
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(
     Boolean(filters.startDate || filters.endDate)
   );
+  const [poFilterOptions, setPoFilterOptions] = useState([]);
+  const [poFilterOptionsStatus, setPoFilterOptionsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
-  const filterTimeoutRef = useRef(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     'purchase-orders',
@@ -175,6 +177,44 @@ const PurchaseOrders = () => {
     dispatch(fetchPurchaseOrders(buildListParams()));
   }, [dispatch, buildListParams]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setPoFilterOptionsStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchPurchaseOrdersListRequest({ page: 1, limit: 500 });
+        if (cancelled) return;
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        setPoFilterOptions([
+          { value: '', label: 'All purchase orders' },
+          ...rows
+            .map((row) => {
+              const value = String(row?._id ?? row?.id ?? '').trim();
+              if (!value) return null;
+              const ref = poRef(row);
+              const supplier = poSupplier(row);
+              return {
+                value,
+                label: ref !== '—' ? String(ref) : value.slice(0, 10),
+                subLabel: supplier !== '—' ? String(supplier) : undefined,
+              };
+            })
+            .filter(Boolean),
+        ]);
+        setPoFilterOptionsStatus('succeeded');
+      } catch (err) {
+        console.error('[Purchase orders] Failed to load PO filter options', err);
+        if (!cancelled) {
+          setPoFilterOptions([{ value: '', label: 'All purchase orders' }]);
+          setPoFilterOptionsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleRetryFetch = useCallback(() => {
     dispatch(fetchPurchaseOrders(buildListParams()));
   }, [dispatch, buildListParams]);
@@ -191,14 +231,9 @@ const PurchaseOrders = () => {
     [dispatch]
   );
 
-  const handleFilterIdChange = useCallback(
-    (e) => {
-      const value = e.target.value;
-      setLocalFilterId(value);
-      if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
-      filterTimeoutRef.current = setTimeout(() => {
-        dispatch(setFilterPurchaseItemId(value));
-      }, 500);
+  const handlePurchaseOrderFilterChange = useCallback(
+    (next) => {
+      dispatch(setFilterPurchaseItemId(next || ''));
     },
     [dispatch]
   );
@@ -206,10 +241,6 @@ const PurchaseOrders = () => {
   useEffect(() => {
     setLocalSearch(searchTerm || '');
   }, [searchTerm]);
-
-  useEffect(() => {
-    setLocalFilterId(filterPurchaseItemId || '');
-  }, [filterPurchaseItemId]);
 
   useEffect(() => {
     setLocalStartDate(filters.startDate || '');
@@ -327,7 +358,6 @@ const PurchaseOrders = () => {
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
     };
   }, []);
 
@@ -375,17 +405,13 @@ const PurchaseOrders = () => {
                         aria-label="Search purchase orders"
                       />
                     </div>
-                    <div className="input-group input-group-sm" style={{ maxWidth: '200px' }}>
-                      <span className="input-group-text text-body text-nowrap" title={PURCHASE_ITEM_QUERY_KEY}>
-                        Item id
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Optional"
-                        value={localFilterId}
-                        onChange={handleFilterIdChange}
-                        aria-label="Filter by purchase item id"
+                    <div style={{ minWidth: '200px', maxWidth: '260px', flex: '1 1 200px' }}>
+                      <SearchableSelect
+                        options={poFilterOptions}
+                        value={filterPurchaseItemId || ''}
+                        placeholder="All purchase orders"
+                        disabled={loading || poFilterOptionsStatus === 'loading'}
+                        onChange={handlePurchaseOrderFilterChange}
                       />
                     </div>
                     <ColumnVisibilityMenu
@@ -496,10 +522,26 @@ const PurchaseOrders = () => {
                                 {id && ref !== '—' ? (
                                   <a
                                     href={`/purchase-orders/edit/${encodeURIComponent(id)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
                                     className="text-primary font-weight-bold text-decoration-none text-nowrap"
-                                    title={`Open ${ref} in new tab`}
+                                    title={`Open ${ref} in new browser tab`}
+                                    onClick={(e) => {
+                                      // Left-click: force a real browser tab (bypass installed PWA capture).
+                                      // Ctrl/Cmd/Shift/middle-click keep native browser behavior.
+                                      if (
+                                        e.defaultPrevented ||
+                                        e.button !== 0 ||
+                                        e.metaKey ||
+                                        e.ctrlKey ||
+                                        e.shiftKey ||
+                                        e.altKey
+                                      ) {
+                                        return;
+                                      }
+                                      e.preventDefault();
+                                      openAppPathInNewTab(
+                                        `/purchase-orders/edit/${encodeURIComponent(id)}`
+                                      );
+                                    }}
                                   >
                                     {ref}
                                   </a>
