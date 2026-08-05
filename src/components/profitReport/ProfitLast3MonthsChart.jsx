@@ -1,6 +1,8 @@
 import { useMemo, useRef } from 'react';
+import { FaChartColumn } from 'react-icons/fa6';
 import { formatCurrencyAccounting } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
+import NavIcon from '../NavIcon.jsx';
 
 /**
  * Bar + margin line chart for the last 3 calendar months of order profit.
@@ -18,7 +20,7 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
 
       const ctx = canvas.getContext('2d');
       const barColors = rows.map((row) =>
-        Number(row.profit) < 0 ? 'rgba(245, 54, 92, 0.85)' : 'rgba(45, 206, 137, 0.85)'
+        Number(row.profit) < 0 ? 'rgba(245, 54, 92, 0.75)' : 'rgba(45, 206, 137, 0.72)'
       );
 
       return new Chart(ctx, {
@@ -31,10 +33,10 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
               label: 'Profit',
               data: rows.map((row) => Number(row.profit) || 0),
               backgroundColor: barColors,
-              borderColor: barColors.map((c) => c.replace('0.85', '1')),
-              borderWidth: 1,
-              borderRadius: 6,
-              maxBarThickness: 56,
+              borderColor: barColors.map((c) => c.replace(/0\.\d+/, '1')),
+              borderWidth: 0,
+              borderRadius: 4,
+              maxBarThickness: 48,
               yAxisID: 'y',
               order: 2,
             },
@@ -45,12 +47,14 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
                 row.marginPct != null && Number.isFinite(row.marginPct) ? row.marginPct : null
               ),
               borderColor: '#5e72e4',
-              backgroundColor: '#5e72e4',
+              backgroundColor: '#fff',
               borderWidth: 2,
               tension: 0.35,
-              pointRadius: 4,
-              pointHoverRadius: 6,
+              pointRadius: 3.5,
+              pointHoverRadius: 5,
               pointBackgroundColor: '#5e72e4',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
               fill: false,
               yAxisID: 'y1',
               order: 1,
@@ -64,15 +68,27 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
           plugins: {
             legend: {
               position: 'bottom',
-              labels: { boxWidth: 10, font: { size: 11 }, usePointStyle: true },
+              labels: {
+                boxWidth: 8,
+                boxHeight: 8,
+                font: { size: 11 },
+                usePointStyle: true,
+                padding: 16,
+                color: '#67748e',
+              },
             },
             tooltip: {
+              backgroundColor: '#344767',
+              titleFont: { size: 12, weight: '600' },
+              bodyFont: { size: 11 },
+              padding: 10,
+              cornerRadius: 6,
               callbacks: {
                 title: (items) => {
                   const idx = items[0]?.dataIndex;
                   const row = rows[idx];
                   if (!row) return items[0]?.label ?? '';
-                  return `${row.label} (${row.startDate} → ${row.endDate})`;
+                  return row.label;
                 },
                 label: (ctx) => {
                   if (ctx.dataset.yAxisID === 'y1') {
@@ -96,23 +112,37 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
           scales: {
             x: {
               grid: { display: false },
-              ticks: { font: { size: 11 }, maxRotation: 0 },
+              ticks: { font: { size: 11 }, color: '#67748e', maxRotation: 0 },
+              border: { display: false },
             },
             y: {
               position: 'left',
-              grace: '12%',
-              grid: { borderDash: [4, 4] },
+              grace: '10%',
+              grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+              border: { display: false },
               ticks: {
                 font: { size: 10 },
-                callback: (v) => formatCurrencyAccounting(Number(v)),
+                color: '#8392ab',
+                maxTicksLimit: 5,
+                callback: (v) => {
+                  const n = Number(v);
+                  if (!Number.isFinite(n)) return '';
+                  const abs = Math.abs(n);
+                  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+                  if (abs >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+                  return String(Math.round(n));
+                },
               },
             },
             y1: {
               position: 'right',
-              grace: '12%',
+              grace: '10%',
               grid: { drawOnChartArea: false },
+              border: { display: false },
               ticks: {
                 font: { size: 10 },
+                color: '#8392ab',
+                maxTicksLimit: 5,
                 callback: (v) => `${Number(v).toFixed(0)}%`,
               },
             },
@@ -124,16 +154,21 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
   );
 
   return (
-    <div className="card h-100 border-0 shadow-none bg-white">
-      <div className="card-body">
-        <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-          <div>
-            <p className="text-xs text-muted mb-1">Last 3 months</p>
-            <h6 className="mb-0 text-sm fw-semibold">Monthly profit trend</h6>
+    <div className="card profit-report-panel h-100 mb-0">
+      <div className="card-body p-3">
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div className="d-flex align-items-center gap-2">
+            <div className="profit-report-kpi__icon bg-gradient-primary shadow-primary">
+              <NavIcon icon={FaChartColumn} className="text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-uppercase text-muted font-weight-bold mb-0">Trend</p>
+              <h6 className="mb-0 text-sm text-dark">Last 3 months</h6>
+            </div>
           </div>
-          <div className="text-end">
-            <p className="text-xxs text-muted mb-0 text-uppercase">3-mo total</p>
-            <p className="text-sm fw-bold mb-0">
+          <div className="profit-report-chart-total text-end">
+            <p className="text-xxs text-uppercase text-muted mb-0">3-month total</p>
+            <p className="text-sm font-weight-bold text-dark mb-0">
               {loading && !rows.length ? '…' : formatCurrencyAccounting(totalProfit)}
             </p>
           </div>
@@ -142,18 +177,18 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
         {loading && !rows.length ? (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 220 }}
+            style={{ minHeight: 200 }}
           >
             Loading chart…
           </div>
         ) : hasData ? (
-          <div className="profit-report-month-chart" style={{ minHeight: 220, height: 220 }}>
-            <canvas ref={canvasRef} height="220" />
+          <div className="profit-report-month-chart">
+            <canvas ref={canvasRef} height="200" />
           </div>
         ) : (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 220 }}
+            style={{ minHeight: 200 }}
           >
             No profit data for the last 3 months
           </div>

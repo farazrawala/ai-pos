@@ -31,7 +31,7 @@ import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import ProfitLast3MonthsChart from './ProfitLast3MonthsChart.jsx';
 import '../common/devApiSources.css';
-import { FaArrowsRotate, FaChartLine, FaFilter } from 'react-icons/fa6';
+import { FaArrowsRotate, FaCalendarDay, FaCalendarDays, FaChartLine, FaFilter } from 'react-icons/fa6';
 
 /** Display dates as day-month-year, e.g. 10-7-2026 */
 function formatDisplayDate(d) {
@@ -291,8 +291,7 @@ export default function ProfitReportView() {
                 Profit report
               </h5>
               <p className="text-sm text-muted mb-0">
-                Period totals merged from profit-by-order-item APIs; lines grouped by order with
-                per-order profit.
+                Track order profitability by period, with monthly trends and line-level detail.
               </p>
             </div>
             <button
@@ -383,46 +382,71 @@ export default function ProfitReportView() {
             </div>
           ) : null}
 
-          <div className="mb-4">
-            <h6 className="text-sm fw-semibold mb-1">At a glance</h6>
-            <p className="text-xs text-muted mb-3">
-              Calendar totals from <code>order_item/profit-by-order-item</code> (not affected by
-              filters below).
-            </p>
+          <div className="profit-report-glance mb-4">
+            <div className="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+              <div>
+                <h6 className="text-sm text-dark font-weight-bold mb-1">At a glance</h6>
+                <p className="text-xs text-muted mb-0">
+                  Live calendar totals — independent of the filters below.
+                </p>
+              </div>
+            </div>
             <div className="row g-3">
               <div className="col-md-6 col-xl-3">
-                <div className="profit-report-stat card h-100 border-0 bg-gradient-success text-white">
-                  <div className="card-body">
-                    <p className="text-xs text-white text-opacity-8 mb-1">Today&apos;s profit</p>
-                    <p className="profit-report-stat__value mb-0">
-                      {loading && quickStats == null
-                        ? '…'
-                        : todayProfit != null && Number.isFinite(todayProfit)
-                          ? fmt(todayProfit)
-                          : '—'}
-                    </p>
-                    <p className="text-xxs text-white text-opacity-8 mb-0 mt-1">
-                      {todayLabel}
-                      {todayMargin ? ` · ${todayMargin} margin` : ''}
-                    </p>
+                <div className="card profit-report-kpi h-100 mb-0">
+                  <div className="card-body p-3">
+                    <div className="d-flex justify-content-between align-items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                          Today&apos;s profit
+                        </p>
+                        <p className="profit-report-kpi__value mb-1">
+                          {loading && quickStats == null
+                            ? '…'
+                            : todayProfit != null && Number.isFinite(todayProfit)
+                              ? fmt(todayProfit)
+                              : '—'}
+                        </p>
+                        <p className="text-xxs text-muted mb-0">
+                          {todayLabel}
+                          {todayMargin ? (
+                            <span className="profit-report-kpi__badge ms-1">{todayMargin}</span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className="profit-report-kpi__icon bg-gradient-success shadow-success">
+                        <NavIcon icon={FaCalendarDay} className="text-white" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="col-md-6 col-xl-3">
-                <div className="profit-report-stat card h-100 border-0 bg-gradient-info text-white">
-                  <div className="card-body">
-                    <p className="text-xs text-white text-opacity-8 mb-1">This month profit</p>
-                    <p className="profit-report-stat__value mb-0">
-                      {loading && quickStats == null
-                        ? '…'
-                        : monthProfit != null && Number.isFinite(monthProfit)
-                          ? fmt(monthProfit)
-                          : '—'}
-                    </p>
-                    <p className="text-xxs text-white text-opacity-8 mb-0 mt-1">
-                      {monthLabel}
-                      {monthMargin ? ` · ${monthMargin} margin` : ''}
-                    </p>
+                <div className="card profit-report-kpi h-100 mb-0">
+                  <div className="card-body p-3">
+                    <div className="d-flex justify-content-between align-items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                          This month
+                        </p>
+                        <p className="profit-report-kpi__value mb-1">
+                          {loading && quickStats == null
+                            ? '…'
+                            : monthProfit != null && Number.isFinite(monthProfit)
+                              ? fmt(monthProfit)
+                              : '—'}
+                        </p>
+                        <p className="text-xxs text-muted mb-0">
+                          {monthLabel}
+                          {monthMargin ? (
+                            <span className="profit-report-kpi__badge ms-1">{monthMargin}</span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className="profit-report-kpi__icon bg-gradient-info shadow-info">
+                        <NavIcon icon={FaCalendarDays} className="text-white" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -447,65 +471,71 @@ export default function ProfitReportView() {
           {report ? (
             <>
               <div className="mb-2">
-                <h6 className="text-sm fw-semibold mb-1">Period summary (merged)</h6>
+                <h6 className="text-sm text-dark font-weight-bold mb-1">Period summary</h6>
                 <p className="text-xs text-muted mb-0">
-                  Total order profit from <code>order_item/profit-by-order-item</code>
-                  {report.orderPathProfit != null ? (
-                    <>
-                      {' '}
-                      and <code>order/profit-by-order-item</code>
-                      {report.profitsMatch ? ' (both match)' : ' (paths differ — see below)'}
-                    </>
-                  ) : null}
-                  . Uses date range and inventory-movement rules.
+                  Totals for the selected date range
+                  {report.orderPathProfit != null && !report.profitsMatch
+                    ? ' (sources differ — see note below)'
+                    : ''}
+                  .
                 </p>
               </div>
               <div className="row g-3 mb-4">
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100 border-0 bg-gradient-primary text-white">
-                    <div className="card-body">
-                      <p className="text-xs text-white text-opacity-8 mb-1">Total order profit</p>
-                      <p className="profit-report-stat__value mb-0">{fmt(report.profit)}</p>
+                  <div className="card profit-report-kpi h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                        Total order profit
+                      </p>
+                      <p className="profit-report-kpi__value text-primary mb-0">{fmt(report.profit)}</p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100">
-                    <div className="card-body">
-                      <p className="text-xs text-muted mb-1">Subtotal (sales)</p>
-                      <p className="profit-report-stat__value mb-0">{fmt(report.subtotal)}</p>
+                  <div className="card profit-report-kpi h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                        Subtotal (sales)
+                      </p>
+                      <p className="profit-report-kpi__value mb-0">{fmt(report.subtotal)}</p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100">
-                    <div className="card-body">
-                      <p className="text-xs text-muted mb-1">Line count</p>
-                      <p className="profit-report-stat__value mb-0">{report.lineCount}</p>
+                  <div className="card profit-report-kpi h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                        Line count
+                      </p>
+                      <p className="profit-report-kpi__value mb-0">{report.lineCount}</p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100">
-                    <div className="card-body">
-                      <p className="text-xs text-muted mb-1">Margin</p>
-                      <p className="profit-report-stat__value mb-0">{marginText}</p>
+                  <div className="card profit-report-kpi h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">Margin</p>
+                      <p className="profit-report-kpi__value mb-0">{marginText}</p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100 border border-dashed">
-                    <div className="card-body">
-                      <p className="text-xs text-muted mb-1">Orders on this page</p>
-                      <p className="profit-report-stat__value mb-0">{report.pageOrderCount ?? 0}</p>
+                  <div className="card profit-report-kpi profit-report-kpi--muted h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                        Orders on this page
+                      </p>
+                      <p className="profit-report-kpi__value mb-0">{report.pageOrderCount ?? 0}</p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="profit-report-stat card h-100 border border-dashed">
-                    <div className="card-body">
-                      <p className="text-xs text-muted mb-1">Page order profit</p>
-                      <p className="profit-report-stat__value mb-0">
+                  <div className="card profit-report-kpi profit-report-kpi--muted h-100 mb-0">
+                    <div className="card-body p-3">
+                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
+                        Page order profit
+                      </p>
+                      <p className="profit-report-kpi__value mb-0">
                         {fmt(report.pageOrderProfit ?? pageOrdersSummary.profit)}
                       </p>
                     </div>
@@ -514,16 +544,16 @@ export default function ProfitReportView() {
                 {report.orderPathProfit != null && !report.profitsMatch ? (
                   <div className="col-12">
                     <div className="alert alert-warning py-2 text-sm mb-0">
-                      Order path profit ({fmt(report.orderPathProfit)}) differs from order_item path
-                      ({fmt(report.profit)}). Period card uses order_item total.
+                      Alternate profit total ({fmt(report.orderPathProfit)}) differs from the primary
+                      total ({fmt(report.profit)}). Showing the primary total above.
                     </div>
                   </div>
                 ) : null}
               </div>
 
-              <div className="card border mb-4">
-                <div className="card-header py-2">
-                  <h6 className="mb-0 text-sm">Applied filters (summary API)</h6>
+              <div className="card profit-report-panel mb-4">
+                <div className="card-header py-2 bg-transparent">
+                  <h6 className="mb-0 text-sm text-dark font-weight-bold">Applied filters</h6>
                 </div>
                 <div className="card-body py-2">
                   <dl className="row mb-0 text-sm profit-report-meta">
@@ -557,12 +587,10 @@ export default function ProfitReportView() {
           ) : null}
 
           {orderProfitRows.length > 0 ? (
-            <div className="card border mb-4">
-              <div className="card-header py-2">
-                <h6 className="mb-0 text-sm">Profit by order (current page)</h6>
-                <p className="text-xs text-muted mb-0">
-                  Order totals merged from <code>order/get-order-by-order-item</code> line profits.
-                </p>
+            <div className="card profit-report-panel mb-4">
+              <div className="card-header py-2 bg-transparent">
+                <h6 className="mb-0 text-sm text-dark font-weight-bold">Profit by order</h6>
+                <p className="text-xs text-muted mb-0">Current page — click an order to open details.</p>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
@@ -639,12 +667,12 @@ export default function ProfitReportView() {
             </div>
           ) : null}
 
-          <div className="card border">
-            <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div className="card profit-report-panel">
+            <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 bg-transparent">
               <div>
-                <h6 className="mb-0 text-sm">Profit lines by order</h6>
+                <h6 className="mb-0 text-sm text-dark font-weight-bold">Profit lines by order</h6>
                 <p className="text-xs text-muted mb-0">
-                  Each order header shows merged order profit; rows below are line items.
+                  Order headers show merged profit; rows below are line items.
                 </p>
               </div>
               {pageLinesSummary ? (
