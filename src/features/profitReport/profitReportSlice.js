@@ -37,6 +37,7 @@ const profitReportSlice = createSlice({
   name: 'profitReport',
   initialState: {
     report: null,
+    quickStats: null,
     lines: [],
     orderProfitRows: [],
     orderGroups: [],
@@ -75,6 +76,7 @@ const profitReportSlice = createSlice({
         state.status = 'succeeded';
         state.linesStatus = 'succeeded';
         state.report = action.payload.report;
+        state.quickStats = action.payload.quickStats ?? null;
         state.lines = action.payload.lines ?? [];
         state.orderProfitRows = action.payload.orderProfitRows ?? [];
         state.orderGroups = action.payload.orderGroups ?? [];
@@ -88,6 +90,7 @@ const profitReportSlice = createSlice({
         state.error = action.payload || action.error?.message || 'Failed to load profit report';
         state.linesError = state.error;
         state.report = null;
+        state.quickStats = null;
         state.lines = [];
         state.orderProfitRows = [];
         state.orderGroups = [];

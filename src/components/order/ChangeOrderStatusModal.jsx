@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { updateOrderInvoiceRequest } from '../../features/orders/ordersAPI.js';
+import { updateOrderStatusRequest } from '../../features/orders/ordersAPI.js';
 
 /** Matches backend `order_status` enum. */
 export const OMS_ORDER_STATUS_OPTIONS = [
   'active',
   'placed',
   'confirmed',
+  'packed',
   'shipped',
   'delivered',
   'drafted',
@@ -78,9 +79,21 @@ export default function ChangeOrderStatusModal({
     setSaveError(null);
 
     try {
-      await updateOrderInvoiceRequest(orderId, { order_status: next });
+      const fromStatus = normalizeStatusValue(currentStatus);
+      const result = await updateOrderStatusRequest(orderId, {
+        order_status: next,
+        ...(fromStatus ? { from_status: fromStatus } : {}),
+      });
+      const savedStatus =
+        normalizeStatusValue(result?.data?.order?.order_status) || next;
       setSaveStatus('succeeded');
-      onSaved?.({ orderId, orderNo, orderStatus: next });
+      onSaved?.({
+        orderId,
+        orderNo,
+        orderStatus: savedStatus,
+        previousStatus: result?.data?.previous_status,
+        stockAction: result?.data?.stock_action,
+      });
       onClose?.();
     } catch (err) {
       setSaveStatus('failed');

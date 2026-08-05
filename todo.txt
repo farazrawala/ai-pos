@@ -93,7 +93,8 @@ order status sync to stores
 
 
 
-
-menus.
-Ticket generation.
-purchase order edit. QA.
+// 5 august.
+orders status => merge with beta logistics
+order edit , status update.
+address incomplete.
+Order hold, merge, duplicate, functionality. 

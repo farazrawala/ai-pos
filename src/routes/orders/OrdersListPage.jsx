@@ -1144,7 +1144,7 @@ export default function OrdersListPage({ config }) {
       sources.push({
         key: 'order-status',
         label: 'Update order status',
-        url: buildApiUrl('order/invoice-update/:orderId'),
+        url: buildApiUrl('order/update-status/:orderId'),
         status: statusModal.open ? 'loading' : 'pending',
         durationMs: null,
         error: null,

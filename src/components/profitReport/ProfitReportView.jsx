@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import moment from 'moment';
 import {
   loadProfitReport,
@@ -26,6 +27,7 @@ import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import ListDataTable from '../list/ListDataTable.jsx';
 import SearchableSelect from '../common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+import { posInvoiceRoutePath } from '../../config/appBase.js';
 import '../common/devApiSources.css';
 import { FaArrowsRotate, FaChartLine, FaFilter } from 'react-icons/fa6';
 
@@ -44,11 +46,30 @@ function defaultRange() {
 const productRowId = (p) => p?._id || p?.id || p?.product_id || '';
 const productRowName = (p) => p?.name || p?.product_name || 'Product';
 
+/** Link to POS invoice / order detail (opens in a new tab). */
+function OrderDetailLink({ orderId, orderNo, className = 'fw-semibold text-primary' }) {
+  const routeId = String(orderId || orderNo || '').trim();
+  const label = String(orderNo || orderId || '—').trim() || '—';
+  if (!routeId) return <span className={className}>{label}</span>;
+  return (
+    <Link
+      to={posInvoiceRoutePath(routeId)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${className} text-decoration-underline`}
+      title="Open order detail in new tab"
+    >
+      {label}
+    </Link>
+  );
+}
+
 export default function ProfitReportView() {
   useRequireModuleAccess('profit-report');
   const dispatch = useDispatch();
   const {
     report,
+    quickStats,
     lines,
     orderProfitRows,
     orderGroups,
@@ -242,6 +263,19 @@ export default function ProfitReportView() {
       ? `${pageLinesSummary.marginPct.toFixed(1)}%`
       : '—';
 
+  const todayProfit = quickStats?.today?.profit;
+  const monthProfit = quickStats?.month?.profit;
+  const todayMargin =
+    quickStats?.today?.marginPct != null && Number.isFinite(quickStats.today.marginPct)
+      ? `${quickStats.today.marginPct.toFixed(1)}%`
+      : null;
+  const monthMargin =
+    quickStats?.month?.marginPct != null && Number.isFinite(quickStats.month.marginPct)
+      ? `${quickStats.month.marginPct.toFixed(1)}%`
+      : null;
+  const monthLabel = moment().format('MMMM YYYY');
+  const todayLabel = formatDisplayDate(quickStats?.todayDate || moment().format('YYYY-MM-DD'));
+
   const apiParams = lastParams || params;
 
   return (
@@ -346,6 +380,52 @@ export default function ProfitReportView() {
               {error}
             </div>
           ) : null}
+
+          <div className="mb-4">
+            <h6 className="text-sm fw-semibold mb-1">At a glance</h6>
+            <p className="text-xs text-muted mb-3">
+              Calendar totals from <code>order_item/profit-by-order-item</code> (not affected by
+              filters below).
+            </p>
+            <div className="row g-3">
+              <div className="col-md-6 col-xl-3">
+                <div className="profit-report-stat card h-100 border-0 bg-gradient-success text-white">
+                  <div className="card-body">
+                    <p className="text-xs text-white text-opacity-8 mb-1">Today&apos;s profit</p>
+                    <p className="profit-report-stat__value mb-0">
+                      {loading && quickStats == null
+                        ? '…'
+                        : todayProfit != null && Number.isFinite(todayProfit)
+                          ? fmt(todayProfit)
+                          : '—'}
+                    </p>
+                    <p className="text-xxs text-white text-opacity-8 mb-0 mt-1">
+                      {todayLabel}
+                      {todayMargin ? ` · ${todayMargin} margin` : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-6 col-xl-3">
+                <div className="profit-report-stat card h-100 border-0 bg-gradient-info text-white">
+                  <div className="card-body">
+                    <p className="text-xs text-white text-opacity-8 mb-1">This month profit</p>
+                    <p className="profit-report-stat__value mb-0">
+                      {loading && quickStats == null
+                        ? '…'
+                        : monthProfit != null && Number.isFinite(monthProfit)
+                          ? fmt(monthProfit)
+                          : '—'}
+                    </p>
+                    <p className="text-xxs text-white text-opacity-8 mb-0 mt-1">
+                      {monthLabel}
+                      {monthMargin ? ` · ${monthMargin} margin` : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {loading && !report ? (
             <div className="text-center py-5 text-muted">
@@ -504,7 +584,9 @@ export default function ProfitReportView() {
                         return (
                           <tr key={order.orderId || order.orderNo}>
                             <td className="text-sm">
-                              <div className="fw-semibold">{order.orderNo}</div>
+                              <div>
+                                <OrderDetailLink orderId={order.orderId} orderNo={order.orderNo} />
+                              </div>
                               {order.orderId ? (
                                 <code className="text-xxs text-muted">{order.orderId}</code>
                               ) : null}
@@ -621,7 +703,13 @@ export default function ProfitReportView() {
                             <tr className="profit-report-order-row">
                               <td className="text-center text-sm text-muted">{lineOffset + 1}</td>
                               <td className="text-sm" colSpan={2}>
-                                <div className="fw-bold">{group.orderNo}</div>
+                                <div className="fw-bold">
+                                  <OrderDetailLink
+                                    orderId={group.orderId}
+                                    orderNo={group.orderNo}
+                                    className="fw-bold text-primary"
+                                  />
+                                </div>
                                 {group.orderId ? (
                                   <code className="text-xxs text-muted">{group.orderId}</code>
                                 ) : null}
@@ -690,6 +778,20 @@ export default function ProfitReportView() {
             <DevApiSourcesFooter
               className="mt-4"
               sources={[
+                {
+                  label: 'order_item/profit-by-order-item (today)',
+                  url: buildProfitByOrderItemUrl({
+                    startDate: moment().format('YYYY-MM-DD'),
+                    endDate: moment().format('YYYY-MM-DD'),
+                  }),
+                },
+                {
+                  label: 'order_item/profit-by-order-item (this month)',
+                  url: buildProfitByOrderItemUrl({
+                    startDate: moment().startOf('month').format('YYYY-MM-DD'),
+                    endDate: moment().format('YYYY-MM-DD'),
+                  }),
+                },
                 {
                   label: 'order_item/profit-by-order-item (summary)',
                   url: buildProfitByOrderItemUrl(apiParams),

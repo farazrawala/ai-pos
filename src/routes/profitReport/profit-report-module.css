@@ -22,6 +22,14 @@
   background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
 }
 
+.profit-report-page .bg-gradient-success {
+  background: linear-gradient(135deg, #2dce89 0%, #2dcecc 100%);
+}
+
+.profit-report-page .bg-gradient-info {
+  background: linear-gradient(135deg, #11cdef 0%, #1171ef 100%);
+}
+
 .profit-report-page .profit-report-lines-table th {
   font-weight: 600;
   color: #67748e;

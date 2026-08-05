@@ -864,6 +864,7 @@ export async function fetchSalesByCategoryRequest(params = {}) {
 }
 
 const ORDER_INVOICE_UPDATE_PATH = 'order/invoice-update';
+const ORDER_UPDATE_STATUS_PATH = 'order/update-status';
 
 /**
  * True if `o` looks like one **order** record, not an `order_item` line or a `product` subdoc.
@@ -1498,6 +1499,67 @@ export async function updateOrderInvoiceRequest(orderId, payload = {}) {
   } catch {
     return { success: true };
   }
+}
+
+/**
+ * PATCH `order/update-status/:orderId` — JSON body `{ order_status, from_status? }`.
+ * Optional `from_status` is an optimistic check (API returns 409 on mismatch).
+ * POST is also accepted by the backend; this client uses PATCH.
+ */
+export async function updateOrderStatusRequest(orderId, payload = {}) {
+  const id = String(orderId || '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+
+  const orderStatus = String(payload?.order_status ?? '').trim();
+  if (!orderStatus) {
+    throw new Error('order_status is required');
+  }
+
+  /** @type {{ order_status: string, from_status?: string }} */
+  const body = { order_status: orderStatus };
+  const fromStatus = String(payload?.from_status ?? '').trim();
+  if (fromStatus) {
+    body.from_status = fromStatus;
+  }
+
+  const response = await fetch(
+    `${BASE_URL}${ORDER_UPDATE_STATUS_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(
+      response.status === 409
+        ? message || 'Order status changed elsewhere. Refresh and try again.'
+        : message || 'Failed to update order status'
+    );
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to update order status';
+    throw new Error(msg);
+  }
+
+  return result;
 }
 
 /** True when `o` is an order line row (has `order_id` + line fields, not a full order header). */

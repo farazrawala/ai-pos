@@ -468,14 +468,44 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
   };
 }
 
+function formatDateYmd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Calendar today + current month totals (ignores report filters).
+ */
+export async function fetchProfitQuickStatsRequest() {
+  const now = new Date();
+  const today = formatDateYmd(now);
+  const monthStart = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), 1));
+
+  const [todayResult, monthResult] = await Promise.all([
+    fetchProfitByOrderItemRequest({ startDate: today, endDate: today }),
+    fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: today }),
+  ]);
+
+  return {
+    today: todayResult.report,
+    month: monthResult.report,
+    todayDate: today,
+    monthStart,
+    monthEnd: today,
+  };
+}
+
 /**
  * Load summary totals and paginated profit lines together.
  */
 export async function fetchProfitReportBundleRequest(params = {}) {
-  const [summaryResult, orderProfitResult, linesResult] = await Promise.all([
+  const [summaryResult, orderProfitResult, linesResult, quickStatsResult] = await Promise.all([
     fetchProfitByOrderItemRequest(params),
     fetchOrderProfitByOrderItemRequest(params),
     fetchOrdersWithProfitLinesRequest(params),
+    fetchProfitQuickStatsRequest().catch(() => null),
   ]);
 
   const mergedReport = mergeProfitSummaries(
@@ -486,6 +516,7 @@ export async function fetchProfitReportBundleRequest(params = {}) {
 
   return {
     report: mergedReport,
+    quickStats: quickStatsResult,
     summaryRaw: summaryResult.raw,
     orderProfitRaw: orderProfitResult.raw,
     lines: linesResult.lines,
