@@ -482,6 +482,83 @@ function formatDateYmd(d) {
   return `${y}-${m}-${day}`;
 }
 
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/**
+ * Calendar ranges for the last `count` months (oldest → newest).
+ * Current month ends today; prior months use the full calendar month.
+ */
+export function buildLastNMonthRanges(count = 3, now = new Date()) {
+  const ranges = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const isCurrent = i === 0;
+    const end = isCurrent
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+    ranges.push({
+      key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      label: `${MONTH_SHORT[start.getMonth()]} ${start.getFullYear()}`,
+      startDate: formatDateYmd(start),
+      endDate: formatDateYmd(end),
+      isCurrent,
+    });
+  }
+  return ranges;
+}
+
+/**
+ * Profit totals for each of the last N calendar months.
+ */
+export async function fetchProfitLastNMonthsRequest(count = 3) {
+  const ranges = buildLastNMonthRanges(count);
+  const results = await Promise.all(
+    ranges.map(async (range) => {
+      try {
+        const { report } = await fetchProfitByOrderItemRequest({
+          startDate: range.startDate,
+          endDate: range.endDate,
+        });
+        return {
+          ...range,
+          profit: parseProfitNumber(report?.profit),
+          subtotal: parseProfitNumber(report?.subtotal),
+          lineCount: Number(report?.lineCount) || 0,
+          marginPct:
+            report?.marginPct != null && Number.isFinite(report.marginPct)
+              ? report.marginPct
+              : report?.subtotal
+                ? (parseProfitNumber(report.profit) / parseProfitNumber(report.subtotal)) * 100
+                : null,
+        };
+      } catch {
+        return {
+          ...range,
+          profit: 0,
+          subtotal: 0,
+          lineCount: 0,
+          marginPct: null,
+          error: true,
+        };
+      }
+    })
+  );
+  return results;
+}
+
 /**
  * Calendar today + current month totals (ignores report filters).
  *
@@ -498,13 +575,14 @@ export async function fetchProfitQuickStatsRequest() {
   const tomorrow = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const isFirstOfMonth = now.getDate() === 1;
 
-  const [directTodayResult, monthResult, throughYesterdayResult] = await Promise.all([
+  const [directTodayResult, monthResult, throughYesterdayResult, last3Months] = await Promise.all([
     // Prefer next-day end so exclusive end-of-day backends still include all of today.
     fetchProfitByOrderItemRequest({ startDate: today, endDate: tomorrow }),
     fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: today }),
     isFirstOfMonth
       ? Promise.resolve(null)
       : fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: yesterday }),
+    fetchProfitLastNMonthsRequest(3),
   ]);
 
   const monthReport = monthResult.report;
@@ -543,12 +621,28 @@ export async function fetchProfitQuickStatsRequest() {
       }
     : directToday;
 
+  // Keep current-month bar aligned with the "this month" card when present.
+  const months = (Array.isArray(last3Months) ? last3Months : []).map((row) => {
+    if (!row?.isCurrent) return row;
+    return {
+      ...row,
+      profit: parseProfitNumber(monthReport?.profit),
+      subtotal: parseProfitNumber(monthReport?.subtotal),
+      lineCount: Number(monthReport?.lineCount) || 0,
+      marginPct:
+        monthReport?.marginPct != null && Number.isFinite(monthReport.marginPct)
+          ? monthReport.marginPct
+          : null,
+    };
+  });
+
   return {
     today: todayReport,
     month: monthReport,
     todayDate: today,
     monthStart,
     monthEnd: today,
+    last3Months: months,
   };
 }
 

@@ -12,6 +12,7 @@ import {
   buildProfitByOrderItemUrl,
   buildOrderProfitByOrderItemUrl,
   buildOrdersWithProfitLinesUrl,
+  buildLastNMonthRanges,
   groupProfitLinesByOrder,
 } from '../../features/profitReport/profitReportAPI.js';
 import {
@@ -28,6 +29,7 @@ import ListDataTable from '../list/ListDataTable.jsx';
 import SearchableSelect from '../common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
+import ProfitLast3MonthsChart from './ProfitLast3MonthsChart.jsx';
 import '../common/devApiSources.css';
 import { FaArrowsRotate, FaChartLine, FaFilter } from 'react-icons/fa6';
 
@@ -424,6 +426,12 @@ export default function ProfitReportView() {
                   </div>
                 </div>
               </div>
+              <div className="col-12 col-xl-6">
+                <ProfitLast3MonthsChart
+                  months={quickStats?.last3Months}
+                  loading={loading && quickStats == null}
+                />
+              </div>
             </div>
           </div>
 
@@ -792,6 +800,13 @@ export default function ProfitReportView() {
                     endDate: moment().format('YYYY-MM-DD'),
                   }),
                 },
+                ...buildLastNMonthRanges(3).map((range) => ({
+                  label: `order_item/profit-by-order-item (${range.label})`,
+                  url: buildProfitByOrderItemUrl({
+                    startDate: range.startDate,
+                    endDate: range.endDate,
+                  }),
+                })),
                 {
                   label: 'order_item/profit-by-order-item (summary)',
                   url: buildProfitByOrderItemUrl(apiParams),

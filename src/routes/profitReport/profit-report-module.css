@@ -69,3 +69,12 @@
 .profit-report-page .border-dashed {
   border-style: dashed !important;
 }
+
+.profit-report-page .profit-report-month-chart {
+  position: relative;
+  width: 100%;
+}
+
+.profit-report-page .profit-report-month-chart canvas {
+  max-width: 100%;
+}
