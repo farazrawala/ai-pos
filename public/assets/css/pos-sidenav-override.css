@@ -213,3 +213,12 @@
     overflow: visible;
   }
 }
+
+/* Active sidenav item — reverse icon to white (react-icons SVG, not Argon <i>). */
+.sidenav .navbar-nav > .nav-item > .nav-link.active .icon svg,
+.sidenav .navbar-nav > .nav-item > .nav-link.active .icon .nav-icon,
+.sidenav .navbar-nav > .nav-item > .nav-link.active .icon .text-dark {
+  color: #fff !important;
+  fill: currentColor;
+  opacity: 1 !important;
+}

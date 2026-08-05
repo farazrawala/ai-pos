@@ -1,0 +1,316 @@
+/* Global color + dark theme overrides. Brand color comes from --app-theme* on :root. */
+
+:root {
+  --app-theme: #5e72e4;
+  --app-theme-rgb: 94, 114, 228;
+  --app-theme-gradient-end: #825ee4;
+  --app-header: #344767;
+  --app-header-gradient-end: #344767;
+}
+
+:root,
+[data-bs-theme='light'] {
+  --bs-primary: var(--app-theme);
+  --bs-primary-rgb: var(--app-theme-rgb);
+  --bs-link-color: var(--app-theme);
+  --bs-link-color-rgb: var(--app-theme-rgb);
+  --bs-link-hover-color: color-mix(in srgb, var(--app-theme) 78%, #000);
+}
+
+/* Primary utilities / components */
+.bg-primary {
+  background-color: var(--app-theme) !important;
+}
+
+.text-primary {
+  color: var(--app-theme) !important;
+}
+
+.border-primary {
+  border-color: var(--app-theme) !important;
+}
+
+.bg-gradient-primary,
+.btn.bg-gradient-primary {
+  background-image: linear-gradient(
+    310deg,
+    var(--app-theme) 0%,
+    var(--app-theme-gradient-end) 100%
+  ) !important;
+}
+
+.btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--app-theme);
+  --bs-btn-border-color: var(--app-theme);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: var(--app-theme);
+  --bs-btn-disabled-border-color: var(--app-theme);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--app-theme) 88%, #fff);
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--app-theme) 88%, #fff);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: color-mix(in srgb, var(--app-theme) 82%, #fff);
+  --bs-btn-active-border-color: color-mix(in srgb, var(--app-theme) 88%, #fff);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--app-theme);
+  --bs-btn-border-color: var(--app-theme);
+  --bs-btn-hover-bg: var(--app-theme);
+  --bs-btn-hover-border-color: var(--app-theme);
+  --bs-btn-active-bg: var(--app-theme);
+  --bs-btn-active-border-color: var(--app-theme);
+  --bs-btn-disabled-color: var(--app-theme);
+  --bs-btn-disabled-border-color: var(--app-theme);
+}
+
+.form-check-input:checked {
+  background-color: var(--app-theme);
+  border-color: var(--app-theme);
+  background-image: linear-gradient(
+    310deg,
+    var(--app-theme) 0%,
+    var(--app-theme-gradient-end) 100%
+  );
+}
+
+.form-check-input:checked[type='checkbox'],
+.form-check-input:checked[type='radio'] {
+  --bs-form-check-bg-image: linear-gradient(
+    310deg,
+    var(--app-theme) 0%,
+    var(--app-theme-gradient-end) 100%
+  );
+}
+
+.form-check-input[type='checkbox']:indeterminate {
+  background-color: var(--app-theme);
+  border-color: var(--app-theme);
+}
+
+.page-item.active .page-link,
+.page-link.active {
+  background-color: var(--app-theme);
+  border-color: var(--app-theme);
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+  background-color: var(--app-theme);
+}
+
+.progress-bar {
+  background-color: var(--app-theme);
+}
+
+.list-group-item.active {
+  background-color: var(--app-theme);
+  border-color: var(--app-theme);
+}
+
+/* Top header band behind navbar */
+.app-header-band {
+  background-image: linear-gradient(
+    310deg,
+    var(--app-header) 0%,
+    var(--app-header-gradient-end) 100%
+  ) !important;
+  background-color: var(--app-header) !important;
+}
+
+/* Sidenav active item always follows --app-theme (supports custom colors). */
+.sidenav .navbar-nav > .nav-item > .nav-link.active {
+  background-image: linear-gradient(
+    310deg,
+    var(--app-theme) 0%,
+    var(--app-theme-gradient-end) 100%
+  ) !important;
+}
+
+.sidenav .navbar-nav > .nav-item > .nav-link.active .nav-link-text {
+  color: #fff !important;
+}
+
+body.dark-version .app-header-band {
+  background-image: linear-gradient(
+    310deg,
+    color-mix(in srgb, var(--app-header) 72%, #0b1220) 0%,
+    color-mix(in srgb, var(--app-header-gradient-end) 55%, #0b1220) 100%
+  ) !important;
+}
+
+/* Theme settings panel */
+.theme-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background: rgba(15, 23, 42, 0.35);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.theme-panel {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1050;
+  width: min(20rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+body.dark-version .theme-panel {
+  background: #1e293b;
+  color: #e2e8f0;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+}
+
+.theme-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.theme-panel-body {
+  padding: 1rem 1.1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.theme-panel-section-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #8392ab;
+  margin-bottom: 0.65rem;
+}
+
+body.dark-version .theme-panel-section-title {
+  color: #94a3b8;
+}
+
+.theme-color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.theme-color-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 0.75rem;
+  padding: 0.45rem 0.25rem;
+  cursor: pointer;
+  color: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.theme-color-btn:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.theme-color-btn.is-active {
+  border-color: color-mix(in srgb, var(--app-theme) 55%, transparent);
+  background: color-mix(in srgb, var(--app-theme) 12%, transparent);
+}
+
+.theme-color-swatch {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35), 0 4px 10px rgba(15, 23, 42, 0.18);
+}
+
+.theme-color-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.theme-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.theme-mode-btn {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.theme-mode-btn.is-active {
+  border-color: var(--app-theme);
+  background: var(--app-theme);
+  color: #fff;
+}
+
+.theme-panel-hint {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: #8392ab;
+  line-height: 1.4;
+}
+
+body.dark-version .theme-panel-hint {
+  color: #94a3b8;
+}
+
+/* Soft dark polish for common shells */
+body.dark-version {
+  background-color: #0f172a !important;
+}
+
+body.dark-version.bg-gray-100,
+body.dark-version .g-sidenav-show.bg-gray-100 {
+  background-color: #0f172a !important;
+}
+
+body.dark-version .sidenav.bg-white {
+  background-color: #1e293b !important;
+}
+
+body.dark-version .card {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+body.dark-version .card .text-dark,
+body.dark-version .sidenav .navbar-brand .font-weight-bold,
+body.dark-version .sidenav .nav-link-text {
+  color: #e2e8f0 !important;
+}
+
+body.dark-version .dropdown-menu {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+body.dark-version .dropdown-item {
+  color: #e2e8f0;
+}
+
+body.dark-version .dropdown-item:hover,
+body.dark-version .dropdown-item:focus {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: #fff;
+}

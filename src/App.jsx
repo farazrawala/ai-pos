@@ -121,6 +121,8 @@ import AdminTicketList from './routes/support/admin/AdminTicketList.jsx';
 import AdminTicketDetails from './routes/support/admin/AdminTicketDetails.jsx';
 import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
+import ThemePanel from './components/ThemePanel.jsx';
 
 /** Union of role lists, de-duplicated case-insensitively, preserving order. */
 function unionRoles(...lists) {
@@ -188,7 +190,7 @@ const App = () => {
   // Don't show sidebar/header on signin/signup, or on API workflow when logged out (public tool).
   if (hideHeader) {
     return (
-      <>
+      <ThemeProvider>
         <Loader />
         <Routes>
           <Route path="/categories" element={<Category />} />
@@ -329,14 +331,16 @@ const App = () => {
             element={isAuthenticated ? <Navigate to="/" replace /> : <SignUp />}
           />
         </Routes>
-      </>
+      </ThemeProvider>
     );
   }
 
   return (
-    <SidenavProvider>
-      <AuthenticatedLayout isAuthenticated={isAuthenticated} />
-    </SidenavProvider>
+    <ThemeProvider>
+      <SidenavProvider>
+        <AuthenticatedLayout isAuthenticated={isAuthenticated} />
+      </SidenavProvider>
+    </ThemeProvider>
   );
 };
 
@@ -346,8 +350,9 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
   return (
     <div className={layoutClassName}>
       <Loader />
-      <div className="min-height-300 bg-dark position-absolute w-100"></div>
+      <div className="min-height-300 app-header-band position-absolute w-100" />
       <Sidebar />
+      <ThemePanel />
       <main className="main-content position-relative border-radius-lg">
         <Header />
         <Routes>

@@ -1,8 +1,9 @@
 /* POS — Argon-aligned professional layout */
 
 .pos-page {
-  --pos-primary: #5e72e4;
-  --pos-primary-soft: #f8f9fe;
+  --pos-primary: var(--app-theme, #5e72e4);
+  --pos-primary-rgb: var(--app-theme-rgb, 94, 114, 228);
+  --pos-primary-soft: color-mix(in srgb, var(--pos-primary) 8%, #fff);
   --pos-border: #e9ecef;
   --pos-muted: #67748e;
   --pos-ink: #344767;
@@ -86,12 +87,12 @@
 
 .pos-page .pos-toolbar-btn--accent {
   border-color: rgba(165, 180, 252, 0.45);
-  background: rgba(94, 114, 228, 0.28);
+  background: rgba(var(--pos-primary-rgb), 0.28);
   color: #e0e7ff;
 }
 
 .pos-page .pos-toolbar-btn--accent:hover:not(:disabled) {
-  background: rgba(94, 114, 228, 0.42);
+  background: rgba(var(--pos-primary-rgb), 0.42);
   border-color: rgba(199, 210, 254, 0.55);
   color: #fff;
 }
@@ -126,7 +127,7 @@
 .pos-layout-settings__range {
   width: 100%;
   margin: 0 0 0.45rem;
-  accent-color: #5e72e4;
+  accent-color: var(--pos-primary);
   cursor: pointer;
 }
 
@@ -242,7 +243,7 @@
 
 .pos-page .pos-page-header .pos-offline-status-badge--syncing {
   color: #c7d2fe;
-  background: rgba(94, 114, 228, 0.28);
+  background: rgba(var(--pos-primary-rgb), 0.28);
   border-color: rgba(165, 180, 252, 0.4);
 }
 
@@ -355,8 +356,8 @@
 }
 
 .pos-page .pos-products-toolbar__search:focus-within {
-  border-color: rgba(94, 114, 228, 0.5);
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.5);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.12);
 }
 
 .pos-page .pos-products-toolbar__icon {
@@ -432,8 +433,8 @@
 
 .pos-page .pos-products-toolbar__field .form-select:focus {
   outline: 0;
-  border-color: rgba(94, 114, 228, 0.5);
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.5);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.12);
 }
 
 .pos-page .pos-products-toolbar__field-error {
@@ -447,8 +448,8 @@
 
 .pos-page .pos-products-toolbar__field select:focus {
   outline: 0;
-  border-color: rgba(94, 114, 228, 0.5);
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.5);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.12);
 }
 
 .pos-page .pos-products-toolbar__check {
@@ -487,7 +488,7 @@
   font-size: 0.8125rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  box-shadow: 0 0.25rem 0.65rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0.25rem 0.65rem rgba(var(--pos-primary-rgb), 0.28);
   transition:
     background-color 0.15s ease,
     box-shadow 0.15s ease,
@@ -495,9 +496,9 @@
 }
 
 .pos-page .pos-scan-btn:hover {
-  background: #4c63d2;
+  background: color-mix(in srgb, var(--pos-primary) 82%, #000);
   color: #fff;
-  box-shadow: 0 0.35rem 0.85rem rgba(94, 114, 228, 0.34);
+  box-shadow: 0 0.35rem 0.85rem rgba(var(--pos-primary-rgb), 0.34);
 }
 
 .pos-page .pos-scan-btn:active {
@@ -506,7 +507,7 @@
 
 .pos-page .pos-scan-btn:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.28);
 }
 
 .pos-page .pos-panel-header__actions {
@@ -554,7 +555,7 @@
 
 .pos-page .pos-voice-btn:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.28);
 }
 
 .pos-page .pos-voice-btn.is-listening {
@@ -640,8 +641,8 @@
   gap: 0.25rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgba(94, 114, 228, 0.1);
-  border: 1px solid rgba(94, 114, 228, 0.16);
+  background: rgba(var(--pos-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--pos-primary-rgb), 0.16);
   color: var(--pos-primary);
   line-height: 1.2;
 }
@@ -712,8 +713,8 @@
 }
 
 .pos-page .pos-cart-toolbar__search:focus-within {
-  border-color: rgba(94, 114, 228, 0.45);
-  box-shadow: 0 0 0 0.12rem rgba(94, 114, 228, 0.16);
+  border-color: rgba(var(--pos-primary-rgb), 0.45);
+  box-shadow: 0 0 0 0.12rem rgba(var(--pos-primary-rgb), 0.16);
 }
 
 .pos-page .pos-cart-toolbar__actions {
@@ -768,7 +769,7 @@
 
 .pos-page .pos-segment__btn:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.12rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0 0 0.12rem rgba(var(--pos-primary-rgb), 0.28);
 }
 
 .pos-page .pos-toolbar-action {
@@ -804,7 +805,7 @@
 
 .pos-page .pos-toolbar-action:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.12rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0 0 0.12rem rgba(var(--pos-primary-rgb), 0.28);
 }
 
 .pos-page .pos-toolbar-action:disabled {
@@ -832,7 +833,7 @@
   color: var(--pos-muted);
   padding: 0.5rem 0.75rem;
   background: var(--pos-primary-soft);
-  border: 1px solid rgba(94, 114, 228, 0.12);
+  border: 1px solid rgba(var(--pos-primary-rgb), 0.12);
   border-radius: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -850,8 +851,8 @@
 }
 
 .pos-page .pos-add-customer-btn:hover {
-  background: #4c63d2;
-  border-color: #4c63d2;
+  background: color-mix(in srgb, var(--pos-primary) 82%, #000);
+  border-color: color-mix(in srgb, var(--pos-primary) 82%, #000);
   color: #fff;
 }
 
@@ -1137,8 +1138,8 @@
 }
 
 .pos-page .pos-datetime .form-control:focus {
-  border-color: rgba(94, 114, 228, 0.45);
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.45);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.12);
 }
 
 .pos-page .pos-datetime .form-control::-webkit-calendar-picker-indicator {
@@ -1155,7 +1156,7 @@
   margin: 0;
   padding: 0.3rem 0.55rem;
   border-radius: 0.4rem;
-  border: 1px solid rgba(94, 114, 228, 0.25);
+  border: 1px solid rgba(var(--pos-primary-rgb), 0.25);
   background: #fff;
   color: var(--pos-primary);
   font-size: 0.6875rem;
@@ -1178,7 +1179,7 @@
 
 .pos-page .pos-datetime__now:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.2);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.2);
 }
 
 .pos-page .pos-quick-actions .btn {
@@ -1201,8 +1202,8 @@
 
 .pos-page .pos-search-bar .form-control:focus,
 .pos-page .pos-search-bar .form-select:focus {
-  border-color: rgba(94, 114, 228, 0.45);
-  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.45);
+  box-shadow: 0 0 0 0.15rem rgba(var(--pos-primary-rgb), 0.12);
 }
 
 .pos-page .pos-product-grid {
@@ -1273,8 +1274,8 @@
 }
 
 .pos-page .pos-product-card:hover {
-  border-color: rgba(94, 114, 228, 0.35);
-  box-shadow: 0 0.35rem 1rem rgba(94, 114, 228, 0.12);
+  border-color: rgba(var(--pos-primary-rgb), 0.35);
+  box-shadow: 0 0.35rem 1rem rgba(var(--pos-primary-rgb), 0.12);
   transform: translateY(-1px);
 }
 
@@ -1336,13 +1337,13 @@
 }
 
 .pos-page .pos-product-edit-btn:hover {
-  background: rgba(94, 114, 228, 0.1);
+  background: rgba(var(--pos-primary-rgb), 0.1);
   color: var(--pos-primary);
 }
 
 .pos-page .pos-product-edit-btn:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 0.12rem rgba(94, 114, 228, 0.28);
+  box-shadow: 0 0 0 0.12rem rgba(var(--pos-primary-rgb), 0.28);
 }
 
 .pos-page .pos-footer-actions {
@@ -1398,8 +1399,8 @@
 }
 
 .pos-page .pos-footer-actions .btn-card:hover {
-  background: #4c63d2;
-  border-color: #4c63d2;
+  background: color-mix(in srgb, var(--pos-primary) 82%, #000);
+  border-color: color-mix(in srgb, var(--pos-primary) 82%, #000);
   color: #fff;
 }
 
@@ -1413,8 +1414,9 @@
 
 /* Draft orders modal */
 .pos-drafts-modal {
-  --pos-primary: #5e72e4;
-  --pos-primary-soft: #f8f9fe;
+  --pos-primary: var(--app-theme, #5e72e4);
+  --pos-primary-rgb: var(--app-theme-rgb, 94, 114, 228);
+  --pos-primary-soft: color-mix(in srgb, var(--pos-primary) 8%, #fff);
   --pos-border: #e9ecef;
   --pos-muted: #67748e;
   --pos-ink: #344767;
@@ -1492,12 +1494,12 @@
 }
 
 .pos-drafts-item:hover {
-  border-color: rgba(94, 114, 228, 0.35);
+  border-color: rgba(var(--pos-primary-rgb), 0.35);
   box-shadow: 0 0.25rem 0.75rem rgba(52, 71, 103, 0.06);
 }
 
 .pos-drafts-item--active {
-  border-color: rgba(94, 114, 228, 0.45);
+  border-color: rgba(var(--pos-primary-rgb), 0.45);
   background: var(--pos-primary-soft);
 }
 
@@ -1532,7 +1534,7 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--pos-primary);
-  background: rgba(94, 114, 228, 0.12);
+  background: rgba(var(--pos-primary-rgb), 0.12);
   border-radius: 999px;
   padding: 0.2rem 0.5rem;
 }
@@ -1582,8 +1584,8 @@
 }
 
 .pos-drafts-item__load:hover:not(:disabled) {
-  background: #4c63d2;
-  border-color: #4c63d2;
+  background: color-mix(in srgb, var(--pos-primary) 82%, #000);
+  border-color: color-mix(in srgb, var(--pos-primary) 82%, #000);
   color: #fff;
 }
 

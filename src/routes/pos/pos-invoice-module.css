@@ -5,6 +5,8 @@
   --inv-muted: #67748e;
   --inv-ink: #344767;
   --inv-surface: #f8f9fa;
+  --inv-accent: var(--app-theme, #5e72e4);
+  --inv-accent-rgb: var(--app-theme-rgb, 94, 114, 228);
   width: 100%;
   max-width: 100%;
 }
@@ -29,7 +31,7 @@
 }
 
 .pos-invoice-page .pos-inv-back:hover {
-  color: #5e72e4;
+  color: var(--inv-accent);
 }
 
 .pos-invoice-page .pos-inv-header-title {
@@ -49,8 +51,8 @@
 .pos-invoice-page .pos-inv-ref-badge {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #5e72e4;
-  background: rgba(94, 114, 228, 0.1);
+  color: var(--inv-accent);
+  background: rgba(var(--inv-accent-rgb), 0.1);
   border-radius: 0.375rem;
   padding: 0.25rem 0.6rem;
 }
@@ -121,7 +123,7 @@
   flex-shrink: 0;
   font-weight: 700;
   font-size: 1.25rem;
-  color: #5e72e4;
+  color: var(--inv-accent);
 }
 
 .pos-invoice-page .pos-inv-company-name {
@@ -206,8 +208,8 @@
 }
 
 .pos-invoice-page .pos-inv-add-customer-btn {
-  background: #5e72e4;
-  border-color: #5e72e4;
+  background: var(--inv-accent);
+  border-color: var(--inv-accent);
   color: #fff;
   font-weight: 600;
   white-space: nowrap;
@@ -381,7 +383,7 @@
 
 .pos-invoice-page .pos-inv-summary-total span:last-child {
   font-size: 1rem;
-  color: #5e72e4;
+  color: var(--inv-accent);
 }
 
 .pos-invoice-page .pos-inv-payment-made span:last-child {

@@ -17,6 +17,8 @@ import { selectCompany, selectCompanyId, setCompany } from '../features/user/use
 import { usePermissions } from '../hooks/usePermissions.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { getColorTheme } from '../config/themes.js';
 
 function childRouteActive(pathname, children) {
   return children.some(({ to, end }) => {
@@ -29,6 +31,8 @@ const Sidebar = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { close: closeSidenav, mobileMenuOpen } = useSidenav();
+  const { colorId } = useTheme();
+  const sidenavColor = getColorTheme(colorId).sidenavColor || 'primary';
   const { isAdmin, canView } = usePermissions();
   const company = useSelector(selectCompany);
   const companyId = useSelector(selectCompanyId);
@@ -119,6 +123,7 @@ const Sidebar = () => {
       <aside
         className="sidenav bg-white navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-4"
         id="sidenav-main"
+        data-color={sidenavColor}
       >
         <div className="sidenav-header">
           <button

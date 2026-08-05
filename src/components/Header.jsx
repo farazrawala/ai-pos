@@ -18,6 +18,7 @@ import ClearCompanyCacheButton from './company/ClearCompanyCacheButton.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 import { clearOfflineDb } from '../offline/db.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import { APP_VERSION, APP_BUILT_AT } from '../config/appVersion.js';
 
 const Header = () => {
@@ -27,6 +28,7 @@ const Header = () => {
   const { name, user } = useSelector((state) => state.user);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const { toggle: toggleSidenav } = useSidenav();
+  const { togglePanel } = useTheme();
   const [cacheNotice, setCacheNotice] = useState(null);
 
   const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
@@ -163,13 +165,22 @@ const Header = () => {
               </li>
             )}
             <li className="nav-item px-3 d-flex align-items-center">
-              <a href="javascript:;" className="nav-link text-white p-0">
+              <button
+                type="button"
+                className="nav-link text-white p-0 border-0 bg-transparent"
+                aria-label="Theme settings"
+                title="Theme settings"
+                onClick={(e) => {
+                  e.preventDefault();
+                  togglePanel();
+                }}
+              >
                 <NavIcon
                   icon={FaGear}
                   className="fixed-plugin-button-nav cursor-pointer text-white"
                   size={18}
                 />
-              </a>
+              </button>
             </li>
             <li className="nav-item dropdown pe-2 d-flex align-items-center">
               <a

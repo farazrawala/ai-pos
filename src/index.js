@@ -10,6 +10,7 @@ import App from './App.jsx';
 import store from './store/index.js';
 import { ROUTER_BASENAME } from './config/appBase.js';
 import './styles.css';
+import './styles/app-themes.css';
 
 if (typeof window !== 'undefined') {
   import('./offline/syncOrders.js')

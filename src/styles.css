@@ -310,16 +310,20 @@ body {
 }
 
 .list-pagination-btn:hover:not(:disabled):not(.is-active) {
-  border-color: #5e72e4;
-  color: #5e72e4;
-  background: #f8f9fe;
+  border-color: var(--app-theme);
+  color: var(--app-theme);
+  background: color-mix(in srgb, var(--app-theme) 8%, #fff);
 }
 
 .list-pagination-btn.is-active {
-  background: linear-gradient(310deg, #5e72e4 0%, #825ee4 100%);
+  background: linear-gradient(
+    310deg,
+    var(--app-theme) 0%,
+    var(--app-theme-gradient-end) 100%
+  );
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 7px -1px rgba(94, 114, 228, 0.4);
+  box-shadow: 0 4px 7px -1px rgba(var(--app-theme-rgb), 0.4);
 }
 
 .list-pagination-btn:disabled {
@@ -1173,7 +1177,7 @@ body {
 }
 
 .column-visibility-option.is-checked {
-  color: #5e72e4;
+  color: var(--app-theme);
   font-weight: 600;
 }
 
@@ -1191,8 +1195,8 @@ body {
 }
 
 .column-visibility-option.is-checked .column-visibility-check {
-  background: #5e72e4;
-  border-color: #5e72e4;
+  background: var(--app-theme);
+  border-color: var(--app-theme);
 }
 
 .column-visibility-label {

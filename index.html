@@ -59,6 +59,56 @@
     <link href="%BASE_URL%assets/css/pos-sidenav-override.css" rel="stylesheet" />
   </head>
   <body class="bg-gray-100">
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('app-theme');
+          if (!raw) return;
+          var t = JSON.parse(raw);
+          var map = {
+            default: ['#5e72e4', '94, 114, 228', '#825ee4', '#344767', '#344767'],
+            primary: ['#5e72e4', '94, 114, 228', '#825ee4', '#5e72e4', '#825ee4'],
+            violet: ['#7c3aed', '124, 58, 237', '#a78bfa', '#7c3aed', '#a78bfa'],
+            grape: ['#6d28d9', '109, 40, 217', '#c084fc', '#6d28d9', '#c084fc'],
+            fuchsia: ['#d946ef', '217, 70, 239', '#f0abfc', '#d946ef', '#f0abfc'],
+            rose: ['#f5365c', '245, 54, 92', '#f56036', '#f5365c', '#f56036'],
+            crimson: ['#dc2626', '220, 38, 38', '#f87171', '#dc2626', '#f87171'],
+            orange: ['#fb6340', '251, 99, 64', '#fbb140', '#fb6340', '#fbb140'],
+            amber: ['#f59e0b', '245, 158, 11', '#fbbf24', '#f59e0b', '#fbbf24'],
+            lime: ['#84cc16', '132, 204, 22', '#bef264', '#84cc16', '#bef264'],
+            green: ['#2dce89', '45, 206, 137', '#2dcecc', '#2dce89', '#2dcecc'],
+            forest: ['#15803d', '21, 128, 61', '#4ade80', '#15803d', '#4ade80'],
+            teal: ['#14b8a6', '20, 184, 166', '#5eead4', '#14b8a6', '#5eead4'],
+            cyan: ['#11cdef', '17, 205, 239', '#1171ef', '#11cdef', '#1171ef'],
+            sky: ['#0ea5e9', '14, 165, 233', '#7dd3fc', '#0ea5e9', '#7dd3fc'],
+            navy: ['#344767', '52, 71, 103', '#212229', '#344767', '#212229'],
+            slate: ['#475569', '71, 85, 105', '#94a3b8', '#475569', '#94a3b8'],
+            midnight: ['#1e3a5f', '30, 58, 95', '#3b82f6', '#1e3a5f', '#3b82f6'],
+            /* legacy ids */
+            success: ['#2dce89', '45, 206, 137', '#2dcecc', '#2dce89', '#2dcecc'],
+            info: ['#11cdef', '17, 205, 239', '#1171ef', '#11cdef', '#1171ef'],
+            warning: ['#fb6340', '251, 99, 64', '#fbb140', '#fb6340', '#fbb140'],
+            danger: ['#f5365c', '245, 54, 92', '#f56036', '#f5365c', '#f56036'],
+            dark: ['#344767', '52, 71, 103', '#212229', '#344767', '#212229'],
+          };
+          var colorId = t && t.colorId && map[t.colorId] ? t.colorId : 'default';
+          var c = map[colorId];
+          var root = document.documentElement;
+          root.style.setProperty('--app-theme', c[0]);
+          root.style.setProperty('--app-theme-rgb', c[1]);
+          root.style.setProperty('--app-theme-gradient-end', c[2]);
+          root.style.setProperty('--app-header', c[3]);
+          root.style.setProperty('--app-header-gradient-end', c[4]);
+          root.setAttribute('data-theme-color', colorId);
+          if (t && t.mode === 'dark') {
+            root.classList.add('dark');
+            document.body.classList.add('dark-version');
+          }
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', c[3]);
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/index.js"></script>
     <!-- Core JS Files -->
