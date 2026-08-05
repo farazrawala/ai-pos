@@ -51,7 +51,11 @@ function appendListParams(query, params = {}) {
 
 export function parseProfitNumber(raw) {
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -86,7 +90,9 @@ export function normalizeProfitByOrderItemPayload(result) {
   if (!result || typeof result !== 'object') return null;
 
   const profit = parseProfitNumber(result.profit ?? result.total_profit ?? result.totalProfit);
-  const subtotal = parseProfitNumber(result.subtotal ?? result.total_subtotal ?? result.totalSubtotal);
+  const subtotal = parseProfitNumber(
+    result.subtotal ?? result.total_subtotal ?? result.totalSubtotal
+  );
   const lineCountRaw = result.line_count ?? result.lineCount;
   const lineCount =
     typeof lineCountRaw === 'number' && Number.isFinite(lineCountRaw)
@@ -122,7 +128,7 @@ export function normalizeProfitLineItem(item, order) {
   const product = item.product_id ?? item.productId;
   const productName =
     (typeof product === 'object' && product != null
-      ? product.product_name ?? product.name ?? product.title
+      ? (product.product_name ?? product.name ?? product.title)
       : null) ??
     item.name ??
     item.product_name ??
@@ -142,8 +148,8 @@ export function normalizeProfitLineItem(item, order) {
 
   const productId =
     typeof product === 'object' && product != null
-      ? product._id ?? product.id
-      : item.product_id ?? item.productId ?? null;
+      ? (product._id ?? product.id)
+      : (item.product_id ?? item.productId ?? null);
 
   return {
     lineId: item._id ?? item.id ?? null,
@@ -183,7 +189,9 @@ export function flattenOrdersToProfitLines(orders) {
  */
 export function filterProfitLines(lines, { orderId, productId } = {}) {
   let filtered = Array.isArray(lines) ? lines : [];
-  const oid = String(orderId ?? '').trim().toLowerCase();
+  const oid = String(orderId ?? '')
+    .trim()
+    .toLowerCase();
   if (oid) {
     filtered = filtered.filter(
       (line) =>
@@ -191,12 +199,16 @@ export function filterProfitLines(lines, { orderId, productId } = {}) {
         String(line.orderNo ?? '').toLowerCase() === oid
     );
   }
-  const pid = String(productId ?? '').trim().toLowerCase();
+  const pid = String(productId ?? '')
+    .trim()
+    .toLowerCase();
   if (pid) {
     filtered = filtered.filter(
       (line) =>
         String(line.productId ?? '').toLowerCase() === pid ||
-        String(line.productName ?? '').toLowerCase().includes(pid)
+        String(line.productName ?? '')
+          .toLowerCase()
+          .includes(pid)
     );
   }
   return filtered;
@@ -305,15 +317,10 @@ export function normalizeOrderProfitSummary(order) {
     order.total_profit ?? order.totalProfit ?? order.profit ?? lineRollup.profit
   );
   const itemsSubtotal = parseProfitNumber(
-    order.order_items_total ??
-      order.orderItemsTotal ??
-      order.items_total ??
-      lineRollup.subtotal
+    order.order_items_total ?? order.orderItemsTotal ?? order.items_total ?? lineRollup.subtotal
   );
   const totalAmount = parseProfitNumber(order.total_amount ?? order.totalAmount);
-  const itemCount = parseProfitNumber(
-    order.no_of_items ?? order.noOfItems ?? lines.length
-  );
+  const itemCount = parseProfitNumber(order.no_of_items ?? order.noOfItems ?? lines.length);
 
   return {
     orderId: order._id ?? order.id ?? null,
@@ -518,8 +525,7 @@ export async function fetchProfitQuickStatsRequest() {
   const directToday = directTodayResult.report;
   // Prefer derived when same-day API returns 0 but month-to-date implies today has profit.
   const useDerived =
-    Math.abs(derivedTodayProfit) >= 0.01 &&
-    Math.abs(parseProfitNumber(directToday?.profit)) < 0.01;
+    Math.abs(derivedTodayProfit) >= 0.01 && Math.abs(parseProfitNumber(directToday?.profit)) < 0.01;
 
   const todayReport = useDerived
     ? {
