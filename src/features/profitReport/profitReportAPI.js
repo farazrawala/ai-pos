@@ -477,20 +477,69 @@ function formatDateYmd(d) {
 
 /**
  * Calendar today + current month totals (ignores report filters).
+ *
+ * Some backends treat `from === to` as an empty range (start-of-day only).
+ * Today is therefore derived as: month-to-date − month-through-yesterday,
+ * which stays consistent with the month total that already includes today.
  */
 export async function fetchProfitQuickStatsRequest() {
   const now = new Date();
   const today = formatDateYmd(now);
   const monthStart = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), 1));
+  const yesterdayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterday = formatDateYmd(yesterdayDate);
+  const tomorrow = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+  const isFirstOfMonth = now.getDate() === 1;
 
-  const [todayResult, monthResult] = await Promise.all([
-    fetchProfitByOrderItemRequest({ startDate: today, endDate: today }),
+  const [directTodayResult, monthResult, throughYesterdayResult] = await Promise.all([
+    // Prefer next-day end so exclusive end-of-day backends still include all of today.
+    fetchProfitByOrderItemRequest({ startDate: today, endDate: tomorrow }),
     fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: today }),
+    isFirstOfMonth
+      ? Promise.resolve(null)
+      : fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: yesterday }),
   ]);
 
+  const monthReport = monthResult.report;
+  const throughYesterdayProfit = isFirstOfMonth
+    ? 0
+    : parseProfitNumber(throughYesterdayResult?.report?.profit);
+  const throughYesterdaySubtotal = isFirstOfMonth
+    ? 0
+    : parseProfitNumber(throughYesterdayResult?.report?.subtotal);
+  const throughYesterdayLineCount = isFirstOfMonth
+    ? 0
+    : Number(throughYesterdayResult?.report?.lineCount) || 0;
+
+  const derivedTodayProfit = monthReport.profit - throughYesterdayProfit;
+  const derivedTodaySubtotal = monthReport.subtotal - throughYesterdaySubtotal;
+  const derivedTodayLineCount = Math.max(0, monthReport.lineCount - throughYesterdayLineCount);
+
+  const directToday = directTodayResult.report;
+  // Prefer derived when same-day API returns 0 but month-to-date implies today has profit.
+  const useDerived =
+    Math.abs(derivedTodayProfit) >= 0.01 &&
+    Math.abs(parseProfitNumber(directToday?.profit)) < 0.01;
+
+  const todayReport = useDerived
+    ? {
+        ...directToday,
+        profit: derivedTodayProfit,
+        subtotal: derivedTodaySubtotal,
+        lineCount: derivedTodayLineCount,
+        marginPct:
+          derivedTodaySubtotal !== 0 ? (derivedTodayProfit / derivedTodaySubtotal) * 100 : null,
+        filters: {
+          ...(directToday?.filters || {}),
+          from: today,
+          to: today,
+        },
+      }
+    : directToday;
+
   return {
-    today: todayResult.report,
-    month: monthResult.report,
+    today: todayReport,
+    month: monthReport,
     todayDate: today,
     monthStart,
     monthEnd: today,
