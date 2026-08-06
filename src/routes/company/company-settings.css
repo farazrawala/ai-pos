@@ -1,5 +1,8 @@
 /* Company settings — professional layout */
 .company-page {
+  --company-accent: var(--app-theme, #5e72e4);
+  --company-accent-rgb: var(--app-theme-rgb, 94, 114, 228);
+  --company-accent-end: var(--app-theme-gradient-end, #825ee4);
   width: 100%;
   max-width: 100%;
   padding: 1.5rem;
@@ -11,12 +14,16 @@
 }
 
 .company-page-header {
-  background: linear-gradient(120deg, #1f2a44 0%, #33415c 100%);
+  background: linear-gradient(
+    120deg,
+    var(--company-accent) 0%,
+    var(--company-accent-end) 100%
+  );
   color: #fff;
   border-radius: 1rem;
   padding: 1.5rem 1.75rem;
   margin-bottom: 1.25rem;
-  box-shadow: 0 10px 28px rgba(20, 31, 51, 0.18);
+  box-shadow: 0 10px 28px rgba(var(--company-accent-rgb), 0.28);
 }
 
 .company-page-eyebrow {
@@ -66,8 +73,8 @@
   height: 40px;
   flex: 0 0 40px;
   border-radius: 0.7rem;
-  background: #eef3ff;
-  color: #3b6fd4;
+  background: color-mix(in srgb, var(--company-accent) 14%, #fff);
+  color: var(--company-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -187,8 +194,8 @@
 }
 
 .company-control:focus {
-  border-color: #5b8def;
-  box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18);
+  border-color: var(--company-accent);
+  box-shadow: 0 0 0 0.18rem rgba(var(--company-accent-rgb), 0.2);
 }
 
 .company-card-footer {
@@ -303,4 +310,60 @@
 /* Places dropdown above company cards */
 .pac-container {
   z-index: 1060 !important;
+}
+
+/* Dark mode */
+body.dark-version .company-card {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.25);
+  box-shadow: none;
+}
+
+body.dark-version .company-card-head {
+  border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-version .company-card-head-icon {
+  background: color-mix(in srgb, var(--company-accent) 22%, #0f172a);
+  color: color-mix(in srgb, var(--company-accent) 75%, #fff);
+}
+
+body.dark-version .company-card-title,
+body.dark-version .settings-row-label,
+body.dark-version .company-label {
+  color: #e2e8f0;
+}
+
+body.dark-version .company-card-subtitle,
+body.dark-version .settings-row-hint,
+body.dark-version .settings-section-label,
+body.dark-version .company-logo-hint {
+  color: #94a3b8;
+}
+
+body.dark-version .company-logo-panel,
+body.dark-version .settings-row-nested {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-version .company-logo-frame,
+body.dark-version .company-banner-frame {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+body.dark-version .company-control {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+body.dark-version .company-card-footer,
+body.dark-version .settings-row {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-version .company-page-header {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }

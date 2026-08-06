@@ -31,7 +31,7 @@ const closePosPaymentModal = () => {
 /**
  * “Make Payment” dialog — amount, method, balance, change, account, pay actions.
  */
-const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
+const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPrint }) => {
   const isOnline = useOnlineStatus();
   const [amount, setAmount] = useState('0.00');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -39,6 +39,9 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentMethodsStatus, setPaymentMethodsStatus] = useState('idle');
   const [paymentMethodsError, setPaymentMethodsError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const busy = saving || submitting;
 
   const total = Number.isFinite(orderTotal) ? Math.max(0, orderTotal) : 0;
   const selectedPaymentMethod = useMemo(
@@ -136,30 +139,46 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
   const balanceDue = Math.max(0, total - paid);
   const change = Math.max(0, paid - total);
 
-  const handlePayNow = () => {
-    onPayNow?.({
-      total,
-      paid,
-      paymentMethod: selectedPaymentMethod?.name || '',
-      paymentMethodId: paymentMethod,
-      account,
-      balanceDue,
-      change,
-    });
-    closePosPaymentModal();
+  const handlePayNow = async () => {
+    if (busy) return;
+    setSubmitting(true);
+    try {
+      const result = await onPayNow?.({
+        total,
+        paid,
+        paymentMethod: selectedPaymentMethod?.name || '',
+        paymentMethodId: paymentMethod,
+        account,
+        balanceDue,
+        change,
+      });
+      if (result !== false) {
+        closePosPaymentModal();
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handlePayNowPrint = () => {
-    onPayNowPrint?.({
-      total,
-      paid,
-      paymentMethod: selectedPaymentMethod?.name || '',
-      paymentMethodId: paymentMethod,
-      account,
-      balanceDue,
-      change,
-    });
-    closePosPaymentModal();
+  const handlePayNowPrint = async () => {
+    if (busy) return;
+    setSubmitting(true);
+    try {
+      const result = await onPayNowPrint?.({
+        total,
+        paid,
+        paymentMethod: selectedPaymentMethod?.name || '',
+        paymentMethodId: paymentMethod,
+        account,
+        balanceDue,
+        change,
+      });
+      if (result !== false) {
+        closePosPaymentModal();
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -223,6 +242,7 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
                 className="btn-close"
                 data-bs-dismiss="modal"
                 aria-label="Close"
+                disabled={busy}
               />
             </div>
             <div className="modal-body px-4 pb-4 pt-3">
@@ -322,17 +342,37 @@ const PosPaymentModal = ({ orderTotal = 0, onPayNow, onPayNowPrint }) => {
                   type="button"
                   className="btn pos-pay-btn-now rounded-3 d-flex align-items-center justify-content-center gap-2"
                   onClick={handlePayNow}
+                  disabled={busy || paymentMethodsStatus === 'loading' || !paymentMethod}
+                  aria-busy={busy ? 'true' : 'false'}
                 >
-                  <i className="fas fa-arrow-circle-right"></i>
-                  Save Order
+                  {busy ? (
+                    <span
+                      className="spinner-border spinner-border-sm"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <i className="fas fa-arrow-circle-right"></i>
+                  )}
+                  {busy ? 'Processing…' : 'Save Order'}
                 </button>
                 <button
                   type="button"
                   className="btn pos-pay-btn-print rounded-3 d-flex align-items-center justify-content-center gap-2"
                   onClick={handlePayNowPrint}
+                  disabled={busy || paymentMethodsStatus === 'loading' || !paymentMethod}
+                  aria-busy={busy ? 'true' : 'false'}
                 >
-                  <i className="fas fa-print"></i>
-                  Save and Print
+                  {busy ? (
+                    <span
+                      className="spinner-border spinner-border-sm"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <i className="fas fa-print"></i>
+                  )}
+                  {busy ? 'Processing…' : 'Save and Print'}
                 </button>
               </div>
             </div>

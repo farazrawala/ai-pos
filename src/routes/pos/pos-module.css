@@ -1386,9 +1386,21 @@
   color: #fff;
 }
 
-.pos-page .pos-footer-actions .btn-pay:hover {
+.pos-page .pos-footer-actions .btn-pay:hover:not(:disabled) {
   background: #26b87a;
   border-color: #26b87a;
+  color: #fff;
+}
+
+.pos-page .pos-footer-actions .btn-pay:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.pos-page .pos-footer-actions .btn-pay .spinner-border {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-width: 0.15em;
   color: #fff;
 }
 

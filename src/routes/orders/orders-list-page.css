@@ -47,3 +47,56 @@
   display: block;
 }
 
+/* Argon hides native unchecked checkboxes (appearance:none, no border) — force visible boxes */
+.list-col-check {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  vertical-align: middle !important;
+  overflow: visible;
+}
+
+.list-col-check .form-check-input,
+.list-col-check .oms-row-check {
+  float: none !important;
+  position: relative !important;
+  width: 1.15rem !important;
+  height: 1.15rem !important;
+  min-width: 1.15rem !important;
+  margin: 0 auto !important;
+  display: block !important;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 2px solid #64748b !important;
+  border-radius: 0.25rem !important;
+  background-color: #fff !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 85% 85% !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  opacity: 1 !important;
+}
+
+.list-col-check .form-check-input:checked,
+.list-col-check .oms-row-check:checked {
+  background-color: var(--app-theme, #5e72e4) !important;
+  border-color: var(--app-theme, #5e72e4) !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e") !important;
+}
+
+.list-col-check .form-check-input:indeterminate,
+.list-col-check .oms-row-check:indeterminate {
+  background-color: var(--app-theme, #5e72e4) !important;
+  border-color: var(--app-theme, #5e72e4) !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e") !important;
+}
+
+.list-col-check .form-check-input:disabled,
+.list-col-check .oms-row-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.45 !important;
+  border-color: #94a3b8 !important;
+  background-color: #f1f5f9 !important;
+  background-image: none !important;
+}
+

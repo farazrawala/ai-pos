@@ -24,6 +24,35 @@ const getHeaders = () => {
   return headers;
 };
 
+function formatDateYmd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Add calendar days to a YYYY-MM-DD string (local date arithmetic).
+ * @param {string} ymd
+ * @param {number} days
+ */
+export function addDaysYmd(ymd, days) {
+  const raw = String(ymd || '').trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return raw;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + Number(days || 0));
+  return formatDateYmd(d);
+}
+
+/**
+ * Profit APIs compare datetimes with date-only `to` values coerced to 00:00:00,
+ * so an inclusive calendar end day D must be sent as D+1 to include all of D.
+ * Callers always pass inclusive YYYY-MM-DD range ends.
+ */
+function toApiExclusiveEndDate(inclusiveEndYmd) {
+  return addDaysYmd(inclusiveEndYmd, 1);
+}
+
 function appendDateParams(query, params = {}) {
   if (params.startDate) {
     const start = String(params.startDate);
@@ -31,9 +60,10 @@ function appendDateParams(query, params = {}) {
     query.set('startDate', start);
   }
   if (params.endDate) {
-    const end = String(params.endDate);
-    query.set('to', end);
-    query.set('endDate', end);
+    const inclusiveEnd = String(params.endDate);
+    const apiEnd = toApiExclusiveEndDate(inclusiveEnd);
+    query.set('to', apiEnd);
+    query.set('endDate', apiEnd);
   }
   if (params.orderId) query.set('order_id', String(params.orderId));
   if (params.productId) query.set('product_id', String(params.productId));
@@ -386,6 +416,15 @@ export async function fetchProfitByOrderItemRequest(params = {}) {
     throw new Error('Invalid profit response');
   }
 
+  // Keep UI filters as the inclusive calendar range the caller requested.
+  if (params.startDate || params.endDate) {
+    report.filters = {
+      ...report.filters,
+      from: params.startDate ? String(params.startDate) : report.filters.from,
+      to: params.endDate ? String(params.endDate) : report.filters.to,
+    };
+  }
+
   return { report, raw: result };
 }
 
@@ -412,6 +451,14 @@ export async function fetchOrderProfitByOrderItemRequest(params = {}) {
   const report = normalizeProfitByOrderItemPayload(result);
   if (!report) {
     throw new Error('Invalid order profit response');
+  }
+
+  if (params.startDate || params.endDate) {
+    report.filters = {
+      ...report.filters,
+      from: params.startDate ? String(params.startDate) : report.filters.from,
+      to: params.endDate ? String(params.endDate) : report.filters.to,
+    };
   }
 
   return { report, raw: result };
@@ -473,13 +520,6 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
     linesSummary: summarizeProfitLines(lines),
     ordersPageSummary: summarizeOrderProfitGroups(orderGroups),
   };
-}
-
-function formatDateYmd(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 const MONTH_SHORT = [
@@ -562,9 +602,9 @@ export async function fetchProfitLastNMonthsRequest(count = 3) {
 /**
  * Calendar today + current month totals (ignores report filters).
  *
- * Some backends treat `from === to` as an empty range (start-of-day only).
- * Today is therefore derived as: month-to-date − month-through-yesterday,
- * which stays consistent with the month total that already includes today.
+ * Today = month-to-date − month-through-yesterday so the card always reconciles
+ * with "This month". Inclusive end dates are converted to API exclusive ends in
+ * appendDateParams (date-only `to` is start-of-day on the backend).
  */
 export async function fetchProfitQuickStatsRequest() {
   const now = new Date();
@@ -572,12 +612,9 @@ export async function fetchProfitQuickStatsRequest() {
   const monthStart = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), 1));
   const yesterdayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   const yesterday = formatDateYmd(yesterdayDate);
-  const tomorrow = formatDateYmd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const isFirstOfMonth = now.getDate() === 1;
 
-  const [directTodayResult, monthResult, throughYesterdayResult, last3Months] = await Promise.all([
-    // Prefer next-day end so exclusive end-of-day backends still include all of today.
-    fetchProfitByOrderItemRequest({ startDate: today, endDate: tomorrow }),
+  const [monthResult, throughYesterdayResult, last3Months] = await Promise.all([
     fetchProfitByOrderItemRequest({ startDate: monthStart, endDate: today }),
     isFirstOfMonth
       ? Promise.resolve(null)
@@ -586,6 +623,10 @@ export async function fetchProfitQuickStatsRequest() {
   ]);
 
   const monthReport = monthResult.report;
+  const monthProfit = parseProfitNumber(monthReport?.profit);
+  const monthSubtotal = parseProfitNumber(monthReport?.subtotal);
+  const monthLineCount = Number(monthReport?.lineCount) || 0;
+
   const throughYesterdayProfit = isFirstOfMonth
     ? 0
     : parseProfitNumber(throughYesterdayResult?.report?.profit);
@@ -596,43 +637,40 @@ export async function fetchProfitQuickStatsRequest() {
     ? 0
     : Number(throughYesterdayResult?.report?.lineCount) || 0;
 
-  const derivedTodayProfit = monthReport.profit - throughYesterdayProfit;
-  const derivedTodaySubtotal = monthReport.subtotal - throughYesterdaySubtotal;
-  const derivedTodayLineCount = Math.max(0, monthReport.lineCount - throughYesterdayLineCount);
+  const todayProfit = monthProfit - throughYesterdayProfit;
+  const todaySubtotal = monthSubtotal - throughYesterdaySubtotal;
+  const todayLineCount = Math.max(0, monthLineCount - throughYesterdayLineCount);
 
-  const directToday = directTodayResult.report;
-  // Prefer derived when same-day API returns 0 but month-to-date implies today has profit.
-  const useDerived =
-    Math.abs(derivedTodayProfit) >= 0.01 && Math.abs(parseProfitNumber(directToday?.profit)) < 0.01;
-
-  const todayReport = useDerived
-    ? {
-        ...directToday,
-        profit: derivedTodayProfit,
-        subtotal: derivedTodaySubtotal,
-        lineCount: derivedTodayLineCount,
-        marginPct:
-          derivedTodaySubtotal !== 0 ? (derivedTodayProfit / derivedTodaySubtotal) * 100 : null,
-        filters: {
-          ...(directToday?.filters || {}),
-          from: today,
-          to: today,
-        },
-      }
-    : directToday;
+  const todayReport = {
+    success: true,
+    companyId: monthReport?.companyId ?? null,
+    profit: todayProfit,
+    subtotal: todaySubtotal,
+    lineCount: todayLineCount,
+    marginPct: todaySubtotal !== 0 ? (todayProfit / todaySubtotal) * 100 : null,
+    filters: {
+      orderId: null,
+      productId: null,
+      from: today,
+      to: today,
+      defaultRangeDays: null,
+    },
+  };
 
   // Keep current-month bar aligned with the "this month" card when present.
   const months = (Array.isArray(last3Months) ? last3Months : []).map((row) => {
     if (!row?.isCurrent) return row;
     return {
       ...row,
-      profit: parseProfitNumber(monthReport?.profit),
-      subtotal: parseProfitNumber(monthReport?.subtotal),
-      lineCount: Number(monthReport?.lineCount) || 0,
+      profit: monthProfit,
+      subtotal: monthSubtotal,
+      lineCount: monthLineCount,
       marginPct:
         monthReport?.marginPct != null && Number.isFinite(monthReport.marginPct)
           ? monthReport.marginPct
-          : null,
+          : monthSubtotal !== 0
+            ? (monthProfit / monthSubtotal) * 100
+            : null,
     };
   });
 

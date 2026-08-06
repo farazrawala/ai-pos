@@ -48,6 +48,7 @@ import {
   pickOrderDocumentId,
   getNoOfItemsDisplay,
   fetchAllOrdersForExportRequest,
+  updateOrderStatusRequest,
   DELETED_ORDER_BY_ORDER_ITEM_PATH,
   DEFAULT_ORDER_LIST_PATH,
 } from '../../features/orders/ordersAPI.js';
@@ -472,6 +473,7 @@ const getOrderWebsiteStatus = (row) => {
  *     showTrackingColumn?: boolean,
  *     showWebsiteStatusColumn?: boolean,
  *     showStatusChangeModal?: boolean,
+ *     showRowSelection?: boolean,
  *     showDeletedTab?: boolean,
  *     viewReadOnly?: boolean,
  *     listPath?: string,
@@ -496,6 +498,7 @@ export default function OrdersListPage({ config }) {
     showTrackingColumn = false,
     showWebsiteStatusColumn = false,
     showStatusChangeModal = false,
+    showRowSelection = false,
     showDeletedTab = false,
     viewReadOnly = false,
     topSummaryName = '',
@@ -552,6 +555,9 @@ export default function OrdersListPage({ config }) {
     trackingUrl: '',
   });
   const [syncingOrderId, setSyncingOrderId] = useState('');
+  const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
+  const [bulkStatusValue, setBulkStatusValue] = useState('');
+  const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(
     Boolean(
@@ -581,6 +587,62 @@ export default function OrdersListPage({ config }) {
     permissionModule,
     orderColumns
   );
+
+  const tableColSpan = visibleCount + (showRowSelection ? 1 : 0);
+
+  const selectablePageIds = useMemo(() => {
+    if (!showRowSelection) return [];
+    return (Array.isArray(data) ? data : [])
+      .map((row) => String(pickOrderDocumentId(row) || row?._id || row?.id || '').trim())
+      .filter(Boolean);
+  }, [data, showRowSelection]);
+
+  const allPageSelected =
+    selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedOrderIds.has(id));
+
+  const somePageSelected =
+    selectablePageIds.some((id) => selectedOrderIds.has(id)) && !allPageSelected;
+
+  const toggleOrderSelected = useCallback((orderId) => {
+    const id = String(orderId || '').trim();
+    if (!id) return;
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllPage = useCallback(() => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        selectablePageIds.forEach((id) => next.delete(id));
+      } else {
+        selectablePageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [allPageSelected, selectablePageIds]);
+
+  const clearOrderSelection = useCallback(() => {
+    setSelectedOrderIds(new Set());
+  }, []);
+
+  useEffect(() => {
+    if (!showRowSelection) return;
+    setSelectedOrderIds(new Set());
+  }, [
+    showRowSelection,
+    searchTerm,
+    filters.startDate,
+    filters.endDate,
+    filters.integrationId,
+    filters.orderType,
+    filters.orderStatus,
+    isDeletedView,
+  ]);
 
   const activeFilterCount =
     (filters.startDate ? 1 : 0) +
@@ -956,6 +1018,81 @@ export default function OrdersListPage({ config }) {
     }
     toast.success('Order status updated.');
     refreshOrderList();
+  };
+
+  const canBulkChangeStatus =
+    showRowSelection &&
+    showStatusChangeModal &&
+    !isDeletedView &&
+    !viewReadOnly &&
+    (canEdit || canCreate);
+
+  const handleBulkStatusChange = async (event) => {
+    const nextStatus = String(event?.target?.value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/-/g, '_')
+      .replace(/\s+/g, '_');
+    setBulkStatusValue('');
+    if (!nextStatus || !canBulkChangeStatus) return;
+
+    const ids = Array.from(selectedOrderIds).filter(Boolean);
+    if (!ids.length) {
+      toast.error('Select at least one order.');
+      return;
+    }
+
+    setBulkStatusUpdating(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => updateOrderStatusRequest(id, { order_status: nextStatus }))
+      );
+
+      const succeeded = [];
+      let failCount = 0;
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const saved =
+            String(result.value?.data?.order?.order_status || nextStatus)
+              .trim()
+              .toLowerCase()
+              .replace(/-/g, '_')
+              .replace(/\s+/g, '_') || nextStatus;
+          succeeded.push({ id: ids[index], status: saved });
+        } else {
+          failCount += 1;
+        }
+      });
+
+      if (succeeded.length) {
+        setStatusOverrides((prev) => {
+          const next = { ...prev };
+          succeeded.forEach(({ id, status }) => {
+            next[String(id)] = status;
+          });
+          return next;
+        });
+      }
+
+      if (failCount === 0) {
+        toast.success(
+          `Updated ${succeeded.length} order${succeeded.length === 1 ? '' : 's'} to ${formatOrderStatusOptionLabel(nextStatus)}.`
+        );
+      } else if (succeeded.length === 0) {
+        toast.error(`Failed to update ${failCount} order${failCount === 1 ? '' : 's'}.`);
+      } else {
+        toast.warning(
+          `Updated ${succeeded.length}, failed ${failCount}.`
+        );
+      }
+
+      clearOrderSelection();
+      refreshOrderList();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update order status.');
+    } finally {
+      setBulkStatusUpdating(false);
+    }
   };
 
   const handleOpenParcelBarcode = ({
@@ -1341,6 +1478,47 @@ export default function OrdersListPage({ config }) {
                 </div>
                 <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    {canBulkChangeStatus ? (
+                      <div className="d-flex align-items-center gap-2 me-md-auto">
+                        <select
+                          id={`${idPrefix}-bulk-status`}
+                          className="form-select form-select-sm"
+                          style={{ minWidth: '180px', maxWidth: '220px' }}
+                          value={bulkStatusValue}
+                          disabled={selectedOrderIds.size === 0 || bulkStatusUpdating}
+                          onChange={handleBulkStatusChange}
+                          aria-label="Change status of selected orders"
+                          title={
+                            selectedOrderIds.size === 0
+                              ? 'Select one or more orders to change status'
+                              : `Change status for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
+                          }
+                        >
+                          <option value="">
+                            {bulkStatusUpdating
+                              ? 'Updating…'
+                              : selectedOrderIds.size > 0
+                                ? `Set status (${selectedOrderIds.size})`
+                                : 'Change status…'}
+                          </option>
+                          {OMS_ORDER_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {formatOrderStatusOptionLabel(status)}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedOrderIds.size > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary mb-0"
+                            onClick={clearOrderSelection}
+                            disabled={bulkStatusUpdating}
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -1562,6 +1740,21 @@ export default function OrdersListPage({ config }) {
                   <thead>
                     <tr>
                       <th className="text-center list-col-sno">#</th>
+                      {showRowSelection ? (
+                        <th className="text-center list-col-check">
+                          <input
+                            type="checkbox"
+                            className="form-check-input oms-row-check m-0"
+                            checked={allPageSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = somePageSelected;
+                            }}
+                            onChange={toggleSelectAllPage}
+                            disabled={selectablePageIds.length === 0}
+                            aria-label="Select all orders on this page"
+                          />
+                        </th>
+                      ) : null}
                       {sortableTh('order_no', 'Order no')}
                       {showIntegrationColumn && isVisible('integration')
                         ? sortableTh('integration_order_id', 'Integration', 'list-col-truncate')
@@ -1607,7 +1800,7 @@ export default function OrdersListPage({ config }) {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={visibleCount} className="text-center py-5 text-muted">
+                        <td colSpan={tableColSpan} className="text-center py-5 text-muted">
                           {isDeletedView
                             ? 'No deleted orders found. Try adjusting your search or date range.'
                             : 'No orders found. Try adjusting your search or date range.'}
@@ -1638,6 +1831,11 @@ export default function OrdersListPage({ config }) {
                         const onlineChannel = isOnlineOrder(item);
                         const orderType = getOrderType(item);
                         const rowKey = String(orderId || item._id || item.id || index);
+                        const selectionId = String(orderId || item._id || item.id || '').trim();
+                        const isRowSelected =
+                          showRowSelection && selectionId
+                            ? selectedOrderIds.has(selectionId)
+                            : false;
                         const isRowLoading = editLoadingId === rowKey;
                         const isSyncing = syncingOrderId === rowKey;
                         const created = item.createdAt ?? item.created_at;
@@ -1646,6 +1844,12 @@ export default function OrdersListPage({ config }) {
                         const email = item.email || '—';
                         const phone = item.phone || '—';
                         const total = getOrderItemsTotalDisplay(item);
+                        const itemsCountRaw = getNoOfItemsDisplay(item);
+                        const itemsCount =
+                          typeof itemsCountRaw === 'number'
+                            ? itemsCountRaw
+                            : parseInt(String(itemsCountRaw ?? ''), 10);
+                        const hasOrderItems = Number.isFinite(itemsCount) && itemsCount > 0;
                         const trackingInfo = showTrackingColumn
                           ? resolveOrderTrackingInfo(
                               item,
@@ -1653,8 +1857,20 @@ export default function OrdersListPage({ config }) {
                             )
                           : null;
                         return (
-                          <tr key={key}>
+                          <tr key={key} className={isRowSelected ? 'table-active' : undefined}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            {showRowSelection ? (
+                              <td className="text-center list-col-check">
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input oms-row-check m-0"
+                                  checked={isRowSelected}
+                                  disabled={!selectionId}
+                                  onChange={() => toggleOrderSelected(selectionId)}
+                                  aria-label={`Select order ${orderNo}`}
+                                />
+                              </td>
+                            ) : null}
                             <td className="text-sm font-weight-bold text-dark">
                               {canViewOrder && orderNo !== '—' ? (
                                 <button
@@ -1762,31 +1978,6 @@ export default function OrdersListPage({ config }) {
                                 {trackingInfo?.hasTracking ? (
                                   <div className="d-flex flex-column align-items-start gap-1 min-width-0">
                                     {trackingInfo.trackingId ? (
-                                      <div className="text-nowrap" title={trackingInfo.trackingId}>
-                                        <span className="text-xs text-muted d-block">Tracking ID</span>
-                                        <span className="font-weight-bold text-dark text-sm">
-                                          {trackingInfo.trackingId}
-                                        </span>
-                                      </div>
-                                    ) : null}
-                                    {trackingInfo.trackingUrl ? (
-                                      <div className="min-width-0 w-100">
-                                        <span className="text-xs text-muted d-block">Tracking URL</span>
-                                        <a
-                                          href={trackingInfo.trackingUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-primary text-decoration-underline text-break"
-                                          title={trackingInfo.trackingUrl}
-                                        >
-                                          {trackingInfo.trackingUrl}
-                                        </a>
-                                      </div>
-                                    ) : null}
-                                    {trackingInfo.provider ? (
-                                      <span className="text-xs text-muted">{trackingInfo.provider}</span>
-                                    ) : null}
-                                    {trackingInfo.trackingId ? (
                                       <div className="d-flex flex-wrap gap-1">
                                         <button
                                           type="button"
@@ -1825,7 +2016,7 @@ export default function OrdersListPage({ config }) {
                                       </div>
                                     ) : null}
                                   </div>
-                                ) : (
+                                ) : hasOrderItems ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-primary mb-0 px-2"
@@ -1835,6 +2026,8 @@ export default function OrdersListPage({ config }) {
                                   >
                                     Add tracking
                                   </button>
+                                ) : (
+                                  <span className="text-muted">—</span>
                                 )}
                               </td>
                             ) : null}

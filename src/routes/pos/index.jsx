@@ -855,6 +855,7 @@ const Pos = () => {
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
+  const [paymentPreparing, setPaymentPreparing] = useState(false);
   const [masterSyncRunning, setMasterSyncRunning] = useState(false);
   const [masterSyncProgress, setMasterSyncProgress] = useState(null);
 
@@ -1633,6 +1634,8 @@ const Pos = () => {
   );
 
   const handlePaymentClick = useCallback(async () => {
+    if (paymentPreparing || orderSaving) return;
+
     const normalized = normalizeCartLinesForCheckout(cartLines);
     if (normalized.error) {
       toast.warning(normalized.error);
@@ -1641,58 +1644,70 @@ const Pos = () => {
 
     let linesForPayment = normalized.lines;
     setCartLines(normalized.lines);
+    setPaymentPreparing(true);
 
-    if (isOnline) {
-      try {
-        linesForPayment = await rebindCartLinesToLiveCatalog(linesForPayment);
-        const inactiveFromRebind = linesForPayment
-          .filter((l) => l.__inactive)
-          .map((l) => String(l.productId || ''));
-        linesForPayment = linesForPayment
-          .filter((l) => !l.__inactive)
-          .map(({ __inactive, ...rest }) => rest);
+    try {
+      if (isOnline) {
+        try {
+          linesForPayment = await rebindCartLinesToLiveCatalog(linesForPayment);
+          const inactiveFromRebind = linesForPayment
+            .filter((l) => l.__inactive)
+            .map((l) => String(l.productId || ''));
+          linesForPayment = linesForPayment
+            .filter((l) => !l.__inactive)
+            .map(({ __inactive, ...rest }) => rest);
 
-        if (inactiveFromRebind.length) {
-          toastCartProductValidationErrors({
-            missingIds: [],
-            variableParentIds: [],
-            inactiveIds: inactiveFromRebind,
-            cartLines: normalized.lines,
+          if (inactiveFromRebind.length) {
+            toastCartProductValidationErrors({
+              missingIds: [],
+              variableParentIds: [],
+              inactiveIds: inactiveFromRebind,
+              cartLines: normalized.lines,
+            });
+            return;
+          }
+
+          const refreshed = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+          linesForPayment = refreshed.lines;
+          setCartLines(linesForPayment);
+          if (
+            toastCartProductValidationErrors({
+              missingIds: refreshed.missingIds,
+              variableParentIds: refreshed.variableParentIds,
+              inactiveIds: refreshed.inactiveIds,
+              cartLines: linesForPayment,
+            })
+          ) {
+            return;
+          }
+        } catch (err) {
+          console.warn('[POS] Could not refresh stock before payment', err);
+        }
+
+        // When allow is ON, insufficient stock may be sold. When OFF, enforce before payment.
+        if (!allowAddWhenStockInsufficient) {
+          const stockIssues = collectCartStockIssues(linesForPayment, {
+            allowWhenInsufficient: false,
           });
-          return;
-        }
-
-        const refreshed = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
-        linesForPayment = refreshed.lines;
-        setCartLines(linesForPayment);
-        if (
-          toastCartProductValidationErrors({
-            missingIds: refreshed.missingIds,
-            variableParentIds: refreshed.variableParentIds,
-            inactiveIds: refreshed.inactiveIds,
-            cartLines: linesForPayment,
-          })
-        ) {
-          return;
-        }
-      } catch (err) {
-        console.warn('[POS] Could not refresh stock before payment', err);
-      }
-
-      // When allow is ON, insufficient stock may be sold. When OFF, enforce before payment.
-      if (!allowAddWhenStockInsufficient) {
-        const stockIssues = collectCartStockIssues(linesForPayment, {
-          allowWhenInsufficient: false,
-        });
-        if (stockIssues.length) {
-          showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
-          return;
+          if (stockIssues.length) {
+            showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
+            return;
+          }
         }
       }
+
+      openPosPaymentModal();
+    } finally {
+      setPaymentPreparing(false);
     }
-
-    openPosPaymentModal();
-  }, [cartLines, defaultWarehouseId, isOnline, allowAddWhenStockInsufficient]);
+  }, [
+    cartLines,
+    defaultWarehouseId,
+    isOnline,
+    allowAddWhenStockInsufficient,
+    paymentPreparing,
+    orderSaving,
+  ]);
 
   const clearCartAfterSale = useCallback(() => {
     setCartLines([]);
@@ -1866,13 +1881,14 @@ const Pos = () => {
       setOrderSaving(true);
       try {
         const saved = await savePosOrder(payment);
-        if (!saved) return;
+        if (!saved) return false;
         if (saved.offline) {
           toast.success('Sale saved offline — will sync when online', { delay: 6000 });
         } else {
           showToast('successToast', 'Order saved successfully.');
         }
         clearCartAfterSale();
+        return true;
       } catch (e) {
         console.error('[POS] Failed to save order', e);
         showStockErrorToast(
@@ -1883,6 +1899,7 @@ const Pos = () => {
           }),
           { delay: 8000 }
         );
+        return false;
       } finally {
         setOrderSaving(false);
       }
@@ -1895,7 +1912,7 @@ const Pos = () => {
       setOrderSaving(true);
       try {
         const saved = await savePosOrder(payment);
-        if (!saved) return;
+        if (!saved) return false;
 
         const invoiceNo = saved.offline
           ? saved.localInvoiceNo || saved.result?.local_invoice_no
@@ -1984,6 +2001,7 @@ const Pos = () => {
           showToast('successToast', bridgePrinted ? 'Order saved and sent to network printer.' : 'Order saved and sent to printer.');
         }
         clearCartAfterSale();
+        return true;
       } catch (e) {
         console.error('[POS] Failed to save order for print', e);
         showStockErrorToast(
@@ -1994,6 +2012,7 @@ const Pos = () => {
           }),
           { delay: 8000 }
         );
+        return false;
       } finally {
         setOrderSaving(false);
       }
@@ -2690,6 +2709,8 @@ const Pos = () => {
           onSaveDraft={handleSaveDraft}
           cartLineCount={cartLines.length}
           draftSaving={draftSaving}
+          paymentBusy={paymentPreparing || orderSaving}
+          orderSaving={orderSaving}
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}

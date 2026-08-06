@@ -141,6 +141,8 @@ const PosProducts = ({
   onSaveDraft,
   cartLineCount = 0,
   draftSaving = false,
+  paymentBusy = false,
+  orderSaving = false,
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
@@ -554,6 +556,7 @@ const PosProducts = ({
     <div className={columnClassName} style={columnStyle}>
       <PosPaymentModal
         orderTotal={orderTotal}
+        saving={orderSaving}
         onPayNow={onPaymentComplete}
         onPayNowPrint={onPaymentCompletePrint}
       />
@@ -819,9 +822,30 @@ const PosProducts = ({
               <NavIcon icon={FaFloppyDisk} size={14} className="me-2" />
               {draftSaving ? 'Saving…' : 'Draft'}
             </button>
-            <button type="button" className="btn btn-pay" onClick={() => onPaymentClick?.()}>
-              <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
-              Payment
+            <button
+              type="button"
+              className="btn btn-pay"
+              onClick={() => onPaymentClick?.()}
+              disabled={paymentBusy || draftSaving || cartLineCount < 1}
+              title={
+                paymentBusy
+                  ? 'Processing payment…'
+                  : cartLineCount < 1
+                    ? 'Add items to the cart before payment'
+                    : 'Proceed to payment'
+              }
+              aria-busy={paymentBusy ? 'true' : 'false'}
+            >
+              {paymentBusy ? (
+                <span
+                  className="spinner-border spinner-border-sm me-2"
+                  role="status"
+                  aria-hidden="true"
+                />
+              ) : (
+                <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
+              )}
+              {paymentBusy ? 'Processing…' : 'Payment'}
             </button>
           </div>
         </div>
