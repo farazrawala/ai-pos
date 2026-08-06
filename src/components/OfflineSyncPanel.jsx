@@ -3,7 +3,7 @@ import moment from 'moment';
 import AppModal from './AppModal.jsx';
 import { useSyncStatus } from '../hooks/useSyncStatus.js';
 import { useOnlineStatus } from '../hooks/useOnlineStatus.js';
-import { listAllPendingOrders } from '../offline/repositories/ordersRepo.js';
+import { listAllPendingOrders, deletePendingOrder, deleteFailedPendingOrders } from '../offline/repositories/ordersRepo.js';
 import { refreshSyncStatusCounts } from '../offline/syncStatus.js';
 import { processSyncQueue, retryFailedOrders } from '../offline/syncOrders.js';
 import { toast } from '../utils/toast.js';
@@ -230,7 +230,45 @@ export default function OfflineSyncPanel() {
     }
   };
 
-  const renderTable = (rows, { highlightFailed = false } = {}) => (
+  const handleDeleteOrder = async (row) => {
+    const label = row?.local_invoice_no || row?.client_order_id || 'this order';
+    const ok = window.confirm(
+      `Delete ${label} from the offline queue?\n\nThis only removes the local copy. It will not upload to the server.`
+    );
+    if (!ok) return;
+
+    setAction('delete');
+    try {
+      await deletePendingOrder(row.client_order_id);
+      await loadOrders();
+      toast.success(`Deleted ${label}`);
+    } catch (err) {
+      toast.error(err?.message || 'Could not delete order');
+    } finally {
+      setAction('');
+    }
+  };
+
+  const handleClearFailed = async () => {
+    if (failedRows.length === 0) return;
+    const ok = window.confirm(
+      `Delete all ${failedRows.length} failed offline order(s)?\n\nThis only clears the local queue. They will not upload to the server.`
+    );
+    if (!ok) return;
+
+    setAction('clear');
+    try {
+      const removed = await deleteFailedPendingOrders();
+      await loadOrders();
+      toast.success(`Deleted ${removed} failed order(s)`);
+    } catch (err) {
+      toast.error(err?.message || 'Could not clear failed orders');
+    } finally {
+      setAction('');
+    }
+  };
+
+  const renderTable = (rows, { highlightFailed = false, allowDelete = false } = {}) => (
     <div className="table-responsive">
       <table className="table table-sm align-middle mb-0">
         <thead>
@@ -240,12 +278,13 @@ export default function OfflineSyncPanel() {
             <th className="text-end">Amount</th>
             <th>Status</th>
             <th>Error</th>
+            {allowDelete ? <th className="text-end">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={5} className="text-muted text-center py-3">
+              <td colSpan={allowDelete ? 6 : 5} className="text-muted text-center py-3">
                 No orders
               </td>
             </tr>
@@ -275,6 +314,19 @@ export default function OfflineSyncPanel() {
                     '—'
                   )}
                 </td>
+                {allowDelete ? (
+                  <td className="text-end">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger mb-0"
+                      onClick={() => handleDeleteOrder(row)}
+                      disabled={action !== '' || syncStatus.syncing}
+                      title="Remove from local offline queue"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))
           )}
@@ -321,6 +373,15 @@ export default function OfflineSyncPanel() {
         >
           Refresh
         </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-danger mb-0"
+          onClick={handleClearFailed}
+          disabled={action !== '' || syncStatus.syncing || failedRows.length === 0}
+          title="Remove all failed orders from the local queue"
+        >
+          {action === 'clear' ? 'Clearing…' : 'Clear failed'}
+        </button>
         <div className="ms-auto d-flex align-items-center">
           <RetryCountdown
             hasQueue={hasQueue}
@@ -347,7 +408,7 @@ export default function OfflineSyncPanel() {
               </span>
             ) : null}
           </h6>
-          {renderTable(failedRows, { highlightFailed: true })}
+          {renderTable(failedRows, { highlightFailed: true, allowDelete: true })}
         </>
       )}
     </AppModal>

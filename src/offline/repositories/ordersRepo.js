@@ -87,6 +87,28 @@ export async function clearPendingOrders() {
   await offlineDb.pending_orders.clear();
 }
 
+/** Remove one queued/failed offline order by client_order_id. */
+export async function deletePendingOrder(clientOrderId) {
+  await ensureOfflineDbOpen();
+  const key = String(clientOrderId ?? '').trim();
+  if (!key) return false;
+  await offlineDb.pending_orders.delete(key);
+  return true;
+}
+
+/** Remove every failed offline order from the local queue. */
+export async function deleteFailedPendingOrders() {
+  await ensureOfflineDbOpen();
+  const failed = await offlineDb.pending_orders
+    .where('status')
+    .equals(PENDING_ORDER_STATUS.FAILED)
+    .toArray();
+  for (const row of failed) {
+    await offlineDb.pending_orders.delete(row.client_order_id);
+  }
+  return failed.length;
+}
+
 export async function recordLocalStockAdjustment({
   product_id,
   warehouse_id,
