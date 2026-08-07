@@ -882,7 +882,17 @@ const ProcessIndex = () => {
                               <td>{formatProcessTimestamp(createdAt)}</td>
                             ) : null}
                             {isVisible('updatedAt') ? (
-                              <td>{formatProcessTimestamp(updatedAt)}</td>
+                              <td
+                                title={
+                                  updatedAt && moment(updatedAt).isValid()
+                                    ? formatProcessTimestamp(updatedAt)
+                                    : undefined
+                                }
+                              >
+                                {updatedAt && moment(updatedAt).isValid()
+                                  ? moment(updatedAt).fromNow()
+                                  : '-'}
+                              </td>
                             ) : null}
                             {isVisible('duration') ? (
                               <td title={duration !== '-' ? 'Updated − created' : undefined}>
