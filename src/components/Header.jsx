@@ -14,6 +14,7 @@ import {
   FaUser,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
+import PerformanceChip from './PerformanceChip.jsx';
 import ClearCompanyCacheButton from './company/ClearCompanyCacheButton.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
 import { clearOfflineDb } from '../offline/db.js';
@@ -84,6 +85,9 @@ const Header = () => {
           <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (
               <>
+                <li className="nav-item d-none d-md-flex align-items-center me-2">
+                  <PerformanceChip />
+                </li>
                 <li className="nav-item d-flex align-items-center me-2">
                   <span
                     className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold"

@@ -1,0 +1,70 @@
+.perf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.perf-chip__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.92);
+  color: #344767;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.perf-chip__item--button {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.perf-chip__item--button:hover:not(:disabled) {
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.perf-chip__item--button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.perf-chip__label {
+  color: #8392ab;
+  font-weight: 600;
+}
+
+.perf-chip__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-chip__item--measuring {
+  opacity: 0.7;
+}
+
+.perf-chip__item--good {
+  color: #1a7f4b;
+}
+
+.perf-chip__item--fair {
+  color: #9a6700;
+}
+
+.perf-chip__item--poor {
+  color: #b0304b;
+}
+
+.perf-chip__item--unknown {
+  color: #67748e;
+}
+
+@media (max-width: 767.98px) {
+  .perf-chip__label {
+    display: none;
+  }
+}
