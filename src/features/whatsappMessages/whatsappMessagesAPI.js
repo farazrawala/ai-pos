@@ -162,6 +162,29 @@ export const createWhatsappMessageRequest = async ({
 };
 
 /**
+ * GET /chat/reset-unknown-usage-only?company_id=… — reset unknown WhatsApp usage counter.
+ */
+export const resetUnknownUsageOnlyRequest = async (companyId) => {
+  const id = String(companyId || '').trim();
+  if (!id) throw new Error('Company id is required');
+
+  const query = new URLSearchParams({ company_id: id });
+  const url = `${BASE_URL}chat/reset-unknown-usage-only?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.error || `HTTP error! status: ${response.status}`
+    );
+  }
+  if (data && data.success === false) {
+    throw new Error(data.message || data.error || 'Failed to reset usage');
+  }
+  return data;
+};
+
+/**
  * POST /whatsapp_message/create — queue an outbound WhatsApp message (Bearer auth).
  */
 export const createOutboundWhatsappMessageRequest = async ({ number, message } = {}) => {

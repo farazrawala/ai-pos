@@ -11,7 +11,10 @@ import {
   setSort,
   setStatusFilter,
 } from '../../features/whatsappMessages/whatsappMessagesSlice.js';
-import { createWhatsappMessageRequest } from '../../features/whatsappMessages/whatsappMessagesAPI.js';
+import {
+  createWhatsappMessageRequest,
+  resetUnknownUsageOnlyRequest,
+} from '../../features/whatsappMessages/whatsappMessagesAPI.js';
 import {
   fetchCompanyById,
   getCompanyFromApiBody,
@@ -147,6 +150,7 @@ const WhatsappMessages = () => {
   });
   const [sendErrors, setSendErrors] = useState({});
   const [sending, setSending] = useState(false);
+  const [resettingUsage, setResettingUsage] = useState(false);
   const searchTimeoutRef = useRef(null);
 
   const unknownWhatsappSettings = useMemo(
@@ -281,6 +285,41 @@ const WhatsappMessages = () => {
     }
   };
 
+  const refreshCompanySettings = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const body = await fetchCompanyById(companyId);
+      const fetched = getCompanyFromApiBody(body);
+      if (fetched) {
+        dispatch(setCompany({ ...(authCompany || {}), ...fetched }));
+      }
+    } catch {
+      /* keep existing company in session */
+    }
+  }, [authCompany, companyId, dispatch]);
+
+  const handleResetUsage = async () => {
+    if (!companyId || resettingUsage) return;
+    if (
+      !window.confirm(
+        'Reset unknown WhatsApp usage for this company? The usage counter will be set back to zero.'
+      )
+    ) {
+      return;
+    }
+
+    setResettingUsage(true);
+    try {
+      const result = await resetUnknownUsageOnlyRequest(companyId);
+      toast.success(result?.message || 'Usage reset successfully.');
+      await refreshCompanySettings();
+    } catch (err) {
+      toast.error(err?.message || err || 'Failed to reset usage');
+    } finally {
+      setResettingUsage(false);
+    }
+  };
+
   const handleStopSending = async (item) => {
     const id = messageIdFromRecord(item);
     if (!id) return;
@@ -375,6 +414,16 @@ const WhatsappMessages = () => {
         durationMs: null,
         error: null,
       });
+      sources.push({
+        key: 'resetUsage',
+        label: 'Reset unknown usage',
+        url: buildApiUrl(
+          `chat/reset-unknown-usage-only?company_id=${encodeURIComponent(companyId)}`
+        ),
+        status: resettingUsage ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      });
     }
 
     return sources;
@@ -390,6 +439,7 @@ const WhatsappMessages = () => {
     sending,
     deleteStatus,
     companyId,
+    resettingUsage,
   ]);
 
   return (
@@ -405,6 +455,26 @@ const WhatsappMessages = () => {
                 </div>
                 <div className="col-md-7">
                   <div className="d-flex justify-content-md-end gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-warning mb-0"
+                      onClick={handleResetUsage}
+                      disabled={!companyId || resettingUsage}
+                      title="Reset unknown WhatsApp usage counter"
+                    >
+                      {resettingUsage ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-1"
+                            role="status"
+                            aria-hidden="true"
+                          />
+                          Resetting…
+                        </>
+                      ) : (
+                        'Reset usage'
+                      )}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-sm btn-primary mb-0"
