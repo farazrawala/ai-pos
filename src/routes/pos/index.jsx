@@ -25,7 +25,7 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
-import { fetchProductByIdRequest, fetchProductActiveRequest } from '../../features/products/productsAPI.js';
+import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   createPosOrderRequest,
   pickOrderInvoiceNoFromSaveResponse,
@@ -62,6 +62,7 @@ import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import PosProducts from './PosProducts.jsx';
 import { openPosPaymentModal } from './PosPaymentModal.jsx';
+import { posElapsedMs, posMsToSec, posLogTimingSummary } from '../../utils/posTimingDebug.js';
 import { CalculatorModal, openCalculatorModal } from '../../components/Calculator/index.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -512,12 +513,13 @@ function posStockBlocksQty({ allowWhenInsufficient, availableStock, requestedQty
   return `Insufficient stock for "${name}": requested ${formatPosQtyLabel(requestedQty)}, available ${formatPosQtyLabel(availableStock)}.`;
 }
 
-function pickProductFromApiBody(body) {
-  if (!body || typeof body !== 'object') return null;
-  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) return body.data;
-  if (body.product && typeof body.product === 'object') return body.product;
-  if (body._id != null || body.id != null) return body;
-  return null;
+function productIdsForLookup(product) {
+  const ids = new Set();
+  const sellable = sellablePosProductId(product);
+  if (sellable) ids.add(String(sellable));
+  const raw = product?._id ?? product?.id ?? product?.product_id;
+  if (raw != null && String(raw).trim()) ids.add(String(raw).trim());
+  return ids;
 }
 
 function normalizeCartLinesForCheckout(cartLines) {
@@ -561,38 +563,78 @@ async function refreshCartLineStock(cartLines, warehouseId) {
     ...new Set(cartLines.map((line) => String(line.productId || '').trim()).filter(Boolean)),
   ];
   if (uniqueIds.length === 0) {
-    return { lines: cartLines, missingIds: [], variableParentIds: [], inactiveIds: [] };
+    return { lines: cartLines, missingIds: [], variableParentIds: [], inactiveIds: [], ms: 0 };
   }
+
+  const tAll = performance.now();
+  console.log('[POS] refreshCartLineStock → GET product/get-all-active-pos?_id=…', {
+    productIds: uniqueIds,
+    warehouseId,
+  });
 
   const stockById = {};
   const missingIds = [];
   const variableParentIds = [];
   const inactiveIds = [];
 
-  await Promise.all(
-    uniqueIds.map(async (productId) => {
-      try {
-        const result = await fetchProductByIdRequest(productId);
-        const product = pickProductFromApiBody(result);
-        if (!product) {
-          // Don't hard-block — order_save is authoritative; list may still sell this SKU
-          stockById[productId] = null;
-          return;
-        }
-        if (isVariableParentProduct(product)) {
-          variableParentIds.push(productId);
-        }
-        if (isProductInactive(product)) {
-          inactiveIds.push(productId);
-        }
-        stockById[productId] = getProductAvailableStock(product, { warehouseId });
-      } catch (err) {
-        console.warn('[POS] Could not refresh stock before payment', productId, err);
-        // Soft-fail stock refresh; keep previous availableStock from catalog
-        stockById[productId] = null;
+  try {
+    const listed = await fetchProductActiveRequest({
+      _id: uniqueIds,
+      limit: Math.max(uniqueIds.length, 1),
+      page: 1,
+      includeInactive: true,
+    });
+    const rows = Array.isArray(listed?.data) ? listed.data : [];
+    const productById = new Map();
+
+    for (const product of rows) {
+      for (const id of productIdsForLookup(product)) {
+        if (!productById.has(id)) productById.set(id, product);
       }
-    })
-  );
+    }
+
+    for (const productId of uniqueIds) {
+      const product = productById.get(productId) || null;
+      if (!product) {
+        // Soft-fail — keep previous availableStock; order_save is authoritative
+        stockById[productId] = null;
+        console.log('[POS] batch product missing', { productId });
+        continue;
+      }
+      if (isVariableParentProduct(product)) {
+        variableParentIds.push(productId);
+      }
+      if (isProductInactive(product)) {
+        inactiveIds.push(productId);
+      }
+      stockById[productId] = getProductAvailableStock(product, { warehouseId });
+      console.log('[POS] batch product ok', {
+        productId,
+        availableStock: stockById[productId],
+        inactive: isProductInactive(product),
+        variableParent: isVariableParentProduct(product),
+      });
+    }
+  } catch (err) {
+    console.warn('[POS] Could not refresh stock before payment (batch)', err);
+    for (const productId of uniqueIds) {
+      stockById[productId] = null;
+    }
+  }
+
+  const ms = posElapsedMs(tAll);
+  console.log('[POS] refreshCartLineStock done', {
+    sec: posMsToSec(ms),
+    ms,
+    missingIds,
+    variableParentIds,
+    inactiveIds,
+    stockById,
+  });
+  posLogTimingSummary('refreshCartLineStock', [
+    { name: 'GET product/get-all-active-pos (_id batch)', ms },
+    { name: 'TOTAL', ms },
+  ]);
 
   return {
     lines: cartLines.map((line) => ({
@@ -602,81 +644,8 @@ async function refreshCartLineStock(cartLines, warehouseId) {
     missingIds,
     variableParentIds,
     inactiveIds,
+    ms,
   };
-}
-
-/** If product/get fails or id is stale, rebind to a live get-all-active-pos match by name. */
-async function rebindCartLinesToLiveCatalog(cartLines) {
-  if (!Array.isArray(cartLines) || cartLines.length === 0) return cartLines;
-
-  const nextLines = [];
-  for (const line of cartLines) {
-    const currentId = String(line?.productId || '').trim();
-    const rawName = String(line?.name || '')
-      .replace(/\s*\[\d+(?:\.\d+)?\]\s*$/, '')
-      .trim();
-
-    let resolvedId = currentId;
-    let resolvedName = line?.name;
-    let availableStock = line?.availableStock;
-
-    try {
-      const result = await fetchProductByIdRequest(currentId);
-      const product = pickProductFromApiBody(result);
-      if (product && !isVariableParentProduct(product) && !isProductInactive(product)) {
-        resolvedId = sellablePosProductId(product) || currentId;
-        nextLines.push({
-          ...line,
-          productId: resolvedId,
-          name: product.product_name || product.name || resolvedName,
-          availableStock: getProductAvailableStock(product) ?? availableStock,
-        });
-        continue;
-      }
-      if (product && isProductInactive(product)) {
-        nextLines.push({ ...line, __inactive: true });
-        continue;
-      }
-    } catch {
-      // fall through to catalog search
-    }
-
-    if (rawName) {
-      try {
-        const listed = await fetchProductActiveRequest({
-          search: rawName,
-          searchFields: 'product_name',
-          page: 1,
-          limit: 50,
-        });
-        const rows = Array.isArray(listed?.data) ? listed.data : [];
-        const exact =
-          rows.find((p) => {
-            const n = String(p?.product_name || p?.name || '').trim();
-            return n.toLowerCase() === rawName.toLowerCase();
-          }) ||
-          rows.find((p) => sellablePosProductId(p) === currentId) ||
-          null;
-
-        if (exact && !isVariableParentProduct(exact) && !isProductInactive(exact)) {
-          resolvedId = sellablePosProductId(exact);
-          resolvedName = exact.product_name || exact.name || resolvedName;
-          availableStock = getProductAvailableStock(exact) ?? availableStock;
-        }
-      } catch (err) {
-        console.warn('[POS] Could not rebind cart line from live catalog', currentId, err);
-      }
-    }
-
-    nextLines.push({
-      ...line,
-      productId: resolvedId,
-      name: resolvedName,
-      availableStock,
-    });
-  }
-
-  return nextLines;
 }
 
 function formatCartStockIssueToast(issues) {
@@ -1482,8 +1451,12 @@ const Pos = () => {
 
   const savePosOrder = useCallback(
     async (payment) => {
+      const tAll = performance.now();
+      const timingSteps = [];
+      console.log('[POS] savePosOrder start', { payment, isOnline, cartLineCount: cartLines.length });
       const normalized = normalizeCartLinesForCheckout(cartLines);
       if (normalized.error) {
+        console.log('[POS] savePosOrder blocked: cart invalid', normalized.error);
         alert(normalized.error);
         return null;
       }
@@ -1491,25 +1464,13 @@ const Pos = () => {
       let linesForSave = normalized.lines;
       if (isOnline) {
         try {
-          linesForSave = await rebindCartLinesToLiveCatalog(linesForSave);
-          const inactiveFromRebind = linesForSave
-            .filter((l) => l.__inactive)
-            .map((l) => String(l.productId || ''));
-          linesForSave = linesForSave
-            .filter((l) => !l.__inactive)
-            .map(({ __inactive, ...rest }) => rest);
-
-          if (inactiveFromRebind.length) {
-            toastCartProductValidationErrors({
-              missingIds: [],
-              variableParentIds: [],
-              inactiveIds: inactiveFromRebind,
-              cartLines: normalized.lines,
-            });
-            return null;
-          }
-
+          console.log('[POS] savePosOrder → refresh stock');
+          const tStock = performance.now();
           const refreshed = await refreshCartLineStock(linesForSave, defaultWarehouseId);
+          timingSteps.push({
+            name: 'refreshCartLineStock',
+            ms: refreshed.ms ?? posElapsedMs(tStock),
+          });
           linesForSave = refreshed.lines;
           setCartLines(linesForSave);
           if (
@@ -1520,6 +1481,12 @@ const Pos = () => {
               cartLines: linesForSave,
             })
           ) {
+            console.log('[POS] savePosOrder blocked: product validation', {
+              missingIds: refreshed.missingIds,
+              variableParentIds: refreshed.variableParentIds,
+              inactiveIds: refreshed.inactiveIds,
+            });
+            posLogTimingSummary('savePosOrder (blocked)', timingSteps);
             return null;
           }
         } catch (err) {
@@ -1532,6 +1499,8 @@ const Pos = () => {
             allowWhenInsufficient: false,
           });
           if (stockIssues.length) {
+            console.log('[POS] savePosOrder blocked: insufficient stock', stockIssues);
+            posLogTimingSummary('savePosOrder (blocked)', timingSteps);
             showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 5000 });
             return null;
           }
@@ -1578,15 +1547,29 @@ const Pos = () => {
           : moment().toISOString(),
       };
 
+      console.log('[POS] savePosOrder payload', orderPayload);
+
       const cartSnapshot = linesForSave.map((line) => ({ ...line }));
       const customerInfo = { name, email, phone };
 
       if (!isOnline) {
+        console.log('[POS] savePosOrder → offline IndexedDB save');
+        const tOffline = performance.now();
         const offlineResult = await saveOfflineOrder({
           payload: orderPayload,
           cartSnapshot,
           warehouseId: defaultWarehouseId,
         });
+        timingSteps.push({ name: 'saveOfflineOrder', ms: posElapsedMs(tOffline) });
+        console.log('[POS] savePosOrder offline ok', {
+          sec: posMsToSec(posElapsedMs(tOffline)),
+          ms: posElapsedMs(tOffline),
+          offlineResult,
+        });
+        posLogTimingSummary('savePosOrder', [
+          ...timingSteps,
+          { name: 'TOTAL', ms: posElapsedMs(tAll) },
+        ]);
         return buildOfflineSaveResult(offlineResult, {
           ...customerInfo,
           cartSnapshot,
@@ -1594,7 +1577,19 @@ const Pos = () => {
       }
 
       try {
+        console.log('[POS] API → POST order/order_save');
+        const tSave = performance.now();
         const result = await createPosOrderRequest(orderPayload);
+        timingSteps.push({ name: 'POST order/order_save', ms: posElapsedMs(tSave) });
+        console.log('[POS] order/order_save ok', {
+          sec: posMsToSec(posElapsedMs(tSave)),
+          ms: posElapsedMs(tSave),
+          result,
+        });
+        posLogTimingSummary('savePosOrder', [
+          ...timingSteps,
+          { name: 'TOTAL', ms: posElapsedMs(tAll) },
+        ]);
         return {
           result,
           offline: false,
@@ -1606,16 +1601,27 @@ const Pos = () => {
       } catch (err) {
         if (isLikelyNetworkError(err)) {
           console.warn('[POS] Online save failed, saving offline instead', err);
+          const tOffline = performance.now();
           const offlineResult = await saveOfflineOrder({
             payload: orderPayload,
             cartSnapshot,
             warehouseId: defaultWarehouseId,
           });
+          timingSteps.push({ name: 'saveOfflineOrder (fallback)', ms: posElapsedMs(tOffline) });
+          console.log('[POS] savePosOrder fallback offline ok', offlineResult);
+          posLogTimingSummary('savePosOrder', [
+            ...timingSteps,
+            { name: 'TOTAL', ms: posElapsedMs(tAll) },
+          ]);
           return buildOfflineSaveResult(offlineResult, {
             ...customerInfo,
             cartSnapshot,
           });
         }
+        posLogTimingSummary('savePosOrder (error)', [
+          ...timingSteps,
+          { name: 'TOTAL', ms: posElapsedMs(tAll) },
+        ]);
         throw err;
       }
     },
@@ -1634,10 +1640,23 @@ const Pos = () => {
   );
 
   const handlePaymentClick = useCallback(async () => {
-    if (paymentPreparing || orderSaving) return;
+    const tAll = performance.now();
+    const timingSteps = [];
+    console.log('[POS] Payment button clicked', {
+      paymentPreparing,
+      orderSaving,
+      isOnline,
+      cartLineCount: cartLines.length,
+      allowAddWhenStockInsufficient,
+    });
+    if (paymentPreparing || orderSaving) {
+      console.log('[POS] Payment click ignored (busy)');
+      return;
+    }
 
     const normalized = normalizeCartLinesForCheckout(cartLines);
     if (normalized.error) {
+      console.log('[POS] Payment blocked: cart invalid', normalized.error);
       toast.warning(normalized.error);
       return;
     }
@@ -1645,29 +1664,18 @@ const Pos = () => {
     let linesForPayment = normalized.lines;
     setCartLines(normalized.lines);
     setPaymentPreparing(true);
+    console.log('[POS] Payment preparing…', { lines: linesForPayment });
 
     try {
       if (isOnline) {
         try {
-          linesForPayment = await rebindCartLinesToLiveCatalog(linesForPayment);
-          const inactiveFromRebind = linesForPayment
-            .filter((l) => l.__inactive)
-            .map((l) => String(l.productId || ''));
-          linesForPayment = linesForPayment
-            .filter((l) => !l.__inactive)
-            .map(({ __inactive, ...rest }) => rest);
-
-          if (inactiveFromRebind.length) {
-            toastCartProductValidationErrors({
-              missingIds: [],
-              variableParentIds: [],
-              inactiveIds: inactiveFromRebind,
-              cartLines: normalized.lines,
-            });
-            return;
-          }
-
+          console.log('[POS] Payment → refresh stock');
+          const tStock = performance.now();
           const refreshed = await refreshCartLineStock(linesForPayment, defaultWarehouseId);
+          timingSteps.push({
+            name: 'refreshCartLineStock',
+            ms: refreshed.ms ?? posElapsedMs(tStock),
+          });
           linesForPayment = refreshed.lines;
           setCartLines(linesForPayment);
           if (
@@ -1678,6 +1686,15 @@ const Pos = () => {
               cartLines: linesForPayment,
             })
           ) {
+            console.log('[POS] Payment blocked: product validation', {
+              missingIds: refreshed.missingIds,
+              variableParentIds: refreshed.variableParentIds,
+              inactiveIds: refreshed.inactiveIds,
+            });
+            posLogTimingSummary('Payment button click (blocked)', [
+              ...timingSteps,
+              { name: 'TOTAL', ms: posElapsedMs(tAll) },
+            ]);
             return;
           }
         } catch (err) {
@@ -1690,15 +1707,31 @@ const Pos = () => {
             allowWhenInsufficient: false,
           });
           if (stockIssues.length) {
+            console.log('[POS] Payment blocked: insufficient stock', stockIssues);
+            posLogTimingSummary('Payment button click (blocked)', [
+              ...timingSteps,
+              { name: 'TOTAL', ms: posElapsedMs(tAll) },
+            ]);
             showStockErrorToast(formatCartStockIssueToast(stockIssues), { delay: 8000 });
             return;
           }
         }
+      } else {
+        console.log('[POS] Payment offline — skip stock APIs');
       }
 
+      console.log('[POS] Opening Make Payment modal');
       openPosPaymentModal();
     } finally {
       setPaymentPreparing(false);
+      console.log('[POS] Payment preparing finished', {
+        sec: posMsToSec(posElapsedMs(tAll)),
+        ms: posElapsedMs(tAll),
+      });
+      posLogTimingSummary('Payment button click', [
+        ...timingSteps,
+        { name: 'TOTAL', ms: posElapsedMs(tAll) },
+      ]);
     }
   }, [
     cartLines,
@@ -1878,19 +1911,42 @@ const Pos = () => {
 
   const handlePaymentComplete = useCallback(
     async (payment) => {
+      const tAll = performance.now();
+      console.log('[POS] Pay Now clicked', payment);
       setOrderSaving(true);
       try {
         const saved = await savePosOrder(payment);
-        if (!saved) return false;
+        if (!saved) {
+          console.log('[POS] Pay Now aborted (save returned null)', {
+            sec: posMsToSec(posElapsedMs(tAll)),
+            ms: posElapsedMs(tAll),
+          });
+          return false;
+        }
+        console.log('[POS] Pay Now save result', {
+          sec: posMsToSec(posElapsedMs(tAll)),
+          ms: posElapsedMs(tAll),
+          offline: saved.offline,
+          invoiceHint: saved.offline
+            ? saved.localInvoiceNo || saved.result?.local_invoice_no
+            : saved.result,
+        });
         if (saved.offline) {
           toast.success('Sale saved offline — will sync when online', { delay: 6000 });
         } else {
           showToast('successToast', 'Order saved successfully.');
         }
         clearCartAfterSale();
+        console.log('[POS] Pay Now complete — cart cleared', {
+          sec: posMsToSec(posElapsedMs(tAll)),
+          ms: posElapsedMs(tAll),
+        });
         return true;
       } catch (e) {
-        console.error('[POS] Failed to save order', e);
+        console.error('[POS] Failed to save order', e, {
+          sec: posMsToSec(posElapsedMs(tAll)),
+          ms: posElapsedMs(tAll),
+        });
         showStockErrorToast(
           formatPosOrderErrorMessage(e?.message, {
             cartLines,
@@ -1909,10 +1965,18 @@ const Pos = () => {
 
   const handlePaymentCompletePrint = useCallback(
     async (payment) => {
+      const tAll = performance.now();
+      console.log('[POS] Pay Now & Print clicked', payment);
       setOrderSaving(true);
       try {
         const saved = await savePosOrder(payment);
-        if (!saved) return false;
+        if (!saved) {
+          console.log('[POS] Pay Now & Print aborted (save returned null)', {
+            sec: posMsToSec(posElapsedMs(tAll)),
+            ms: posElapsedMs(tAll),
+          });
+          return false;
+        }
 
         const invoiceNo = saved.offline
           ? saved.localInvoiceNo || saved.result?.local_invoice_no

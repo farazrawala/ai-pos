@@ -6,6 +6,7 @@ import {
   getAllPaymentMethods,
 } from '../../offline/repositories/paymentMethodsRepo.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
+import { posElapsedMs, posMsToSec, posLogTimingSummary } from '../../utils/posTimingDebug.js';
 
 const MODAL_ID = 'posPaymentModal';
 
@@ -64,28 +65,54 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
   }, []);
 
   const loadPaymentMethods = useCallback(async () => {
+    const tAll = performance.now();
+    const timingSteps = [];
+    console.log('[POS] Payment modal → load payment methods', { isOnline });
     setPaymentMethodsStatus('loading');
     setPaymentMethodsError('');
 
     const loadPaymentMethodsFromCache = async () => {
+      const tCache = performance.now();
+      console.log('[POS] Payment methods → IndexedDB cache');
       const cached = await getAllPaymentMethods();
+      const cacheMs = posElapsedMs(tCache);
       if ((await countPaymentMethods()) === 0) {
         setPaymentMethods([]);
         setPaymentMethodsError(OFFLINE_CATALOG_EMPTY_MESSAGE);
         setPaymentMethodsStatus('failed');
         setPaymentMethod('');
+        console.log('[POS] Payment methods cache empty', {
+          sec: posMsToSec(cacheMs),
+          ms: cacheMs,
+        });
+        timingSteps.push({ name: 'IndexedDB cache (empty)', ms: cacheMs });
         return false;
       }
+      console.log('[POS] Payment methods from cache', {
+        count: cached.length,
+        sec: posMsToSec(cacheMs),
+        ms: cacheMs,
+      });
+      timingSteps.push({ name: 'IndexedDB cache', ms: cacheMs });
       applyPaymentMethodList(cached);
       return true;
     };
 
     if (!isOnline) {
       await loadPaymentMethodsFromCache();
+      posLogTimingSummary('load payment methods', [
+        ...timingSteps,
+        { name: 'TOTAL', ms: posElapsedMs(tAll) },
+      ]);
       return;
     }
 
     try {
+      console.log(
+        '[POS] API → GET account/get-all-active',
+        { limit: 2000, skip: 0, account_type: 'current_asset', sortBy: 'createdAt', sortOrder: 'asc' }
+      );
+      const tApi = performance.now();
       const result = await fetchAccountsRequest({
         limit: 2000,
         skip: 0,
@@ -93,11 +120,25 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
         sortBy: 'createdAt',
         sortOrder: 'asc',
       });
+      const apiMs = posElapsedMs(tApi);
       const list = Array.isArray(result?.data) ? result.data : [];
+      console.log('[POS] account/get-all-active ok', {
+        count: list.length,
+        sec: posMsToSec(apiMs),
+        ms: apiMs,
+      });
       applyPaymentMethodList(list);
+      posLogTimingSummary('load payment methods', [
+        { name: 'GET account/get-all-active', ms: apiMs },
+        { name: 'TOTAL', ms: posElapsedMs(tAll) },
+      ]);
     } catch (error) {
       console.warn('[POS] Failed to load payment methods from API, trying offline cache', error);
       const usedCache = await loadPaymentMethodsFromCache();
+      posLogTimingSummary('load payment methods (fallback)', [
+        ...timingSteps,
+        { name: 'TOTAL', ms: posElapsedMs(tAll) },
+      ]);
       if (!usedCache) {
         setPaymentMethods([]);
         setPaymentMethodsError(error?.message || 'Could not load payment methods');
@@ -141,16 +182,24 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
 
   const handlePayNow = async () => {
     if (busy) return;
+    const payment = {
+      total,
+      paid,
+      paymentMethod: selectedPaymentMethod?.name || '',
+      paymentMethodId: paymentMethod,
+      account,
+      balanceDue,
+      change,
+    };
+    console.log('[POS] Modal Pay Now', payment);
     setSubmitting(true);
+    const tAll = performance.now();
     try {
-      const result = await onPayNow?.({
-        total,
-        paid,
-        paymentMethod: selectedPaymentMethod?.name || '',
-        paymentMethodId: paymentMethod,
-        account,
-        balanceDue,
-        change,
+      const result = await onPayNow?.(payment);
+      console.log('[POS] Modal Pay Now result', {
+        result,
+        sec: posMsToSec(posElapsedMs(tAll)),
+        ms: posElapsedMs(tAll),
       });
       if (result !== false) {
         closePosPaymentModal();
@@ -162,16 +211,24 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
 
   const handlePayNowPrint = async () => {
     if (busy) return;
+    const payment = {
+      total,
+      paid,
+      paymentMethod: selectedPaymentMethod?.name || '',
+      paymentMethodId: paymentMethod,
+      account,
+      balanceDue,
+      change,
+    };
+    console.log('[POS] Modal Pay Now & Print', payment);
     setSubmitting(true);
+    const tAll = performance.now();
     try {
-      const result = await onPayNowPrint?.({
-        total,
-        paid,
-        paymentMethod: selectedPaymentMethod?.name || '',
-        paymentMethodId: paymentMethod,
-        account,
-        balanceDue,
-        change,
+      const result = await onPayNowPrint?.(payment);
+      console.log('[POS] Modal Pay Now & Print result', {
+        result,
+        sec: posMsToSec(posElapsedMs(tAll)),
+        ms: posElapsedMs(tAll),
       });
       if (result !== false) {
         closePosPaymentModal();

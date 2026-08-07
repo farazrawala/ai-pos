@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
 import { createOrderSaveError } from '../../utils/posOrderErrors.js';
 import { fetchAccountByIdRequest, fetchPublicAccountByIdRequest } from '../accounts/accountsAPI.js';
+import { posElapsedMs, posMsToSec, posLogTimingSummary } from '../../utils/posTimingDebug.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -1738,13 +1739,34 @@ export async function createPosOrderRequest(payload = {}) {
     form.append('createdAt', String(payload.createdAt).trim());
   }
 
+  const tAll = performance.now();
+  console.log('[POS] createPosOrderRequest → POST order/order_save', {
+    name: payload.name,
+    customer_id: payload.customer_id,
+    lines: Array.isArray(payload.lines) ? payload.lines : [],
+    amount_received: payload.amount_received,
+    change_given: payload.change_given,
+    remaining_amount: payload.remaining_amount,
+    payment_method_id: payload.payment_method_id,
+    posPayMethod: payload.posPayMethod,
+    shipping: payload.shipping,
+    discount: payload.discount,
+    order_status: payload.order_status,
+  });
+
   const response = await fetch(`${BASE_URL}order/order_save`, {
     method: 'POST',
     headers: getHeaders({ json: false }),
     body: form,
   });
+  const fetchMs = posElapsedMs(tAll);
 
   if (!response.ok) {
+    console.log('[POS] order/order_save HTTP error', {
+      status: response.status,
+      sec: posMsToSec(fetchMs),
+      ms: fetchMs,
+    });
     await readOrderSaveFailure(response);
   }
 
@@ -1752,6 +1774,14 @@ export async function createPosOrderRequest(payload = {}) {
   try {
     result = await response.json();
   } catch {
+    console.log('[POS] order/order_save ok (empty/non-JSON body)', {
+      sec: posMsToSec(fetchMs),
+      ms: fetchMs,
+    });
+    posLogTimingSummary('order/order_save', [
+      { name: 'POST order/order_save', ms: fetchMs },
+      { name: 'TOTAL', ms: fetchMs },
+    ]);
     return { success: true };
   }
 
@@ -1760,9 +1790,24 @@ export async function createPosOrderRequest(payload = {}) {
       typeof result.message === 'string' && result.message.trim() !== ''
         ? result.message
         : 'Could not save order';
+    console.log('[POS] order/order_save business failure', {
+      sec: posMsToSec(fetchMs),
+      ms: fetchMs,
+      result,
+    });
     throw createOrderSaveError(msg, result);
   }
 
+  const totalMs = posElapsedMs(tAll);
+  console.log('[POS] order/order_save response', {
+    sec: posMsToSec(totalMs),
+    ms: totalMs,
+    result,
+  });
+  posLogTimingSummary('order/order_save', [
+    { name: 'POST order/order_save', ms: totalMs },
+    { name: 'TOTAL', ms: totalMs },
+  ]);
   return result;
 }
 

@@ -202,6 +202,7 @@ export const POS_PRODUCT_SEARCH_FIELDS = PRODUCT_LIST_SEARCH_FIELDS;
 
 /**
  * POS / search: `GET product/get-all-active-pos?...&status=active|inactive&include_inactive=true&product_type=Single|Variable`
+ * Batch by id: `?_id=id1,id2` (aliases: ids, product_ids, product_id).
  * Default (no status params) = active only. Pagination.total matches the status filter.
  */
 export const fetchProductActiveRequest = async (params = {}) => {
@@ -224,6 +225,20 @@ export const fetchProductActiveRequest = async (params = {}) => {
       ? String(params.searchFields).trim()
       : POS_PRODUCT_SEARCH_FIELDS;
   queryParams.set('searchFields', searchFields);
+
+  const idsRaw = params._id ?? params.ids ?? params.product_ids ?? params.product_id;
+  if (idsRaw != null) {
+    const ids = Array.isArray(idsRaw)
+      ? idsRaw.map((id) => String(id || '').trim()).filter(Boolean)
+      : String(idsRaw)
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+    if (ids.length) {
+      queryParams.set('_id', ids.join(','));
+    }
+  }
+
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     queryParams.append('skip', skip);
