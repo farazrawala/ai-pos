@@ -214,6 +214,7 @@ const PRODUCT_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
   { key: 'image', label: 'Image' },
   { key: 'name', label: 'Name', alwaysVisible: true },
+  { key: 'category', label: 'Category' },
   { key: 'stock', label: 'Stock' },
   { key: 'wholesale', label: 'Wholesale' },
   { key: 'price', label: 'Price' },
@@ -266,6 +267,18 @@ const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
 const categoryOptionLabel = (c) => {
   const name = c?.name ?? c?.category_name ?? '';
   return name ? String(name) : categoryOptionValue(c) || 'Category';
+};
+
+/** Category name from populated `category_id` on a product row. */
+const getProductCategoryName = (item) => {
+  const cat = item?.category_id ?? item?.categoryId ?? item?.category;
+  if (cat && typeof cat === 'object' && !Array.isArray(cat)) {
+    const name = String(cat.name ?? cat.category_name ?? '').trim();
+    if (name) return name;
+  }
+  if (typeof cat === 'string' && cat.trim()) return cat.trim();
+  const fallback = String(item?.category_name ?? item?.categoryName ?? '').trim();
+  return fallback || '';
 };
 
 const Product = () => {
@@ -1145,6 +1158,9 @@ const Product = () => {
                       <th className="text-center list-col-sno">#</th>
                       {isVisible('image') ? <th className="list-col-product-img">Image</th> : null}
                       {sortableTh('name', 'Name', 'list-col-truncate')}
+                      {isVisible('category')
+                        ? sortableTh('category_id', 'Category', 'list-col-truncate')
+                        : null}
                       {isVisible('stock')
                         ? sortableTh('stock', 'Stock', 'text-end list-col-stock')
                         : null}
@@ -1195,6 +1211,7 @@ const Product = () => {
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
+                        const categoryName = getProductCategoryName(item);
                         const parentId = getParentProductId(item);
                         const parentProduct = parentId ? productsById.get(parentId) || null : null;
                         const mainImage =
@@ -1258,6 +1275,14 @@ const Product = () => {
                                 productName
                               )}
                             </td>
+                            {isVisible('category') ? (
+                              <td
+                                className="text-sm list-cell-truncate"
+                                title={categoryName || undefined}
+                              >
+                                {categoryName || '—'}
+                              </td>
+                            ) : null}
                             {isVisible('stock') ? (
                               <td className="text-sm text-end list-col-stock">
                                 <button

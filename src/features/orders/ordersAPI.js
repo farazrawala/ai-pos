@@ -1565,6 +1565,144 @@ export async function updateOrderStatusRequest(orderId, payload = {}) {
   return result;
 }
 
+export const ORDER_VALIDATE_ADDRESS_PATH = 'order/validate-address';
+
+/**
+ * POST `/api/order/validate-address`
+ * Content-Type: application/json
+ *
+ * @example body
+ * { "order_id": "…", "address": "12 Street 4 PECHS Karachi 75500 Pakistan" }
+ */
+export async function validateOrderAddressRequest(payload = {}) {
+  const orderId = String(payload?.order_id ?? payload?.orderId ?? '').trim();
+  const address = String(payload?.address ?? '').trim();
+
+  if (!orderId && !address) {
+    throw new Error('order_id or address is required');
+  }
+
+  /** @type {{ order_id?: string, address?: string }} */
+  const body = {};
+  if (orderId) body.order_id = orderId;
+  if (address) body.address = address;
+
+  const response = await fetch(`${BASE_URL}${ORDER_VALIDATE_ADDRESS_PATH}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to validate address');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Invalid validate-address response');
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to validate address';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+export const ORDER_UPDATE_ADDRESS_PATH = 'order/update-address';
+
+/**
+ * PATCH `/api/order/update-address/:orderId`
+ * Content-Type: application/json
+ *
+ * @example
+ * {
+ *   "address": "12 Street 4 PECHS",
+ *   "city": "Karachi",
+ *   "state": "Sindh",
+ *   "zip": "75500",
+ *   "country": "Pakistan",
+ *   "name": "John Smith",
+ *   "phone": "6029078637",
+ *   "email": "example2@example.com",
+ *   "validate": true
+ * }
+ */
+export async function updateOrderAddressRequest(orderId, payload = {}) {
+  const id = String(orderId || '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+
+  /** @type {Record<string, string | boolean>} */
+  const body = {};
+  const assign = (key, value) => {
+    if (value == null) return;
+    const text = String(value).trim();
+    if (!text) return;
+    body[key] = text;
+  };
+
+  assign('address', payload.address);
+  assign('city', payload.city);
+  assign('state', payload.state);
+  assign('zip', payload.zip);
+  assign('country', payload.country);
+  assign('name', payload.name);
+  assign('phone', payload.phone);
+  assign('email', payload.email);
+
+  if (payload.validate === true || payload.validate === 'true') {
+    body.validate = true;
+  }
+
+  if (!body.address && !body.city) {
+    throw new Error('Address is required');
+  }
+
+  const response = await fetch(
+    `${BASE_URL}${ORDER_UPDATE_ADDRESS_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to update address');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to update address';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
 export const ORDER_UPDATE_TAGS_PATH = 'order/update-tags';
 
 /**

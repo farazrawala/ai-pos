@@ -14,6 +14,7 @@ import {
   FaHand,
   FaBoxOpen,
   FaCircleCheck,
+  FaLocationDot,
   FaBox,
   FaCodeBranch,
   FaLayerGroup,
@@ -56,6 +57,8 @@ import {
   ORDER_STATUS_UPDATE_LIST_PATH,
   ORDER_MERGE_PATH,
   ORDER_UPDATE_TAGS_PATH,
+  ORDER_VALIDATE_ADDRESS_PATH,
+  ORDER_UPDATE_ADDRESS_PATH,
 } from '../../features/orders/ordersAPI.js';
 import {
   ORDER_DETAIL_EXPORT_COLUMNS,
@@ -83,6 +86,7 @@ import OrderConfirmationTagsModal, {
   normalizeOrderTags,
   ORDER_CONFIRMATION_TAG_VALUES,
 } from '../../components/order/OrderConfirmationTagsModal.jsx';
+import ValidateOrderAddressModal from '../../components/order/ValidateOrderAddressModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
@@ -479,6 +483,24 @@ const formatWebsiteStatusLabel = (value) => {
 
 const formatOrderTagLabel = (value) => formatWebsiteStatusLabel(value);
 
+const buildOrderAddressText = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const direct = String(row.address ?? row.shipping_address ?? row.shippingAddress ?? '').trim();
+  const parts = [row.city, row.state, row.zip, row.postal]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean);
+  if (direct && parts.length) {
+    const lower = direct.toLowerCase();
+    const missing = parts.filter((part) => !lower.includes(part.toLowerCase()));
+    return missing.length ? `${direct}, ${missing.join(', ')}` : direct;
+  }
+  if (direct) return direct;
+  return [row.address_line1, row.address_line2, ...parts]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(', ');
+};
+
 const orderTagBadgeClass = (tag) => {
   const s = String(tag || '')
     .trim()
@@ -593,6 +615,19 @@ export default function OrdersListPage({ config }) {
     orderId: '',
     orderNo: '',
     tags: [],
+  });
+  const [validateAddressModal, setValidateAddressModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
+    address: '',
+    name: '',
+    phone: '',
+    email: '',
+    city: '',
+    state: '',
+    zip: '',
+    country: '',
   });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
@@ -1109,6 +1144,34 @@ export default function OrdersListPage({ config }) {
     });
   };
 
+  const handleOpenValidateAddressModal = (row) => {
+    const orderId = pickOrderDocumentId(row);
+    const orderNo = row?.order_no || row?.orderNo || '';
+    const address = buildOrderAddressText(row);
+    if (!orderId && !address) {
+      toast.error('No address available to validate.');
+      return;
+    }
+    setValidateAddressModal({
+      open: true,
+      orderId: orderId ? String(orderId) : '',
+      orderNo: orderNo || '',
+      address,
+      name: String(row?.name || '').trim(),
+      phone: String(row?.phone || '').trim(),
+      email: String(row?.email || '').trim(),
+      city: String(row?.city || '').trim(),
+      state: String(row?.state || '').trim(),
+      zip: String(row?.zip || row?.postal_code || '').trim(),
+      country: String(row?.country || '').trim(),
+    });
+  };
+
+  const handleAddressUpdated = () => {
+    toast.success('Address updated.');
+    refreshOrderList();
+  };
+
   const handleConfirmationTagsUpdated = ({ orderId, tags } = {}) => {
     if (orderId) {
       setTagsOverrides((prev) => ({
@@ -1465,6 +1528,24 @@ export default function OrdersListPage({ config }) {
     });
 
     sources.push({
+      key: 'order-validate-address',
+      label: 'Validate order address',
+      url: buildApiUrl(ORDER_VALIDATE_ADDRESS_PATH),
+      status: validateAddressModal.open ? 'loading' : 'pending',
+      durationMs: null,
+      error: null,
+    });
+
+    sources.push({
+      key: 'order-update-address',
+      label: 'Update order address',
+      url: buildApiUrl(`${ORDER_UPDATE_ADDRESS_PATH}/:orderId`),
+      status: validateAddressModal.open ? 'loading' : 'pending',
+      durationMs: null,
+      error: null,
+    });
+
+    sources.push({
       key: 'order-delete',
       label: 'Delete order',
       url: buildApiUrl('order/order_delete/:orderId'),
@@ -1546,6 +1627,7 @@ export default function OrdersListPage({ config }) {
     statusHistoryModal.open,
     orderHistoryModal.open,
     confirmationModal.open,
+    validateAddressModal.open,
     mergeOrdersUpdating,
     shipmentModal.open,
     parcelBarcodeModal.open,
@@ -2424,6 +2506,18 @@ export default function OrdersListPage({ config }) {
                                 {!isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
+                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                    title="Validate address"
+                                    aria-label="Validate address"
+                                    onClick={() => handleOpenValidateAddressModal(item)}
+                                    disabled={!orderId && !buildOrderAddressText(item)}
+                                  >
+                                    <NavIcon icon={FaLocationDot} size={14} />
+                                  </button>
+                                ) : null}
+                                {!isDeletedView && !viewReadOnly ? (
+                                  <button
+                                    type="button"
                                     className={`btn btn-sm mb-0 px-2 ${
                                       ORDER_CONFIRMATION_TAG_VALUES.some((tag) =>
                                         getOrderTags(item, orderId).includes(tag)
@@ -2577,6 +2671,36 @@ export default function OrdersListPage({ config }) {
           setConfirmationModal({ open: false, orderId: '', orderNo: '', tags: [] })
         }
         onSaved={handleConfirmationTagsUpdated}
+      />
+
+      <ValidateOrderAddressModal
+        open={validateAddressModal.open}
+        orderId={validateAddressModal.orderId}
+        orderNo={validateAddressModal.orderNo}
+        address={validateAddressModal.address}
+        name={validateAddressModal.name}
+        phone={validateAddressModal.phone}
+        email={validateAddressModal.email}
+        city={validateAddressModal.city}
+        state={validateAddressModal.state}
+        zip={validateAddressModal.zip}
+        country={validateAddressModal.country}
+        onClose={() =>
+          setValidateAddressModal({
+            open: false,
+            orderId: '',
+            orderNo: '',
+            address: '',
+            name: '',
+            phone: '',
+            email: '',
+            city: '',
+            state: '',
+            zip: '',
+            country: '',
+          })
+        }
+        onSaved={handleAddressUpdated}
       />
 
       {showTrackingColumn ? (

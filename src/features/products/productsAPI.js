@@ -54,9 +54,9 @@ const buildApiErrorMessage = (errorData, status) => {
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
 
-/** Populate Me-too origin company + source product (warehouse_inventory, hold qty). */
+/** Populate Me-too origin company + source product + category. */
 export const PRODUCTS_LIST_POPULATE =
-  'fetch_from_company_id,fetch_from_product_id';
+  'fetch_from_company_id,fetch_from_product_id,category_id';
 
 /** Append POS status query params per backend contract. */
 const appendPosStatusParams = (queryParams, params = {}) => {
