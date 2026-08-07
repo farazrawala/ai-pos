@@ -8,6 +8,7 @@ import {
   fetchDeletedOrderForInvoiceRequest,
   getOrderLineItems,
   updatePosOrderRequest,
+  updateOrderStatusRequest,
 } from '../../features/orders/ordersAPI.js';
 import {
   mapOrderToInvoiceView,
@@ -367,6 +368,7 @@ const PosInvoice = () => {
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
   const [invoiceOrderStatus, setInvoiceOrderStatus] = useState(DEFAULT_ORDER_STATUS);
+  const [orderStatusUpdating, setOrderStatusUpdating] = useState(false);
   const [invoiceDiscountInput, setInvoiceDiscountInput] = useState('');
   const [invoiceDiscountPercentInput, setInvoiceDiscountPercentInput] = useState('');
   const [invoiceShippingInput, setInvoiceShippingInput] = useState('');
@@ -799,6 +801,48 @@ const PosInvoice = () => {
     invoicePosPayMethod,
     users,
   ]);
+
+  const handleOrderStatusChange = useCallback(
+    async (nextRaw) => {
+      const oid = sourceOrder?._id ?? sourceOrder?.id;
+      if (!oid) return;
+
+      const next = normalizeOrderStatus(nextRaw);
+      const fromStatus = normalizeOrderStatus(
+        sourceOrder?.order_status ?? sourceOrder?.orderStatus ?? invoiceOrderStatus
+      );
+      if (!next || next === fromStatus) {
+        setInvoiceOrderStatus(next || fromStatus);
+        return;
+      }
+
+      const previous = invoiceOrderStatus;
+      setInvoiceOrderStatus(next);
+      setOrderStatusUpdating(true);
+
+      try {
+        const result = await updateOrderStatusRequest(String(oid), {
+          order_status: next,
+          ...(fromStatus ? { from_status: fromStatus } : {}),
+        });
+        const savedStatus =
+          normalizeOrderStatus(result?.data?.order?.order_status) || next;
+        setInvoiceOrderStatus(savedStatus);
+        setSourceOrder((prev) =>
+          prev && typeof prev === 'object'
+            ? { ...prev, order_status: savedStatus }
+            : prev
+        );
+        toast.success('Order status updated.');
+      } catch (err) {
+        setInvoiceOrderStatus(previous);
+        toast.error(err?.message || 'Failed to update order status.');
+      } finally {
+        setOrderStatusUpdating(false);
+      }
+    },
+    [sourceOrder, invoiceOrderStatus]
+  );
 
   const canUpdateInvoice =
     !isReadOnlyView &&
@@ -1527,6 +1571,14 @@ const PosInvoice = () => {
           status: invoiceSaving ? 'loading' : 'pending',
           durationMs: null,
           error: null,
+        },
+        {
+          key: 'update-order-status',
+          label: 'Update order status',
+          url: buildApiUrl(`order/update-status/${encodeURIComponent(oid)}`),
+          status: orderStatusUpdating ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
         }
       );
     }
@@ -1549,6 +1601,7 @@ const PosInvoice = () => {
     createCustomerSubmitting,
     createCustomerError,
     invoiceSaving,
+    orderStatusUpdating,
   ]);
 
   if (fetchStatus === 'loading') {
@@ -1614,7 +1667,8 @@ const PosInvoice = () => {
                           className="form-select form-select-sm"
                           style={{ minWidth: '10rem', width: 'auto' }}
                           value={invoiceOrderStatus}
-                          onChange={(e) => setInvoiceOrderStatus(e.target.value)}
+                          onChange={(e) => handleOrderStatusChange(e.target.value)}
+                          disabled={orderStatusUpdating || invoiceSaving}
                           aria-label="Order status"
                         >
                           {!ORDER_STATUS_OPTIONS.includes(invoiceOrderStatus) &&
@@ -1914,7 +1968,8 @@ const PosInvoice = () => {
                           id="pos-inv-order-status"
                           className="form-select form-select-sm"
                           value={invoiceOrderStatus}
-                          onChange={(e) => setInvoiceOrderStatus(e.target.value)}
+                          onChange={(e) => handleOrderStatusChange(e.target.value)}
+                          disabled={orderStatusUpdating || invoiceSaving}
                         >
                           {!ORDER_STATUS_OPTIONS.includes(invoiceOrderStatus) &&
                           invoiceOrderStatus ? (

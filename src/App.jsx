@@ -279,7 +279,14 @@ const App = () => {
           <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/assets/edit/:id" element={<AssetEdit />} />
           <Route path="/orders" element={<Orders />} />
-          <Route path="/oms" element={<OMS />} />
+          <Route
+            path="/oms"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock OMS">
+                <OMS />
+              </RoutePasswordGate>
+            }
+          />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/transactions/add" element={<TransactionAdd />} />
           <Route path="/transactions/edit/:id" element={<TransactionEdit />} />
@@ -446,7 +453,14 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/assets/add" element={<AssetAdd />} />
           <Route path="/assets/edit/:id" element={<AssetEdit />} />
           <Route path="/orders" element={<Orders />} />
-          <Route path="/oms" element={<OMS />} />
+          <Route
+            path="/oms"
+            element={
+              <RoutePasswordGate password={ROUTE_PASSWORD} title="Unlock OMS">
+                <OMS />
+              </RoutePasswordGate>
+            }
+          />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/transactions/add" element={<TransactionAdd />} />
           <Route path="/transactions/edit/:id" element={<TransactionEdit />} />

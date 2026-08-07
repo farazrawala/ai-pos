@@ -1032,6 +1032,8 @@ function buildOrderListQueryParams(listParams = {}) {
   if (orderType) queryParams.append('order_type', String(orderType));
   const orderStatus = listParams.orderStatus || listParams.order_status;
   if (orderStatus) queryParams.append('order_status', String(orderStatus));
+  const tag = listParams.tag || listParams.tags;
+  if (tag) queryParams.append('tag', String(tag));
   if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
   if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
   return queryParams;
@@ -1557,6 +1559,117 @@ export async function updateOrderStatusRequest(orderId, payload = {}) {
       typeof result.message === 'string' && result.message.trim() !== ''
         ? result.message
         : 'Failed to update order status';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+export const ORDER_UPDATE_TAGS_PATH = 'order/update-tags';
+
+/**
+ * PATCH `/api/order/update-tags/:orderId`
+ * Content-Type: application/json
+ *
+ * @example
+ * { "tags": ["incomplete_address", "confirmed_by_whatsapp"] }
+ */
+export async function updateOrderTagsRequest(orderId, payload = {}) {
+  const id = String(orderId || '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+
+  const seen = new Set();
+  const tags = [];
+  for (const raw of Array.isArray(payload?.tags) ? payload.tags : []) {
+    const tag = String(raw ?? '').trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+
+  const response = await fetch(
+    `${BASE_URL}${ORDER_UPDATE_TAGS_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ tags }),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to update order tags');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true, tags };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to update order tags';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+export const ORDER_MERGE_PATH = 'order/order_merge';
+
+/**
+ * POST `order/order_merge` — JSON body `{ order_ids: string[] }`.
+ * Last id is the survivor (target); earlier ids become `duplicate`.
+ */
+export async function mergeOrdersRequest(orderIds = []) {
+  const ids = (Array.isArray(orderIds) ? orderIds : [orderIds])
+    .map((id) => String(id ?? '').trim())
+    .filter(Boolean);
+
+  if (ids.length < 2) {
+    throw new Error('Select at least two orders to merge.');
+  }
+
+  const unique = new Set(ids);
+  if (unique.size !== ids.length) {
+    throw new Error('Selected orders must be unique.');
+  }
+
+  const response = await fetch(`${BASE_URL}${ORDER_MERGE_PATH}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ order_ids: ids }),
+  });
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to merge orders');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : typeof result.error === 'string' && result.error.trim() !== ''
+          ? result.error
+          : 'Failed to merge orders';
     throw new Error(msg);
   }
 

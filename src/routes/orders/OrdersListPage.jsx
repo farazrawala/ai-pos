@@ -7,6 +7,7 @@ import {
   FaCloudArrowUp,
   FaFilter,
   FaClockRotateLeft,
+  FaWhatsapp,
   FaListCheck,
   FaHourglassStart,
   FaMoneyBillWave,
@@ -20,7 +21,6 @@ import {
   FaTruckFast,
   FaTruck,
   FaRoad,
-  FaClock,
   FaTriangleExclamation,
   FaRotateLeft,
   FaBoxArchive,
@@ -37,6 +37,7 @@ import {
   setIntegrationFilter,
   setOrderTypeFilter,
   setOrderStatusFilter,
+  setTagFilter,
   clearDateFilters,
   setPage,
   setLimit,
@@ -49,9 +50,12 @@ import {
   getNoOfItemsDisplay,
   fetchAllOrdersForExportRequest,
   updateOrderStatusRequest,
+  mergeOrdersRequest,
   DELETED_ORDER_BY_ORDER_ITEM_PATH,
   DEFAULT_ORDER_LIST_PATH,
   ORDER_STATUS_UPDATE_LIST_PATH,
+  ORDER_MERGE_PATH,
+  ORDER_UPDATE_TAGS_PATH,
 } from '../../features/orders/ordersAPI.js';
 import {
   ORDER_DETAIL_EXPORT_COLUMNS,
@@ -74,6 +78,11 @@ import ChangeOrderStatusModal, {
   formatOrderStatusOptionLabel,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
 import OrderStatusUpdatesModal from '../../components/order/OrderStatusUpdatesModal.jsx';
+import CustomerOrderHistoryModal from '../../components/order/CustomerOrderHistoryModal.jsx';
+import OrderConfirmationTagsModal, {
+  normalizeOrderTags,
+  ORDER_CONFIRMATION_TAG_VALUES,
+} from '../../components/order/OrderConfirmationTagsModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
@@ -82,6 +91,7 @@ import {
   resolveOrderTrackingInfo,
   TCS_TRACKING_DETAIL_URL,
 } from '../../features/courier/courierAPI.js';
+import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { DEBUG } from '../../config/env.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
@@ -302,6 +312,7 @@ const ORDER_COLUMNS = [
   { key: 'items', label: 'Items' },
   { key: 'total', label: 'Total' },
   { key: 'status', label: 'Status' },
+  { key: 'tags', label: 'Tags' },
   { key: 'order_website_status', label: 'Website status' },
   { key: 'channel', label: 'Order type' },
   { key: 'tracking', label: 'Tracking' },
@@ -324,6 +335,22 @@ const ORDER_TYPE_FILTER_OPTIONS = [
   { value: 'online', label: 'Online' },
   { value: 'bigcommerce', label: 'BigCommerce' },
   { value: 'website', label: 'Website' },
+];
+
+/** Known order `tags` values for OMS filter / confirmation. */
+const ORDER_TAG_VALUES = [
+  'coupon',
+  'order_merged',
+  'last_order_return',
+  'incomplete_address',
+  'not_answering',
+  'stock_awaiting',
+  'customer_cancel',
+  'previous_data',
+  'confirmed_by_email',
+  'confirmed_by_sms',
+  'confirmed_by_whatsapp',
+  'confirmed_by_call',
 ];
 
 /** True when the order came from an online channel (Woo/Shopify/etc.), else POS/offline. */
@@ -450,6 +477,16 @@ const formatWebsiteStatusLabel = (value) => {
     .join(' ');
 };
 
+const formatOrderTagLabel = (value) => formatWebsiteStatusLabel(value);
+
+const orderTagBadgeClass = (tag) => {
+  const s = String(tag || '')
+    .trim()
+    .toLowerCase();
+  if (s.startsWith('confirmed_by_')) return 'bg-gradient-success';
+  return 'bg-gradient-secondary';
+};
+
 const getOrderWebsiteStatus = (row) => {
   const raw = row?.order_website_status ?? row?.orderWebsiteStatus ?? '';
   const s = String(raw ?? '').trim();
@@ -476,6 +513,7 @@ const getOrderWebsiteStatus = (row) => {
  *     showWebsiteStatusColumn?: boolean,
  *     showStatusChangeModal?: boolean,
  *     showRowSelection?: boolean,
+ *     showTagFilter?: boolean,
  *     showDeletedTab?: boolean,
  *     viewReadOnly?: boolean,
  *     listPath?: string,
@@ -501,6 +539,7 @@ export default function OrdersListPage({ config }) {
     showWebsiteStatusColumn = false,
     showStatusChangeModal = false,
     showRowSelection = false,
+    showTagFilter = false,
     showDeletedTab = false,
     viewReadOnly = false,
     topSummaryName = '',
@@ -542,8 +581,22 @@ export default function OrdersListPage({ config }) {
     orderId: '',
     orderNo: '',
   });
+  const [orderHistoryModal, setOrderHistoryModal] = useState({
+    open: false,
+    phone: '',
+    email: '',
+    customerName: '',
+    currentOrderId: '',
+  });
+  const [confirmationModal, setConfirmationModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
+    tags: [],
+  });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
+  const [tagsOverrides, setTagsOverrides] = useState({});
   const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
     open: false,
     orderId: '',
@@ -565,6 +618,7 @@ export default function OrdersListPage({ config }) {
   const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState('');
   const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
+  const [mergeOrdersUpdating, setMergeOrdersUpdating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(
     Boolean(
@@ -572,7 +626,8 @@ export default function OrdersListPage({ config }) {
         filters.endDate ||
         filters.integrationId ||
         filters.orderType ||
-        filters.orderStatus
+        filters.orderStatus ||
+        filters.tag
     )
   );
   const [showDeleted, setShowDeleted] = useState(false);
@@ -648,6 +703,7 @@ export default function OrdersListPage({ config }) {
     filters.integrationId,
     filters.orderType,
     filters.orderStatus,
+    filters.tag,
     isDeletedView,
   ]);
 
@@ -656,7 +712,8 @@ export default function OrdersListPage({ config }) {
     (filters.endDate ? 1 : 0) +
     (filters.integrationId ? 1 : 0) +
     (filters.orderType ? 1 : 0) +
-    (filters.orderStatus ? 1 : 0);
+    (filters.orderStatus ? 1 : 0) +
+    (filters.tag ? 1 : 0);
 
   useEffect(() => {
     if (!showIntegrationFilter) return undefined;
@@ -692,6 +749,7 @@ export default function OrdersListPage({ config }) {
     if (filters.integrationId) params.integrationId = filters.integrationId;
     if (filters.orderType) params.orderType = filters.orderType;
     if (filters.orderStatus) params.orderStatus = filters.orderStatus;
+    if (filters.tag) params.tag = filters.tag;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -712,6 +770,7 @@ export default function OrdersListPage({ config }) {
     filters.integrationId,
     filters.orderType,
     filters.orderStatus,
+    filters.tag,
     sort.sortBy,
     sort.sortOrder,
     isDeletedView,
@@ -790,6 +849,10 @@ export default function OrdersListPage({ config }) {
     dispatch(setOrderStatusFilter(e.target.value));
   };
 
+  const handleTagFilterChange = (e) => {
+    dispatch(setTagFilter(e.target.value));
+  };
+
   const buildExportParams = () => {
     const params = {};
     if (isDeletedView) {
@@ -803,6 +866,7 @@ export default function OrdersListPage({ config }) {
     if (filters.integrationId) params.integrationId = filters.integrationId;
     if (filters.orderType) params.orderType = filters.orderType;
     if (filters.orderStatus) params.orderStatus = filters.orderStatus;
+    if (filters.tag) params.tag = filters.tag;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -863,7 +927,7 @@ export default function OrdersListPage({ config }) {
       label={label}
       sort={sort}
       onSort={handleSort}
-      className={className}
+      className={`text-center ${className}`.trim()}
     />
   );
 
@@ -1027,6 +1091,35 @@ export default function OrdersListPage({ config }) {
     refreshOrderList();
   };
 
+  const getOrderTags = (row, orderId) => {
+    const override = orderId ? tagsOverrides[String(orderId)] : null;
+    if (Array.isArray(override)) return override;
+    return normalizeOrderTags(row?.tags ?? row?.order_tags ?? row?.orderTags);
+  };
+
+  const handleOpenConfirmationModal = (row) => {
+    const orderId = pickOrderDocumentId(row);
+    if (!orderId) return;
+    const orderNo = row?.order_no || row?.orderNo || '';
+    setConfirmationModal({
+      open: true,
+      orderId: String(orderId),
+      orderNo: orderNo || '',
+      tags: getOrderTags(row, orderId),
+    });
+  };
+
+  const handleConfirmationTagsUpdated = ({ orderId, tags } = {}) => {
+    if (orderId) {
+      setTagsOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: normalizeOrderTags(tags),
+      }));
+    }
+    toast.success('Confirmation tags updated.');
+    refreshOrderList();
+  };
+
   const canBulkChangeStatus =
     showRowSelection &&
     showStatusChangeModal &&
@@ -1099,6 +1192,43 @@ export default function OrdersListPage({ config }) {
       toast.error(err?.message || 'Failed to update order status.');
     } finally {
       setBulkStatusUpdating(false);
+    }
+  };
+
+  const handleMergeOrders = async () => {
+    if (!canBulkChangeStatus) return;
+
+    const ids = Array.from(selectedOrderIds).filter(Boolean);
+    if (ids.length < 2) {
+      toast.error('Select at least two orders to merge.');
+      return;
+    }
+
+    const targetId = ids[ids.length - 1];
+    const targetRow = data.find((row) => String(pickOrderDocumentId(row) || '') === String(targetId));
+    const targetLabel =
+      targetRow?.order_no || targetRow?.orderNo || String(targetId).slice(-6);
+    const sourceCount = ids.length - 1;
+
+    if (
+      !window.confirm(
+        `Merge ${sourceCount} order${sourceCount === 1 ? '' : 's'} into ${targetLabel}?\n\n` +
+          `The last selected order is kept. Other selected orders become Duplicate.`
+      )
+    ) {
+      return;
+    }
+
+    setMergeOrdersUpdating(true);
+    try {
+      await mergeOrdersRequest(ids);
+      toast.success(`Orders merged into ${targetLabel}.`);
+      clearOrderSelection();
+      refreshOrderList();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to merge orders.');
+    } finally {
+      setMergeOrdersUpdating(false);
     }
   };
 
@@ -1231,6 +1361,7 @@ export default function OrdersListPage({ config }) {
     if (filters.integrationId) listQuery.set('integration_id', String(filters.integrationId));
     if (filters.orderType) listQuery.set('order_type', String(filters.orderType));
     if (filters.orderStatus) listQuery.set('order_status', String(filters.orderStatus));
+    if (filters.tag) listQuery.set('tag', String(filters.tag));
     if (sort.sortBy) {
       listQuery.set('sortBy', String(sort.sortBy));
       if (sort.sortOrder) listQuery.set('sortOrder', String(sort.sortOrder));
@@ -1301,9 +1432,37 @@ export default function OrdersListPage({ config }) {
           status: statusHistoryModal.open ? 'loading' : 'pending',
           durationMs: null,
           error: null,
+        },
+        {
+          key: 'order-merge',
+          label: 'Merge orders',
+          url: buildApiUrl(ORDER_MERGE_PATH),
+          status: mergeOrdersUpdating ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
         }
       );
     }
+
+    sources.push({
+      key: 'customer-order-history',
+      label: 'Customer order history',
+      url: buildApiUrl(
+        `${String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '')}?search=:phoneOrEmail`
+      ),
+      status: orderHistoryModal.open ? 'loading' : 'pending',
+      durationMs: null,
+      error: null,
+    });
+
+    sources.push({
+      key: 'order-update-tags',
+      label: 'Update order tags',
+      url: buildApiUrl(`${ORDER_UPDATE_TAGS_PATH}/:orderId`),
+      status: confirmationModal.open ? 'loading' : 'pending',
+      durationMs: null,
+      error: null,
+    });
 
     sources.push({
       key: 'order-delete',
@@ -1370,6 +1529,7 @@ export default function OrdersListPage({ config }) {
     filters.integrationId,
     filters.orderType,
     filters.orderStatus,
+    filters.tag,
     sort.sortBy,
     sort.sortOrder,
     status,
@@ -1384,6 +1544,9 @@ export default function OrdersListPage({ config }) {
     syncingOrderId,
     statusModal.open,
     statusHistoryModal.open,
+    orderHistoryModal.open,
+    confirmationModal.open,
+    mergeOrdersUpdating,
     shipmentModal.open,
     parcelBarcodeModal.open,
     trackingStatusModal.open,
@@ -1496,43 +1659,97 @@ export default function OrdersListPage({ config }) {
                 </div>
                 <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    {canBulkChangeStatus ? (
+                    {canBulkChangeStatus || showTagFilter ? (
                       <div className="d-flex align-items-center gap-2 me-md-auto">
-                        <select
-                          id={`${idPrefix}-bulk-status`}
-                          className="form-select form-select-sm"
-                          style={{ minWidth: '180px', maxWidth: '220px' }}
-                          value={bulkStatusValue}
-                          disabled={selectedOrderIds.size === 0 || bulkStatusUpdating}
-                          onChange={handleBulkStatusChange}
-                          aria-label="Change status of selected orders"
-                          title={
-                            selectedOrderIds.size === 0
-                              ? 'Select one or more orders to change status'
-                              : `Change status for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
-                          }
-                        >
-                          <option value="">
-                            {bulkStatusUpdating
-                              ? 'Updating…'
-                              : selectedOrderIds.size > 0
-                                ? `Set status (${selectedOrderIds.size})`
-                                : 'Change status…'}
-                          </option>
-                          {OMS_ORDER_STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {formatOrderStatusOptionLabel(status)}
+                        {canBulkChangeStatus ? (
+                          <select
+                            id={`${idPrefix}-bulk-status`}
+                            className="form-select form-select-sm"
+                            style={{ minWidth: '180px', maxWidth: '220px' }}
+                            value={bulkStatusValue}
+                            disabled={
+                              selectedOrderIds.size === 0 ||
+                              bulkStatusUpdating ||
+                              mergeOrdersUpdating
+                            }
+                            onChange={handleBulkStatusChange}
+                            aria-label="Change status of selected orders"
+                            title={
+                              selectedOrderIds.size === 0
+                                ? 'Select one or more orders to change status'
+                                : `Change status for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
+                            }
+                          >
+                            <option value="">
+                              {bulkStatusUpdating
+                                ? 'Updating…'
+                                : selectedOrderIds.size > 0
+                                  ? `Set status (${selectedOrderIds.size})`
+                                  : 'Change status…'}
                             </option>
-                          ))}
-                        </select>
-                        {selectedOrderIds.size > 0 ? (
+                            {OMS_ORDER_STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {formatOrderStatusOptionLabel(status)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                        {showTagFilter ? (
+                          <select
+                            id={`${idPrefix}-tag-filter`}
+                            className="form-select form-select-sm"
+                            style={{ minWidth: '180px', maxWidth: '240px' }}
+                            value={filters.tag || ''}
+                            onChange={handleTagFilterChange}
+                            aria-label="Filter orders by tag"
+                            title="Filter by tag"
+                          >
+                            <option value="">All tags</option>
+                            {ORDER_TAG_VALUES.map((tag) => (
+                              <option key={tag} value={tag}>
+                                {formatOrderTagLabel(tag)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                        {canBulkChangeStatus && selectedOrderIds.size > 0 ? (
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-secondary mb-0"
                             onClick={clearOrderSelection}
-                            disabled={bulkStatusUpdating}
+                            disabled={bulkStatusUpdating || mergeOrdersUpdating}
                           >
                             Clear
+                          </button>
+                        ) : null}
+                        {canBulkChangeStatus ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary mb-0"
+                            onClick={handleMergeOrders}
+                            disabled={
+                              selectedOrderIds.size < 2 ||
+                              bulkStatusUpdating ||
+                              mergeOrdersUpdating
+                            }
+                            title={
+                              selectedOrderIds.size < 2
+                                ? 'Select two or more orders to merge'
+                                : `Merge ${selectedOrderIds.size} selected orders (last selected is kept)`
+                            }
+                          >
+                            {mergeOrdersUpdating ? (
+                              <>
+                                <span
+                                  className="spinner-border spinner-border-sm me-1"
+                                  role="status"
+                                  aria-hidden="true"
+                                />
+                                Merging…
+                              </>
+                            ) : (
+                              `Merge${selectedOrderIds.size > 1 ? ` (${selectedOrderIds.size})` : ''}`
+                            )}
                           </button>
                         ) : null}
                       </div>
@@ -1649,6 +1866,29 @@ export default function OrdersListPage({ config }) {
                           {ORDER_TYPE_FILTER_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    {showTagFilter ? (
+                      <div className="col-xl-3 col-md-4 col-sm-6">
+                        <label
+                          className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                          htmlFor={`${idPrefix}-tag-filter-panel`}
+                        >
+                          Tag
+                        </label>
+                        <select
+                          id={`${idPrefix}-tag-filter-panel`}
+                          className="form-select form-select-sm"
+                          value={filters.tag || ''}
+                          onChange={handleTagFilterChange}
+                        >
+                          <option value="">All tags</option>
+                          {ORDER_TAG_VALUES.map((tag) => (
+                            <option key={tag} value={tag}>
+                              {formatOrderTagLabel(tag)}
                             </option>
                           ))}
                         </select>
@@ -1787,22 +2027,27 @@ export default function OrdersListPage({ config }) {
                         ? sortableTh('phone', 'Phone', 'list-col-truncate-sm')
                         : null}
                       {isVisible('items')
-                        ? sortableTh('no_of_items', 'Items', 'text-center')
+                        ? sortableTh('no_of_items', 'Items')
                         : null}
                       {isVisible('total')
-                        ? sortableTh('order_items_total', 'Total', 'text-end list-col-amount')
+                        ? sortableTh('order_items_total', 'Total', 'list-col-amount')
                         : null}
                       {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                      {isVisible('tags') ? (
+                        <th className="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Tags
+                        </th>
+                      ) : null}
                       {showWebsiteStatusColumn && isVisible('order_website_status')
                         ? sortableTh('order_website_status', 'Website status')
                         : null}
                       {isVisible('channel') ? (
-                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                        <th className="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                           Order type
                         </th>
                       ) : null}
                       {showTrackingColumn && isVisible('tracking') ? (
-                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                        <th className="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                           Tracking
                         </th>
                       ) : null}
@@ -1812,7 +2057,7 @@ export default function OrdersListPage({ config }) {
                       {isVisible('updated')
                         ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
                         : null}
-                      <th className="text-end list-col-actions">Actions</th>
+                      <th className="text-center list-col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1914,11 +2159,74 @@ export default function OrdersListPage({ config }) {
                               </td>
                             ) : null}
                             {isVisible('name') ? (
-                              <td
-                                className="text-sm list-cell-truncate"
-                                title={customerName !== '—' ? customerName : undefined}
-                              >
-                                {customerName}
+                              <td className="text-sm list-col-customer">
+                                <div className="oms-customer-cell d-flex align-items-start gap-2">
+                                  <div className="oms-customer-cell__actions d-flex flex-column align-items-center gap-1 flex-shrink-0 mt-1">
+                                    <button
+                                      type="button"
+                                      className="btn btn-link btn-sm p-0 mb-0 text-secondary"
+                                      title="Order history"
+                                      aria-label="Order history"
+                                      onClick={() =>
+                                        setOrderHistoryModal({
+                                          open: true,
+                                          phone: phone !== '—' ? phone : '',
+                                          email: email !== '—' ? email : '',
+                                          customerName: customerName !== '—' ? customerName : '',
+                                          currentOrderId: orderId || '',
+                                        })
+                                      }
+                                      disabled={phone === '—' && email === '—'}
+                                    >
+                                      <NavIcon icon={FaClockRotateLeft} size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-link btn-sm p-0 mb-0 oms-customer-cell__whatsapp"
+                                      title={
+                                        phone !== '—'
+                                          ? 'Open WhatsApp Web chat'
+                                          : 'No phone number'
+                                      }
+                                      aria-label="Open WhatsApp Web chat"
+                                      disabled={phone === '—'}
+                                      onClick={() => {
+                                        const url = buildWhatsAppUrl(phone !== '—' ? phone : '');
+                                        if (!url) {
+                                          toast.error('Could not open WhatsApp.');
+                                          return;
+                                        }
+                                        window.open(url, '_blank', 'noopener,noreferrer');
+                                      }}
+                                    >
+                                      <NavIcon icon={FaWhatsapp} size={14} />
+                                    </button>
+                                  </div>
+                                  <div className="oms-customer-cell__info min-width-0">
+                                    <div
+                                      className="oms-customer-cell__name text-dark font-weight-bold text-truncate"
+                                      title={customerName !== '—' ? customerName : undefined}
+                                    >
+                                      {customerName}
+                                    </div>
+                                    {email !== '—' ? (
+                                      <div
+                                        className="oms-customer-cell__meta text-truncate"
+                                        title={email}
+                                      >
+                                        {email}
+                                      </div>
+                                    ) : null}
+                                    {phone !== '—' ? (
+                                      <div
+                                        className="oms-customer-cell__meta text-truncate"
+                                        title={phone}
+                                      >
+                                        {phone}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
                               </td>
                             ) : null}
                             {isVisible('email') ? (
@@ -1957,6 +2265,51 @@ export default function OrdersListPage({ config }) {
                                     {String(statusVal)}
                                   </span>
                                 )}
+                              </td>
+                            ) : null}
+                            {isVisible('tags') ? (
+                              <td className="text-sm">
+                                {(() => {
+                                  const rowTags = getOrderTags(item, orderId);
+                                  if (!rowTags.length) {
+                                    return <span className="text-muted">—</span>;
+                                  }
+                                  const canEditTags =
+                                    !isDeletedView &&
+                                    !viewReadOnly &&
+                                    Boolean(orderId) &&
+                                    (canEdit || canCreate);
+                                  return (
+                                    <div className="d-flex flex-wrap gap-1 justify-content-center">
+                                      {rowTags.map((tag) => {
+                                        const label = formatOrderTagLabel(tag);
+                                        if (canEditTags) {
+                                          return (
+                                            <button
+                                              key={tag}
+                                              type="button"
+                                              className={`badge text-xxs border-0 ${orderTagBadgeClass(tag)}`}
+                                              style={{ cursor: 'pointer' }}
+                                              title="Edit confirmation tags"
+                                              onClick={() => handleOpenConfirmationModal(item)}
+                                            >
+                                              {label}
+                                            </button>
+                                          );
+                                        }
+                                        return (
+                                          <span
+                                            key={tag}
+                                            className={`badge text-xxs ${orderTagBadgeClass(tag)}`}
+                                            title={tag}
+                                          >
+                                            {label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
                               </td>
                             ) : null}
                             {showWebsiteStatusColumn && isVisible('order_website_status') ? (
@@ -2068,6 +2421,24 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
+                                {!isDeletedView && !viewReadOnly ? (
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm mb-0 px-2 ${
+                                      ORDER_CONFIRMATION_TAG_VALUES.some((tag) =>
+                                        getOrderTags(item, orderId).includes(tag)
+                                      )
+                                        ? 'btn-outline-success'
+                                        : 'btn-outline-secondary'
+                                    }`}
+                                    title="Confirmation"
+                                    aria-label="Confirmation"
+                                    onClick={() => handleOpenConfirmationModal(item)}
+                                    disabled={!orderId || !(canEdit || canCreate)}
+                                  >
+                                    <NavIcon icon={FaCircleCheck} size={14} />
+                                  </button>
+                                ) : null}
                                 {showStatusChangeModal ? (
                                   <button
                                     type="button"
@@ -2178,6 +2549,35 @@ export default function OrdersListPage({ config }) {
           />
         </>
       ) : null}
+
+      <CustomerOrderHistoryModal
+        open={orderHistoryModal.open}
+        phone={orderHistoryModal.phone}
+        email={orderHistoryModal.email}
+        customerName={orderHistoryModal.customerName}
+        currentOrderId={orderHistoryModal.currentOrderId}
+        listPath={listPath}
+        onClose={() =>
+          setOrderHistoryModal({
+            open: false,
+            phone: '',
+            email: '',
+            customerName: '',
+            currentOrderId: '',
+          })
+        }
+      />
+
+      <OrderConfirmationTagsModal
+        open={confirmationModal.open}
+        orderId={confirmationModal.orderId}
+        orderNo={confirmationModal.orderNo}
+        currentTags={confirmationModal.tags}
+        onClose={() =>
+          setConfirmationModal({ open: false, orderId: '', orderNo: '', tags: [] })
+        }
+        onSaved={handleConfirmationTagsUpdated}
+      />
 
       {showTrackingColumn ? (
         <>

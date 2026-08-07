@@ -100,3 +100,34 @@
   background-image: none !important;
 }
 
+.list-col-customer {
+  min-width: 11rem;
+  max-width: 16rem;
+  vertical-align: middle !important;
+}
+
+.oms-customer-cell__name {
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+
+.oms-customer-cell__meta {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #8392ab;
+  margin-top: 0.1rem;
+}
+
+.oms-customer-cell__whatsapp {
+  color: #25d366 !important;
+}
+
+.oms-customer-cell__whatsapp:hover:not(:disabled) {
+  color: #1da851 !important;
+}
+
+.oms-customer-cell__whatsapp:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+

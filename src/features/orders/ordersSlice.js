@@ -52,6 +52,7 @@ const initialState = {
     integrationId: '',
     orderType: '',
     orderStatus: '',
+    tag: '',
   },
   sort: { sortBy: null, sortOrder: 'asc' },
   deleteStatus: 'idle',
@@ -83,12 +84,17 @@ const ordersSlice = createSlice({
       state.filters.orderStatus = action.payload ? String(action.payload) : '';
       state.pagination.page = 1;
     },
+    setTagFilter: (state, action) => {
+      state.filters.tag = action.payload ? String(action.payload) : '';
+      state.pagination.page = 1;
+    },
     clearDateFilters: (state) => {
       state.filters.startDate = '';
       state.filters.endDate = '';
       state.filters.integrationId = '';
       state.filters.orderType = '';
       state.filters.orderStatus = '';
+      state.filters.tag = '';
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -176,6 +182,7 @@ export const {
   setIntegrationFilter,
   setOrderTypeFilter,
   setOrderStatusFilter,
+  setTagFilter,
   clearDateFilters,
   setPage,
   setLimit,

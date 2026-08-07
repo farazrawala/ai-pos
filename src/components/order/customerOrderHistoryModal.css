@@ -1,0 +1,239 @@
+.coh-modal {
+  border: 0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 3rem rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.coh-modal__header {
+  padding: 1.25rem 1.35rem 0.75rem;
+}
+
+.coh-modal__icon {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #5e72e4;
+  background: linear-gradient(135deg, rgba(94, 114, 228, 0.14), rgba(94, 114, 228, 0.05));
+}
+
+.coh-modal__eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
+.coh-modal__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #344767;
+  line-height: 1.3;
+}
+
+.coh-modal__meta {
+  margin-top: 0.15rem;
+}
+
+.coh-modal__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #f6f9fc;
+  border: 1px solid #e9ecef;
+  color: #67748e;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.coh-modal__chip--whatsapp {
+  cursor: pointer;
+  color: #128c7e;
+  background: rgba(37, 211, 102, 0.12);
+  border-color: rgba(37, 211, 102, 0.35);
+}
+
+.coh-modal__chip--whatsapp:hover {
+  color: #075e54;
+  background: rgba(37, 211, 102, 0.2);
+  border-color: rgba(37, 211, 102, 0.5);
+}
+
+.coh-modal__count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #5e72e4;
+  letter-spacing: 0.02em;
+}
+
+.coh-modal__body {
+  padding: 0.75rem 1.35rem 1rem;
+}
+
+.coh-modal__state {
+  padding: 2.25rem 1rem;
+}
+
+.coh-modal__table-wrap {
+  border: 1px solid #e9ecef;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  background: #fff;
+}
+
+.coh-modal__table {
+  margin-bottom: 0;
+}
+
+.coh-modal__table thead th {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0.75rem 1rem;
+  color: #67748e;
+  white-space: nowrap;
+}
+
+.coh-modal__table tbody td {
+  padding: 0.85rem 1rem;
+  border-color: #f1f3f5;
+  vertical-align: middle;
+}
+
+.coh-modal__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.coh-modal__row--current {
+  background: linear-gradient(90deg, rgba(94, 114, 228, 0.08), rgba(94, 114, 228, 0.02));
+}
+
+.coh-modal__current-badge {
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  padding: 0.28em 0.55em;
+}
+
+.coh-modal__currency {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #8392ab;
+  margin-right: 0.15rem;
+}
+
+.coh-modal__when {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  line-height: 1.25;
+}
+
+.coh-modal__footer {
+  padding: 0.5rem 1.35rem 1.15rem;
+}
+
+.coh-confirm-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #e9ecef;
+  border-radius: 0.65rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.coh-confirm-option:hover {
+  border-color: #c7d2fe;
+  background: #f8fafc;
+}
+
+.coh-confirm-option.is-selected {
+  border-color: rgba(94, 114, 228, 0.45);
+  background: rgba(94, 114, 228, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(94, 114, 228, 0.12);
+}
+
+/* Argon hides native unchecked checkboxes — force visible boxes in this modal */
+.coh-confirm-option .form-check-input {
+  float: none !important;
+  position: relative !important;
+  width: 1.15rem !important;
+  height: 1.15rem !important;
+  min-width: 1.15rem !important;
+  margin: 0 !important;
+  display: block !important;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 2px solid #64748b !important;
+  border-radius: 0.25rem !important;
+  background-color: #fff !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 85% 85% !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+.coh-confirm-option .form-check-input:checked {
+  background-color: var(--app-theme, #5e72e4) !important;
+  border-color: var(--app-theme, #5e72e4) !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e") !important;
+}
+
+.coh-confirm-option .form-check-input:focus {
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.25) !important;
+}
+
+.coh-confirm-option .form-check-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45 !important;
+}
+
+.coh-confirm-option__icon {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #5e72e4;
+  background: rgba(94, 114, 228, 0.1);
+}
+
+.coh-confirm-option__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.coh-confirm-option__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #344767;
+}
+
+.coh-confirm-option__value {
+  font-size: 0.7rem;
+  color: #8392ab;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}

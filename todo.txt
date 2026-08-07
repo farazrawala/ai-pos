@@ -100,10 +100,10 @@ Postex
 
 orders status => merge with beta logistics
 order edit , status update.
-
-Address incomplete.
 Order hold, merge, duplicate, functionality. 
 order history
+
+Address incomplete.
 order scrapping.
 
 bigcommerce request part.

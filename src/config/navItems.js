@@ -60,7 +60,7 @@ import {
  * Group: `{ id, label, icon, children: leaf[] }` — expands to show children.
  */
 /** Shared static password for password-gated routes (warehouses, live developer tools). */
-export const ROUTE_PASSWORD = '1234';
+export const ROUTE_PASSWORD = '2525';
 
 export const NAV_ITEMS = [
   { to: '/', label: 'Dashboards', icon: FaLayerGroup, end: true },
@@ -71,7 +71,7 @@ export const NAV_ITEMS = [
     icon: FaCashRegister,
     children: [
       { to: '/orders', label: 'Orders', icon: FaCartShopping },
-      { to: '/oms', label: 'OMS', icon: FaClipboardList },
+      { to: '/oms', label: 'OMS', icon: FaClipboardList, routePassword: ROUTE_PASSWORD },
       { to: '/sales-returns', label: 'Sales returns', icon: FaRotateLeft },
     ],
   },

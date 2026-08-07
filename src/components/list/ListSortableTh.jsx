@@ -15,7 +15,7 @@ const ListSortableTh = ({ column, label, sort, onSort, className = '', style }) 
       onClick={() => onSort(column)}
       onDoubleClick={() => onSort(column, true)}
     >
-      <span className="d-inline-flex align-items-center">
+      <span className="d-inline-flex align-items-center justify-content-center">
         {label}
         <NavIcon
           icon={Icon}

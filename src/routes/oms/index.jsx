@@ -99,6 +99,7 @@ const OMS_PAGE_CONFIG = {
   showWebsiteStatusColumn: true,
   showStatusChangeModal: true,
   showRowSelection: true,
+  showTagFilter: true,
 };
 
 const OMS = () => <OrdersListPage config={OMS_PAGE_CONFIG} />;
