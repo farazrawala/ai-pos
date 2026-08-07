@@ -836,7 +836,7 @@ const PosProducts = ({
               }
               aria-busy={paymentBusy ? 'true' : 'false'}
             >
-              {paymentBusy ? (
+              {paymentBusy && !orderSaving ? (
                 <span
                   className="spinner-border spinner-border-sm me-2"
                   role="status"
@@ -845,7 +845,7 @@ const PosProducts = ({
               ) : (
                 <NavIcon icon={FaMoneyBill1} size={14} className="me-2" />
               )}
-              {paymentBusy ? 'Processing…' : 'Payment'}
+              {paymentBusy && !orderSaving ? 'Processing…' : 'Payment'}
             </button>
           </div>
         </div>

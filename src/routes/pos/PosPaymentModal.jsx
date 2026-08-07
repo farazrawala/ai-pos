@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import {
@@ -40,9 +41,10 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentMethodsStatus, setPaymentMethodsStatus] = useState('idle');
   const [paymentMethodsError, setPaymentMethodsError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  /** @type {null | 'save' | 'print'} */
+  const [activeAction, setActiveAction] = useState(null);
 
-  const busy = saving || submitting;
+  const busy = saving || activeAction !== null;
 
   const total = Number.isFinite(orderTotal) ? Math.max(0, orderTotal) : 0;
   const selectedPaymentMethod = useMemo(
@@ -192,7 +194,10 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
       change,
     };
     console.log('[POS] Modal Pay Now', payment);
-    setSubmitting(true);
+    setActiveAction('save');
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     const tAll = performance.now();
     try {
       const result = await onPayNow?.(payment);
@@ -205,7 +210,7 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
         closePosPaymentModal();
       }
     } finally {
-      setSubmitting(false);
+      setActiveAction(null);
     }
   };
 
@@ -221,7 +226,10 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
       change,
     };
     console.log('[POS] Modal Pay Now & Print', payment);
-    setSubmitting(true);
+    setActiveAction('print');
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     const tAll = performance.now();
     try {
       const result = await onPayNowPrint?.(payment);
@@ -234,210 +242,152 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
         closePosPaymentModal();
       }
     } finally {
-      setSubmitting(false);
+      setActiveAction(null);
     }
   };
 
-  return (
-    <>
-      <style>{`
-        .pos-payment-modal .pos-pay-hero {
-          font-size: 1.75rem;
-          font-weight: 700;
-          color: #2142d4;
-          letter-spacing: 0.02em;
-        }
-        .pos-payment-modal .pos-pay-label {
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #495057;
-          margin-bottom: 0.35rem;
-        }
-        .pos-payment-modal .pos-pay-balance {
-          color: #dc3545;
-          font-weight: 600;
-        }
-        .pos-payment-modal .pos-pay-btn-now {
-          background: #2dce89;
-          border: none;
-          color: #fff;
-          font-weight: 600;
-          padding: 0.65rem 1rem;
-        }
-        .pos-payment-modal .pos-pay-btn-now:hover {
-          background: #26b87a;
-          color: #fff;
-        }
-        .pos-payment-modal .pos-pay-btn-print {
-          background: #11cdef;
-          border: none;
-          color: #fff;
-          font-weight: 600;
-          padding: 0.65rem 1rem;
-        }
-        .pos-payment-modal .pos-pay-btn-print:hover {
-          background: #0eb8d6;
-          color: #fff;
-        }
-      `}</style>
+  const actionsDisabled = busy || paymentMethodsStatus === 'loading' || !paymentMethod;
 
-      <div
-        className="modal fade pos-payment-modal"
-        id={MODAL_ID}
-        tabIndex="-1"
-        aria-labelledby="posPaymentModalLabel"
-        aria-hidden="true"
-      >
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content border-0 shadow">
-            <div className="modal-header border-bottom py-3">
-              <h5 className="modal-title text-secondary fw-semibold mb-0" id="posPaymentModalLabel">
-                Make Payment
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                data-bs-dismiss="modal"
-                aria-label="Close"
-                disabled={busy}
-              />
-            </div>
-            <div className="modal-body px-4 pb-4 pt-3">
-              <p className="text-center pos-pay-hero mb-4">PKR {total.toFixed(2)}</p>
+  const modal = (
+    <div
+      className="modal fade pos-payment-modal"
+      id={MODAL_ID}
+      tabIndex="-1"
+      aria-labelledby="posPaymentModalLabel"
+      aria-hidden="true"
+    >
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content border-0 shadow">
+          <div className="modal-header border-bottom py-3">
+            <h5 className="modal-title text-secondary fw-semibold mb-0" id="posPaymentModalLabel">
+              Make Payment
+            </h5>
+            <button
+              type="button"
+              className="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+              disabled={busy}
+            />
+          </div>
+          <div className="modal-body px-4 pb-4 pt-3">
+            <p className="text-center pos-pay-hero mb-4">PKR {total.toFixed(2)}</p>
 
-              <div className="row g-3 mb-3">
-                <div className="col-md-6">
-                  <label className="pos-pay-label d-block" htmlFor="posPayAmount">
-                    Amount
-                  </label>
-                  <input
-                    id="posPayAmount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="form-control"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="pos-pay-label d-block" htmlFor="posPayMethod">
-                    Payment Method
-                  </label>
-                  <select
-                    id="posPayMethod"
-                    className="form-select"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    disabled={paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
-                  >
-                    {paymentMethodsStatus === 'loading' && (
-                      <option value="">Loading payment methods...</option>
-                    )}
-                    {paymentMethodsStatus !== 'loading' && paymentMethods.length === 0 && (
-                      <option value="">
-                        {paymentMethodsError || 'No payment methods available'}
-                      </option>
-                    )}
-                    {paymentMethods.map((method) => {
-                      const methodId = String(method._id ?? method.id ?? '');
-                      if (!methodId) return null;
-                      return (
-                        <option key={methodId} value={methodId}>
-                          {method.name || 'Unnamed account'}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+            <div className="row g-3 mb-3">
+              <div className="col-md-6">
+                <label className="pos-pay-label d-block" htmlFor="posPayAmount">
+                  Amount
+                </label>
+                <input
+                  id="posPayAmount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="form-control"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  disabled={busy}
+                />
               </div>
-
-              <div className="row g-3 mb-3">
-                <div className="col-md-6">
-                  <label className="pos-pay-label d-block" htmlFor="posPayBalance">
-                    Balance Due
-                  </label>
-                  <input
-                    id="posPayBalance"
-                    type="text"
-                    readOnly
-                    className="form-control pos-pay-balance bg-light"
-                    value={balanceDue.toFixed(2)}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="pos-pay-label d-block" htmlFor="posPayChange">
-                    Change
-                  </label>
-                  <input
-                    id="posPayChange"
-                    type="text"
-                    readOnly
-                    className="form-control bg-light"
-                    value={change.toFixed(2)}
-                  />
-                </div>
-              </div>
-
-              {/* <div className="mb-4">
-                <label className="pos-pay-label d-block" htmlFor="posPayAccount">
-                  Account
+              <div className="col-md-6">
+                <label className="pos-pay-label d-block" htmlFor="posPayMethod">
+                  Payment Method
                 </label>
                 <select
-                  id="posPayAccount"
+                  id="posPayMethod"
                   className="form-select"
-                  value={account}
-                  onChange={(e) => setAccount(e.target.value)}
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  disabled={busy || paymentMethodsStatus === 'loading' || paymentMethods.length === 0}
                 >
-                  <option value="sales-123456">Sales Account / 123456</option>
-                  <option value="pos-cash">POS Cash / 789012</option>
+                  {paymentMethodsStatus === 'loading' && (
+                    <option value="">Loading payment methods...</option>
+                  )}
+                  {paymentMethodsStatus !== 'loading' && paymentMethods.length === 0 && (
+                    <option value="">
+                      {paymentMethodsError || 'No payment methods available'}
+                    </option>
+                  )}
+                  {paymentMethods.map((method) => {
+                    const methodId = String(method._id ?? method.id ?? '');
+                    if (!methodId) return null;
+                    return (
+                      <option key={methodId} value={methodId}>
+                        {method.name || 'Unnamed account'}
+                      </option>
+                    );
+                  })}
                 </select>
-              </div> */}
-
-              <div className="d-grid gap-2">
-                <button
-                  type="button"
-                  className="btn pos-pay-btn-now rounded-3 d-flex align-items-center justify-content-center gap-2"
-                  onClick={handlePayNow}
-                  disabled={busy || paymentMethodsStatus === 'loading' || !paymentMethod}
-                  aria-busy={busy ? 'true' : 'false'}
-                >
-                  {busy ? (
-                    <span
-                      className="spinner-border spinner-border-sm"
-                      role="status"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <i className="fas fa-arrow-circle-right"></i>
-                  )}
-                  {busy ? 'Processing…' : 'Save Order'}
-                </button>
-                <button
-                  type="button"
-                  className="btn pos-pay-btn-print rounded-3 d-flex align-items-center justify-content-center gap-2"
-                  onClick={handlePayNowPrint}
-                  disabled={busy || paymentMethodsStatus === 'loading' || !paymentMethod}
-                  aria-busy={busy ? 'true' : 'false'}
-                >
-                  {busy ? (
-                    <span
-                      className="spinner-border spinner-border-sm"
-                      role="status"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <i className="fas fa-print"></i>
-                  )}
-                  {busy ? 'Processing…' : 'Save and Print'}
-                </button>
               </div>
+            </div>
+
+            <div className="row g-3 mb-3">
+              <div className="col-md-6">
+                <label className="pos-pay-label d-block" htmlFor="posPayBalance">
+                  Balance Due
+                </label>
+                <input
+                  id="posPayBalance"
+                  type="text"
+                  readOnly
+                  className="form-control pos-pay-balance bg-light"
+                  value={balanceDue.toFixed(2)}
+                />
+              </div>
+              <div className="col-md-6">
+                <label className="pos-pay-label d-block" htmlFor="posPayChange">
+                  Change
+                </label>
+                <input
+                  id="posPayChange"
+                  type="text"
+                  readOnly
+                  className="form-control bg-light"
+                  value={change.toFixed(2)}
+                />
+              </div>
+            </div>
+
+            <div className="pos-pay-actions" aria-busy={busy ? 'true' : 'false'}>
+              <button
+                type="button"
+                className="pos-pay-action pos-pay-action--save"
+                onClick={handlePayNow}
+                disabled={actionsDisabled}
+              >
+                {busy && activeAction !== 'print' ? (
+                  <>
+                    <span className="pos-pay-busy__spinner" aria-hidden="true" />
+                    Processing…
+                  </>
+                ) : (
+                  'Save Order'
+                )}
+              </button>
+              <button
+                type="button"
+                className="pos-pay-action pos-pay-action--print"
+                onClick={handlePayNowPrint}
+                disabled={actionsDisabled}
+              >
+                {activeAction === 'print' ? (
+                  <>
+                    <span className="pos-pay-busy__spinner" aria-hidden="true" />
+                    Processing…
+                  </>
+                ) : (
+                  'Save and Print'
+                )}
+              </button>
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modal, document.body);
 };
 
 export default PosPaymentModal;

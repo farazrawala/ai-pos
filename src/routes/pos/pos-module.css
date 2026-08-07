@@ -1900,3 +1900,112 @@
     box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.45);
   }
 }
+
+/* Make Payment modal — avoid Argon .btn layout blow-ups while processing */
+.pos-payment-modal .modal-content {
+  overflow: hidden;
+}
+
+.pos-payment-modal .pos-pay-hero {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2142d4;
+  letter-spacing: 0.02em;
+}
+
+.pos-payment-modal .pos-pay-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.35rem;
+}
+
+.pos-payment-modal .pos-pay-balance {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.pos-payment-modal .pos-pay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.pos-payment-modal .pos-pay-action {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.75rem !important;
+  max-height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  margin: 0 !important;
+  padding: 0 1rem !important;
+  border: 0 !important;
+  border-radius: 0.65rem;
+  color: #fff !important;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1 !important;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  box-shadow: none !important;
+  transform: none !important;
+  background-image: none !important;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  overflow: hidden;
+}
+
+.pos-payment-modal .pos-pay-action:hover:not(:disabled),
+.pos-payment-modal .pos-pay-action:active:not(:disabled),
+.pos-payment-modal .pos-pay-action:focus {
+  transform: none;
+  box-shadow: none;
+  outline: none;
+  color: #fff;
+}
+
+.pos-payment-modal .pos-pay-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+  transform: none;
+}
+
+.pos-payment-modal .pos-pay-action--save {
+  background: #2dce89;
+}
+
+.pos-payment-modal .pos-pay-action--save:hover:not(:disabled) {
+  background: #26b87a;
+}
+
+.pos-payment-modal .pos-pay-action--print {
+  background: #11cdef;
+}
+
+.pos-payment-modal .pos-pay-action--print:hover:not(:disabled) {
+  background: #0eb8d6;
+}
+
+.pos-payment-modal .pos-pay-busy__spinner {
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 1rem;
+  border: 0.15em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pos-pay-spin 0.75s linear infinite;
+}
+
+@keyframes pos-pay-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
