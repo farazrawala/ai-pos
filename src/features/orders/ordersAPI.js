@@ -1563,6 +1563,76 @@ export async function updateOrderStatusRequest(orderId, payload = {}) {
   return result;
 }
 
+export const ORDER_STATUS_UPDATE_LIST_PATH = 'order_status_updates/get-all-active';
+export const ORDER_STATUS_UPDATE_LIST_POPULATE = 'created_by,order_id';
+
+/**
+ * GET `order_status_updates/get-all-active?order_id=&populate=&sortBy=&sortOrder=&skip=&limit=`
+ * Lists rows from the `order_status_updates` table for one order.
+ */
+export async function fetchOrderStatusUpdatesRequest(params = {}) {
+  const orderId = String(params.order_id ?? params.orderId ?? '').trim();
+  if (!orderId) {
+    throw new Error('Order id is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('order_id', orderId);
+  query.set(
+    'populate',
+    String(params.populate ?? ORDER_STATUS_UPDATE_LIST_POPULATE).trim() ||
+      ORDER_STATUS_UPDATE_LIST_POPULATE
+  );
+  query.set('sortBy', String(params.sortBy ?? 'createdAt').trim() || 'createdAt');
+  query.set('sortOrder', String(params.sortOrder ?? 'desc').trim() || 'desc');
+
+  const limit = Number(params.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    query.set('limit', String(limit));
+    const page = Number(params.page);
+    if (Number.isFinite(page) && page > 1) {
+      query.set('skip', String((page - 1) * limit));
+    } else if (params.skip != null && String(params.skip).trim() !== '') {
+      query.set('skip', String(params.skip));
+    }
+  } else if (params.skip != null && String(params.skip).trim() !== '') {
+    query.set('skip', String(params.skip));
+  }
+
+  const url = `${BASE_URL}${ORDER_STATUS_UPDATE_LIST_PATH}?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { data: [], total: 0 };
+  }
+
+  const data = Array.isArray(result?.data)
+    ? result.data
+    : Array.isArray(result?.order_status_updates)
+      ? result.order_status_updates
+      : Array.isArray(result?.order_status_update)
+        ? result.order_status_update
+        : [];
+
+  const total =
+    result?.pagination?.total ??
+    result?.total ??
+    (Array.isArray(data) ? data.length : 0);
+
+  return {
+    data: Array.isArray(data) ? data : [],
+    total: Number.isFinite(Number(total)) ? Number(total) : data.length,
+    pagination: result?.pagination ?? null,
+  };
+}
+
 /** True when `o` is an order line row (has `order_id` + line fields, not a full order header). */
 const looksLikeOrderLineRow = (o) => {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return false;

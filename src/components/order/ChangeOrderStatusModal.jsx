@@ -3,23 +3,20 @@ import { updateOrderStatusRequest } from '../../features/orders/ordersAPI.js';
 
 /** Matches backend `order_status` enum. */
 export const OMS_ORDER_STATUS_OPTIONS = [
-  'active',
-  'placed',
-  'confirmed',
-  'packed',
-  'shipped',
-  'delivered',
-  'drafted',
-  'draft',
-  'checkout_draft',
-  'pending',
-  'pending_payment',
-  'on_hold',
-  'completed',
-  'cancelled',
-  'refunded',
-  'failed',
-  'processing',
+  'active', // Live / open POS-style order
+  'placed', // Order placed
+  'confirmed', // Confirmed for fulfillment
+  'duplicate', // Marked duplicate
+  'packed', // Packed
+  'delivered', // Delivered
+  'draft', // Draft / not finalized
+  'pending', // Pending
+  'on_hold', // Awaiting payment confirmation (e.g. bank transfer)
+  'cancelled', // Cancelled by admin or customer
+  'failed', // Payment failed or declined
+  'processing', // Payment received, awaiting fulfillment
+  'return', // Return in progress / recorded
+  'return_received', // Return received
 ];
 
 export const formatOrderStatusOptionLabel = (value) => {

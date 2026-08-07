@@ -51,6 +51,7 @@ import {
   updateOrderStatusRequest,
   DELETED_ORDER_BY_ORDER_ITEM_PATH,
   DEFAULT_ORDER_LIST_PATH,
+  ORDER_STATUS_UPDATE_LIST_PATH,
 } from '../../features/orders/ordersAPI.js';
 import {
   ORDER_DETAIL_EXPORT_COLUMNS,
@@ -72,6 +73,7 @@ import ChangeOrderStatusModal, {
   OMS_ORDER_STATUS_OPTIONS,
   formatOrderStatusOptionLabel,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
+import OrderStatusUpdatesModal from '../../components/order/OrderStatusUpdatesModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
@@ -534,6 +536,11 @@ export default function OrdersListPage({ config }) {
     orderId: '',
     orderNo: '',
     currentStatus: '',
+  });
+  const [statusHistoryModal, setStatusHistoryModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
   });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
@@ -1278,14 +1285,24 @@ export default function OrdersListPage({ config }) {
     }
 
     if (showStatusChangeModal) {
-      sources.push({
-        key: 'order-status',
-        label: 'Update order status',
-        url: buildApiUrl('order/update-status/:orderId'),
-        status: statusModal.open ? 'loading' : 'pending',
-        durationMs: null,
-        error: null,
-      });
+      sources.push(
+        {
+          key: 'order-status',
+          label: 'Update order status',
+          url: buildApiUrl('order/update-status/:orderId'),
+          status: statusModal.open ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'order-status-updates',
+          label: 'Order status updates',
+          url: buildApiUrl(`${ORDER_STATUS_UPDATE_LIST_PATH}?order_id=:orderId`),
+          status: statusHistoryModal.open ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        }
+      );
     }
 
     sources.push({
@@ -1366,6 +1383,7 @@ export default function OrdersListPage({ config }) {
     syncOrdersModalOpen,
     syncingOrderId,
     statusModal.open,
+    statusHistoryModal.open,
     shipmentModal.open,
     parcelBarcodeModal.open,
     trackingStatusModal.open,
@@ -2050,6 +2068,24 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
+                                {showStatusChangeModal ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                    title="Status history"
+                                    aria-label="Status history"
+                                    onClick={() =>
+                                      setStatusHistoryModal({
+                                        open: true,
+                                        orderId: orderId || '',
+                                        orderNo: orderNo !== '—' ? orderNo : '',
+                                      })
+                                    }
+                                    disabled={!orderId}
+                                  >
+                                    <NavIcon icon={FaClockRotateLeft} size={14} />
+                                  </button>
+                                ) : null}
                                 {showRowSyncButton && !isDeletedView ? (
                                   <button
                                     type="button"
@@ -2121,16 +2157,26 @@ export default function OrdersListPage({ config }) {
       ) : null}
 
       {showStatusChangeModal ? (
-        <ChangeOrderStatusModal
-          open={statusModal.open}
-          orderId={statusModal.orderId}
-          orderNo={statusModal.orderNo}
-          currentStatus={statusModal.currentStatus}
-          onClose={() =>
-            setStatusModal({ open: false, orderId: '', orderNo: '', currentStatus: '' })
-          }
-          onSaved={handleStatusUpdated}
-        />
+        <>
+          <ChangeOrderStatusModal
+            open={statusModal.open}
+            orderId={statusModal.orderId}
+            orderNo={statusModal.orderNo}
+            currentStatus={statusModal.currentStatus}
+            onClose={() =>
+              setStatusModal({ open: false, orderId: '', orderNo: '', currentStatus: '' })
+            }
+            onSaved={handleStatusUpdated}
+          />
+          <OrderStatusUpdatesModal
+            open={statusHistoryModal.open}
+            orderId={statusHistoryModal.orderId}
+            orderNo={statusHistoryModal.orderNo}
+            onClose={() =>
+              setStatusHistoryModal({ open: false, orderId: '', orderNo: '' })
+            }
+          />
+        </>
       ) : null}
 
       {showTrackingColumn ? (
