@@ -269,16 +269,40 @@ const categoryOptionLabel = (c) => {
   return name ? String(name) : categoryOptionValue(c) || 'Category';
 };
 
-/** Category name from populated `category_id` on a product row. */
-const getProductCategoryName = (item) => {
-  const cat = item?.category_id ?? item?.categoryId ?? item?.category;
-  if (cat && typeof cat === 'object' && !Array.isArray(cat)) {
+/** Label for one category ref (populated object or id string). */
+const resolveCategoryLabel = (cat, categoriesLookup = []) => {
+  if (cat == null || cat === '') return '';
+  if (typeof cat === 'object' && !Array.isArray(cat)) {
     const name = String(cat.name ?? cat.category_name ?? '').trim();
     if (name) return name;
+    const id = String(cat._id ?? cat.id ?? '').trim();
+    if (!id) return '';
+    const match = categoriesLookup.find((c) => categoryOptionValue(c) === id);
+    return match ? categoryOptionLabel(match) : '';
   }
-  if (typeof cat === 'string' && cat.trim()) return cat.trim();
+  const id = String(cat).trim();
+  if (!id) return '';
+  const match = categoriesLookup.find((c) => categoryOptionValue(c) === id);
+  return match ? categoryOptionLabel(match) : '';
+};
+
+/**
+ * Category names from product `category_id` (single or multi-select array).
+ * Prefers populated objects; falls back to filter categories list by id.
+ */
+const getProductCategoryNames = (item, categoriesLookup = []) => {
+  const raw = item?.category_id ?? item?.categoryId ?? item?.category;
+  if (raw == null || raw === '') {
+    const fallback = String(item?.category_name ?? item?.categoryName ?? '').trim();
+    return fallback ? [fallback] : [];
+  }
+  const list = Array.isArray(raw) ? raw : [raw];
+  const names = list
+    .map((cat) => resolveCategoryLabel(cat, categoriesLookup))
+    .filter(Boolean);
+  if (names.length) return names;
   const fallback = String(item?.category_name ?? item?.categoryName ?? '').trim();
-  return fallback || '';
+  return fallback ? [fallback] : [];
 };
 
 const Product = () => {
@@ -1159,7 +1183,7 @@ const Product = () => {
                       {isVisible('image') ? <th className="list-col-product-img">Image</th> : null}
                       {sortableTh('name', 'Name', 'list-col-truncate')}
                       {isVisible('category')
-                        ? sortableTh('category_id', 'Category', 'list-col-truncate')
+                        ? sortableTh('category_id', 'Category', 'list-col-categories')
                         : null}
                       {isVisible('stock')
                         ? sortableTh('stock', 'Stock', 'text-end list-col-stock')
@@ -1211,7 +1235,7 @@ const Product = () => {
                         const productId = productIdFromRecord(item);
                         const productEditId = productEditIdFromRecord(item);
                         const productName = item.name || item.product_name || 'Product';
-                        const categoryName = getProductCategoryName(item);
+                        const categoryNames = getProductCategoryNames(item, categories);
                         const parentId = getParentProductId(item);
                         const parentProduct = parentId ? productsById.get(parentId) || null : null;
                         const mainImage =
@@ -1276,11 +1300,24 @@ const Product = () => {
                               )}
                             </td>
                             {isVisible('category') ? (
-                              <td
-                                className="text-sm list-cell-truncate"
-                                title={categoryName || undefined}
-                              >
-                                {categoryName || '—'}
+                              <td className="text-sm list-col-categories">
+                                {categoryNames.length ? (
+                                  <div
+                                    className="d-flex flex-wrap gap-1 list-category-tags"
+                                    title={categoryNames.join(', ')}
+                                  >
+                                    {categoryNames.map((name) => (
+                                      <span
+                                        key={name}
+                                        className="badge badge-sm bg-gradient-secondary text-white"
+                                      >
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             {isVisible('stock') ? (
