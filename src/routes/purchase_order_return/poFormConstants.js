@@ -1,3 +1,10 @@
+export {
+  PO_LINE_ORDER_FIFO,
+  PO_LINE_ORDER_LIFO,
+  persistPoLineOrder,
+  readStoredPoLineOrder,
+} from '../purchase_order/poFormConstants.js';
+
 /** Keep only digits and at most one decimal point (max 2 decimal places). */
 export function sanitizeAmountPaidInput(value) {
   const s = String(value ?? '').replace(/,/g, '');

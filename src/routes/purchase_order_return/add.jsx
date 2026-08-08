@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
@@ -30,8 +30,16 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
-import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './poFormConstants.js';
+import {
+  PO_STATUS_OPTIONS,
+  PO_LINE_ORDER_FIFO,
+  PO_LINE_ORDER_LIFO,
+  persistPoLineOrder,
+  readStoredPoLineOrder,
+  sanitizeAmountPaidInput,
+} from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import '../purchase_order/po-form-module.css';
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -224,6 +232,9 @@ const PurchaseOrderReturnAdd = () => {
   const [createVendorError, setCreateVendorError] = useState('');
 
   const [lines, setLines] = useState([]);
+  const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredPoLineOrder);
+  const lineDisplayOrderRef = useRef(lineDisplayOrder);
+  lineDisplayOrderRef.current = lineDisplayOrder;
   const [addProductQuery, setAddProductQuery] = useState('');
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
@@ -436,23 +447,23 @@ const PurchaseOrderReturnAdd = () => {
       }
 
       const rate = productPickerDefaultLineRate(resolved);
-      setLines((prev) => [
-        ...prev,
-        {
-          key: newLineKey(),
-          productId: id,
-          label: productPickerLabel(resolved),
-          qty: '1',
-          rate: String(rate),
-          totalShipping: '',
-          warehouseId: defaultWarehouseId,
-          warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
-            ? resolved.warehouse_inventory
-            : Array.isArray(product.warehouse_inventory)
-              ? product.warehouse_inventory
-              : [],
-        },
-      ]);
+      const newLine = {
+        key: newLineKey(),
+        productId: id,
+        label: productPickerLabel(resolved),
+        qty: '1',
+        rate: String(rate),
+        totalShipping: '',
+        warehouseId: defaultWarehouseId,
+        warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
+          ? resolved.warehouse_inventory
+          : Array.isArray(product.warehouse_inventory)
+            ? product.warehouse_inventory
+            : [],
+      };
+      setLines((prev) =>
+        lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
+      );
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
@@ -1085,10 +1096,50 @@ const PurchaseOrderReturnAdd = () => {
             </div>
           </div>
 
-          <div className="mb-3">
-            <label className="form-label small text-muted mb-1" htmlFor="po-add-product-search">
-              Add product
-            </label>
+          <div className="mb-3 po-form-page">
+            <div className="po-form-lines-toolbar">
+              <label className="form-label small text-muted mb-0" htmlFor="po-add-product-search">
+                Add product
+              </label>
+              <div className="po-form-segment" role="group" aria-label="Line item add order">
+                <button
+                  type="button"
+                  className={`po-form-segment__btn${
+                    lineDisplayOrder === PO_LINE_ORDER_FIFO ? ' is-active' : ''
+                  }`}
+                  onClick={() => {
+                    if (lineDisplayOrderRef.current === PO_LINE_ORDER_FIFO) return;
+                    lineDisplayOrderRef.current = PO_LINE_ORDER_FIFO;
+                    setLineDisplayOrder(PO_LINE_ORDER_FIFO);
+                    persistPoLineOrder(PO_LINE_ORDER_FIFO);
+                    setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                  }}
+                  disabled={isSubmitting}
+                  title="First in, first out — oldest products at the top"
+                  aria-pressed={lineDisplayOrder === PO_LINE_ORDER_FIFO}
+                >
+                  FIFO
+                </button>
+                <button
+                  type="button"
+                  className={`po-form-segment__btn${
+                    lineDisplayOrder === PO_LINE_ORDER_LIFO ? ' is-active' : ''
+                  }`}
+                  onClick={() => {
+                    if (lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO) return;
+                    lineDisplayOrderRef.current = PO_LINE_ORDER_LIFO;
+                    setLineDisplayOrder(PO_LINE_ORDER_LIFO);
+                    persistPoLineOrder(PO_LINE_ORDER_LIFO);
+                    setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                  }}
+                  disabled={isSubmitting}
+                  title="Last in, first out — newest products at the top"
+                  aria-pressed={lineDisplayOrder === PO_LINE_ORDER_LIFO}
+                >
+                  LIFO
+                </button>
+              </div>
+            </div>
             <input
               id="po-add-product-search"
               type="search"

@@ -53,6 +53,31 @@ import { buildApiUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
 import './pos-invoice-module.css';
 
+const POS_LINE_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
+const POS_LINE_ORDER_FIFO = 'fifo';
+const POS_LINE_ORDER_LIFO = 'lifo';
+
+function readStoredInvoiceLineOrder() {
+  if (typeof window === 'undefined') return POS_LINE_ORDER_FIFO;
+  try {
+    const value = window.localStorage.getItem(POS_LINE_ORDER_STORAGE_KEY);
+    if (value === POS_LINE_ORDER_LIFO || value === POS_LINE_ORDER_FIFO) return value;
+  } catch {
+    /* ignore */
+  }
+  return POS_LINE_ORDER_FIFO;
+}
+
+function persistInvoiceLineOrder(order) {
+  if (typeof window === 'undefined') return;
+  if (order !== POS_LINE_ORDER_FIFO && order !== POS_LINE_ORDER_LIFO) return;
+  try {
+    window.localStorage.setItem(POS_LINE_ORDER_STORAGE_KEY, order);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 const mapLoadStatus = (status) => {
   if (status === 'loading') return 'loading';
   if (status === 'failed') return 'error';
@@ -363,6 +388,9 @@ const PosInvoice = () => {
   const [invoiceSaveMessage, setInvoiceSaveMessage] = useState({ type: null, text: '' });
   /** Editable invoice lines: qty, rate, optional add/remove; synced from order on load. */
   const [invoiceDraftLines, setInvoiceDraftLines] = useState([]);
+  const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredInvoiceLineOrder);
+  const lineDisplayOrderRef = useRef(lineDisplayOrder);
+  lineDisplayOrderRef.current = lineDisplayOrder;
   const [addProductQuery, setAddProductQuery] = useState('');
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
@@ -1073,20 +1101,29 @@ const PosInvoice = () => {
     if (!id) return;
     const rate = productPickerUnitPrice(product);
     const taxPct = Number(product.tax_rate) || 0;
-    setInvoiceDraftLines((prev) => [
-      ...prev,
-      {
-        key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        productId: id,
-        label: productPickerLabel(product),
-        taxPct,
-        qty: '1',
-        rate: String(rate),
-      },
-    ]);
+    const newLine = {
+      key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      productId: id,
+      label: productPickerLabel(product),
+      taxPct,
+      qty: '1',
+      rate: String(rate),
+    };
+    setInvoiceDraftLines((prev) =>
+      lineDisplayOrderRef.current === POS_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
+    );
     setAddProductQuery('');
     setAddProductResults([]);
     setAddProductError('');
+  }, []);
+
+  const setLineOrderMode = useCallback((nextOrder) => {
+    if (nextOrder !== POS_LINE_ORDER_FIFO && nextOrder !== POS_LINE_ORDER_LIFO) return;
+    if (lineDisplayOrderRef.current === nextOrder) return;
+    lineDisplayOrderRef.current = nextOrder;
+    setLineDisplayOrder(nextOrder);
+    persistInvoiceLineOrder(nextOrder);
+    setInvoiceDraftLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
   }, []);
 
   const invoiceLineTotals = useMemo(() => {
@@ -1985,9 +2022,37 @@ const PosInvoice = () => {
                         </select>
                       </div>
                       <div className="col-md-8">
-                        <label className="form-label" htmlFor="pos-inv-add-product">
-                          Add product
-                        </label>
+                        <div className="pos-inv-lines-toolbar">
+                          <label className="form-label" htmlFor="pos-inv-add-product">
+                            Add product
+                          </label>
+                          <div className="pos-inv-segment" role="group" aria-label="Line item add order">
+                            <button
+                              type="button"
+                              className={`pos-inv-segment__btn${
+                                lineDisplayOrder === POS_LINE_ORDER_FIFO ? ' is-active' : ''
+                              }`}
+                              onClick={() => setLineOrderMode(POS_LINE_ORDER_FIFO)}
+                              disabled={invoiceSaving}
+                              title="First in, first out — oldest products at the top"
+                              aria-pressed={lineDisplayOrder === POS_LINE_ORDER_FIFO}
+                            >
+                              FIFO
+                            </button>
+                            <button
+                              type="button"
+                              className={`pos-inv-segment__btn${
+                                lineDisplayOrder === POS_LINE_ORDER_LIFO ? ' is-active' : ''
+                              }`}
+                              onClick={() => setLineOrderMode(POS_LINE_ORDER_LIFO)}
+                              disabled={invoiceSaving}
+                              title="Last in, first out — newest products at the top"
+                              aria-pressed={lineDisplayOrder === POS_LINE_ORDER_LIFO}
+                            >
+                              LIFO
+                            </button>
+                          </div>
+                        </div>
                         <div className="pos-inv-product-search position-relative">
                           <div className="input-group input-group-sm">
                             <span className="input-group-text">

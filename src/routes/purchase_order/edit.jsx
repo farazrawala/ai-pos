@@ -40,7 +40,11 @@ import {
 } from '../../features/expenses/expensesAPI.js';
 import {
   PO_STATUS_OPTIONS,
+  PO_LINE_ORDER_FIFO,
+  PO_LINE_ORDER_LIFO,
   poStatusBadgeClass,
+  persistPoLineOrder,
+  readStoredPoLineOrder,
   sanitizeAmountPaidInput,
 } from './poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -420,6 +424,9 @@ const PurchaseOrderEdit = () => {
   const authCompany = useSelector((state) => state.user.company);
   const [form, setForm] = useState(recordToForm(null));
   const [lines, setLines] = useState([]);
+  const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredPoLineOrder);
+  const lineDisplayOrderRef = useRef(lineDisplayOrder);
+  lineDisplayOrderRef.current = lineDisplayOrder;
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
@@ -785,7 +792,11 @@ const PurchaseOrderEdit = () => {
           await Promise.all(list.map((product) => buildLineFromProduct(product)))
         ).filter(Boolean);
         if (!rows.length) return;
-        setLines((prev) => [...prev, ...rows]);
+        setLines((prev) =>
+          lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO
+            ? [...rows].reverse().concat(prev)
+            : prev.concat(rows)
+        );
         addProductQueryRef.current = '';
         setAddProductQuery('');
         setAddProductResults([]);
@@ -1595,9 +1606,49 @@ const PurchaseOrderEdit = () => {
                     Search to add products, then set warehouse, rate, quantity, and optional
                     shipping per line.
                   </p>
-                  <label className="form-label" htmlFor="po-edit-product-search">
-                    Add product
-                  </label>
+                  <div className="po-form-lines-toolbar">
+                    <label className="form-label" htmlFor="po-edit-product-search">
+                      Add product
+                    </label>
+                    <div className="po-form-segment" role="group" aria-label="Line item add order">
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          lineDisplayOrder === PO_LINE_ORDER_FIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => {
+                          if (lineDisplayOrderRef.current === PO_LINE_ORDER_FIFO) return;
+                          lineDisplayOrderRef.current = PO_LINE_ORDER_FIFO;
+                          setLineDisplayOrder(PO_LINE_ORDER_FIFO);
+                          persistPoLineOrder(PO_LINE_ORDER_FIFO);
+                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                        }}
+                        disabled={isSubmitting}
+                        title="First in, first out — oldest products at the top"
+                        aria-pressed={lineDisplayOrder === PO_LINE_ORDER_FIFO}
+                      >
+                        FIFO
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          lineDisplayOrder === PO_LINE_ORDER_LIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => {
+                          if (lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO) return;
+                          lineDisplayOrderRef.current = PO_LINE_ORDER_LIFO;
+                          setLineDisplayOrder(PO_LINE_ORDER_LIFO);
+                          persistPoLineOrder(PO_LINE_ORDER_LIFO);
+                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                        }}
+                        disabled={isSubmitting}
+                        title="Last in, first out — newest products at the top"
+                        aria-pressed={lineDisplayOrder === PO_LINE_ORDER_LIFO}
+                      >
+                        LIFO
+                      </button>
+                    </div>
+                  </div>
                   <div className="po-form-product-search mb-3">
                     <div className="input-group input-group-sm">
                       <span className="input-group-text">

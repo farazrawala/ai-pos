@@ -29,6 +29,32 @@ export function poStatusBadgeClass(status) {
   return 'bg-gradient-secondary';
 }
 
+/** Line-item add order on PO add/edit (same idea as POS cart). */
+export const PO_LINE_ORDER_STORAGE_KEY = 'purchaseOrder.lineDisplayOrder';
+export const PO_LINE_ORDER_FIFO = 'fifo';
+export const PO_LINE_ORDER_LIFO = 'lifo';
+
+export function readStoredPoLineOrder() {
+  if (typeof window === 'undefined') return PO_LINE_ORDER_FIFO;
+  try {
+    const value = window.localStorage.getItem(PO_LINE_ORDER_STORAGE_KEY);
+    if (value === PO_LINE_ORDER_LIFO || value === PO_LINE_ORDER_FIFO) return value;
+  } catch {
+    /* ignore */
+  }
+  return PO_LINE_ORDER_FIFO;
+}
+
+export function persistPoLineOrder(order) {
+  if (typeof window === 'undefined') return;
+  if (order !== PO_LINE_ORDER_FIFO && order !== PO_LINE_ORDER_LIFO) return;
+  try {
+    window.localStorage.setItem(PO_LINE_ORDER_STORAGE_KEY, order);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 /** Common PO statuses — align with your API enum if different. */
 export const PO_STATUS_OPTIONS = [
   'draft',
