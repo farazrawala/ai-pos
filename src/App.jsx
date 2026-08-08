@@ -100,6 +100,9 @@ import AssetAdd from './routes/asset/add.jsx';
 import AssetEdit from './routes/asset/edit.jsx';
 import AdjustmentIndex from './routes/adjustment/index.jsx';
 import AdjustmentAdd from './routes/adjustment/add.jsx';
+import StockRecountIndex from './routes/stock_recount/index.jsx';
+import StockRecountAdd from './routes/stock_recount/add.jsx';
+import StockRecountSession from './routes/stock_recount/session.jsx';
 import AmountTransferIndex from './routes/amount_transfer/index.jsx';
 import AmountTransferAdd from './routes/amount_transfer/add.jsx';
 import AmountTransferEdit from './routes/amount_transfer/edit.jsx';
@@ -294,6 +297,9 @@ const App = () => {
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
           <Route path="/warehouse-inventory" element={<WarehouseInventoryListing />} />
+          <Route path="/stock-recounts" element={<StockRecountIndex />} />
+          <Route path="/stock-recounts/add" element={<StockRecountAdd />} />
+          <Route path="/stock-recounts/:sessionId" element={<StockRecountSession />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
           <Route path="/amount-transfers" element={<AmountTransferIndex />} />
@@ -468,6 +474,9 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/ledger/:userId" element={<UserLedgerDetailPage />} />
           <Route path="/stock" element={<StockListing />} />
           <Route path="/warehouse-inventory" element={<WarehouseInventoryListing />} />
+          <Route path="/stock-recounts" element={<StockRecountIndex />} />
+          <Route path="/stock-recounts/add" element={<StockRecountAdd />} />
+          <Route path="/stock-recounts/:sessionId" element={<StockRecountSession />} />
           <Route path="/adjustments" element={<AdjustmentIndex />} />
           <Route path="/adjustments/add" element={<AdjustmentAdd />} />
           <Route path="/amount-transfers" element={<AmountTransferIndex />} />

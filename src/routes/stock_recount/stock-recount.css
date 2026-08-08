@@ -1,0 +1,31 @@
+.stock-recount-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.stock-recount-page .stock-recount-back {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #67748e;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.stock-recount-page .stock-recount-back:hover {
+  color: #5e72e4;
+}
+
+.stock-recount-page .stock-recount-card {
+  max-width: 640px;
+}
+
+.stock-recount-page .stock-recount-qty-input {
+  max-width: 120px;
+  text-align: right;
+}

@@ -27,6 +27,7 @@ import assetsReducer from '../features/assets/assetsSlice.js';
 import adjustmentsReducer from '../features/adjustments/adjustmentsSlice.js';
 import amountTransfersReducer from '../features/amountTransfers/amountTransfersSlice.js';
 import warehouseInventoryReducer from '../features/warehouseInventory/warehouseInventorySlice.js';
+import stockRecountReducer from '../features/stockRecount/stockRecountSlice.js';
 import integrationReducer from '../features/integration/integrationSlice.js';
 import processReducer from '../features/process/processSlice.js';
 import printersReducer from '../features/printers/printersSlice.js';
@@ -67,6 +68,7 @@ const store = configureStore({
     adjustments: adjustmentsReducer,
     amountTransfers: amountTransfersReducer,
     warehouseInventory: warehouseInventoryReducer,
+    stockRecount: stockRecountReducer,
     integration: integrationReducer,
     process: processReducer,
     printers: printersReducer,
