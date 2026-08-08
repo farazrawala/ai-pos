@@ -100,10 +100,9 @@ const WarehouseInventoryListing = () => {
 
   useEffect(() => {
     const params = {};
-    if (searchTerm) params.search = searchTerm;
     if (productId) params.product_id = productId;
     dispatch(fetchWarehouseInventory(params));
-  }, [dispatch, searchTerm, productId]);
+  }, [dispatch, productId]);
 
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -207,7 +206,7 @@ const WarehouseInventoryListing = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search products…"
+                        placeholder="Search name, barcode, or SKU…"
                         value={localSearch}
                         onChange={handleSearchChange}
                         aria-label="Search warehouse inventory"

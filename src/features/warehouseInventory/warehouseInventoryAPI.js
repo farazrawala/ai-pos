@@ -194,6 +194,31 @@ export function groupInventoryByProduct(rows) {
   return Array.from(map.values());
 }
 
+/**
+ * Client-side filter: barcode lives on populated product, not warehouse_inventory.
+ * Server `?search=` only matches WI string/number fields (status / quantity).
+ */
+export function filterGroupedProducts(groups, searchTerm = '') {
+  const q = String(searchTerm || '').trim().toLowerCase();
+  if (!q || !Array.isArray(groups)) return groups;
+
+  return groups.filter((group) => {
+    const name = String(group.productName ?? '').toLowerCase();
+    const barcode = String(group.barcode ?? '').toLowerCase();
+    const unit = String(group.unit ?? '').toLowerCase();
+    const product = group.product && typeof group.product === 'object' ? group.product : null;
+    const sku = String(product?.sku ?? product?.product_code ?? '').toLowerCase();
+    const id = String(group.productId ?? '').toLowerCase();
+    return (
+      name.includes(q) ||
+      barcode.includes(q) ||
+      sku.includes(q) ||
+      unit.includes(q) ||
+      id.includes(q)
+    );
+  });
+}
+
 export const sortGroupedProducts = (groups, sortBy, sortOrder) => {
   if (!sortBy || !Array.isArray(groups)) return groups;
 

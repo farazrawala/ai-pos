@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchWarehouseInventoryRequest,
+  filterGroupedProducts,
   groupInventoryByProduct,
   paginateGroupedProducts,
   sortGroupedProducts,
@@ -18,8 +19,9 @@ export const fetchWarehouseInventory = createAsyncThunk(
 );
 
 const applyGroupedView = (state) => {
+  const filtered = filterGroupedProducts(state.groupedAll, state.search);
   const sorted = sortGroupedProducts(
-    state.groupedAll,
+    filtered,
     state.sort.sortBy,
     state.sort.sortOrder
   );
@@ -54,6 +56,7 @@ const warehouseInventorySlice = createSlice({
     setSearch: (state, action) => {
       state.search = action.payload;
       state.pagination.page = 1;
+      applyGroupedView(state);
     },
     setProductId: (state, action) => {
       state.productId = String(action.payload || '').trim();
