@@ -30,10 +30,39 @@ import {
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { isMasterSyncStale } from '../../offline/masterSync.js';
 import { DEBUG } from '../../config/env.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import PosPaymentModal from './PosPaymentModal.jsx';
 import PosContinuousScanModal from './PosContinuousScanModal.jsx';
 import { parsePosVoiceCommand } from './posVoiceCommands.js';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+
+/** USB scanners dump keys faster than a person types. */
+const SCANNER_INTER_KEY_MS = 60;
+const SCANNER_MIN_BURST = 6;
+const SCANNER_IDLE_SUBMIT_MS = 90;
+
+function digitsOnly(value) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function barcodesMatch(stored, scanned) {
+  const a = normalizeSearchToken(stored);
+  const b = normalizeSearchToken(scanned);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const da = digitsOnly(a);
+  const db = digitsOnly(b);
+  if (da.length >= 8 && db.length >= 8 && da === db) return true;
+  if (da.length >= 12 && db.length >= 12 && (da === `0${db}` || db === `0${da}`)) return true;
+  return false;
+}
+
+function looksLikeBarcode(value) {
+  const s = String(value ?? '').trim();
+  if (s.length < 6 || s.length > 64) return false;
+  if (/\s/.test(s)) return false;
+  return /^[0-9A-Za-z\-._/]+$/.test(s);
+}
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
 
@@ -77,13 +106,8 @@ function normalizeSearchToken(value) {
 function productMatchesExactQuery(product, query) {
   const needle = normalizeSearchToken(query);
   if (!needle) return false;
-  const haystacks = [
-    product?.barcode,
-    product?.sku,
-    product?.product_code,
-    product?.product_name,
-    product?.name,
-  ];
+  if (barcodesMatch(product?.barcode, query)) return true;
+  const haystacks = [product?.sku, product?.product_code, product?.product_name, product?.name];
   return haystacks.some((v) => v != null && normalizeSearchToken(v) === needle);
 }
 
@@ -163,10 +187,18 @@ const PosProducts = ({
   const productQueryRef = useRef(productQuery);
   /** Prevents double-Enter / overlapping async scans from adding the same (or stale) item twice. */
   const scanInFlightRef = useRef(false);
+  const scannerBurstRef = useRef({ count: 0, lastAt: 0 });
+  const autoScanTimerRef = useRef(null);
 
   useEffect(() => {
     productQueryRef.current = productQuery;
   }, [productQuery]);
+
+  useEffect(() => {
+    return () => {
+      if (autoScanTimerRef.current) clearTimeout(autoScanTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(productQuery.trim()), 350);
@@ -446,6 +478,7 @@ const PosProducts = ({
           product = await findSoftProductForQuery(query);
         }
         if (!product) {
+          playPosScanBeep('error');
           productQueryRef.current = query;
           setProductQuery(query);
           toast.info(`No clear match for “${query}”. Pick from search results.`);
@@ -460,12 +493,15 @@ const PosProducts = ({
           added += 1;
         }
         if (added > 0) {
+          playPosScanBeep('success');
           const name = getProductName(product);
           toast.success(
             added === 1 ? `Added ${name}` : `Added ${name} × ${added}`
           );
           productQueryRef.current = '';
           setProductQuery('');
+        } else {
+          playPosScanBeep('error');
         }
       } finally {
         scanInFlightRef.current = false;
@@ -507,45 +543,112 @@ const PosProducts = ({
     return opts;
   }, [categories]);
 
-  const handleSearchKeyDown = useCallback(
-    async (e) => {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      // Prefer the ref (updated synchronously in onChange) over React state / DOM.
-      // Scanners type + Enter faster than setState flushes, which used to re-add the previous barcode.
-      const q = String(
-        productQueryRef.current || e.currentTarget?.value || searchInputRef.current?.value || ''
-      ).trim();
-      if (!q || scanInFlightRef.current) return;
+  const clearAutoScanTimer = useCallback(() => {
+    if (autoScanTimerRef.current) {
+      clearTimeout(autoScanTimerRef.current);
+      autoScanTimerRef.current = null;
+    }
+  }, []);
 
+  const submitScannedCode = useCallback(
+    async (rawQuery, { restoreOnMiss = true, notFoundMessage } = {}) => {
+      const q = String(rawQuery ?? '').trim();
+      if (!q || scanInFlightRef.current) return null;
+
+      unlockPosScanAudio();
       scanInFlightRef.current = true;
-      // Clear immediately so the next scan cannot append onto this barcode, and so a
-      // second Enter cannot re-add the same code while the lookup is in flight.
+      clearAutoScanTimer();
+      scannerBurstRef.current = { count: 0, lastAt: 0 };
       productQueryRef.current = '';
       setProductQuery('');
 
       try {
         const result = await tryAddProductFromQuery(q);
-        if (result !== 'added') {
-          productQueryRef.current = q;
-          setProductQuery(q);
+        if (result === 'added') {
+          playPosScanBeep('success');
+        } else {
+          playPosScanBeep('error');
+          if (restoreOnMiss) {
+            productQueryRef.current = q;
+            setProductQuery(q);
+          }
           if (result === 'not_found') {
-            toast.info('No exact product match for that barcode or code.');
+            toast.info(notFoundMessage || 'No exact product match for that barcode or code.');
           }
         }
         requestAnimationFrame(() => searchInputRef.current?.focus());
+        return result;
       } finally {
         scanInFlightRef.current = false;
       }
     },
-    [tryAddProductFromQuery, setProductQuery]
+    [tryAddProductFromQuery, setProductQuery, clearAutoScanTimer]
+  );
+
+  const handleSearchKeyDown = useCallback(
+    async (e) => {
+      unlockPosScanAudio();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = String(
+          productQueryRef.current || e.currentTarget?.value || searchInputRef.current?.value || ''
+        ).trim();
+        await submitScannedCode(q);
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const now = Date.now();
+        const burst = scannerBurstRef.current;
+        burst.count = now - burst.lastAt <= SCANNER_INTER_KEY_MS ? burst.count + 1 : 1;
+        burst.lastAt = now;
+      }
+    },
+    [submitScannedCode]
+  );
+
+  const handleSearchChange = useCallback(
+    (e) => {
+      const next = e.target.value;
+      productQueryRef.current = next;
+      setProductQuery(next);
+
+      const burst = scannerBurstRef.current;
+      if (burst.count < SCANNER_MIN_BURST || !looksLikeBarcode(next)) {
+        clearAutoScanTimer();
+        return;
+      }
+      clearAutoScanTimer();
+      autoScanTimerRef.current = setTimeout(() => {
+        const q = String(productQueryRef.current || '').trim();
+        if (scannerBurstRef.current.count >= SCANNER_MIN_BURST && looksLikeBarcode(q)) {
+          submitScannedCode(q);
+        }
+      }, SCANNER_IDLE_SUBMIT_MS);
+    },
+    [setProductQuery, clearAutoScanTimer, submitScannedCode]
+  );
+
+  const handleSearchPaste = useCallback(
+    (e) => {
+      const text = String(e.clipboardData?.getData('text') || '').trim();
+      if (!looksLikeBarcode(text) || text.length < 8) return;
+      e.preventDefault();
+      submitScannedCode(text);
+    },
+    [submitScannedCode]
   );
 
   const handleContinuousScan = useCallback(
     async (code) => {
+      unlockPosScanAudio();
       const result = await tryAddProductFromQuery(code);
-      if (result === 'not_found') {
-        toast.info(`No product for “${code}”`);
+      if (result === 'added') {
+        playPosScanBeep('success');
+      } else {
+        playPosScanBeep('error');
+        if (result === 'not_found') {
+          toast.info(`No product for “${code}”`);
+        }
       }
       return result;
     },
@@ -628,14 +731,12 @@ const PosProducts = ({
                 ref={searchInputRef}
                 type="search"
                 className="pos-products-toolbar__input"
-                placeholder="Name, SKU, or barcode — Enter to add"
+                placeholder="Scan barcode or type name — Enter to add"
                 value={productQuery}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  productQueryRef.current = next;
-                  setProductQuery(next);
-                }}
+                onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
+                onPaste={handleSearchPaste}
+                onFocus={unlockPosScanAudio}
                 autoComplete="off"
                 spellCheck={false}
                 aria-label="Search products by name, code, SKU, or barcode"
@@ -727,7 +828,7 @@ const PosProducts = ({
                 {hideLowStock && products.length > 0 ? (
                   <div className="small mt-1">Try unchecking &quot;Remove stock with less than 1&quot;</div>
                 ) : debouncedQuery ? (
-                  <div className="small mt-1">Press Enter after scanning a barcode to add it</div>
+                  <div className="small mt-1">Scan a barcode to add it to the cart</div>
                 ) : null}
               </div>
             )}
