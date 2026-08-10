@@ -224,11 +224,35 @@ const PRODUCT_COLUMNS = [
   { key: 'type', label: 'Type' },
   { key: 'status', label: 'Status' },
   { key: 'dates', label: 'Created / Updated' },
+  { key: 'actors', label: 'Created / Updated by' },
   { key: 'origin', label: 'Origin' },
   { key: 'origin_qty', label: 'Origin qty' },
   { key: 'bigcommerce_sync_status', label: 'BC Sync' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
+
+/** Display name from a populated user ref (or plain string id fallback). */
+function getUserRefLabel(user) {
+  if (user && typeof user === 'object' && !Array.isArray(user)) {
+    const name = String(user.name ?? user.fullName ?? user.username ?? '').trim();
+    if (name) return name;
+    const email = String(user.email ?? '').trim();
+    if (email) return email;
+    return '';
+  }
+  if (typeof user === 'string' && user.trim()) return user.trim();
+  return '';
+}
+
+function getCreatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return getUserRefLabel(row.created_by ?? row.createdBy);
+}
+
+function getUpdatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return getUserRefLabel(row.updated_by ?? row.updatedBy);
+}
 
 /** Product.status enum: "active" | "inactive" (default "active"). */
 const productIsActive = (item) =>
@@ -1213,6 +1237,11 @@ const Product = () => {
                       {isVisible('dates')
                         ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
                         : null}
+                      {isVisible('actors') ? (
+                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Created / Updated by
+                        </th>
+                      ) : null}
                       {isVisible('origin') ? (
                         <th className="list-col-truncate-sm">Origin</th>
                       ) : null}
@@ -1251,6 +1280,8 @@ const Product = () => {
                         const isTogglingSync = togglingSyncProductId === productId;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
+                        const createdByLabel = getCreatedByLabel(item);
+                        const updatedByLabel = getUpdatedByLabel(item);
                         const taxRate = item.tax_rate ?? item.taxRate;
                         const alertQty =
                           item.alert_qty != null && item.alert_qty !== ''
@@ -1451,6 +1482,34 @@ const Product = () => {
                                     >
                                       {updated ? `Updated ${moment(updated).fromNow()}` : '—'}
                                     </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('actors') ? (
+                              <td className="text-sm">
+                                {createdByLabel || updatedByLabel ? (
+                                  <div className="oms-actors-cell">
+                                    {createdByLabel ? (
+                                      <div
+                                        className="oms-actors-cell__line text-truncate"
+                                        title={`Created by ${createdByLabel}`}
+                                      >
+                                        <span className="oms-actors-cell__label">Created</span>
+                                        {createdByLabel}
+                                      </div>
+                                    ) : null}
+                                    {updatedByLabel ? (
+                                      <div
+                                        className="oms-actors-cell__line text-truncate"
+                                        title={`Updated by ${updatedByLabel}`}
+                                      >
+                                        <span className="oms-actors-cell__label">Updated</span>
+                                        {updatedByLabel}
+                                      </div>
+                                    ) : null}
                                   </div>
                                 ) : (
                                   '—'

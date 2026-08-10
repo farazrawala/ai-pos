@@ -466,6 +466,31 @@ body {
   color: #8392ab;
 }
 
+.oms-actors-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
+.oms-actors-cell__line {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #344767;
+}
+
+.oms-actors-cell__label {
+  display: inline-block;
+  min-width: 3.6rem;
+  margin-right: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
 .list-data-table .list-col-actions {
   min-width: 9rem;
   width: 9rem;
