@@ -583,7 +583,7 @@ const ProductEdit = () => {
         slug: variationSlug,
         price: '',
         qty: '',
-        show_on_bigcommerce: false,
+        show_on_bigcommerce: Boolean(form.show_on_bigcommerce),
         bigcommerce_price: '',
         bigcommerce_hold_qty: '',
         image: null,
@@ -661,7 +661,7 @@ const ProductEdit = () => {
         barcode: '',
         product_code: '',
         sku: '',
-        show_on_bigcommerce: false,
+        show_on_bigcommerce: Boolean(form.show_on_bigcommerce),
         bigcommerce_price: '',
         bigcommerce_hold_qty: '',
         image: null,
@@ -861,6 +861,18 @@ const ProductEdit = () => {
             updated.slug = generateSlug(newVariationName);
           }
           return updated;
+        })
+      );
+    }
+
+    if (name === 'show_on_bigcommerce') {
+      setVariations((prevVariations) =>
+        prevVariations.map((variation) => {
+          const next = { ...variation, show_on_bigcommerce: Boolean(nextValue) };
+          if (nextValue === true && isUnsetBigCommercePrice(next.bigcommerce_price)) {
+            next.bigcommerce_price = String(next.price ?? '');
+          }
+          return next;
         })
       );
     }
@@ -1170,7 +1182,11 @@ const ProductEdit = () => {
           if (variation.sku && variation.sku !== '') {
             mapped.sku = variation.sku;
           }
-          mapped.show_on_bigcommerce = Boolean(variation.show_on_bigcommerce);
+          mapped.show_on_bigcommerce = Boolean(
+            form.product_type === 'Variable'
+              ? form.show_on_bigcommerce
+              : variation.show_on_bigcommerce
+          );
           mapped.bigcommerce_price = String(variation.bigcommerce_price ?? '').trim();
           mapped.bigcommerce_hold_qty =
             variation.bigcommerce_hold_qty !== '' && variation.bigcommerce_hold_qty != null
@@ -1581,7 +1597,8 @@ const ProductEdit = () => {
                     BigCommerce
                   </div>
                   <p className="product-form-section-hint">
-                    Control listing and pricing for BigCommerce.
+                    Control listing and pricing for BigCommerce. Turning this on or off
+                    updates all variants.
                   </p>
                   <div className="form-check form-switch mb-3">
                     <input
