@@ -536,6 +536,10 @@ const getOrderWebsiteStatus = (row) => {
  *     showStatusChangeModal?: boolean,
  *     showRowSelection?: boolean,
  *     showTagFilter?: boolean,
+ *     showTagsColumn?: boolean,
+ *     showValidateAddressAction?: boolean,
+ *     showConfirmationAction?: boolean,
+ *     showStatusHistoryAction?: boolean,
  *     showDeletedTab?: boolean,
  *     viewReadOnly?: boolean,
  *     listPath?: string,
@@ -562,6 +566,10 @@ export default function OrdersListPage({ config }) {
     showStatusChangeModal = false,
     showRowSelection = false,
     showTagFilter = false,
+    showTagsColumn = true,
+    showValidateAddressAction = true,
+    showConfirmationAction = true,
+    showStatusHistoryAction = true,
     showDeletedTab = false,
     viewReadOnly = false,
     topSummaryName = '',
@@ -677,8 +685,9 @@ export default function OrdersListPage({ config }) {
     if (!showIntegrationColumn) cols = cols.filter((col) => col.key !== 'integration');
     if (!showTrackingColumn) cols = cols.filter((col) => col.key !== 'tracking');
     if (!showWebsiteStatusColumn) cols = cols.filter((col) => col.key !== 'order_website_status');
+    if (!showTagsColumn) cols = cols.filter((col) => col.key !== 'tags');
     return cols;
-  }, [showIntegrationColumn, showTrackingColumn, showWebsiteStatusColumn]);
+  }, [showIntegrationColumn, showTrackingColumn, showWebsiteStatusColumn, showTagsColumn]);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     permissionModule,
@@ -2503,7 +2512,7 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
-                                {!isDeletedView && !viewReadOnly ? (
+                                {showValidateAddressAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-secondary mb-0 px-2"
@@ -2515,7 +2524,7 @@ export default function OrdersListPage({ config }) {
                                     <NavIcon icon={FaLocationDot} size={14} />
                                   </button>
                                 ) : null}
-                                {!isDeletedView && !viewReadOnly ? (
+                                {showConfirmationAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
                                     className={`btn btn-sm mb-0 px-2 ${
@@ -2533,7 +2542,7 @@ export default function OrdersListPage({ config }) {
                                     <NavIcon icon={FaCircleCheck} size={14} />
                                   </button>
                                 ) : null}
-                                {showStatusChangeModal ? (
+                                {showStatusHistoryAction && showStatusChangeModal ? (
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-secondary mb-0 px-2"

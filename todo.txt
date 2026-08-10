@@ -93,18 +93,13 @@ order status sync to stores
 
 
 
-// 5 august.
-Tcs
-Leopard
-Postex
+// 10 august.
+Tcs :: live token testing
+Leopard :: not started.
+Postex :: waiting for reply
 
-orders status => merge with beta logistics
-order edit , status update.
-Order hold, merge, duplicate, functionality. 
-order history
+Address incomplete :: initial done.
+order scrapping :: not started
 
-Address incomplete.
-order scrapping.
-
-bigcommerce request part.
+Bigcommerce request part 
 Strategy of big commerce product update.

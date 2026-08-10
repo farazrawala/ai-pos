@@ -276,9 +276,18 @@ const productsSlice = createSlice({
       .addCase(deleteProduct.fulfilled, (state, action) => {
         state.deleteStatus = 'succeeded';
         state.deleteError = null;
-        state.list = state.list.filter(
-          (item) => (item._id || item.id || item.product_id) !== action.payload.productId
-        );
+        const deletedId = String(action.payload.productId ?? '');
+        state.list = state.list.filter((item) => {
+          const id = String(item._id || item.id || item.product_id || '');
+          if (id && id === deletedId) return false;
+          const rawParent = item.parent_product_id ?? item.parentProductId;
+          const parentId =
+            rawParent && typeof rawParent === 'object' && !Array.isArray(rawParent)
+              ? String(rawParent._id ?? rawParent.id ?? '')
+              : String(rawParent ?? '');
+          if (parentId && parentId === deletedId) return false;
+          return true;
+        });
         if (state.pagination.total > 0) {
           state.pagination.total -= 1;
         }

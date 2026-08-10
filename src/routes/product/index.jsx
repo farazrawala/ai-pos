@@ -684,13 +684,16 @@ const Product = () => {
   };
 
   // Handle delete product
-  const handleDelete = async (productId, productName) => {
+  const handleDelete = async (product, productId, productName) => {
     const productNameDisplay = productName || 'this product';
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${productNameDisplay}"? This action cannot be undone.`
-      )
-    ) {
+    const listChildCount = (Array.isArray(data) ? data : []).filter(
+      (item) => String(parentProductIdFromRecord(item)) === String(productId)
+    ).length;
+    const looksVariable = isVariableProduct(product) || listChildCount > 0;
+    const confirmMessage = looksVariable
+      ? `Are you sure you want to delete "${productNameDisplay}"? All of its variations will also be deleted. This cannot be undone.`
+      : `Are you sure you want to delete "${productNameDisplay}"? This action cannot be undone.`;
+    if (window.confirm(confirmMessage)) {
       try {
         await dispatch(deleteProduct(productId)).unwrap();
         dispatch(fetchProducts(buildListParams()));
@@ -1504,7 +1507,7 @@ const Product = () => {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-danger mb-0"
-                                    onClick={() => handleDelete(productId, productName)}
+                                    onClick={() => handleDelete(item, productId, productName)}
                                     disabled={deleteStatus === 'loading'}
                                   >
                                     {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}

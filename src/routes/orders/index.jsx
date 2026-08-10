@@ -12,6 +12,10 @@ const ORDERS_PAGE_CONFIG = {
   showIntegrationColumn: false,
   showDeletedTab: true,
   showStatusChangeModal: true,
+  showTagsColumn: false,
+  showValidateAddressAction: false,
+  showConfirmationAction: false,
+  showStatusHistoryAction: false,
   viewReadOnly: false,
 };
 
