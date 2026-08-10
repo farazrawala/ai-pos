@@ -2126,12 +2126,6 @@ export default function OrdersListPage({ config }) {
                       {isVisible('name')
                         ? sortableTh('name', 'Customer', 'list-col-truncate')
                         : null}
-                      {isVisible('email')
-                        ? sortableTh('email', 'Email', 'list-col-truncate')
-                        : null}
-                      {isVisible('phone')
-                        ? sortableTh('phone', 'Phone', 'list-col-truncate-sm')
-                        : null}
                       {isVisible('items')
                         ? sortableTh('no_of_items', 'Items')
                         : null}
@@ -2340,17 +2334,6 @@ export default function OrdersListPage({ config }) {
                                   </div>
                                 </div>
                               </td>
-                            ) : null}
-                            {isVisible('email') ? (
-                              <td
-                                className="text-sm list-cell-truncate"
-                                title={email !== '—' ? email : undefined}
-                              >
-                                {email}
-                              </td>
-                            ) : null}
-                            {isVisible('phone') ? (
-                              <td className="text-sm list-cell-truncate-sm text-nowrap">{phone}</td>
                             ) : null}
                             {isVisible('items') ? (
                               <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
