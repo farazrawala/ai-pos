@@ -317,8 +317,7 @@ const ORDER_COLUMNS = [
   { key: 'order_website_status', label: 'Website status' },
   { key: 'channel', label: 'Order type' },
   { key: 'tracking', label: 'Tracking' },
-  { key: 'created', label: 'Created' },
-  { key: 'updated', label: 'Last updated' },
+  { key: 'dates', label: 'Created / Updated' },
   { key: 'actors', label: 'Created / Updated by' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
@@ -2155,11 +2154,8 @@ export default function OrdersListPage({ config }) {
                           Tracking
                         </th>
                       ) : null}
-                      {isVisible('created')
-                        ? sortableTh('createdAt', 'Created', 'list-col-date')
-                        : null}
-                      {isVisible('updated')
-                        ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
+                      {isVisible('dates')
+                        ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
                         : null}
                       {isVisible('actors') ? (
                         <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
@@ -2506,21 +2502,36 @@ export default function OrdersListPage({ config }) {
                                 )}
                               </td>
                             ) : null}
-                            {isVisible('created') ? (
-                              <td className="text-sm text-nowrap list-col-date">
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                              </td>
-                            ) : null}
-                            {isVisible('updated') ? (
-                              <td
-                                className="text-sm text-nowrap list-col-date"
-                                title={
-                                  updated
-                                    ? moment(updated).format('DD MMM YYYY h:mm a')
-                                    : undefined
-                                }
-                              >
-                                {updated ? moment(updated).fromNow() : '—'}
+                            {isVisible('dates') ? (
+                              <td className="text-sm list-col-date">
+                                {created || updated ? (
+                                  <div className="oms-dates-cell">
+                                    <div
+                                      className="oms-dates-cell__created text-nowrap"
+                                      title={
+                                        created
+                                          ? moment(created).format('DD MMM YYYY h:mm a')
+                                          : undefined
+                                      }
+                                    >
+                                      {created
+                                        ? moment(created).format('DD MMM YYYY h:mm a')
+                                        : '—'}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__updated text-nowrap"
+                                      title={
+                                        updated
+                                          ? moment(updated).format('DD MMM YYYY h:mm a')
+                                          : undefined
+                                      }
+                                    >
+                                      {updated ? `Updated ${moment(updated).fromNow()}` : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             {isVisible('actors') ? (
