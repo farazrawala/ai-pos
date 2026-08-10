@@ -45,6 +45,22 @@ const isUnsetBigCommercePrice = (value) => {
   return s === '' || s === '0' || s === '0.00';
 };
 
+/** True when product was fetched/copied from another product (Me too). */
+const hasFetchFromProductId = (product) => {
+  if (!product || typeof product !== 'object') return false;
+  const raw = product.fetch_from_product_id ?? product.fetchFromProductId;
+  if (raw == null || raw === '' || raw === false || raw === 0) return false;
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = String(raw._id ?? raw.id ?? '').trim();
+    return Boolean(id) && id !== 'null' && id !== 'undefined';
+  }
+  const s = String(raw).trim();
+  return Boolean(s) && s !== 'null' && s !== 'undefined';
+};
+
+/** Hide BigCommerce when this product (parent) is a Me-too / fetched copy. */
+const shouldHideBigCommerceForProduct = (product) => hasFetchFromProductId(product);
+
 const mapLoadStatus = (status) => {
   if (status === 'loading' || status === true) return 'loading';
   if (status === 'failed') return 'error';
@@ -92,6 +108,8 @@ const ProductEdit = () => {
   const [loadingBrands, setLoadingBrands] = useState(false);
   const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
   const [showQuickAddBrand, setShowQuickAddBrand] = useState(false);
+  /** Me-too products: hide BigCommerce on parent form + all variation cards. */
+  const [hideBigCommerceSection, setHideBigCommerceSection] = useState(false);
 
   // Image states
   const [singleImage, setSingleImage] = useState(null);
@@ -357,6 +375,8 @@ const ProductEdit = () => {
   // Populate form when product data is loaded
   useEffect(() => {
     if (currentProduct && fetchStatus === 'succeeded') {
+      setHideBigCommerceSection(shouldHideBigCommerceForProduct(currentProduct));
+
       // Handle category_id - can be array or single value
       let categoryIds = [];
       if (currentProduct.category_id) {
@@ -529,6 +549,9 @@ const ProductEdit = () => {
             imagePreview: null,
             // Store the original child product ID for reference
             childProductId: child._id,
+            fetch_from_product_id:
+              child.fetch_from_product_id ?? child.fetchFromProductId ?? null,
+            hideBigCommerce: hasFetchFromProductId(child),
           };
         });
 
@@ -1669,68 +1692,70 @@ const ProductEdit = () => {
                   )}
                 </div>
 
-                {/* BigCommerce */}
-                <div className="product-form-section mb-4">
-                  <div className="product-form-section-title">
-                    <i className="fas fa-store text-primary" aria-hidden="true" />
-                    BigCommerce
-                  </div>
-                  <p className="product-form-section-hint">
-                    Control listing and pricing for BigCommerce. Turning this on or off
-                    updates all variants.
-                  </p>
-                  <div className="form-check form-switch mb-3">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      role="switch"
-                      id="show_on_bigcommerce"
-                      name="show_on_bigcommerce"
-                      checked={Boolean(form.show_on_bigcommerce)}
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                    />
-                    <label className="form-check-label" htmlFor="show_on_bigcommerce">
-                      Show on BigCommerce?
-                    </label>
-                  </div>
-                  {form.show_on_bigcommerce ? (
-                    <div className="row">
-                      <div className="col-md-6 mb-3 mb-md-0">
-                        <label htmlFor="bigcommerce_price" className="form-label">
-                          BigCommerce Price
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          id="bigcommerce_price"
-                          name="bigcommerce_price"
-                          placeholder={form.price || '0.00'}
-                          value={form.bigcommerce_price}
-                          onChange={handleChange}
-                          disabled={isSubmitting}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label htmlFor="bigcommerce_hold_qty" className="form-label">
-                          BigCommerce Hold Qty
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          className="form-control"
-                          id="bigcommerce_hold_qty"
-                          name="bigcommerce_hold_qty"
-                          placeholder="0"
-                          value={form.bigcommerce_hold_qty}
-                          onChange={handleChange}
-                          disabled={isSubmitting}
-                        />
-                      </div>
+                {/* BigCommerce — hidden for Me-too / fetched-from products */}
+                {!hideBigCommerceSection ? (
+                  <div className="product-form-section mb-4">
+                    <div className="product-form-section-title">
+                      <i className="fas fa-store text-primary" aria-hidden="true" />
+                      BigCommerce
                     </div>
-                  ) : null}
-                </div>
+                    <p className="product-form-section-hint">
+                      Control listing and pricing for BigCommerce. Turning this on or off
+                      updates all variants.
+                    </p>
+                    <div className="form-check form-switch mb-3">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="show_on_bigcommerce"
+                        name="show_on_bigcommerce"
+                        checked={Boolean(form.show_on_bigcommerce)}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                      />
+                      <label className="form-check-label" htmlFor="show_on_bigcommerce">
+                        Show on BigCommerce?
+                      </label>
+                    </div>
+                    {form.show_on_bigcommerce ? (
+                      <div className="row">
+                        <div className="col-md-6 mb-3 mb-md-0">
+                          <label htmlFor="bigcommerce_price" className="form-label">
+                            BigCommerce Price
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            id="bigcommerce_price"
+                            name="bigcommerce_price"
+                            placeholder={form.price || '0.00'}
+                            value={form.bigcommerce_price}
+                            onChange={handleChange}
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label htmlFor="bigcommerce_hold_qty" className="form-label">
+                            BigCommerce Hold Qty
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="form-control"
+                            id="bigcommerce_hold_qty"
+                            name="bigcommerce_hold_qty"
+                            placeholder="0"
+                            value={form.bigcommerce_hold_qty}
+                            onChange={handleChange}
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Product Code, SKU, and Barcode Row */}
                 <div className="row">
@@ -2215,6 +2240,9 @@ const ProductEdit = () => {
                           key={variation.id}
                           variation={variation}
                           showMetaFields
+                          hideBigCommerce={
+                            hideBigCommerceSection || Boolean(variation.hideBigCommerce)
+                          }
                           disabled={isSubmitting}
                           fileInputId={`product-edit-variation-image-${variation.id}`}
                           onChange={handleVariationChange}
@@ -2273,6 +2301,7 @@ const ProductEdit = () => {
         selectedAttributes={selectedAttributes}
         onAttributeChange={handleAttributeChange}
         onAttributeCreated={handleAttributeCreated}
+        hideBigCommerce={hideBigCommerceSection}
         variations={variations}
         onVariationChange={handleVariationChange}
         onVariationImageChange={handleVariationImageChange}

@@ -14,6 +14,7 @@ export default function ProductVariationsModal({
   selectedAttributes,
   onAttributeChange,
   onAttributeCreated,
+  hideBigCommerce = false,
   variations,
   onVariationChange,
   onVariationImageChange,
@@ -221,6 +222,9 @@ export default function ProductVariationsModal({
                     <ProductVariationCard
                       key={variation.id}
                       variation={variation}
+                      hideBigCommerce={
+                        hideBigCommerce || Boolean(variation.hideBigCommerce)
+                      }
                       disabled={isSubmitting}
                       fileInputId={`pv-modal-variation-image-${variation.id}`}
                       onChange={onVariationChange}

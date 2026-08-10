@@ -13,6 +13,7 @@ export default function ProductVariationCard({
   onRemove,
   disabled = false,
   showMetaFields = false,
+  hideBigCommerce = false,
   fileInputId,
 }) {
   const reactId = useId();
@@ -242,60 +243,62 @@ export default function ProductVariationCard({
             <div className="pv-hint">Leave empty to auto-generate on save.</div>
           </div>
 
-          <div className="pv-bc-section">
-            <div className="pv-bc-section-title">BigCommerce</div>
-            <label className="pv-bc-switch" htmlFor={showOnBcId}>
-              <input
-                className="pv-bc-switch-input"
-                type="checkbox"
-                role="switch"
-                id={showOnBcId}
-                checked={showOnBigCommerce}
-                disabled={disabled}
-                onChange={(e) => handleShowOnBigCommerce(e.target.checked)}
-              />
-              <span className="pv-bc-switch-track" aria-hidden="true">
-                <span className="pv-bc-switch-thumb" />
-              </span>
-              <span className="pv-bc-switch-label">Show on BigCommerce</span>
-            </label>
-            {showOnBigCommerce ? (
-              <div className="pv-bc-fields">
-                <div className="pv-field">
-                  <label className="pv-field-label" htmlFor={bcPriceId}>
-                    BigCommerce Price
-                  </label>
-                  <input
-                    id={bcPriceId}
-                    type="text"
-                    className="pv-field-input"
-                    placeholder={variation.price || '0.00'}
-                    value={variation.bigcommerce_price ?? ''}
-                    disabled={disabled}
-                    onChange={(e) => onChange(variation.id, 'bigcommerce_price', e.target.value)}
-                  />
+          {!hideBigCommerce ? (
+            <div className="pv-bc-section">
+              <div className="pv-bc-section-title">BigCommerce</div>
+              <label className="pv-bc-switch" htmlFor={showOnBcId}>
+                <input
+                  className="pv-bc-switch-input"
+                  type="checkbox"
+                  role="switch"
+                  id={showOnBcId}
+                  checked={showOnBigCommerce}
+                  disabled={disabled}
+                  onChange={(e) => handleShowOnBigCommerce(e.target.checked)}
+                />
+                <span className="pv-bc-switch-track" aria-hidden="true">
+                  <span className="pv-bc-switch-thumb" />
+                </span>
+                <span className="pv-bc-switch-label">Show on BigCommerce</span>
+              </label>
+              {showOnBigCommerce ? (
+                <div className="pv-bc-fields">
+                  <div className="pv-field">
+                    <label className="pv-field-label" htmlFor={bcPriceId}>
+                      BigCommerce Price
+                    </label>
+                    <input
+                      id={bcPriceId}
+                      type="text"
+                      className="pv-field-input"
+                      placeholder={variation.price || '0.00'}
+                      value={variation.bigcommerce_price ?? ''}
+                      disabled={disabled}
+                      onChange={(e) => onChange(variation.id, 'bigcommerce_price', e.target.value)}
+                    />
+                  </div>
+                  <div className="pv-field">
+                    <label className="pv-field-label" htmlFor={bcHoldId}>
+                      BigCommerce Hold Qty
+                    </label>
+                    <input
+                      id={bcHoldId}
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="pv-field-input"
+                      placeholder="0"
+                      value={variation.bigcommerce_hold_qty ?? ''}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        onChange(variation.id, 'bigcommerce_hold_qty', e.target.value)
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="pv-field">
-                  <label className="pv-field-label" htmlFor={bcHoldId}>
-                    BigCommerce Hold Qty
-                  </label>
-                  <input
-                    id={bcHoldId}
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="pv-field-input"
-                    placeholder="0"
-                    value={variation.bigcommerce_hold_qty ?? ''}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(variation.id, 'bigcommerce_hold_qty', e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
