@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  acquireBodyScrollLock,
+  releaseBodyScrollLock,
+} from '../utils/bodyScrollLock.js';
 
 const SIZE_CLASS = {
   sm: 'app-modal-dialog--sm',
@@ -22,26 +26,34 @@ export default function AppModal({
   disableBackdropClose = false,
   ariaLabelledBy,
 }) {
+  const titleId = ariaLabelledBy || 'app-modal-title';
+
   useEffect(() => {
     if (!open) return undefined;
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    acquireBodyScrollLock();
 
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose?.();
+    const onKeyDownCapture = (e) => {
+      if (e.key !== 'Escape') return;
+      const roots = document.querySelectorAll('body > .app-modal-root');
+      if (roots.length === 0) return;
+      const topRoot = roots[roots.length - 1];
+      // Only the topmost nested modal should close on Escape.
+      if (!topRoot.querySelector(`#${CSS.escape(titleId)}`)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose?.();
     };
-    window.addEventListener('keydown', onKeyDown);
+
+    window.addEventListener('keydown', onKeyDownCapture, true);
 
     return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKeyDown);
+      releaseBodyScrollLock();
+      window.removeEventListener('keydown', onKeyDownCapture, true);
     };
-  }, [open, onClose]);
+  }, [open, onClose, titleId]);
 
   if (!open || typeof document === 'undefined') return null;
-
-  const titleId = ariaLabelledBy || 'app-modal-title';
 
   return createPortal(
     <div className="app-modal-root" role="presentation">

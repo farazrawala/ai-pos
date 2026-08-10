@@ -305,6 +305,26 @@ const ProductEdit = () => {
     setForm((prev) => ({ ...prev, brand_id: id }));
   };
 
+  const handleAttributeCreated = (created) => {
+    const id = String(created?._id ?? created?.id ?? created?.attribute_id ?? '').trim();
+    if (!id) {
+      // Fallback: reload list if API didn't return an id
+      fetchAttributesRequest({ page: 1, limit: 1000 })
+        .then((result) => setAttributes(result.data || []))
+        .catch((error) => console.error('Failed to reload attributes:', error));
+      return;
+    }
+    setAttributes((prev) => {
+      const exists = prev.some((attr) => String(attr._id || attr.id) === id);
+      if (exists) {
+        return prev.map((attr) =>
+          String(attr._id || attr.id) === id ? { ...attr, ...created } : attr
+        );
+      }
+      return [...prev, created];
+    });
+  };
+
   // Fetch attributes when modal opens
   useEffect(() => {
     if (showVariationsModal) {
@@ -2252,6 +2272,7 @@ const ProductEdit = () => {
         loadingAttributes={loadingAttributes}
         selectedAttributes={selectedAttributes}
         onAttributeChange={handleAttributeChange}
+        onAttributeCreated={handleAttributeCreated}
         variations={variations}
         onVariationChange={handleVariationChange}
         onVariationImageChange={handleVariationImageChange}

@@ -127,6 +127,7 @@ import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import ThemePanel from './components/ThemePanel.jsx';
+import { resetBodyScrollLockIfIdle } from './utils/bodyScrollLock.js';
 
 /** Union of role lists, de-duplicated case-insensitively, preserving order. */
 function unionRoles(...lists) {
@@ -361,6 +362,11 @@ const App = () => {
 
 const AuthenticatedLayout = ({ isAuthenticated }) => {
   const { layoutClassName } = useSidenav();
+
+  // Recover if a previous nested modal left body scroll locked.
+  useEffect(() => {
+    resetBodyScrollLockIfIdle();
+  }, []);
 
   return (
     <div className={layoutClassName}>

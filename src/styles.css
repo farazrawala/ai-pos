@@ -1093,6 +1093,11 @@ body {
   pointer-events: none;
 }
 
+/* Stack nested AppModals (e.g. quick-add over variations). */
+body > .app-modal-root ~ .app-modal-root {
+  z-index: 10150;
+}
+
 .app-modal-backdrop {
   position: fixed;
   inset: 0;
