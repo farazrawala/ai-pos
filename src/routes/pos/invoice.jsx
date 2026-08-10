@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import moment from 'moment';
 import { openThermalReceiptPrint } from '../../components/ThermalReceiptPrint/index.js';
 import { openNormalInvoicePrint } from '../../components/NormalInvoicePrint/index.js';
 import {
@@ -15,6 +16,7 @@ import {
   resolvePaymentMethodLabel,
   shopName,
   formatInvoiceMoney,
+  formatInvoiceDate,
 } from '../../features/orders/invoiceViewMapper.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import { fetchProductActiveRequest, POS_PRODUCT_SEARCH_FIELDS } from '../../features/products/productsAPI.js';
@@ -76,6 +78,18 @@ function persistInvoiceLineOrder(order) {
   } catch {
     /* ignore quota / private mode */
   }
+}
+
+/** Value for `<input type="datetime-local">` (local wall clock). */
+function nowDatetimeLocalValue() {
+  return moment().format('YYYY-MM-DDTHH:mm');
+}
+
+/** Normalize stored / ISO values into `datetime-local` input format. */
+function toDatetimeLocalValue(raw) {
+  if (raw == null || String(raw).trim() === '') return nowDatetimeLocalValue();
+  const m = moment(raw);
+  return m.isValid() ? m.format('YYYY-MM-DDTHH:mm') : nowDatetimeLocalValue();
 }
 
 const mapLoadStatus = (status) => {
@@ -409,6 +423,7 @@ const PosInvoice = () => {
   const [invoiceZip, setInvoiceZip] = useState('');
   const [invoiceCountry, setInvoiceCountry] = useState('');
   const [invoicePosPayMethod, setInvoicePosPayMethod] = useState('');
+  const [invoiceDateTime, setInvoiceDateTime] = useState(nowDatetimeLocalValue);
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
@@ -481,6 +496,9 @@ const PosInvoice = () => {
       sourceOrder.account_id ??
       '';
     setInvoicePosPayMethod(pm != null && String(pm).trim() !== '' ? String(pm).trim() : '');
+    setInvoiceDateTime(
+      toDatetimeLocalValue(sourceOrder.createdAt ?? sourceOrder.created_at)
+    );
   }, [sourceOrder]);
 
   useEffect(() => {
@@ -786,6 +804,9 @@ const PosInvoice = () => {
         posPayMethod: invoicePosPayMethod || undefined,
         payment_method_id: invoicePosPayMethod || undefined,
         payment_method_accounts_id: invoicePosPayMethod || undefined,
+        createdAt: moment(invoiceDateTime).isValid()
+          ? moment(invoiceDateTime).toISOString()
+          : undefined,
       };
       await updatePosOrderRequest(String(oid), payload);
       const refreshed = await fetchOrderForInvoiceRequest(invoiceId);
@@ -827,6 +848,7 @@ const PosInvoice = () => {
     invoiceZip,
     invoiceCountry,
     invoicePosPayMethod,
+    invoiceDateTime,
     users,
   ]);
 
@@ -1957,10 +1979,67 @@ const PosInvoice = () => {
                   </div>
                   <div className="col-lg-6 text-lg-end">
                     <div className="pos-inv-section-title">Invoice details</div>
-                    {printerSettings.show_invoice_date ? (
-                      <div className="small mb-2">
+                    {printerSettings.show_invoice_date || canUpdateInvoice ? (
+                      <div
+                        className={`small mb-2${
+                          !printerSettings.show_invoice_date ? ' pos-inv-no-print' : ''
+                        }`}
+                      >
                         <span className="text-muted me-2">Date:</span>
-                        <span className="fw-semibold">{data.invoiceDate}</span>
+                        {canUpdateInvoice ? (
+                          <>
+                            <div className="pos-inv-datetime pos-inv-no-print mt-1">
+                              <input
+                                id="pos-inv-order-date"
+                                type="date"
+                                className="form-control form-control-sm pos-inv-datetime__date"
+                                value={invoiceDateTime.slice(0, 10)}
+                                onChange={(e) => {
+                                  const date = e.target.value || moment().format('YYYY-MM-DD');
+                                  const time =
+                                    invoiceDateTime.slice(11, 16) || moment().format('HH:mm');
+                                  setInvoiceDateTime(`${date}T${time}`);
+                                }}
+                                disabled={invoiceSaving}
+                                aria-label="Invoice date"
+                              />
+                              <input
+                                id="pos-inv-order-time"
+                                type="time"
+                                className="form-control form-control-sm pos-inv-datetime__time"
+                                value={invoiceDateTime.slice(11, 16)}
+                                onChange={(e) => {
+                                  const time = e.target.value || moment().format('HH:mm');
+                                  const date =
+                                    invoiceDateTime.slice(0, 10) || moment().format('YYYY-MM-DD');
+                                  setInvoiceDateTime(`${date}T${time}`);
+                                }}
+                                disabled={invoiceSaving}
+                                aria-label="Invoice time"
+                              />
+                              <button
+                                type="button"
+                                className="pos-inv-datetime__now"
+                                onClick={() => setInvoiceDateTime(nowDatetimeLocalValue())}
+                                disabled={invoiceSaving}
+                                title="Use current date and time"
+                              >
+                                Now
+                              </button>
+                            </div>
+                            {printerSettings.show_invoice_date ? (
+                              <span className="fw-semibold pos-inv-print-only">
+                                {formatInvoiceDate(
+                                  moment(invoiceDateTime).isValid()
+                                    ? moment(invoiceDateTime).toISOString()
+                                    : null
+                                )}
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="fw-semibold">{data.invoiceDate}</span>
+                        )}
                       </div>
                     ) : null}
                     {printerSettings.show_current_user && billCurrentUserName ? (

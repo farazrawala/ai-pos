@@ -2212,6 +2212,9 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
   if (payload.customer_id != null) {
     form.append('customer_id', String(payload.customer_id));
   }
+  if (payload.createdAt != null && String(payload.createdAt).trim() !== '') {
+    form.append('createdAt', String(payload.createdAt).trim());
+  }
 
   const response = await fetch(`${BASE_URL}order/order_update/${encodeURIComponent(id)}`, {
     method: 'PATCH',

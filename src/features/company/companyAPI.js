@@ -2141,6 +2141,28 @@ export async function patchCompanyDefaultPrinterSettings(companyId, settingsObje
   });
 }
 
+/** Display name for who saved a POS draft (top-level fields or payload). */
+export function resolveDraftSavedByName(draft) {
+  if (!draft || typeof draft !== 'object') return '';
+  const fromUserObj = (u) => {
+    if (!u) return '';
+    if (typeof u === 'string') return String(u).trim();
+    if (typeof u === 'object') {
+      return String(u.name || u.fullName || u.username || u.email || '').trim();
+    }
+    return '';
+  };
+  const payload = draft.payload && typeof draft.payload === 'object' ? draft.payload : {};
+  return (
+    fromUserObj(draft.created_by) ||
+    fromUserObj(draft.saved_by) ||
+    String(draft.created_by_name || draft.saved_by_name || draft.savedByName || '').trim() ||
+    fromUserObj(payload.created_by) ||
+    fromUserObj(payload.saved_by) ||
+    String(payload.savedByName || payload.created_by_name || payload.saved_by_name || '').trim()
+  );
+}
+
 /** Normalize `draft_orders` from a company doc (newest first by `updated_at`). */
 export function normalizeCompanyDraftOrders(companyOrBody) {
   const company =
@@ -2153,12 +2175,16 @@ export function normalizeCompanyDraftOrders(companyOrBody) {
     .map((row) => {
       if (!row || typeof row !== 'object') return null;
       const id = row._id ?? row.id;
-      return {
+      const normalized = {
         ...row,
         _id: id != null ? String(id) : '',
         label: String(row.label ?? '').trim() || 'Draft',
         updated_at: row.updated_at ?? row.updatedAt ?? null,
         payload: row.payload && typeof row.payload === 'object' ? row.payload : {},
+      };
+      return {
+        ...normalized,
+        savedByName: resolveDraftSavedByName(normalized),
       };
     })
     .filter((row) => row && row._id)
@@ -2179,9 +2205,21 @@ export async function fetchCompanyDraftOrders(companyId) {
 /**
  * POST `company/draft-orders/:companyId` — push `{ payload, label }` onto draft_orders.
  */
-export async function addCompanyDraftOrder(companyId, { payload, label } = {}) {
+export async function addCompanyDraftOrder(
+  companyId,
+  { payload, label, created_by, created_by_name, saved_by_name } = {}
+) {
   const token = getAuthToken();
   const url = `${API_BASE_URL}/company/draft-orders/${encodeURIComponent(companyId)}`;
+  const body = { payload, label };
+  if (created_by != null && String(created_by).trim() !== '') {
+    body.created_by = String(created_by).trim();
+  }
+  const byName = String(created_by_name || saved_by_name || '').trim();
+  if (byName) {
+    body.created_by_name = byName;
+    body.saved_by_name = byName;
+  }
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -2189,7 +2227,7 @@ export async function addCompanyDraftOrder(companyId, { payload, label } = {}) {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ payload, label }),
+    body: JSON.stringify(body),
   });
   const { data, ok, status } = await parseJsonResponse(res);
   if (!ok || (data && data.success === false)) {
@@ -2201,11 +2239,23 @@ export async function addCompanyDraftOrder(companyId, { payload, label } = {}) {
 /**
  * PATCH `company/draft-orders/:companyId/:draftId` — update payload (and optional label).
  */
-export async function updateCompanyDraftOrder(companyId, draftId, { payload, label } = {}) {
+export async function updateCompanyDraftOrder(
+  companyId,
+  draftId,
+  { payload, label, created_by, created_by_name, saved_by_name } = {}
+) {
   const token = getAuthToken();
   const url = `${API_BASE_URL}/company/draft-orders/${encodeURIComponent(companyId)}/${encodeURIComponent(draftId)}`;
   const body = { payload };
   if (label !== undefined) body.label = label;
+  if (created_by != null && String(created_by).trim() !== '') {
+    body.created_by = String(created_by).trim();
+  }
+  const byName = String(created_by_name || saved_by_name || '').trim();
+  if (byName) {
+    body.created_by_name = byName;
+    body.saved_by_name = byName;
+  }
   const res = await fetch(url, {
     method: 'PATCH',
     headers: {

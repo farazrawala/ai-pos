@@ -48,6 +48,7 @@ import {
   updateCompanyDraftOrder,
   removeCompanyDraftOrder,
   resolveBillCurrentUserName,
+  resolveDraftSavedByName,
 } from '../../features/company/companyAPI.js';
 import { setCompany } from '../../features/user/userSlice.js';
 import { formatProductNameWithStock, getProductAvailableStock } from '../../utils/productStock.js';
@@ -76,7 +77,11 @@ import { isMasterSyncStale, runMasterSync } from '../../offline/masterSync.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
 import { saveOfflineOrder, buildOfflineSaveResult } from '../../offline/saveOfflineOrder.js';
 import { getAllCategories, countCategories } from '../../offline/repositories/categoriesRepo.js';
-import { getAllCustomers, countCustomers, upsertCustomers } from '../../offline/repositories/customersRepo.js';
+import {
+  getAllCustomers,
+  countCustomers,
+  upsertCustomers,
+} from '../../offline/repositories/customersRepo.js';
 import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
@@ -291,6 +296,30 @@ function draftDisplayTitle(label) {
   return raw.replace(/\s*[—–-]\s*PKR\s*[\d,]+\.?\d*\s*$/i, '').trim() || raw;
 }
 
+/** Client/customer label stored on a draft or resolved from the users list. */
+function resolveDraftClientName(draft, users = []) {
+  if (!draft || typeof draft !== 'object') return '';
+  const payload = draft.payload && typeof draft.payload === 'object' ? draft.payload : {};
+  const stored = String(
+    payload.customerName ||
+      payload.selectedCustomerName ||
+      draft.customerName ||
+      draft.customer_name ||
+      ''
+  ).trim();
+  if (stored) return stored;
+
+  const customerId = String(
+    payload.selectedCustomerId ?? payload.customer_id ?? draft.customer_id ?? ''
+  ).trim();
+  if (!customerId) return 'Walk in';
+
+  const list = Array.isArray(users) ? users : [];
+  const match = list.find((u) => getUserOptionValue(u) === customerId);
+  if (match) return formatUserOptionLabel(match) || 'Customer';
+  return 'Customer';
+}
+
 function openPosDraftsModal() {
   const el = document.getElementById(POS_DRAFTS_MODAL_ID);
   if (el && window.bootstrap?.Modal) {
@@ -454,7 +483,11 @@ function formatPosQtyLabel(qty) {
 }
 
 function parsePosMoneyInput(raw) {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? n : null;
 }
 
@@ -1453,7 +1486,11 @@ const Pos = () => {
     async (payment) => {
       const tAll = performance.now();
       const timingSteps = [];
-      console.log('[POS] savePosOrder start', { payment, isOnline, cartLineCount: cartLines.length });
+      console.log('[POS] savePosOrder start', {
+        payment,
+        isOnline,
+        cartLineCount: cartLines.length,
+      });
       const normalized = normalizeCartLinesForCheckout(cartLines);
       if (normalized.error) {
         console.log('[POS] savePosOrder blocked: cart invalid', normalized.error);
@@ -1752,10 +1789,7 @@ const Pos = () => {
     setActiveDraftId(null);
   }, []);
 
-  const draftOrders = useMemo(
-    () => normalizeCompanyDraftOrders(authCompany),
-    [authCompany]
-  );
+  const draftOrders = useMemo(() => normalizeCompanyDraftOrders(authCompany), [authCompany]);
 
   const refreshCompanyAfterDraftMutate = useCallback(
     async (apiBody) => {
@@ -1786,7 +1820,15 @@ const Pos = () => {
       grandTotal,
       savedAt: new Date().toISOString(),
     }),
-    [cartLines, selectedCustomerId, shipping, orderDateTime, extraDiscount, extraDiscountPercent, grandTotal]
+    [
+      cartLines,
+      selectedCustomerId,
+      shipping,
+      orderDateTime,
+      extraDiscount,
+      extraDiscountPercent,
+      grandTotal,
+    ]
   );
 
   const handleSaveDraft = useCallback(async () => {
@@ -1808,14 +1850,51 @@ const Pos = () => {
     if (entered === null) return;
     const label = String(entered).trim() || suggested;
     const payload = buildDraftPayload();
+    const selectedCustomer =
+      selectedCustomerId
+        ? users.find((u) => getUserOptionValue(u) === selectedCustomerId)
+        : null;
+    payload.customerName = selectedCustomer
+      ? formatUserOptionLabel(selectedCustomer) || 'Customer'
+      : 'Walk in';
+    const currentUserName = resolveBillCurrentUserName(authUser, null, authUserName);
+    const currentUserId =
+      authUser?._id != null
+        ? String(authUser._id)
+        : authUser?.id != null
+          ? String(authUser.id)
+          : '';
+    const existingDraft =
+      activeDraftId != null
+        ? draftOrders.find((d) => String(d._id) === String(activeDraftId))
+        : null;
+    const existingSavedBy = existingDraft ? resolveDraftSavedByName(existingDraft) : '';
+    const savedByName = existingSavedBy || currentUserName;
+    if (savedByName) {
+      payload.savedByName = savedByName;
+      payload.created_by_name = savedByName;
+    }
+    if (currentUserId && !payload.savedById && !existingDraft?.payload?.savedById) {
+      payload.savedById = currentUserId;
+    } else if (existingDraft?.payload?.savedById) {
+      payload.savedById = existingDraft.payload.savedById;
+    }
+
+    const draftMeta = {
+      payload,
+      label,
+      created_by: existingDraft?.created_by || currentUserId || undefined,
+      created_by_name: savedByName || undefined,
+      saved_by_name: savedByName || undefined,
+    };
 
     setDraftSaving(true);
     try {
       let result;
       if (activeDraftId) {
-        result = await updateCompanyDraftOrder(companyId, activeDraftId, { payload, label });
+        result = await updateCompanyDraftOrder(companyId, activeDraftId, draftMeta);
       } else {
-        result = await addCompanyDraftOrder(companyId, { payload, label });
+        result = await addCompanyDraftOrder(companyId, draftMeta);
       }
       await refreshCompanyAfterDraftMutate(result);
       clearCartAfterSale();
@@ -1833,6 +1912,11 @@ const Pos = () => {
     grandTotal,
     buildDraftPayload,
     activeDraftId,
+    draftOrders,
+    authUser,
+    authUserName,
+    selectedCustomerId,
+    users,
     refreshCompanyAfterDraftMutate,
     clearCartAfterSale,
   ]);
@@ -1982,7 +2066,9 @@ const Pos = () => {
           ? saved.localInvoiceNo || saved.result?.local_invoice_no
           : pickOrderInvoiceNoFromSaveResponse(saved.result) || moment().format('YYYYMMDDHHmmss');
         const savedOrder = saved.offline ? null : pickOrderFromSaveResult(saved.result);
-        const publicUrl = saved.offline ? '' : buildPublicInvoiceUrl(pickPublicInvoiceToken(savedOrder));
+        const publicUrl = saved.offline
+          ? ''
+          : buildPublicInvoiceUrl(pickPublicInvoiceToken(savedOrder));
 
         let settings = printerSettings;
         let brand = companyBrand;
@@ -2055,14 +2141,22 @@ const Pos = () => {
             },
           });
           if (!printed) {
-            toast.error('Allow pop-ups to print the thermal receipt, or configure the print bridge in Printer Settings.', { delay: 6000 });
+            toast.error(
+              'Allow pop-ups to print the thermal receipt, or configure the print bridge in Printer Settings.',
+              { delay: 6000 }
+            );
           }
         }
 
         if (saved.offline) {
           toast.success('Sale saved offline — will sync when online', { delay: 6000 });
         } else {
-          showToast('successToast', bridgePrinted ? 'Order saved and sent to network printer.' : 'Order saved and sent to printer.');
+          showToast(
+            'successToast',
+            bridgePrinted
+              ? 'Order saved and sent to network printer.'
+              : 'Order saved and sent to printer.'
+          );
         }
         clearCartAfterSale();
         return true;
@@ -2204,10 +2298,18 @@ const Pos = () => {
         size="sm"
         footer={
           <>
-            <button type="button" className="btn btn-link btn-sm mb-0" onClick={handleResetPosLayout}>
+            <button
+              type="button"
+              className="btn btn-link btn-sm mb-0"
+              onClick={handleResetPosLayout}
+            >
               Reset
             </button>
-            <button type="button" className="btn btn-primary btn-sm mb-0" onClick={closeLayoutSettings}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm mb-0"
+              onClick={closeLayoutSettings}
+            >
               Done
             </button>
           </>
@@ -2239,9 +2341,7 @@ const Pos = () => {
 
           <label className="pos-layout-settings__label" htmlFor="posProductCols">
             <span>Product size</span>
-            <span className="pos-layout-settings__value">
-              {posLayout.productCols} / row
-            </span>
+            <span className="pos-layout-settings__value">{posLayout.productCols} / row</span>
           </label>
           <input
             id="posProductCols"
@@ -2311,7 +2411,9 @@ const Pos = () => {
             className="pos-toolbar-btn"
             onClick={handleRefreshCatalog}
             disabled={masterSyncRunning || !isOnline}
-            title={isOnline ? 'Download latest catalog for offline use' : 'Go online to refresh catalog'}
+            title={
+              isOnline ? 'Download latest catalog for offline use' : 'Go online to refresh catalog'
+            }
           >
             <NavIcon
               icon={FaArrowsRotate}
@@ -2483,10 +2585,7 @@ const Pos = () => {
                 <div className="pos-cart-toolbar">
                   <div className="pos-cart-toolbar__left">
                     <span className="pos-cart-toolbar__title">Cart</span>
-                    <span
-                      className="pos-cart-toolbar__qty"
-                      title="Total quantity in cart"
-                    >
+                    <span className="pos-cart-toolbar__qty" title="Total quantity in cart">
                       <strong>{formatPosQtyLabel(cartTotalQty)}</strong>
                       <span>qty</span>
                     </span>
@@ -2513,11 +2612,7 @@ const Pos = () => {
                     />
                   </div>
                   <div className="pos-cart-toolbar__actions">
-                    <div
-                      className="pos-segment"
-                      role="group"
-                      aria-label="Cart display order"
-                    >
+                    <div className="pos-segment" role="group" aria-label="Cart display order">
                       <button
                         type="button"
                         className={`pos-segment__btn${
@@ -2560,88 +2655,91 @@ const Pos = () => {
                     </button>
                   </div>
                 </div>
-              <div className="pos-cart-header">
-                <div className="text-center">Sr</div>
-                <div>Product</div>
-                <div className="text-center">Qty</div>
-                <div className="text-end">Price</div>
-                <div className="text-end">Total</div>
-                <div className="text-center" aria-hidden="true" />
-              </div>
-              <div className="pos-cart-body mb-3">
-                {cartLines.length === 0 ? (
-                  <div className="text-center text-muted text-sm py-5">No products in cart</div>
-                ) : filteredCartLines.length === 0 ? (
-                  <div className="text-center text-muted text-sm py-5">
-                    No cart products match “{cartProductFilter.trim()}”
-                  </div>
-                ) : (
-                  filteredCartLines.map((line, index) => {
-                    const qtyNum = parsePosQty(line.quantity);
-                    const lineTotal = qtyNum * line.unitPrice;
-                    const displayName = formatProductNameWithStock(line.name, line.availableStock);
-                    return (
-                      <div key={line.productId} className="pos-cart-row">
-                        <div className="pos-cart-serial text-center">{index + 1}</div>
-                        <div className="pos-cart-product-name" title={displayName}>
-                          {displayName}
-                        </div>
-                        <div className="d-flex justify-content-center">
-                          <div className="pos-qty-group">
-                            <button
-                              type="button"
-                              className="pos-qty-btn"
-                              aria-label="Decrease quantity"
-                              onClick={() => bumpCartQty(line.productId, -1)}
-                            >
-                              −
-                            </button>
+                <div className="pos-cart-header">
+                  <div className="text-center">Sr</div>
+                  <div>Product</div>
+                  <div className="text-center">Qty</div>
+                  <div className="text-end">Price</div>
+                  <div className="text-end">Total</div>
+                  <div className="text-center" aria-hidden="true" />
+                </div>
+                <div className="pos-cart-body mb-3">
+                  {cartLines.length === 0 ? (
+                    <div className="text-center text-muted text-sm py-5">No products in cart</div>
+                  ) : filteredCartLines.length === 0 ? (
+                    <div className="text-center text-muted text-sm py-5">
+                      No cart products match “{cartProductFilter.trim()}”
+                    </div>
+                  ) : (
+                    filteredCartLines.map((line, index) => {
+                      const qtyNum = parsePosQty(line.quantity);
+                      const lineTotal = qtyNum * line.unitPrice;
+                      const displayName = formatProductNameWithStock(
+                        line.name,
+                        line.availableStock
+                      );
+                      return (
+                        <div key={line.productId} className="pos-cart-row">
+                          <div className="pos-cart-serial text-center">{index + 1}</div>
+                          <div className="pos-cart-product-name" title={displayName}>
+                            {displayName}
+                          </div>
+                          <div className="d-flex justify-content-center">
+                            <div className="pos-qty-group">
+                              <button
+                                type="button"
+                                className="pos-qty-btn"
+                                aria-label="Decrease quantity"
+                                onClick={() => bumpCartQty(line.productId, -1)}
+                              >
+                                −
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                className="pos-qty-input"
+                                value={line.quantity}
+                                onChange={(e) => setCartQty(line.productId, e.target.value)}
+                                onBlur={() => commitCartQty(line.productId)}
+                                aria-label={`Quantity for ${line.name}`}
+                              />
+                              <button
+                                type="button"
+                                className="pos-qty-btn"
+                                aria-label="Increase quantity"
+                                onClick={() => bumpCartQty(line.productId, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <div>
                             <input
-                              type="text"
-                              inputMode="decimal"
-                              className="pos-qty-input"
-                              value={line.quantity}
-                              onChange={(e) => setCartQty(line.productId, e.target.value)}
-                              onBlur={() => commitCartQty(line.productId)}
-                              aria-label={`Quantity for ${line.name}`}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="form-control form-control-sm pos-price-input"
+                              value={line.unitPrice}
+                              onChange={(e) => setCartUnitPrice(line.productId, e.target.value)}
+                              aria-label={`Unit price for ${line.name}`}
                             />
+                          </div>
+                          <div className="pos-line-total">PKR {lineTotal.toFixed(2)}</div>
+                          <div className="pos-cart-delete-cell">
                             <button
                               type="button"
-                              className="pos-qty-btn"
-                              aria-label="Increase quantity"
-                              onClick={() => bumpCartQty(line.productId, 1)}
+                              className="btn btn-link btn-sm text-danger p-0 pos-cart-delete-btn"
+                              aria-label={`Remove ${line.name}`}
+                              onClick={() => removeCartLine(line.productId)}
                             >
-                              +
+                              <NavIcon icon={FaTrash} size={14} />
                             </button>
                           </div>
                         </div>
-                        <div>
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm pos-price-input"
-                            value={line.unitPrice}
-                            onChange={(e) => setCartUnitPrice(line.productId, e.target.value)}
-                            aria-label={`Unit price for ${line.name}`}
-                          />
-                        </div>
-                        <div className="pos-line-total">PKR {lineTotal.toFixed(2)}</div>
-                        <div className="pos-cart-delete-cell">
-                          <button
-                            type="button"
-                            className="btn btn-link btn-sm text-danger p-0 pos-cart-delete-btn"
-                            aria-label={`Remove ${line.name}`}
-                            onClick={() => removeCartLine(line.productId)}
-                          >
-                            <NavIcon icon={FaTrash} size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
 
               <div className="pos-section-label">Summary</div>
@@ -2958,12 +3056,22 @@ const Pos = () => {
                     const totalLabel = formatDraftMoney(total);
                     const deleting = draftDeletingId === String(draft._id);
                     const isActive = activeDraftId === String(draft._id);
+                    const savedByName = draft.savedByName || resolveDraftSavedByName(draft);
+                    const clientName = resolveDraftClientName(draft, users);
                     return (
                       <li
                         key={draft._id}
                         className={`pos-drafts-item${isActive ? ' pos-drafts-item--active' : ''}`}
                       >
                         <div className="pos-drafts-item__main">
+                          {clientName ? (
+                            <div
+                              className="pos-drafts-item__client"
+                              title={`Client: ${clientName}`}
+                            >
+                              {clientName}
+                            </div>
+                          ) : null}
                           <div className="pos-drafts-item__title-row">
                             <span className="pos-drafts-item__title" title={draft.label}>
                               {draftDisplayTitle(draft.label)}
@@ -2985,6 +3093,14 @@ const Pos = () => {
                         <div className="pos-drafts-item__side">
                           {totalLabel ? (
                             <div className="pos-drafts-item__amount">{totalLabel}</div>
+                          ) : null}
+                          {savedByName ? (
+                            <div
+                              className="pos-drafts-item__user"
+                              title={`Saved by ${savedByName}`}
+                            >
+                              {savedByName}
+                            </div>
                           ) : null}
                           <div className="pos-drafts-item__actions">
                             <button
@@ -3023,7 +3139,11 @@ const Pos = () => {
               )}
             </div>
             <div className="modal-footer pos-drafts-modal__footer">
-              <button type="button" className="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                data-bs-dismiss="modal"
+              >
                 Close
               </button>
             </div>
