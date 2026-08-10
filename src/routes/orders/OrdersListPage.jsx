@@ -311,8 +311,6 @@ const ORDER_COLUMNS = [
   { key: 'order_no', label: 'Order no', alwaysVisible: true },
   { key: 'integration', label: 'Integration' },
   { key: 'name', label: 'Customer' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Phone' },
   { key: 'items', label: 'Items' },
   { key: 'total', label: 'Total' },
   { key: 'status', label: 'Status' },
@@ -322,8 +320,24 @@ const ORDER_COLUMNS = [
   { key: 'tracking', label: 'Tracking' },
   { key: 'created', label: 'Created' },
   { key: 'updated', label: 'Last updated' },
+  { key: 'updated_by', label: 'Updated by' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
+
+/** Display name from populated `updated_by` (or plain string id fallback). */
+function getUpdatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '—';
+  const user = row.updated_by ?? row.updatedBy;
+  if (user && typeof user === 'object' && !Array.isArray(user)) {
+    const name = String(user.name ?? user.fullName ?? user.username ?? '').trim();
+    if (name) return name;
+    const email = String(user.email ?? '').trim();
+    if (email) return email;
+    return '—';
+  }
+  if (typeof user === 'string' && user.trim()) return user.trim();
+  return '—';
+}
 
 const integrationIdFromRecord = (item) =>
   integrationIdFromFormRecord(item) || item?._id || item?.id || item?.integration_id || '';
@@ -1438,6 +1452,7 @@ export default function OrdersListPage({ config }) {
       listQuery.set('sortBy', String(sort.sortBy));
       if (sort.sortOrder) listQuery.set('sortOrder', String(sort.sortOrder));
     }
+    listQuery.set('populate', 'updated_by');
 
     const activeListPath = isDeletedView
       ? DELETED_ORDER_BY_ORDER_ITEM_PATH
@@ -2148,6 +2163,11 @@ export default function OrdersListPage({ config }) {
                       {isVisible('updated')
                         ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
                         : null}
+                      {isVisible('updated_by') ? (
+                        <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                          Updated by
+                        </th>
+                      ) : null}
                       <th className="text-center list-col-actions">Actions</th>
                     </tr>
                   </thead>
@@ -2194,6 +2214,7 @@ export default function OrdersListPage({ config }) {
                         const isSyncing = syncingOrderId === rowKey;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
+                        const updatedByLabel = getUpdatedByLabel(item);
                         const customerName = item.name || '—';
                         const email = item.email || '—';
                         const phone = item.phone || '—';
@@ -2508,6 +2529,16 @@ export default function OrdersListPage({ config }) {
                                 }
                               >
                                 {updated ? moment(updated).fromNow() : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('updated_by') ? (
+                              <td className="text-sm list-col-truncate-sm">
+                                <span
+                                  className="list-cell-truncate d-inline-block"
+                                  title={updatedByLabel !== '—' ? updatedByLabel : undefined}
+                                >
+                                  {updatedByLabel}
+                                </span>
                               </td>
                             ) : null}
                             <td className="text-end">

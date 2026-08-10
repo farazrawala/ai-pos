@@ -62,6 +62,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/brands': 'brands',
   '/integration': 'integration',
   '/big-commerce': 'big-commerce',
+  '/big-commerce/requests': 'big-commerce',
   '/courier-integration': 'courier-integration',
   '/processes': 'process',
   '/warehouse': 'warehouse',

@@ -71,9 +71,11 @@ export default function MarketplacePage({ companyId }) {
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
 
+  const resolvedStoreId = String(state.company?.id || state.companyId || '').trim();
   const isOwnStore =
     Boolean(sessionCompanyId) &&
-    String(sessionCompanyId) === String(companyId || state.companyId || '').trim();
+    (String(sessionCompanyId) === String(companyId || '').trim() ||
+      (resolvedStoreId && String(sessionCompanyId) === resolvedStoreId));
   const meTooBusy = state.duplicateStatus === 'loading';
   const deleteMeTooBusy = state.deleteFetchedStatus === 'loading';
 
@@ -87,8 +89,20 @@ export default function MarketplacePage({ companyId }) {
     loadingRef.current = isBusy;
   }, [isBusy]);
 
+  const loadedStoreId = String(state.company?.id || '').trim();
+  const loadedStoreSlug = String(state.company?.slug || '').trim();
+  const bootstrapReady = state.bootstrapStatus === 'succeeded';
+
   useEffect(() => {
     const id = String(companyId || '').trim();
+    if (!id) return;
+    const alreadyThisStore =
+      bootstrapReady &&
+      ((loadedStoreId && id === loadedStoreId) || (loadedStoreSlug && id === loadedStoreSlug));
+    if (alreadyThisStore) {
+      dispatch(setMarketplaceCompanyId(id));
+      return;
+    }
     setSearchDraft('');
     setListingTab(LISTING_TAB_ALL);
     setMeTooResolved([]);
@@ -96,7 +110,7 @@ export default function MarketplacePage({ companyId }) {
     meTooResolveGenRef.current += 1;
     dispatch(setMarketplaceCompanyId(id));
     dispatch(loadMarketplaceBootstrap({ companyId: id }));
-  }, [companyId, dispatch]);
+  }, [companyId, dispatch, bootstrapReady, loadedStoreId, loadedStoreSlug]);
 
   useEffect(() => {
     if (isOwnStore && listingTab === LISTING_TAB_ME_TOO) {

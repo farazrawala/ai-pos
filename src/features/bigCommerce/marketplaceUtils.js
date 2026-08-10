@@ -723,9 +723,10 @@ export function normalizeCompanyProfile(company, stats = {}) {
       logoUrl: '',
       coverUrl: '',
       rating: null,
+      slug: '',
       showStoreForListing: false,
       showProducts: true,
-      showStoreForRequest: false,
+      showStoreForRequest: true,
       totalProducts: stats.totalProducts ?? 0,
       totalCategories: stats.totalCategories ?? 0,
       joinedAt: null,
@@ -773,13 +774,25 @@ export function normalizeCompanyProfile(company, stats = {}) {
     return false;
   })();
 
-  const showStoreForRequest =
-    settings && typeof settings === 'object' && settings.show_store_for_request !== undefined
-      ? Boolean(settings.show_store_for_request)
-      : false;
+  const showStoreForRequest = (() => {
+    const candidates = [
+      settings?.show_store_for_request,
+      settings?.showStoreForRequest,
+      settings?.show_store_request,
+      company.show_store_for_request,
+      company.showStoreForRequest,
+    ];
+    for (const raw of candidates) {
+      if (raw === undefined || raw === null || raw === '') continue;
+      return raw === true || raw === 'true' || raw === 1 || raw === '1';
+    }
+    return true;
+  })();
 
   return {
     id: String(company._id ?? company.id ?? '').trim(),
+    slug: String(company.company_slug ?? company.companySlug ?? company.slug ?? '')
+      .trim(),
     name: String(company.company_name ?? company.name ?? 'Company').trim(),
     description: String(
       company.tagline ?? company.description ?? company.company_description ?? ''
@@ -813,6 +826,21 @@ export function normalizeCompanyProfile(company, stats = {}) {
     totalCategories: stats.totalCategories ?? (Number(company.total_categories) || 0),
     joinedAt: company.createdAt ?? company.created_at ?? company.joined_at ?? null,
   };
+}
+
+/** Marketplace storefront path: prefer `company_slug`, fall back to id. */
+export function companyStorePath(company) {
+  if (typeof company === 'string') {
+    const key = company.trim();
+    return key ? `/big-commerce/store/${encodeURIComponent(key)}` : '/big-commerce';
+  }
+  if (!company || typeof company !== 'object') return '/big-commerce';
+  const slug = String(
+    company.slug ?? company.company_slug ?? company.companySlug ?? ''
+  ).trim();
+  const id = String(company.id ?? company._id ?? '').trim();
+  const key = slug || id;
+  return key ? `/big-commerce/store/${encodeURIComponent(key)}` : '/big-commerce';
 }
 
 export function formatJoinedDate(value) {

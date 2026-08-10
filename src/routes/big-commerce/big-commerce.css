@@ -1674,4 +1674,159 @@
   }
 }
 
+.bc-request-dir-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding: 0.3rem;
+  background: #f8fafc;
+  border: 1px solid #e9ecf1;
+  border-radius: 12px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.bc-request-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.bc-status-chip {
+  appearance: none;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.bc-status-chip span {
+  min-width: 1.15rem;
+  text-align: center;
+  font-size: 0.72rem;
+}
+
+.bc-status-chip.is-active {
+  border-color: rgba(15, 118, 110, 0.35);
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+}
+
+.bc-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bc-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e9ecf1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.bc-request-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.bc-request-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.bc-request-avatar--fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e, #1d4f6f);
+}
+
+.bc-request-name {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.bc-request-meta {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.bc-request-remarks {
+  margin-top: 0.3rem;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.bc-request-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.bc-status-badge {
+  text-transform: capitalize;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.bc-status-badge.is-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.bc-status-badge.is-approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.bc-status-badge.is-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.bc-status-badge.is-cancelled {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+@media (max-width: 767.98px) {
+  .bc-request-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bc-request-actions {
+    justify-content: flex-start;
+  }
+}
+
 

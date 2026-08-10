@@ -1036,6 +1036,11 @@ function buildOrderListQueryParams(listParams = {}) {
   if (tag) queryParams.append('tag', String(tag));
   if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
   if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
+  const populate =
+    listParams.populate != null && String(listParams.populate).trim() !== ''
+      ? String(listParams.populate).trim()
+      : 'updated_by';
+  queryParams.append('populate', populate);
   return queryParams;
 }
 

@@ -548,7 +548,7 @@ body {
 
 .list-origin-logo-wrap {
   display: inline-flex;
-  cursor: default;
+  cursor: pointer;
 }
 
 .list-product-thumb--empty {

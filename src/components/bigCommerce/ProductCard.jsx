@@ -78,7 +78,7 @@ export default function ProductCard({
         <div className="bc-card-meta">
           {sku ? <span>SKU: {sku}</span> : null}
           {barcode ? <span>Barcode: {barcode}</span> : null}
-          <span>Brand: {brand.name}</span>
+          {brand.name && brand.name !== '—' ? <span>Brand: {brand.name}</span> : null}
           <span>Category: {category.name}</span>
         </div>
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { FaMagnifyingGlass, FaPaperPlane, FaStore } from 'react-icons/fa6';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaInbox, FaMagnifyingGlass, FaPaperPlane, FaStore } from 'react-icons/fa6';
 import {
   fetchMarketplaceCompanies,
   sendCompanyStoreRequest,
@@ -9,7 +9,11 @@ import {
   clearStoreRequestStatus,
   selectBigCommerce,
 } from '../../features/bigCommerce/bigCommerceSlice.js';
-import { normalizeCompanyProfile } from '../../features/bigCommerce/marketplaceUtils.js';
+import {
+  fetchMarketplaceCompanyProfileRequest,
+  fetchSentStoreRequestsRequest,
+} from '../../features/bigCommerce/bigCommerceAPI.js';
+import { companyStorePath, normalizeCompanyProfile } from '../../features/bigCommerce/marketplaceUtils.js';
 import { selectCompanyId } from '../../features/user/userSlice.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import AppModal from '../../components/AppModal.jsx';
@@ -46,8 +50,10 @@ export default function BigCommerceListingPage() {
 
   const [localSearch, setLocalSearch] = useState(companiesSearch || '');
   const searchTimeoutRef = useRef(null);
+  const [openingStoreId, setOpeningStoreId] = useState('');
   const [requestTarget, setRequestTarget] = useState(null);
   const [requestMessage, setRequestMessage] = useState('');
+  const [outgoingByCompanyId, setOutgoingByCompanyId] = useState({});
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
 
@@ -118,8 +124,39 @@ export default function BigCommerceListingPage() {
   }, [loadNextPage, companies.length]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetchSentStoreRequestsRequest()
+      .then((result) => {
+        if (cancelled) return;
+        const next = {};
+        (result.rows || []).forEach((row) => {
+          const target = row.target_company_id;
+          const id =
+            typeof target === 'object'
+              ? String(target?._id ?? target?.id ?? '').trim()
+              : String(target || '').trim();
+          if (!id) return;
+          if (row.status === 'pending' || row.status === 'approved') {
+            next[id] = row.status;
+          }
+        });
+        setOutgoingByCompanyId(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (storeRequestStatus === 'succeeded') {
       showToast({ message: 'Store request sent.', variant: 'success' });
+      if (requestTarget?.id) {
+        setOutgoingByCompanyId((prev) => ({
+          ...prev,
+          [String(requestTarget.id)]: 'pending',
+        }));
+      }
       setRequestTarget(null);
       setRequestMessage('');
       dispatch(clearStoreRequestStatus());
@@ -127,7 +164,7 @@ export default function BigCommerceListingPage() {
       showToast({ message: storeRequestError, variant: 'error' });
       dispatch(clearStoreRequestStatus());
     }
-  }, [storeRequestStatus, storeRequestError, dispatch]);
+  }, [storeRequestStatus, storeRequestError, dispatch, requestTarget]);
 
   const handleSearchChange = (value) => {
     setLocalSearch(value);
@@ -155,6 +192,28 @@ export default function BigCommerceListingPage() {
     setRequestTarget(company);
     setRequestMessage('');
   }, []);
+
+  const openStore = useCallback(
+    async (company) => {
+      if (company?.slug) {
+        navigate(companyStorePath(company));
+        return;
+      }
+      const id = String(company?.id || '').trim();
+      if (!id) return;
+      setOpeningStoreId(id);
+      try {
+        const profile = await fetchMarketplaceCompanyProfileRequest(id);
+        const slug = String(profile?.slug || '').trim();
+        navigate(companyStorePath(slug ? { ...company, slug } : company));
+      } catch {
+        navigate(companyStorePath(company));
+      } finally {
+        setOpeningStoreId('');
+      }
+    },
+    [navigate]
+  );
 
   const submitRequest = () => {
     if (!requestTarget?.id) return;
@@ -195,15 +254,15 @@ export default function BigCommerceListingPage() {
       {
         key: 'store-request',
         label: 'Send store request',
-        url: buildApiUrl('company/store-request'),
+        url: buildApiUrl('big-commerce/connection/request'),
         status: mapLoadStatus(storeRequestStatus),
         durationMs: null,
         error: storeRequestStatus === 'failed' ? storeRequestError : null,
       },
       {
-        key: 'store-request-alt',
-        label: 'Send store request (fallback)',
-        url: buildApiUrl('bigcommerce/store-request'),
+        key: 'store-requests-inbox',
+        label: 'Received requests',
+        url: buildApiUrl('big-commerce/requests/received'),
         status: 'pending',
         durationMs: null,
         error: null,
@@ -238,10 +297,14 @@ export default function BigCommerceListingPage() {
                 <code className="text-xs">GET /company/get-all-for-listing</code>
                 {' · '}
                 Request{' '}
-                <code className="text-xs">POST /company/store-request</code>
+                <code className="text-xs">POST /big-commerce/connection/request</code>
               </p>
             ) : null}
           </div>
+          <Link to="/big-commerce/requests" className="bc-btn bc-btn-ghost">
+            <FaInbox aria-hidden="true" />
+            Store requests
+          </Link>
         </div>
 
         <div className="card border-0 bc-listing-card">
@@ -314,6 +377,8 @@ export default function BigCommerceListingPage() {
                 {rows.map((company) => {
                   const isSelf = sessionCompanyId && company.id === String(sessionCompanyId);
                   const requestEnabled = company.showStoreForRequest === true;
+                  const outgoingStatus = outgoingByCompanyId[String(company.id)] || '';
+                  const alreadyRequested = outgoingStatus === 'pending' || outgoingStatus === 'approved';
 
                   return (
                     <article key={company.id} className="bc-company-card">
@@ -371,26 +436,35 @@ export default function BigCommerceListingPage() {
                           <button
                             type="button"
                             className="bc-btn bc-btn-ghost"
-                            disabled={isSelf || !requestEnabled || requesting}
+                            disabled={isSelf || !requestEnabled || requesting || alreadyRequested}
                             title={
                               isSelf
                                 ? 'Cannot request your own store'
                                 : !requestEnabled
                                   ? 'This store is not accepting requests'
-                                  : 'Send store request'
+                                  : outgoingStatus === 'approved'
+                                    ? 'Already connected'
+                                    : outgoingStatus === 'pending'
+                                      ? 'Request already sent'
+                                      : 'Send store request'
                             }
                             onClick={() => openRequestModal(company)}
                           >
                             <FaPaperPlane aria-hidden="true" />
-                            Send request
+                            {outgoingStatus === 'approved'
+                              ? 'Connected'
+                              : outgoingStatus === 'pending'
+                                ? 'Requested'
+                                : 'Send request'}
                           </button>
                           <button
                             type="button"
                             className="bc-btn bc-btn-primary"
-                            onClick={() => navigate(`/big-commerce/store/${company.id}`)}
+                            onClick={() => openStore(company)}
+                            disabled={openingStoreId === String(company.id)}
                           >
                             <FaStore aria-hidden="true" />
-                            View store
+                            {openingStoreId === String(company.id) ? 'Opening…' : 'View store'}
                           </button>
                         </div>
                       </div>

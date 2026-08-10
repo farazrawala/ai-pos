@@ -36,6 +36,9 @@ import {
   extractApiSmsSettingsFromCompanyBody,
   extractEmailAlertsSettingsFromCompanyBody,
   fetchCompanyById,
+  checkCompanySlugAvailableRequest,
+  normalizeCompanySlugInput,
+  sanitizeCompanySlugTyping,
   getCompanyFromApiBody,
   mergePrinterSettings,
   mergeProductSettings,
@@ -97,6 +100,9 @@ function applyCompanyToForm(company, setters) {
   } = setters;
   setForm({
     company_name: company.company_name || company.name || '',
+    company_slug: normalizeCompanySlugInput(
+      company.company_slug || company.companySlug || company.slug || ''
+    ),
     company_phone: company.company_phone || company.phone || '',
     whatsapp_number: normalizeWhatsappNumber(
       company.whatsapp_number || company.whatsappNumber || WHATSAPP_NUMBER_PREFIX
@@ -139,6 +145,7 @@ export default function CompanySettingsView() {
   const [companySaveError, setCompanySaveError] = useState('');
   const [form, setForm] = useState({
     company_name: '',
+    company_slug: '',
     company_phone: '',
     whatsapp_number: WHATSAPP_NUMBER_PREFIX,
     company_email: '',
@@ -148,6 +155,8 @@ export default function CompanySettingsView() {
     address_longitude: '',
   });
   const [errors, setErrors] = useState({});
+  const [slugCheck, setSlugCheck] = useState({ status: 'idle', message: '' });
+  const slugCheckSeqRef = useRef(0);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
@@ -306,6 +315,56 @@ export default function CompanySettingsView() {
     };
   }, [companyId, hydrateFromCompany, dispatch]);
 
+  useEffect(() => {
+    const slug = normalizeCompanySlugInput(form.company_slug);
+    if (!slug) {
+      slugCheckSeqRef.current += 1;
+      setSlugCheck({ status: 'idle', message: '' });
+      return undefined;
+    }
+
+    const seq = slugCheckSeqRef.current + 1;
+    slugCheckSeqRef.current = seq;
+    setSlugCheck({ status: 'checking', message: 'Checking availability…' });
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkCompanySlugAvailableRequest({
+          slug,
+          excludeId: companyId,
+        });
+        if (slugCheckSeqRef.current !== seq) return;
+        setSlugCheck({
+          status: result.available ? 'available' : 'taken',
+          message: result.message,
+        });
+        if (!result.available) {
+          setErrors((prev) => ({
+            ...prev,
+            company_slug: result.message || 'Company slug is already taken',
+          }));
+        } else {
+          setErrors((prev) => {
+            if (!prev.company_slug) return prev;
+            const next = { ...prev };
+            delete next.company_slug;
+            return next;
+          });
+        }
+      } catch (err) {
+        if (slugCheckSeqRef.current !== seq) return;
+        setSlugCheck({
+          status: 'error',
+          message: err?.message || 'Could not check slug availability',
+        });
+      }
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [form.company_slug, companyId]);
+
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -365,6 +424,14 @@ export default function CompanySettingsView() {
   const validateCompany = () => {
     const next = {};
     if (!form.company_name.trim()) next.company_name = 'Company name is required.';
+    const companySlug = normalizeCompanySlugInput(form.company_slug);
+    if (form.company_slug.trim() && !companySlug) {
+      next.company_slug = 'Enter a valid slug (letters, numbers, hyphens).';
+    } else if (companySlug && slugCheck.status === 'taken') {
+      next.company_slug = slugCheck.message || 'Company slug is already taken.';
+    } else if (companySlug && slugCheck.status === 'checking') {
+      next.company_slug = 'Wait until slug availability is checked.';
+    }
     if (
       form.company_email.trim() &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.company_email.trim())
@@ -390,10 +457,38 @@ export default function CompanySettingsView() {
     }
     if (!validateCompany()) return;
 
+    const companySlug = normalizeCompanySlugInput(form.company_slug);
+    if (companySlug) {
+      try {
+        const result = await checkCompanySlugAvailableRequest({
+          slug: companySlug,
+          excludeId: companyId,
+        });
+        setSlugCheck({
+          status: result.available ? 'available' : 'taken',
+          message: result.message,
+        });
+        if (!result.available) {
+          setErrors((prev) => ({
+            ...prev,
+            company_slug: result.message || 'Company slug is already taken.',
+          }));
+          return;
+        }
+      } catch (err) {
+        setErrors((prev) => ({
+          ...prev,
+          company_slug: err?.message || 'Could not verify slug availability.',
+        }));
+        return;
+      }
+    }
+
     setCompanySaving(true);
     try {
       const payload = {
         company_name: form.company_name.trim(),
+        ...(companySlug ? { company_slug: companySlug } : {}),
         company_phone: form.company_phone.trim(),
         whatsapp_number: normalizeWhatsappNumber(form.whatsapp_number),
         company_email: form.company_email.trim(),
@@ -1260,6 +1355,55 @@ export default function CompanySettingsView() {
                   {errors.company_name ? (
                     <div className="invalid-feedback">{errors.company_name}</div>
                   ) : null}
+                </div>
+
+                <div className="mb-3">
+                  <label className="company-label d-block" htmlFor="company-slug">
+                    Company slug / URL
+                  </label>
+                  <input
+                    id="company-slug"
+                    className={`form-control company-control ${
+                      errors.company_slug || slugCheck.status === 'taken' ? 'is-invalid' : ''
+                    } ${slugCheck.status === 'available' ? 'is-valid' : ''}`}
+                    value={form.company_slug}
+                    onChange={(e) => {
+                      const company_slug = sanitizeCompanySlugTyping(e.target.value);
+                      setForm((prev) => ({ ...prev, company_slug }));
+                      if (errors.company_slug) {
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.company_slug;
+                          return next;
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      const company_slug = normalizeCompanySlugInput(form.company_slug);
+                      if (company_slug !== form.company_slug) {
+                        setForm((prev) => ({ ...prev, company_slug }));
+                      }
+                    }}
+                    placeholder="acme"
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={companySaving || !companyId}
+                  />
+                  {errors.company_slug ? (
+                    <div className="invalid-feedback">{errors.company_slug}</div>
+                  ) : null}
+                  {!errors.company_slug && slugCheck.status === 'checking' ? (
+                    <div className="company-slug-status is-checking">{slugCheck.message}</div>
+                  ) : null}
+                  {!errors.company_slug && slugCheck.status === 'available' ? (
+                    <div className="company-slug-status is-available">{slugCheck.message}</div>
+                  ) : null}
+                  {!errors.company_slug && slugCheck.status === 'error' ? (
+                    <div className="company-slug-status is-error">{slugCheck.message}</div>
+                  ) : null}
+                  <p className="company-logo-hint mb-0">
+                    Lowercase letters, numbers, and hyphens. Used as your store URL.
+                  </p>
                 </div>
 
                 <div className="row g-3">

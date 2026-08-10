@@ -415,7 +415,14 @@ const bigCommerceSlice = createSlice({
     },
     setMarketplaceCompanyId(state, action) {
       const nextId = String(action.payload || '').trim();
-      if (nextId !== state.companyId) {
+      const currentId = String(state.companyId || '').trim();
+      const profileId = String(state.company?.id || '').trim();
+      const profileSlug = String(state.company?.slug || '').trim();
+      const sameStore =
+        nextId === currentId ||
+        (profileId && nextId === profileId) ||
+        (profileSlug && nextId === profileSlug);
+      if (!sameStore) {
         state.company = null;
         state.categories = [];
         state.brands = [];
@@ -555,7 +562,7 @@ const bigCommerceSlice = createSlice({
             rating: null,
             showStoreForListing: true,
             showProducts: true,
-            showStoreForRequest: false,
+            showStoreForRequest: true,
             totalProducts: total,
             totalCategories: state.categories.length,
             joinedAt: null,

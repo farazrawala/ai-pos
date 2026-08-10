@@ -326,9 +326,11 @@ async function findListedCompanyById(companyId) {
   if (!target) return null;
 
   const match = (rows) =>
-    (Array.isArray(rows) ? rows : []).find(
-      (c) => String(c?._id ?? c?.id ?? '').trim() === target
-    ) || null;
+    (Array.isArray(rows) ? rows : []).find((c) => {
+      const id = String(c?._id ?? c?.id ?? '').trim();
+      const slug = String(c?.company_slug ?? c?.companySlug ?? c?.slug ?? '').trim();
+      return id === target || (slug && slug === target);
+    }) || null;
 
   try {
     const withInclude = await fetchMarketplaceCompaniesRequest({
@@ -496,44 +498,136 @@ export async function fetchMarketplaceCompaniesRequest(params = {}) {
   return normalizeCompaniesListResponse(result, { page, limit });
 }
 
+function parseApiError(data, status, fallback) {
+  return new Error(data?.message || data?.error || `${fallback} (${status})`);
+}
+
+async function postBigCommerceJson(path, body) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.success === false) {
+    throw parseApiError(data, response.status, 'Request failed');
+  }
+  return data;
+}
+
 /**
- * Send a store / connection request to another company.
- * POST `company/store-request` (also tries `bigcommerce/store-request`).
+ * Send a B2B store connection request.
+ * POST `big-commerce/connection/request` (alias `big-commerce/requests`).
+ * Body: `{ target_company_id, remarks? }`
  */
 export async function sendCompanyStoreRequestRequest({ companyId, message = '' } = {}) {
   const targetId = String(companyId || '').trim();
   if (!targetId) throw new Error('Company is required');
 
-  const body = JSON.stringify({
-    company_id: targetId,
+  const remarks = String(message || '').trim();
+  const payload = {
     target_company_id: targetId,
-    message: String(message || '').trim(),
-  });
+    ...(remarks ? { remarks } : {}),
+  };
 
-  const candidates = ['company/store-request', 'bigcommerce/store-request'];
+  const candidates = ['big-commerce/connection/request', 'big-commerce/requests'];
   let lastError = null;
 
   for (const path of candidates) {
     try {
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.success === false) {
-        lastError = new Error(
-          data?.message || data?.error || `Request failed (${response.status})`
-        );
-        continue;
-      }
-      return data;
+      return await postBigCommerceJson(path, payload);
     } catch (err) {
       lastError = err;
     }
   }
 
   throw lastError || new Error('Failed to send store request');
+}
+
+export function normalizeGroupedConnections(result) {
+  const raw =
+    result?.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data
+      : result && typeof result === 'object'
+        ? result
+        : {};
+  const grouped = {
+    pending: Array.isArray(raw.pending) ? raw.pending : [],
+    approved: Array.isArray(raw.approved) ? raw.approved : [],
+    rejected: Array.isArray(raw.rejected) ? raw.rejected : [],
+    cancelled: Array.isArray(raw.cancelled) ? raw.cancelled : [],
+  };
+  const rows = [
+    ...grouped.pending,
+    ...grouped.approved,
+    ...grouped.rejected,
+    ...grouped.cancelled,
+  ];
+  return {
+    grouped,
+    rows,
+    total: Number(result?.total ?? rows.length) || 0,
+  };
+}
+
+async function fetchStoreRequestsByKind(kind, status) {
+  const query = new URLSearchParams();
+  if (status) query.set('status', String(status).trim());
+  const qs = query.toString();
+  const path =
+    kind === 'sent'
+      ? `big-commerce/requests/sent${qs ? `?${qs}` : ''}`
+      : `big-commerce/requests/received${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.success === false) {
+    throw parseApiError(data, response.status, 'Failed to load store requests');
+  }
+  return normalizeGroupedConnections(data);
+}
+
+/** GET `big-commerce/requests/received` — incoming requests grouped by status. */
+export async function fetchReceivedStoreRequestsRequest(status) {
+  return fetchStoreRequestsByKind('received', status);
+}
+
+/** GET `big-commerce/requests/sent` — outgoing requests grouped by status. */
+export async function fetchSentStoreRequestsRequest(status) {
+  return fetchStoreRequestsByKind('sent', status);
+}
+
+/** POST `big-commerce/request/:id/approve` — receiving company only. */
+export async function approveStoreRequestRequest(requestId, remarks = '') {
+  const id = String(requestId || '').trim();
+  if (!id) throw new Error('Request is required');
+  const note = String(remarks || '').trim();
+  return postBigCommerceJson(`big-commerce/request/${encodeURIComponent(id)}/approve`, {
+    ...(note ? { remarks: note } : {}),
+  });
+}
+
+/** POST `big-commerce/request/:id/reject` — receiving company only. */
+export async function rejectStoreRequestRequest(requestId, remarks = '') {
+  const id = String(requestId || '').trim();
+  if (!id) throw new Error('Request is required');
+  const note = String(remarks || '').trim();
+  return postBigCommerceJson(`big-commerce/request/${encodeURIComponent(id)}/reject`, {
+    ...(note ? { remarks: note } : {}),
+  });
+}
+
+/** POST `big-commerce/request/:id/cancel` — sender only, pending requests. */
+export async function cancelStoreRequestRequest(requestId, remarks = '') {
+  const id = String(requestId || '').trim();
+  if (!id) throw new Error('Request is required');
+  const note = String(remarks || '').trim();
+  return postBigCommerceJson(`big-commerce/request/${encodeURIComponent(id)}/cancel`, {
+    ...(note ? { remarks: note } : {}),
+  });
 }
 
 /**

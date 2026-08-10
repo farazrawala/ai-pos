@@ -613,6 +613,68 @@ export async function clearCompanyQueueModule(module = 'process') {
   return data;
 }
 
+/** Normalize a store slug for URLs (lowercase, hyphens, no leading/trailing dash). */
+export function normalizeCompanySlugInput(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+/** Keep typing friendly: lowercase, spaces → hyphen, strip other punctuation. */
+export function sanitizeCompanySlugTyping(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 80);
+}
+
+/**
+ * GET /company/slug-available?company_slug=&exclude_id=
+ * `exclude_id` ignores the current company when editing.
+ */
+export async function checkCompanySlugAvailableRequest({ slug, excludeId } = {}) {
+  const companySlug = String(slug ?? '').trim();
+  if (!companySlug) {
+    const err = new Error('company_slug is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const token = getAuthToken();
+  const params = new URLSearchParams();
+  params.set('company_slug', companySlug);
+  const exclude = String(excludeId ?? '').trim();
+  if (exclude) params.set('exclude_id', exclude);
+
+  const url = `${API_BASE_URL}/company/slug-available?${params.toString()}`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const { data, ok, status } = await parseJsonResponse(res);
+  if (!ok || (data && data.success === false)) {
+    throwCompanyApiError(data, status);
+  }
+  return {
+    available: Boolean(data?.available),
+    company_slug: data?.company_slug ?? companySlug,
+    message:
+      typeof data?.message === 'string' && data.message.trim()
+        ? data.message.trim()
+        : Boolean(data?.available)
+          ? 'Company slug is available'
+          : 'Company slug is already taken',
+  };
+}
+
 export async function fetchCompanyById(companyId) {
   const token = getAuthToken();
   const url = `${API_BASE_URL}/company/get/${encodeURIComponent(companyId)}`;
@@ -763,6 +825,10 @@ export async function updateCompanyDetailsRequest(companyId, payload = {}) {
   const { company_logo, company_banner, ...rest } = payload;
   const fields = {};
   if (rest.company_name !== undefined) fields.company_name = String(rest.company_name).trim();
+  if (rest.company_slug !== undefined) {
+    const slug = normalizeCompanySlugInput(rest.company_slug);
+    fields.company_slug = slug;
+  }
   if (rest.company_phone !== undefined) fields.company_phone = String(rest.company_phone).trim();
   if (rest.whatsapp_number !== undefined)
     fields.whatsapp_number = String(rest.whatsapp_number).trim();
@@ -1180,8 +1246,8 @@ export const BIGCOMMERCE_BANNER_FIELD = 'banner';
 const BIGCOMMERCE_SETTING_META = {
   show_store_for_request: {
     label: 'Show store for request',
-    hint: 'When on, visitors can submit store / quote requests from the marketplace.',
-    defaultValue: false,
+    hint: 'When on, other companies can send you a store connection request. Review them under Big Commerce → Store requests.',
+    defaultValue: true,
   },
 };
 

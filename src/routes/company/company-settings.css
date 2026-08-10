@@ -198,6 +198,23 @@
   box-shadow: 0 0 0 0.18rem rgba(var(--company-accent-rgb), 0.2);
 }
 
+.company-slug-status {
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.company-slug-status.is-checking {
+  color: #7b879c;
+}
+
+.company-slug-status.is-available {
+  color: #1aa053;
+}
+
+.company-slug-status.is-error {
+  color: #e5484d;
+}
+
 .company-card-footer {
   display: flex;
   justify-content: flex-end;

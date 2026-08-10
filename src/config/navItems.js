@@ -157,7 +157,15 @@ export const NAV_ITEMS = [
       { to: '/courier-integration', label: 'Courier Integration', icon: FaTruckFast },
     ],
   },
-  { to: '/big-commerce', label: 'Big Commerce', icon: FaStore },
+  {
+    id: 'big-commerce',
+    label: 'Big Commerce',
+    icon: FaStore,
+    children: [
+      { to: '/big-commerce', label: 'Company directory', icon: FaStore, end: true },
+      { to: '/big-commerce/requests', label: 'Store requests', icon: FaPaperPlane },
+    ],
+  },
   {
     id: 'whatsapp',
     label: 'WhatsApp',
