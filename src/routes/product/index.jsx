@@ -223,7 +223,7 @@ const PRODUCT_COLUMNS = [
   { key: 'barcode', label: 'Barcode' },
   { key: 'type', label: 'Type' },
   { key: 'status', label: 'Status' },
-  { key: 'created', label: 'Created' },
+  { key: 'dates', label: 'Created / Updated' },
   { key: 'origin', label: 'Origin' },
   { key: 'origin_qty', label: 'Origin qty' },
   { key: 'bigcommerce_sync_status', label: 'BC Sync' },
@@ -1210,8 +1210,8 @@ const Product = () => {
                         ? sortableTh('product_type', 'Type', 'list-col-truncate-sm')
                         : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
-                      {isVisible('created')
-                        ? sortableTh('createdAt', 'Created', 'list-col-date')
+                      {isVisible('dates')
+                        ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
                         : null}
                       {isVisible('origin') ? (
                         <th className="list-col-truncate-sm">Origin</th>
@@ -1425,16 +1425,36 @@ const Product = () => {
                                 </div>
                               </td>
                             ) : null}
-                            {isVisible('created') ? (
-                              <td
-                                className="text-sm text-nowrap list-col-date"
-                                title={
-                                  updated
-                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                    : undefined
-                                }
-                              >
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                            {isVisible('dates') ? (
+                              <td className="text-sm list-col-date">
+                                {created || updated ? (
+                                  <div className="oms-dates-cell">
+                                    <div
+                                      className="oms-dates-cell__created text-nowrap"
+                                      title={
+                                        created
+                                          ? moment(created).format('DD MMM YYYY h:mm a')
+                                          : undefined
+                                      }
+                                    >
+                                      {created
+                                        ? moment(created).format('DD MMM YYYY h:mm a')
+                                        : '—'}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__updated text-nowrap"
+                                      title={
+                                        updated
+                                          ? moment(updated).format('DD MMM YYYY h:mm a')
+                                          : undefined
+                                      }
+                                    >
+                                      {updated ? `Updated ${moment(updated).fromNow()}` : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             {isVisible('origin') ? (
