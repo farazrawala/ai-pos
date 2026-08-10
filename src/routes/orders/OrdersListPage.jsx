@@ -311,8 +311,7 @@ const ORDER_COLUMNS = [
   { key: 'order_no', label: 'Order no', alwaysVisible: true },
   { key: 'integration', label: 'Integration' },
   { key: 'name', label: 'Customer' },
-  { key: 'items', label: 'Items' },
-  { key: 'total', label: 'Total' },
+  { key: 'items_total', label: 'Items / Total' },
   { key: 'status', label: 'Status' },
   { key: 'tags', label: 'Tags' },
   { key: 'order_website_status', label: 'Website status' },
@@ -2134,11 +2133,8 @@ export default function OrdersListPage({ config }) {
                       {isVisible('name')
                         ? sortableTh('name', 'Customer', 'list-col-truncate')
                         : null}
-                      {isVisible('items')
-                        ? sortableTh('no_of_items', 'Items')
-                        : null}
-                      {isVisible('total')
-                        ? sortableTh('order_items_total', 'Total', 'list-col-amount')
+                      {isVisible('items_total')
+                        ? sortableTh('order_items_total', 'Items / Total', 'list-col-amount')
                         : null}
                       {isVisible('status') ? sortableTh('order_status', 'Status') : null}
                       {isVisible('tags') ? (
@@ -2344,12 +2340,16 @@ export default function OrdersListPage({ config }) {
                                 </div>
                               </td>
                             ) : null}
-                            {isVisible('items') ? (
-                              <td className="text-sm text-center">{getNoOfItemsDisplay(item)}</td>
-                            ) : null}
-                            {isVisible('total') ? (
-                              <td className="text-sm font-weight-bold text-end text-nowrap list-col-amount">
-                                {total !== '—' ? `PKR ${total}` : total}
+                            {isVisible('items_total') ? (
+                              <td className="text-sm list-col-amount">
+                                <div className="oms-items-total-cell">
+                                  <div className="oms-items-total-cell__total text-nowrap">
+                                    {total !== '—' ? `PKR ${total}` : '—'}
+                                  </div>
+                                  <div className="oms-items-total-cell__items text-nowrap">
+                                    {getNoOfItemsDisplay(item)} items
+                                  </div>
+                                </div>
                               </td>
                             ) : null}
                             {isVisible('status') ? (
