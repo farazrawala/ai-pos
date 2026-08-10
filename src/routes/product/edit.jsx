@@ -20,6 +20,7 @@ import ProductVariationsModal from '../../components/product/ProductVariationsMo
 import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
 import QuickAddCategoryModal from '../../components/category/QuickAddCategoryModal.jsx';
 import QuickAddBrandModal from '../../components/brand/QuickAddBrandModal.jsx';
+import RichTextEditor from '../../components/common/RichTextEditor.jsx';
 import {
   variationProductIdFromRecord,
   generateBarcode,
@@ -1978,14 +1979,16 @@ const ProductEdit = () => {
                   <label htmlFor="description" className="form-label">
                     Description
                   </label>
-                  <textarea
-                    className="form-control"
+                  <RichTextEditor
                     id="description"
-                    name="description"
-                    rows="4"
-                    placeholder="Enter product description (optional)"
                     value={form.description}
-                    onChange={handleChange}
+                    onChange={(html) => {
+                      setForm((prev) => ({ ...prev, description: html }));
+                      if (errors.description) {
+                        setErrors((prev) => ({ ...prev, description: '' }));
+                      }
+                    }}
+                    placeholder="Enter product description (optional)"
                     disabled={isSubmitting}
                   />
                 </div>

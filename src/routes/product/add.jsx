@@ -9,6 +9,7 @@ import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { toast } from '../../utils/toast.js';
 import QuickAddCategoryModal from '../../components/category/QuickAddCategoryModal.jsx';
 import QuickAddBrandModal from '../../components/brand/QuickAddBrandModal.jsx';
+import RichTextEditor from '../../components/common/RichTextEditor.jsx';
 import './product-form.css';
 import {
   PRODUCT_ADDITIONAL_IMAGES_MAX,
@@ -956,14 +957,17 @@ const ProductAdd = () => {
                   <label htmlFor="description" className="form-label">
                     Description
                   </label>
-                  <textarea
-                    className="form-control"
+                  <RichTextEditor
                     id="description"
-                    name="description"
-                    rows="4"
-                    placeholder="Enter product description (optional)"
                     value={form.description}
-                    onChange={handleChange}
+                    onChange={(html) => {
+                      setForm((prev) => ({ ...prev, description: html }));
+                      if (errors.description) {
+                        setErrors((prev) => ({ ...prev, description: '' }));
+                      }
+                    }}
+                    placeholder="Enter product description (optional)"
+                    disabled={isSubmitting}
                   />
                 </div>
 
