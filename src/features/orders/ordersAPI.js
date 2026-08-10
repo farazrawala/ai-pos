@@ -1039,7 +1039,7 @@ function buildOrderListQueryParams(listParams = {}) {
   const populate =
     listParams.populate != null && String(listParams.populate).trim() !== ''
       ? String(listParams.populate).trim()
-      : 'updated_by';
+      : 'created_by,updated_by';
   queryParams.append('populate', populate);
   return queryParams;
 }

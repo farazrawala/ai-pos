@@ -320,23 +320,31 @@ const ORDER_COLUMNS = [
   { key: 'tracking', label: 'Tracking' },
   { key: 'created', label: 'Created' },
   { key: 'updated', label: 'Last updated' },
-  { key: 'updated_by', label: 'Updated by' },
+  { key: 'actors', label: 'Created / Updated by' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
-/** Display name from populated `updated_by` (or plain string id fallback). */
-function getUpdatedByLabel(row) {
-  if (!row || typeof row !== 'object') return '—';
-  const user = row.updated_by ?? row.updatedBy;
+/** Display name from a populated user ref (or plain string id fallback). */
+function getUserRefLabel(user) {
   if (user && typeof user === 'object' && !Array.isArray(user)) {
     const name = String(user.name ?? user.fullName ?? user.username ?? '').trim();
     if (name) return name;
     const email = String(user.email ?? '').trim();
     if (email) return email;
-    return '—';
+    return '';
   }
   if (typeof user === 'string' && user.trim()) return user.trim();
-  return '—';
+  return '';
+}
+
+function getCreatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return getUserRefLabel(row.created_by ?? row.createdBy);
+}
+
+function getUpdatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return getUserRefLabel(row.updated_by ?? row.updatedBy);
 }
 
 const integrationIdFromRecord = (item) =>
@@ -1452,7 +1460,7 @@ export default function OrdersListPage({ config }) {
       listQuery.set('sortBy', String(sort.sortBy));
       if (sort.sortOrder) listQuery.set('sortOrder', String(sort.sortOrder));
     }
-    listQuery.set('populate', 'updated_by');
+    listQuery.set('populate', 'created_by,updated_by');
 
     const activeListPath = isDeletedView
       ? DELETED_ORDER_BY_ORDER_ITEM_PATH
@@ -2157,9 +2165,9 @@ export default function OrdersListPage({ config }) {
                       {isVisible('updated')
                         ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
                         : null}
-                      {isVisible('updated_by') ? (
+                      {isVisible('actors') ? (
                         <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
-                          Updated by
+                          Created / Updated by
                         </th>
                       ) : null}
                       <th className="text-center list-col-actions">Actions</th>
@@ -2208,6 +2216,7 @@ export default function OrdersListPage({ config }) {
                         const isSyncing = syncingOrderId === rowKey;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
+                        const createdByLabel = getCreatedByLabel(item);
                         const updatedByLabel = getUpdatedByLabel(item);
                         const customerName = item.name || '—';
                         const email = item.email || '—';
@@ -2514,14 +2523,32 @@ export default function OrdersListPage({ config }) {
                                 {updated ? moment(updated).fromNow() : '—'}
                               </td>
                             ) : null}
-                            {isVisible('updated_by') ? (
-                              <td className="text-sm list-col-truncate-sm">
-                                <span
-                                  className="list-cell-truncate d-inline-block"
-                                  title={updatedByLabel !== '—' ? updatedByLabel : undefined}
-                                >
-                                  {updatedByLabel}
-                                </span>
+                            {isVisible('actors') ? (
+                              <td className="text-sm">
+                                {createdByLabel || updatedByLabel ? (
+                                  <div className="oms-actors-cell">
+                                    {createdByLabel ? (
+                                      <div
+                                        className="oms-actors-cell__line text-truncate"
+                                        title={`Created by ${createdByLabel}`}
+                                      >
+                                        <span className="oms-actors-cell__label">Created</span>
+                                        {createdByLabel}
+                                      </div>
+                                    ) : null}
+                                    {updatedByLabel ? (
+                                      <div
+                                        className="oms-actors-cell__line text-truncate"
+                                        title={`Updated by ${updatedByLabel}`}
+                                      >
+                                        <span className="oms-actors-cell__label">Updated</span>
+                                        {updatedByLabel}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             <td className="text-end">
