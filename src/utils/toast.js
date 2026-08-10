@@ -18,13 +18,13 @@ const getContainer = () => {
   if (!container) {
     container = document.createElement('div');
     container.id = TOAST_CONTAINER_ID;
-    // Above Bootstrap modal (1050) / backdrop (1040) so toasts stay visible over dialogs.
+    // Above AppModal (10100) so errors stay visible over dialogs.
     container.className = 'position-fixed bottom-1 end-1';
-    container.style.zIndex = '2000';
+    container.style.zIndex = '10250';
     document.body.appendChild(container);
   } else {
     container.className = 'position-fixed bottom-1 end-1';
-    container.style.zIndex = '2000';
+    container.style.zIndex = '10250';
   }
   return container;
 };

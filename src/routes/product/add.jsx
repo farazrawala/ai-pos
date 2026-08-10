@@ -7,6 +7,8 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { toast } from '../../utils/toast.js';
+import QuickAddCategoryModal from '../../components/category/QuickAddCategoryModal.jsx';
+import QuickAddBrandModal from '../../components/brand/QuickAddBrandModal.jsx';
 import './product-form.css';
 import {
   PRODUCT_ADDITIONAL_IMAGES_MAX,
@@ -54,6 +56,8 @@ const ProductAdd = () => {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [brands, setBrands] = useState([]);
   const [loadingBrands, setLoadingBrands] = useState(false);
+  const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
+  const [showQuickAddBrand, setShowQuickAddBrand] = useState(false);
 
   // Image states
   const [singleImage, setSingleImage] = useState(null);
@@ -67,6 +71,8 @@ const ProductAdd = () => {
 
   // Get product permissions
   const { canCreate } = usePermissions('products');
+  const { canCreate: canCreateCategory } = usePermissions('categories');
+  const { canCreate: canCreateBrand } = usePermissions('brands');
 
   // Redirect if user doesn't have create permission
   useEffect(() => {
@@ -131,6 +137,35 @@ const ProductAdd = () => {
     if (errors.categoryId) {
       setErrors((prev) => ({ ...prev, categoryId: '' }));
     }
+  };
+
+  const handleQuickCategoryCreated = (created) => {
+    const id = String(created?._id ?? created?.id ?? created?.category_id ?? '').trim();
+    if (!id) return;
+    setCategories((prev) => {
+      const exists = prev.some((cat) => String(cat._id || cat.id) === id);
+      if (exists) return prev;
+      return [...prev, created];
+    });
+    setForm((prev) => {
+      const current = Array.isArray(prev.categoryId) ? prev.categoryId.map(String) : [];
+      if (current.includes(id)) return prev;
+      return { ...prev, categoryId: [...current, id] };
+    });
+    if (errors.categoryId) {
+      setErrors((prev) => ({ ...prev, categoryId: '' }));
+    }
+  };
+
+  const handleQuickBrandCreated = (created) => {
+    const id = String(created?._id ?? created?.id ?? created?.brand_id ?? '').trim();
+    if (!id) return;
+    setBrands((prev) => {
+      const exists = prev.some((brand) => String(brand._id || brand.id) === id);
+      if (exists) return prev;
+      return [...prev, created];
+    });
+    setForm((prev) => ({ ...prev, brand_id: id }));
   };
 
   // Auto-generate slug from name
@@ -496,9 +531,21 @@ const ProductAdd = () => {
 
                 {/* Category Field - Multiselect */}
                 <div className="mb-3">
-                  <label htmlFor="categoryId" className="form-label">
-                    Categories
-                  </label>
+                  <div className="product-form-label-row">
+                    <label htmlFor="categoryId" className="form-label">
+                      Categories
+                    </label>
+                    {canCreateCategory ? (
+                      <button
+                        type="button"
+                        className="product-form-quick-add"
+                        onClick={() => setShowQuickAddCategory(true)}
+                        disabled={isSubmitting}
+                      >
+                        + Add new
+                      </button>
+                    ) : null}
+                  </div>
                   <div className={errors.categoryId ? 'is-invalid' : ''}>
                     <Multiselect
                       id="categoryId"
@@ -560,9 +607,21 @@ const ProductAdd = () => {
 
                 {/* Brand Field */}
                 <div className="mb-3">
-                  <label htmlFor="brand_id" className="form-label">
-                    Brand
-                  </label>
+                  <div className="product-form-label-row">
+                    <label htmlFor="brand_id" className="form-label">
+                      Brand
+                    </label>
+                    {canCreateBrand ? (
+                      <button
+                        type="button"
+                        className="product-form-quick-add"
+                        onClick={() => setShowQuickAddBrand(true)}
+                        disabled={isSubmitting}
+                      >
+                        + Add new
+                      </button>
+                    ) : null}
+                  </div>
                   <select
                     className="form-select"
                     id="brand_id"
@@ -1053,6 +1112,18 @@ const ProductAdd = () => {
           </div>
         </div>
       </div>
+
+      <QuickAddCategoryModal
+        open={showQuickAddCategory}
+        onClose={() => setShowQuickAddCategory(false)}
+        onCreated={handleQuickCategoryCreated}
+      />
+
+      <QuickAddBrandModal
+        open={showQuickAddBrand}
+        onClose={() => setShowQuickAddBrand(false)}
+        onCreated={handleQuickBrandCreated}
+      />
     </div>
   );
 };

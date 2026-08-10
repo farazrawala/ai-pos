@@ -150,6 +150,25 @@ const initialState = {
   },
 };
 
+/**
+ * Merge an update payload into a list row without wiping list populate
+ * (e.g. fetch_from_company_id / fetch_from_product_id objects → bare ids).
+ */
+const mergeProductListRow = (existing, responseData = {}, submitted = {}) => {
+  const merged = { ...existing, ...responseData, ...submitted };
+  if (!existing || typeof existing !== 'object') return merged;
+
+  for (const key of Object.keys(existing)) {
+    const prev = existing[key];
+    if (!prev || typeof prev !== 'object' || Array.isArray(prev)) continue;
+    const next = merged[key];
+    if (next == null || next === '' || typeof next !== 'object' || Array.isArray(next)) {
+      merged[key] = prev;
+    }
+  }
+  return merged;
+};
+
 const productsSlice = createSlice({
   name: 'products',
   initialState,
@@ -345,7 +364,7 @@ const productsSlice = createSlice({
             action.meta?.arg?.productData && typeof action.meta.arg.productData === 'object'
               ? action.meta.arg.productData
               : {};
-          state.list[index] = { ...state.list[index], ...responseData, ...submitted };
+          state.list[index] = mergeProductListRow(state.list[index], responseData, submitted);
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
@@ -364,7 +383,11 @@ const productsSlice = createSlice({
           (item) => (item._id || item.id || item.product_id) === productId
         );
         if (index !== -1) {
-          state.list[index] = { ...state.list[index], ...action.payload.response.data };
+          const responseData =
+            action.payload.response?.data && typeof action.payload.response.data === 'object'
+              ? action.payload.response.data
+              : {};
+          state.list[index] = mergeProductListRow(state.list[index], responseData);
         }
       })
       .addCase(updateProductVariation.rejected, (state, action) => {
