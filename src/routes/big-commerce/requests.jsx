@@ -187,7 +187,7 @@ export default function BigCommerceRequestsPage() {
           </div>
           <Link to="/big-commerce" className="bc-btn bc-btn-ghost">
             <FaStore aria-hidden="true" />
-            Company directory
+            View stores
           </Link>
         </div>
 
@@ -270,7 +270,7 @@ export default function BigCommerceRequestsPage() {
                 <p>
                   {direction === 'received'
                     ? 'When another company sends you a store request, it will appear here.'
-                    : 'Requests you send from the company directory will appear here.'}
+                    : 'Requests you send from View stores will appear here.'}
                 </p>
               </div>
             ) : null}

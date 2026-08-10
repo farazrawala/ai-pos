@@ -35,7 +35,7 @@ export default function BigCommerceStorePage() {
       <div className="bc-store-navigation">
         <Link to="/big-commerce" className="bc-store-back">
           <FaArrowLeft aria-hidden="true" />
-          <span>Company directory</span>
+          <span>View stores</span>
         </Link>
         <div className="bc-store-context" aria-label="Current section">
           <FaStore aria-hidden="true" />

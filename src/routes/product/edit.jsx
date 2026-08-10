@@ -1687,7 +1687,7 @@ const ProductEdit = () => {
                         title="Set every variant price to this retail price"
                       >
                         <i className="fas fa-copy me-1" aria-hidden="true" />
-                        Apply to all variants
+                        Apply price to all variants
                       </button>
                     </div>
                   )}

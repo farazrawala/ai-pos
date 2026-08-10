@@ -245,7 +245,7 @@ export default function BigCommerceListingPage() {
     return [
       {
         key: 'companies-listing',
-        label: 'Company directory',
+        label: 'View stores',
         url: buildApiUrl(`company/get-all-for-listing?${listQuery.toString()}`),
         status: mapLoadStatus(companiesStatus),
         durationMs: null,
@@ -287,7 +287,7 @@ export default function BigCommerceListingPage() {
               <FaStore aria-hidden="true" />
               Big Commerce
             </p>
-            <h4 className="bc-listing-title">Company directory</h4>
+            <h4 className="bc-listing-title">View stores</h4>
             <p className="bc-listing-subtitle mb-0">
               Browse companies, send a store request, or open their marketplace.
             </p>

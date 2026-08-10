@@ -162,7 +162,7 @@ export const NAV_ITEMS = [
     label: 'Big Commerce',
     icon: FaStore,
     children: [
-      { to: '/big-commerce', label: 'Company directory', icon: FaStore, end: true },
+      { to: '/big-commerce', label: 'View stores', icon: FaStore, end: true },
       { to: '/big-commerce/requests', label: 'Store requests', icon: FaPaperPlane },
     ],
   },
