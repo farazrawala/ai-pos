@@ -181,34 +181,6 @@ function OriginCell({ name, logoUrl }) {
   );
 }
 
-/**
- * Available qty on the source product:
- * sum(fetch_from_product_id.warehouse_inventory.quantity) − bigcommerce_hold_qty
- */
-const getOriginQty = (item) => {
-  if (!item || typeof item !== 'object') return null;
-  const source = item.fetch_from_product_id ?? item.fetchFromProductId;
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
-
-  const inv = source.warehouse_inventory ?? source.warehouseInventory;
-  let stock = null;
-  if (Array.isArray(inv) && inv.length > 0) {
-    stock = inv.reduce((sum, row) => sum + (Number(row?.quantity) || 0), 0);
-  } else {
-    const direct = source.stock ?? source.total_stock ?? source.quantity;
-    if (direct != null && direct !== '') {
-      const n = Number(direct);
-      if (Number.isFinite(n)) stock = n;
-    }
-  }
-  if (stock == null || !Number.isFinite(stock)) return null;
-
-  const holdRaw = source.bigcommerce_hold_qty ?? source.bigcommerceHoldQty;
-  const hold = holdRaw != null && holdRaw !== '' ? Number(holdRaw) : 0;
-  const holdQty = Number.isFinite(hold) && hold > 0 ? hold : 0;
-  return Math.max(0, Math.round((stock - holdQty) * 100) / 100);
-};
-
 /** Products table columns. `sno`, `name`, `actions` are always visible. */
 const PRODUCT_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
@@ -226,7 +198,7 @@ const PRODUCT_COLUMNS = [
   { key: 'dates', label: 'Created / Updated' },
   { key: 'actors', label: 'Created / Updated by' },
   { key: 'origin', label: 'Origin' },
-  { key: 'origin_qty', label: 'Origin qty' },
+  { key: 'origin_qty', label: 'Origin Quantity' },
   { key: 'bigcommerce_sync_status', label: 'BC Sync' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
@@ -1246,7 +1218,7 @@ const Product = () => {
                         <th className="list-col-truncate-sm">Origin</th>
                       ) : null}
                       {isVisible('origin_qty') ? (
-                        <th className="text-end list-col-qty">Origin qty</th>
+                        <th className="text-end list-col-qty">Origin Quantity</th>
                       ) : null}
                       {isVisible('bigcommerce_sync_status') ? (
                         <th className="text-center">BC Sync</th>
@@ -1293,7 +1265,11 @@ const Product = () => {
                         const barcode = item.barcode ? String(item.barcode) : '—';
                         const originName = getOriginCompanyName(item);
                         const originLogoUrl = getOriginCompanyLogoUrl(item);
-                        const originQty = getOriginQty(item);
+                        const originQtyRaw = item.origin_qty ?? item.originQty;
+                        const originQty =
+                          originQtyRaw != null && originQtyRaw !== ''
+                            ? Number(originQtyRaw)
+                            : 0;
 
                         return (
                           <tr key={productId || index}>
@@ -1523,7 +1499,7 @@ const Product = () => {
                             ) : null}
                             {isVisible('origin_qty') ? (
                               <td className="text-sm text-end list-col-qty">
-                                {formatProductStock(originQty)}
+                                {formatProductStock(Number.isFinite(originQty) ? originQty : 0)}
                               </td>
                             ) : null}
                             {isVisible('bigcommerce_sync_status') ? (

@@ -1,0 +1,294 @@
+/* Product sync modal — professional layout inside AppModal */
+
+.ps-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ps-product-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #3b6fd4;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #c7d9f7;
+  vertical-align: middle;
+}
+
+.ps-product-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.ps-step {
+  background: #fff;
+  border: 1px solid #e9ecf1;
+  border-radius: 0.85rem;
+  overflow: hidden;
+}
+
+.ps-step-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(120deg, #f8fafc 0%, #eef2f9 100%);
+  border-bottom: 1px solid #e9ecf1;
+}
+
+.ps-step-num {
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  background: #5b8def;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-step-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2a3654;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.ps-step-hint {
+  font-size: 0.72rem;
+  color: #9aa4b6;
+  margin: 0.1rem 0 0;
+}
+
+.ps-step-body {
+  padding: 1rem;
+}
+
+.ps-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.ps-action-row .form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 0.35rem;
+}
+
+.ps-action-row .form-control,
+.ps-action-row .form-select {
+  min-height: 2.5rem;
+  border-color: #d8dee9;
+  font-size: 0.875rem;
+}
+
+.ps-action-row .form-control:focus,
+.ps-action-row .form-select:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.15);
+}
+
+.ps-action-btn {
+  min-width: 7.5rem;
+  min-height: 2.5rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ps-detect {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.55rem;
+  background: #f8fafc;
+  border: 1px solid #edf0f5;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.ps-detect i {
+  margin-top: 0.15rem;
+  color: #5b8def;
+}
+
+.ps-detect strong {
+  color: #2a3654;
+  font-weight: 600;
+}
+
+.ps-variation-field {
+  margin-top: 0.85rem;
+}
+
+.ps-variation-field .form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 0.35rem;
+}
+
+.ps-records-empty,
+.ps-records-loading {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.ps-table-wrap {
+  overflow-x: auto;
+  margin: -0.15rem;
+  padding: 0.15rem;
+}
+
+.ps-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ps-table thead th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b95a8;
+  border-bottom: 1px solid #e9ecf1;
+  padding: 0.45rem 0.65rem;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.ps-table tbody td {
+  padding: 0.85rem 0.65rem;
+  border-bottom: 1px solid #f1f3f8;
+  vertical-align: middle;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.ps-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ps-integration-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.ps-integration-name {
+  font-weight: 600;
+  color: #2a3654;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-wp-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.55rem;
+  padding: 0 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid #c7d9f7;
+  background: #eef3ff;
+  color: #3b6fd4;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.ps-wp-link:hover {
+  background: #dbe7ff;
+  border-color: #5b8def;
+  color: #2f5fbf;
+}
+
+.ps-price-input {
+  max-width: 6.25rem;
+  margin: 0 auto;
+  text-align: center;
+  font-weight: 600;
+  border-color: #d8dee9;
+}
+
+.ps-price-input:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.15);
+}
+
+.ps-status-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.ps-status-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  min-width: 3.25rem;
+  text-align: left;
+}
+
+.ps-status-label.is-active {
+  color: #159947;
+}
+
+.ps-status-label.is-inactive {
+  color: #94a3b8;
+}
+
+.ps-synced-at {
+  color: #64748b;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.ps-footer-note {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: #9aa4b6;
+}
+
+@media (max-width: 575.98px) {
+  .ps-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ps-action-btn {
+    width: 100%;
+  }
+
+  .ps-product-pill span {
+    max-width: 160px;
+  }
+}
