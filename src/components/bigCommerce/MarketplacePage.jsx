@@ -15,6 +15,8 @@ import {
   clearDuplicateStatus,
   deleteFetchedMarketplaceProduct,
   clearDeleteFetchedStatus,
+  resetFetchedMarketplaceProduct,
+  clearResetFetchedStatus,
   loadAlreadyMeTooIds,
   selectBigCommerce,
 } from '../../features/bigCommerce/bigCommerceSlice.js';
@@ -78,6 +80,7 @@ export default function MarketplacePage({ companyId }) {
       (resolvedStoreId && String(sessionCompanyId) === resolvedStoreId));
   const meTooBusy = state.duplicateStatus === 'loading';
   const deleteMeTooBusy = state.deleteFetchedStatus === 'loading';
+  const resetMeTooBusy = state.resetFetchedStatus === 'loading';
 
   const initialLoading =
     state.productsStatus === 'loading' && state.products.length === 0;
@@ -291,9 +294,30 @@ export default function MarketplacePage({ companyId }) {
     dispatch,
   ]);
 
+  useEffect(() => {
+    if (state.resetFetchedStatus === 'succeeded') {
+      const name =
+        state.resetFetchedProductName || getProductName(state.selectedProduct) || 'Product';
+      showToast({
+        message: `"${name}" was reset from the origin product.`,
+        variant: 'success',
+      });
+      dispatch(clearResetFetchedStatus());
+    } else if (state.resetFetchedStatus === 'failed' && state.resetFetchedError) {
+      showToast({ message: state.resetFetchedError, variant: 'error' });
+      dispatch(clearResetFetchedStatus());
+    }
+  }, [
+    state.resetFetchedStatus,
+    state.resetFetchedError,
+    state.resetFetchedProductName,
+    state.selectedProduct,
+    dispatch,
+  ]);
+
   const handleMeToo = useCallback(
     (item) => {
-      if (isOwnStore || meTooBusy || deleteMeTooBusy) return;
+      if (isOwnStore || meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
       const id = productIdFromRecord(item);
       if (!id) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -306,12 +330,12 @@ export default function MarketplacePage({ companyId }) {
         })
       );
     },
-    [dispatch, isOwnStore, meTooBusy, deleteMeTooBusy]
+    [dispatch, isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
   );
 
   const handleDeleteMeToo = useCallback(
     (item) => {
-      if (isOwnStore || deleteMeTooBusy || meTooBusy) return;
+      if (isOwnStore || deleteMeTooBusy || meTooBusy || resetMeTooBusy) return;
       const sourceId = productIdFromRecord(item);
       if (!sourceId) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -329,6 +353,38 @@ export default function MarketplacePage({ companyId }) {
     [
       dispatch,
       isOwnStore,
+      deleteMeTooBusy,
+      meTooBusy,
+      resetMeTooBusy,
+      state.alreadyMeTooLocalBySource,
+    ]
+  );
+
+  const handleResetMeToo = useCallback(
+    (item) => {
+      if (isOwnStore || resetMeTooBusy || deleteMeTooBusy || meTooBusy) return;
+      const sourceId = productIdFromRecord(item);
+      if (!sourceId) {
+        showToast({ message: 'Product id is missing.', variant: 'error' });
+        return;
+      }
+      const confirmed = window.confirm(
+        'Reset this Me too product from the origin? Brand, category, and stock stay local; other details and variants are overwritten.'
+      );
+      if (!confirmed) return;
+      const localProductId = state.alreadyMeTooLocalBySource?.[sourceId] || '';
+      dispatch(
+        resetFetchedMarketplaceProduct({
+          productId: sourceId,
+          localProductId,
+          productName: getProductName(item) || 'Product',
+        })
+      );
+    },
+    [
+      dispatch,
+      isOwnStore,
+      resetMeTooBusy,
       deleteMeTooBusy,
       meTooBusy,
       state.alreadyMeTooLocalBySource,
@@ -602,6 +658,14 @@ export default function MarketplacePage({ companyId }) {
         error:
           state.deleteFetchedStatus === 'failed' ? state.deleteFetchedError : null,
       });
+      sources.push({
+        key: 'me-too-reset',
+        label: 'Reset Me too',
+        url: buildApiUrl('big-commerce/fetched-products/{productId}/reset'),
+        status: mapLoadStatus(state.resetFetchedStatus),
+        durationMs: null,
+        error: state.resetFetchedStatus === 'failed' ? state.resetFetchedError : null,
+      });
     }
 
     if (state.detailOpen && state.selectedProduct) {
@@ -639,6 +703,8 @@ export default function MarketplacePage({ companyId }) {
     state.duplicateError,
     state.deleteFetchedStatus,
     state.deleteFetchedError,
+    state.resetFetchedStatus,
+    state.resetFetchedError,
     state.detailOpen,
     state.detailStatus,
     state.selectedProduct,
@@ -782,6 +848,7 @@ export default function MarketplacePage({ companyId }) {
                     }
                     onMeToo={isOwnStore ? undefined : handleMeToo}
                     onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
+                    onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
                     meTooLoading={
                       meTooBusy &&
                       state.duplicateProductId === productIdFromRecord(product)
@@ -789,6 +856,10 @@ export default function MarketplacePage({ companyId }) {
                     deleteMeTooLoading={
                       deleteMeTooBusy &&
                       state.deleteFetchedProductId === productIdFromRecord(product)
+                    }
+                    resetMeTooLoading={
+                      resetMeTooBusy &&
+                      state.resetFetchedProductId === productIdFromRecord(product)
                     }
                     hideMeToo={isOwnStore}
                     alreadyMeTooIds={alreadyMeTooIdSet}
@@ -841,10 +912,13 @@ export default function MarketplacePage({ companyId }) {
         onOpenRelated={(id) => dispatch(openMarketplaceProduct(id))}
         onMeToo={isOwnStore ? undefined : handleMeToo}
         onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
+        onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
         meTooLoading={meTooBusy}
         meTooProductId={state.duplicateProductId}
         deleteMeTooLoading={deleteMeTooBusy}
         deleteMeTooProductId={state.deleteFetchedProductId}
+        resetMeTooLoading={resetMeTooBusy}
+        resetMeTooProductId={state.resetFetchedProductId}
         hideMeToo={isOwnStore}
         alreadyMeTooIds={alreadyMeTooIdSet}
       />

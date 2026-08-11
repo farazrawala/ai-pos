@@ -33,10 +33,13 @@ export default function ProductDetailModal({
   onOpenRelated,
   onMeToo,
   onDeleteMeToo,
+  onResetMeToo,
   meTooLoading = false,
   meTooProductId = '',
   deleteMeTooLoading = false,
   deleteMeTooProductId = '',
+  resetMeTooLoading = false,
+  resetMeTooProductId = '',
   hideMeToo = false,
   alreadyMeTooIds,
 }) {
@@ -116,6 +119,10 @@ export default function ProductDetailModal({
   const deleteBusyForProduct =
     deleteMeTooLoading &&
     (!deleteMeTooProductId || deleteMeTooProductId === productIdFromRecord(product));
+  const resetBusyForProduct =
+    resetMeTooLoading &&
+    (!resetMeTooProductId || resetMeTooProductId === productIdFromRecord(product));
+  const actionBusy = meTooBusyForProduct || deleteBusyForProduct || resetBusyForProduct;
 
   const metaItems = [
     sku ? { label: 'SKU', value: sku } : null,
@@ -157,8 +164,7 @@ export default function ProductDetailModal({
               disabled={
                 loading ||
                 !product ||
-                meTooBusyForProduct ||
-                deleteBusyForProduct ||
+                actionBusy ||
                 alreadyMeToo ||
                 !onMeToo
               }
@@ -168,11 +174,22 @@ export default function ProductDetailModal({
               {meTooBusyForProduct ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
             </button>
           ) : null}
+          {!hideMeToo && alreadyMeToo && onResetMeToo ? (
+            <button
+              type="button"
+              className="bc-btn bc-btn-ghost"
+              disabled={loading || !product || actionBusy}
+              onClick={() => onResetMeToo?.(product)}
+              title="Overwrite your copy from the origin product"
+            >
+              {resetBusyForProduct ? 'Resetting…' : 'Reset Me too'}
+            </button>
+          ) : null}
           {!hideMeToo && alreadyMeToo && onDeleteMeToo ? (
             <button
               type="button"
               className="bc-btn bc-btn-danger-ghost"
-              disabled={loading || !product || deleteBusyForProduct || meTooBusyForProduct}
+              disabled={loading || !product || actionBusy}
               onClick={() => onDeleteMeToo?.(product)}
               title="Remove this product from your catalog"
             >
@@ -364,11 +381,15 @@ export default function ProductDetailModal({
                     onViewDetails={(id) => onOpenRelated?.(id)}
                     onMeToo={onMeToo}
                     onDeleteMeToo={onDeleteMeToo}
+                    onResetMeToo={onResetMeToo}
                     meTooLoading={
                       meTooLoading && meTooProductId === productIdFromRecord(item)
                     }
                     deleteMeTooLoading={
                       deleteMeTooLoading && deleteMeTooProductId === productIdFromRecord(item)
+                    }
+                    resetMeTooLoading={
+                      resetMeTooLoading && resetMeTooProductId === productIdFromRecord(item)
                     }
                     hideMeToo={hideMeToo}
                     alreadyMeTooIds={alreadyMeTooIds}

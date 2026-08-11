@@ -24,6 +24,15 @@
   border-bottom: 1px solid #e9ecf1;
 }
 
+.product-form-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .product-form-eyebrow {
   display: inline-flex;
   align-items: center;

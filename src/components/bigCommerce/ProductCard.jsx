@@ -25,8 +25,10 @@ export default function ProductCard({
   onViewDetails,
   onMeToo,
   onDeleteMeToo,
+  onResetMeToo,
   meTooLoading = false,
   deleteMeTooLoading = false,
+  resetMeTooLoading = false,
   hideMeToo = false,
   alreadyMeTooIds,
 }) {
@@ -47,7 +49,10 @@ export default function ProductCard({
   const showMeToo = !hideMeToo && typeof onMeToo === 'function';
   const meTooBusy = Boolean(meTooLoading);
   const deleteBusy = Boolean(deleteMeTooLoading);
+  const resetBusy = Boolean(resetMeTooLoading);
   const showDelete = alreadyMeToo && typeof onDeleteMeToo === 'function';
+  const showReset = alreadyMeToo && typeof onResetMeToo === 'function';
+  const actionBusy = meTooBusy || deleteBusy || resetBusy;
 
   return (
     <article className={`bc-card bc-card--${viewMode}`}>
@@ -116,18 +121,29 @@ export default function ProductCard({
             <button
               type="button"
               className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-ghost'}`}
-              disabled={meTooBusy || deleteBusy || alreadyMeToo}
+              disabled={actionBusy || alreadyMeToo}
               onClick={() => onMeToo?.(product)}
               title={alreadyMeToo ? 'Already in your catalog' : 'Copy this product to your catalog'}
             >
               {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
             </button>
           ) : null}
+          {showReset ? (
+            <button
+              type="button"
+              className="bc-btn bc-btn-ghost"
+              disabled={actionBusy}
+              onClick={() => onResetMeToo?.(product)}
+              title="Overwrite your copy from the origin product"
+            >
+              {resetBusy ? 'Resetting…' : 'Reset'}
+            </button>
+          ) : null}
           {showDelete ? (
             <button
               type="button"
               className="bc-btn bc-btn-danger-ghost"
-              disabled={deleteBusy || meTooBusy}
+              disabled={actionBusy}
               onClick={() => onDeleteMeToo?.(product)}
               title="Remove this product from your catalog"
             >

@@ -630,6 +630,84 @@ export async function cancelStoreRequestRequest(requestId, remarks = '') {
   });
 }
 
+const CONNECTION_SYNC_FIELDS = [
+  'sync_product_name',
+  'sync_product_slug',
+  'sync_product_image',
+  'sync_product_quantity',
+  'sync_product_description',
+  'sync_product_status',
+];
+
+function toYesNo(value, fallback = 'yes') {
+  if (value === 'yes' || value === 'no') return value;
+  if (value === true || value === 'true' || value === 1 || value === '1') return 'yes';
+  if (value === false || value === 'false' || value === 0 || value === '0') return 'no';
+  return fallback;
+}
+
+/** Normalize sync toggle fields from a connection/request record. */
+export function normalizeConnectionSyncSettings(record) {
+  const nested =
+    record?.product_settings && typeof record.product_settings === 'object'
+      ? record.product_settings
+      : null;
+  const settings = {};
+  for (const key of CONNECTION_SYNC_FIELDS) {
+    settings[key] = toYesNo(record?.[key] ?? nested?.[key], 'yes');
+  }
+  return settings;
+}
+
+/**
+ * PATCH `big-commerce/request/:id/settings` (alias `big-commerce/connection/:id/settings`)
+ * Update product sync settings for an approved connection.
+ */
+export async function updateConnectionSettingsRequest(requestId, settings = {}) {
+  const id = String(requestId || '').trim();
+  if (!id) throw new Error('Request is required');
+
+  const payload = {};
+  for (const key of CONNECTION_SYNC_FIELDS) {
+    if (settings[key] == null) continue;
+    payload[key] = toYesNo(settings[key]);
+  }
+
+  const candidates = [
+    `big-commerce/request/${encodeURIComponent(id)}/settings`,
+    `big-commerce/connection/${encodeURIComponent(id)}/settings`,
+  ];
+  let lastError = null;
+
+  for (const path of candidates) {
+    try {
+      const response = await fetch(`${BASE_URL}${path}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        lastError = parseApiError(data, response.status, 'Failed to update connection settings');
+        continue;
+      }
+      const record =
+        data?.data && typeof data.data === 'object' && !Array.isArray(data.data)
+          ? data.data
+          : data;
+      return {
+        ...data,
+        settings: normalizeConnectionSyncSettings(record),
+        connection: record,
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('Failed to update connection settings');
+}
+
 /**
  * Copy a partner marketplace product into the current company catalog ("Me too").
  * POST `big-commerce/products/:productId/duplicate`
@@ -861,6 +939,30 @@ export async function deleteFetchedMarketplaceProductRequest(productId) {
   if (!response.ok || data?.success === false) {
     throw new Error(
       data?.message || data?.error || `Failed to remove product (${response.status})`
+    );
+  }
+
+  return data;
+}
+
+/**
+ * Re-sync your Me too catalog copy from the origin product.
+ * POST `big-commerce/fetched-products/:productId/reset`
+ * `productId` = Company 2’s local copy id (not the origin).
+ */
+export async function resetFetchedMarketplaceProductRequest(productId) {
+  const id = String(productId || '').trim();
+  if (!id) throw new Error('Product is required');
+
+  const response = await fetch(
+    `${BASE_URL}big-commerce/fetched-products/${encodeURIComponent(id)}/reset`,
+    { method: 'POST', headers: getHeaders() }
+  );
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(
+      data?.message || data?.error || `Failed to reset product (${response.status})`
     );
   }
 

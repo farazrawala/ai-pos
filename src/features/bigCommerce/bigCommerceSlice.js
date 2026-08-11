@@ -11,6 +11,7 @@ import {
   duplicateMarketplaceProductRequest,
   fetchAlreadyMeTooProductIdsRequest,
   deleteFetchedMarketplaceProductWithFallback,
+  resetFetchedMarketplaceProductRequest,
 } from './bigCommerceAPI.js';
 import {
   DEFAULT_FILTERS,
@@ -276,6 +277,62 @@ export const deleteFetchedMarketplaceProduct = createAsyncThunk(
   }
 );
 
+/**
+ * Reset Me too copy from origin. `productId` is the partner listing id on marketplace cards;
+ * resolves to local copy id before calling POST .../reset.
+ */
+export const resetFetchedMarketplaceProduct = createAsyncThunk(
+  'bigCommerce/resetFetchedProduct',
+  async ({ productId, localProductId, productName } = {}, { getState, rejectWithValue }) => {
+    try {
+      const sourceId = String(productId || '').trim();
+      let resolvedLocal = String(localProductId || '').trim();
+
+      // Product edit page passes the local catalog id directly as productId.
+      if (!resolvedLocal && sourceId) {
+        const bc = getState()?.bigCommerce || {};
+        const map = bc.alreadyMeTooLocalBySource || {};
+        resolvedLocal = String(map[sourceId] || '').trim();
+
+        if (!resolvedLocal) {
+          const sourceCompanyId = String(bc.companyId || '').trim();
+          const ownCompanyId = String(getState()?.user?.companyId || '').trim();
+          if (sourceCompanyId) {
+            const refreshedLinks = await fetchAlreadyMeTooProductIdsRequest({
+              sourceCompanyId,
+              ownCompanyId,
+            });
+            resolvedLocal = String(refreshedLinks?.bySourceId?.[sourceId] || '').trim();
+            if (!resolvedLocal) {
+              const pair = (refreshedLinks?.pairs || []).find(
+                (p) => p.sourceId === sourceId || p.localId === sourceId
+              );
+              resolvedLocal = String(pair?.localId || '').trim();
+            }
+          }
+        }
+
+        // Fallback: treat productId as the local copy id (edit page / known copy).
+        if (!resolvedLocal) resolvedLocal = sourceId;
+      }
+
+      if (!resolvedLocal) {
+        return rejectWithValue('Product id is missing');
+      }
+
+      const result = await resetFetchedMarketplaceProductRequest(resolvedLocal);
+      return {
+        productId: sourceId || resolvedLocal,
+        localProductId: resolvedLocal,
+        productName,
+        result,
+      };
+    } catch (err) {
+      return rejectWithValue(err?.message || 'Failed to reset product');
+    }
+  }
+);
+
 function mergeAlreadyMeTooIds(state, ids) {
   if (!Array.isArray(ids) || ids.length === 0) return;
   const set = new Set((state.alreadyMeTooIds || []).map(String));
@@ -383,6 +440,10 @@ const initialState = {
   deleteFetchedError: null,
   deleteFetchedProductId: '',
   deleteFetchedProductName: '',
+  resetFetchedStatus: 'idle',
+  resetFetchedError: null,
+  resetFetchedProductId: '',
+  resetFetchedProductName: '',
 };
 
 const bigCommerceSlice = createSlice({
@@ -487,6 +548,12 @@ const bigCommerceSlice = createSlice({
       state.deleteFetchedError = null;
       state.deleteFetchedProductId = '';
       state.deleteFetchedProductName = '';
+    },
+    clearResetFetchedStatus(state) {
+      state.resetFetchedStatus = 'idle';
+      state.resetFetchedError = null;
+      state.resetFetchedProductId = '';
+      state.resetFetchedProductName = '';
     },
   },
   extraReducers: (builder) => {
@@ -746,6 +813,21 @@ const bigCommerceSlice = createSlice({
         state.deleteFetchedStatus = 'failed';
         state.deleteFetchedError = action.payload || 'Failed to remove product';
         state.deleteFetchedProductId = '';
+      })
+      .addCase(resetFetchedMarketplaceProduct.pending, (state, action) => {
+        state.resetFetchedStatus = 'loading';
+        state.resetFetchedError = null;
+        state.resetFetchedProductId = String(action.meta?.arg?.productId || '');
+        state.resetFetchedProductName = String(action.meta?.arg?.productName || '').trim();
+      })
+      .addCase(resetFetchedMarketplaceProduct.fulfilled, (state, action) => {
+        state.resetFetchedStatus = 'succeeded';
+        state.resetFetchedProductId = String(action.payload?.productId || '');
+      })
+      .addCase(resetFetchedMarketplaceProduct.rejected, (state, action) => {
+        state.resetFetchedStatus = 'failed';
+        state.resetFetchedError = action.payload || 'Failed to reset product';
+        state.resetFetchedProductId = '';
       });
   },
 });
@@ -765,6 +847,7 @@ export const {
   clearStoreRequestStatus,
   clearDuplicateStatus,
   clearDeleteFetchedStatus,
+  clearResetFetchedStatus,
 } = bigCommerceSlice.actions;
 
 export const selectBigCommerce = (state) => state.bigCommerce;

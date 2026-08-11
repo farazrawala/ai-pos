@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaCheck, FaInbox, FaStore, FaXmark } from 'react-icons/fa6';
+import { FaCheck, FaGear, FaStore, FaXmark } from 'react-icons/fa6';
 import {
   approveStoreRequestRequest,
   cancelStoreRequestRequest,
   fetchMarketplaceCompanyProfileRequest,
   fetchReceivedStoreRequestsRequest,
   fetchSentStoreRequestsRequest,
+  normalizeConnectionSyncSettings,
   rejectStoreRequestRequest,
 } from '../../features/bigCommerce/bigCommerceAPI.js';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
+import ConnectedStoreSettingsModal from '../../components/bigCommerce/ConnectedStoreSettingsModal.jsx';
 import { DEBUG } from '../../config/env.js';
 import { companyStorePath } from '../../features/bigCommerce/marketplaceUtils.js';
 import { showToast } from '../../utils/toast.js';
@@ -72,6 +74,7 @@ export default function BigCommerceRequestsPage() {
   const [loadError, setLoadError] = useState('');
   const [actingId, setActingId] = useState('');
   const [openingStoreId, setOpeningStoreId] = useState('');
+  const [settingsConnection, setSettingsConnection] = useState(null);
 
   const load = useCallback(async () => {
     setLoadStatus('loading');
@@ -139,6 +142,21 @@ export default function BigCommerceRequestsPage() {
     runAction(() => cancelStoreRequestRequest(id), 'Request cancelled.');
   };
 
+  const handleSettingsSaved = (nextSettings) => {
+    const id = String(settingsConnection?._id || '');
+    if (!id) return;
+    const sync = normalizeConnectionSyncSettings(nextSettings || {});
+    setGrouped((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        next[key] = (next[key] || []).map((row) =>
+          String(row._id || '') === id ? { ...row, ...sync } : row
+        );
+      }
+      return next;
+    });
+  };
+
   const apiSources = useMemo(() => {
     if (!DEBUG) return [];
     return [
@@ -164,32 +182,19 @@ export default function BigCommerceRequestsPage() {
   return (
     <div className="container-fluid py-4 px-3">
       <div className="bc-listing-page">
-        <div className="bc-listing-header">
-          <div>
-            <p className="bc-listing-eyebrow mb-0">
-              <FaInbox aria-hidden="true" />
-              Big Commerce
-            </p>
-            <h4 className="bc-listing-title">Store requests</h4>
+        <header className="bc-listing-header">
+          <div className="bc-listing-header-copy">
+            <p className="bc-listing-eyebrow mb-0">Big Commerce</p>
+            <h1 className="bc-listing-title">Store requests</h1>
             <p className="bc-listing-subtitle mb-0">
-              Incoming connection requests land here for the company admin. Approve to
-              connect stores, or check what you have sent.
+              Review incoming connection requests, or check what you have sent.
             </p>
-            {DEBUG ? (
-              <p className="text-sm text-muted mb-0 mt-1">
-                Inbox{' '}
-                <code className="text-xs">GET /big-commerce/requests/received</code>
-                {' · '}
-                Sent{' '}
-                <code className="text-xs">GET /big-commerce/requests/sent</code>
-              </p>
-            ) : null}
           </div>
-          <Link to="/big-commerce" className="bc-btn bc-btn-ghost">
+          <Link to="/big-commerce" className="bc-btn bc-btn-ghost bc-listing-header-action">
             <FaStore aria-hidden="true" />
             View stores
           </Link>
-        </div>
+        </header>
 
         <div className="card border-0 bc-listing-card">
           <div className="card-header bg-transparent border-0 pt-3 px-3 pb-2">
@@ -294,6 +299,7 @@ export default function BigCommerceRequestsPage() {
                   const busy = actingId === id;
                   const canApproveReject = direction === 'received' && row.status === 'pending';
                   const canCancel = direction === 'sent' && row.status === 'pending';
+                  const canManageSettings = row.status === 'approved';
 
                   return (
                     <article key={id} className="bc-request-row">
@@ -346,6 +352,16 @@ export default function BigCommerceRequestsPage() {
                             {openingStoreId === partnerId ? 'Opening…' : 'View store'}
                           </button>
                         ) : null}
+                        {canManageSettings ? (
+                          <button
+                            type="button"
+                            className="bc-btn bc-btn-ghost bc-btn-sm"
+                            onClick={() => setSettingsConnection(row)}
+                          >
+                            <FaGear aria-hidden="true" />
+                            Settings
+                          </button>
+                        ) : null}
                         {canApproveReject ? (
                           <>
                             <button
@@ -387,6 +403,22 @@ export default function BigCommerceRequestsPage() {
           </div>
         </div>
       </div>
+
+      <ConnectedStoreSettingsModal
+        open={Boolean(settingsConnection)}
+        connection={settingsConnection}
+        partnerName={
+          settingsConnection
+            ? companyNameFrom(
+                direction === 'received'
+                  ? settingsConnection.sender_company || settingsConnection.company_id
+                  : settingsConnection.target_company_id
+              )
+            : 'store'
+        }
+        onClose={() => setSettingsConnection(null)}
+        onSaved={handleSettingsSaved}
+      />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>

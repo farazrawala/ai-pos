@@ -250,8 +250,8 @@ const ProductAdd = () => {
         }
       }
 
-      // Auto-generate slug from name
-      if (name === 'name' && (!prev.slug || prev.slug === generateSlug(prev.name))) {
+      // Slug is read-only — always regenerate from the product name.
+      if (name === 'name') {
         updated.slug = generateSlug(nextValue);
       }
 

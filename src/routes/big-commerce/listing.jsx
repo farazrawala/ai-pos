@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaInbox, FaMagnifyingGlass, FaPaperPlane, FaStore } from 'react-icons/fa6';
+import {
+  FaGear,
+  FaInbox,
+  FaLocationDot,
+  FaMagnifyingGlass,
+  FaPaperPlane,
+  FaPhone,
+  FaStore,
+  FaXmark,
+} from 'react-icons/fa6';
 import {
   fetchMarketplaceCompanies,
   sendCompanyStoreRequest,
@@ -10,19 +19,66 @@ import {
   selectBigCommerce,
 } from '../../features/bigCommerce/bigCommerceSlice.js';
 import {
+  cancelStoreRequestRequest,
   fetchMarketplaceCompanyProfileRequest,
   fetchSentStoreRequestsRequest,
+  normalizeConnectionSyncSettings,
 } from '../../features/bigCommerce/bigCommerceAPI.js';
 import { companyStorePath, normalizeCompanyProfile } from '../../features/bigCommerce/marketplaceUtils.js';
 import { selectCompanyId } from '../../features/user/userSlice.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import AppModal from '../../components/AppModal.jsx';
+import ConnectedStoreSettingsModal from '../../components/bigCommerce/ConnectedStoreSettingsModal.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { buildApiUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
 import { showToast } from '../../utils/toast.js';
 import '../../components/common/devApiSources.css';
 import './big-commerce.css';
+
+function mapOutgoingConnections(rows) {
+  const next = {};
+  (rows || []).forEach((row) => {
+    const target = row.target_company_id;
+    const companyId =
+      typeof target === 'object'
+        ? String(target?._id ?? target?.id ?? '').trim()
+        : String(target || '').trim();
+    if (!companyId) return;
+    if (row.status !== 'pending' && row.status !== 'approved') return;
+    const requestId = String(row._id || row.id || '').trim();
+    next[companyId] = {
+      status: row.status,
+      requestId,
+      connection: row,
+      settings: normalizeConnectionSyncSettings(row),
+    };
+  });
+  return next;
+}
+
+function CompanyCardSkeleton() {
+  return (
+    <article className="bc-company-card bc-company-card--skeleton" aria-hidden="true">
+      <div className="bc-company-banner bc-skeleton" />
+      <div className="bc-company-card-body">
+        <div className="bc-company-identity">
+          <div className="bc-company-avatar bc-skeleton" />
+          <div className="bc-company-identity-text">
+            <div className="bc-skeleton bc-skeleton-line w-70" />
+            <div className="bc-skeleton bc-skeleton-line w-50" />
+          </div>
+        </div>
+        <div className="bc-skeleton bc-skeleton-line w-90" />
+        <div className="bc-skeleton bc-skeleton-line w-80" />
+        <div className="bc-company-actions">
+          <div className="bc-skeleton" style={{ height: 34, borderRadius: 8 }} />
+          <div className="bc-skeleton" style={{ height: 34, borderRadius: 8 }} />
+        </div>
+      </div>
+    </article>
+  );
+}
 
 const mapLoadStatus = (status) => {
   if (status === 'loading' || status === 'loadingMore') return 'loading';
@@ -54,6 +110,9 @@ export default function BigCommerceListingPage() {
   const [requestTarget, setRequestTarget] = useState(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [outgoingByCompanyId, setOutgoingByCompanyId] = useState({});
+  const [cancellingRequestId, setCancellingRequestId] = useState('');
+  const [connectionFilter, setConnectionFilter] = useState('all');
+  const [settingsTarget, setSettingsTarget] = useState(null);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
 
@@ -123,24 +182,17 @@ export default function BigCommerceListingPage() {
     return () => observer.disconnect();
   }, [loadNextPage, companies.length]);
 
+  const refreshOutgoingRequests = useCallback(async () => {
+    const result = await fetchSentStoreRequestsRequest();
+    setOutgoingByCompanyId(mapOutgoingConnections(result.rows));
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     fetchSentStoreRequestsRequest()
       .then((result) => {
         if (cancelled) return;
-        const next = {};
-        (result.rows || []).forEach((row) => {
-          const target = row.target_company_id;
-          const id =
-            typeof target === 'object'
-              ? String(target?._id ?? target?.id ?? '').trim()
-              : String(target || '').trim();
-          if (!id) return;
-          if (row.status === 'pending' || row.status === 'approved') {
-            next[id] = row.status;
-          }
-        });
-        setOutgoingByCompanyId(next);
+        setOutgoingByCompanyId(mapOutgoingConnections(result.rows));
       })
       .catch(() => {});
     return () => {
@@ -154,17 +206,27 @@ export default function BigCommerceListingPage() {
       if (requestTarget?.id) {
         setOutgoingByCompanyId((prev) => ({
           ...prev,
-          [String(requestTarget.id)]: 'pending',
+          [String(requestTarget.id)]: {
+            status: 'pending',
+            requestId: prev[String(requestTarget.id)]?.requestId || '',
+          },
         }));
       }
       setRequestTarget(null);
       setRequestMessage('');
       dispatch(clearStoreRequestStatus());
+      refreshOutgoingRequests().catch(() => {});
     } else if (storeRequestStatus === 'failed' && storeRequestError) {
       showToast({ message: storeRequestError, variant: 'error' });
       dispatch(clearStoreRequestStatus());
     }
-  }, [storeRequestStatus, storeRequestError, dispatch, requestTarget]);
+  }, [
+    storeRequestStatus,
+    storeRequestError,
+    dispatch,
+    requestTarget,
+    refreshOutgoingRequests,
+  ]);
 
   const handleSearchChange = (value) => {
     setLocalSearch(value);
@@ -186,6 +248,57 @@ export default function BigCommerceListingPage() {
         .map((raw) => normalizeCompanyProfile(raw))
         .filter((c) => c.id && c.showStoreForListing !== false),
     [companies]
+  );
+
+  const getOutgoingConnection = useCallback(
+    (companyId) => outgoingByCompanyId[String(companyId)] || null,
+    [outgoingByCompanyId]
+  );
+
+  const getConnectionStatus = useCallback(
+    (companyId) => getOutgoingConnection(companyId)?.status || '',
+    [getOutgoingConnection]
+  );
+
+  const connectionCounts = useMemo(() => {
+    let connected = 0;
+    let requested = 0;
+    let available = 0;
+    rows.forEach((company) => {
+      const status = getConnectionStatus(company.id);
+      if (status === 'approved') connected += 1;
+      else if (status === 'pending') requested += 1;
+      else available += 1;
+    });
+    return {
+      all: rows.length,
+      connected,
+      requested,
+      available,
+    };
+  }, [rows, getConnectionStatus]);
+
+  const filteredRows = useMemo(() => {
+    if (connectionFilter === 'all') return rows;
+    return rows.filter((company) => {
+      const status = getConnectionStatus(company.id);
+      if (connectionFilter === 'connected') return status === 'approved';
+      if (connectionFilter === 'requested') return status === 'pending';
+      if (connectionFilter === 'available') {
+        return status !== 'approved' && status !== 'pending';
+      }
+      return true;
+    });
+  }, [rows, connectionFilter, getConnectionStatus]);
+
+  const connectionTabs = useMemo(
+    () => [
+      { id: 'all', label: 'All', count: connectionCounts.all },
+      { id: 'connected', label: 'Connected', count: connectionCounts.connected },
+      { id: 'requested', label: 'Requested', count: connectionCounts.requested },
+      { id: 'available', label: 'Not connected', count: connectionCounts.available },
+    ],
+    [connectionCounts]
   );
 
   const openRequestModal = useCallback((company) => {
@@ -224,6 +337,40 @@ export default function BigCommerceListingPage() {
       })
     );
   };
+
+  const handleCancelRequest = useCallback(
+    async (company) => {
+      const companyId = String(company?.id || '').trim();
+      const outgoing = getOutgoingConnection(companyId);
+      const requestId = String(outgoing?.requestId || '').trim();
+      if (!companyId || !requestId || outgoing?.status !== 'pending') {
+        showToast({
+          message: 'Unable to cancel this request. Try refreshing the page.',
+          variant: 'error',
+        });
+        return;
+      }
+
+      setCancellingRequestId(requestId);
+      try {
+        await cancelStoreRequestRequest(requestId);
+        setOutgoingByCompanyId((prev) => {
+          const next = { ...prev };
+          delete next[companyId];
+          return next;
+        });
+        showToast({ message: 'Request cancelled.', variant: 'success' });
+      } catch (err) {
+        showToast({
+          message: err?.message || 'Failed to cancel request',
+          variant: 'error',
+        });
+      } finally {
+        setCancellingRequestId('');
+      }
+    },
+    [getOutgoingConnection]
+  );
 
   const requesting =
     storeRequestStatus === 'loading' &&
@@ -281,158 +428,253 @@ export default function BigCommerceListingPage() {
   return (
     <div className="container-fluid py-4 px-3">
       <div className="bc-listing-page">
-        <div className="bc-listing-header">
-          <div>
-            <p className="bc-listing-eyebrow mb-0">
-              <FaStore aria-hidden="true" />
-              Big Commerce
-            </p>
-            <h4 className="bc-listing-title">View stores</h4>
+        <header className="bc-listing-header">
+          <div className="bc-listing-header-copy">
+            <p className="bc-listing-eyebrow mb-0">Big Commerce</p>
+            <h1 className="bc-listing-title">View stores</h1>
             <p className="bc-listing-subtitle mb-0">
-              Browse companies, send a store request, or open their marketplace.
+              Browse partner companies, request a connection, or open their marketplace.
             </p>
-            {DEBUG ? (
-              <p className="text-sm text-muted mb-0 mt-1">
-                Load{' '}
-                <code className="text-xs">GET /company/get-all-for-listing</code>
-                {' · '}
-                Request{' '}
-                <code className="text-xs">POST /big-commerce/connection/request</code>
-              </p>
-            ) : null}
           </div>
-          <Link to="/big-commerce/requests" className="bc-btn bc-btn-ghost">
+          <Link to="/big-commerce/requests" className="bc-btn bc-btn-ghost bc-listing-header-action">
             <FaInbox aria-hidden="true" />
             Store requests
           </Link>
-        </div>
+        </header>
 
-        <div className="card border-0 bc-listing-card">
-          <div className="card-header bg-transparent border-0 pt-3 px-3 pb-2">
-            <div className="bc-listing-toolbar">
-              <div className="bc-search-wrap bc-listing-search">
-                <FaMagnifyingGlass className="bc-search-icon" aria-hidden="true" />
-                <input
-                  type="search"
-                  className="bc-search-input"
-                  placeholder="Search companies…"
-                  value={localSearch}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  aria-label="Search companies"
-                />
-              </div>
-              <p className="bc-result-summary mb-0">
-                Showing {rows.length.toLocaleString()}
-                {companiesPagination.total
-                  ? ` of ${companiesPagination.total.toLocaleString()}`
-                  : ''}{' '}
-                companies
-              </p>
+        <section className="bc-listing-panel" aria-label="Company directory">
+          <div className="bc-listing-toolbar">
+            <div className="bc-search-wrap bc-listing-search">
+              <FaMagnifyingGlass className="bc-search-icon" aria-hidden="true" />
+              <input
+                type="search"
+                className="bc-search-input"
+                placeholder="Search by company name…"
+                value={localSearch}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                aria-label="Search companies"
+              />
             </div>
+            {!initialLoading ? (
+              <p className="bc-result-summary mb-0">
+                {connectionFilter === 'all'
+                  ? companiesPagination.total
+                    ? `${rows.length.toLocaleString()} of ${companiesPagination.total.toLocaleString()} companies`
+                    : `${rows.length.toLocaleString()} companies`
+                  : `${filteredRows.length.toLocaleString()} ${
+                      connectionFilter === 'connected'
+                        ? 'connected'
+                        : connectionFilter === 'requested'
+                          ? 'requested'
+                          : 'not connected'
+                    }`}
+              </p>
+            ) : null}
           </div>
 
-          <div className="px-3 pb-3">
-            {initialLoading ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading…</span>
-                </div>
-                <p className="text-sm text-muted mt-3 mb-0">Loading companies…</p>
-              </div>
-            ) : null}
-
-            {!initialLoading && companiesStatus === 'failed' && rows.length === 0 ? (
-              <div className="alert alert-danger mb-0" role="alert">
-                Error loading companies: {companiesError}
-                <div className="mt-2">
+          {!initialLoading && rows.length > 0 ? (
+            <div className="bc-listing-tabs" role="tablist" aria-label="Connection status">
+              {connectionTabs.map((tab) => {
+                const isActive = connectionFilter === tab.id;
+                return (
                   <button
+                    key={tab.id}
                     type="button"
-                    className="btn btn-sm btn-outline-danger mb-0"
-                    onClick={() =>
-                      dispatch(
-                        fetchMarketplaceCompanies({
-                          page: 1,
-                          limit: companiesPagination.limit,
-                          search: companiesSearch,
-                          append: false,
-                        })
-                      )
-                    }
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`bc-listing-tab ${isActive ? 'is-active' : ''}`}
+                    onClick={() => setConnectionFilter(tab.id)}
                   >
-                    Retry
+                    <span className="bc-listing-tab-label">{tab.label}</span>
+                    <span className="bc-listing-tab-count">{tab.count}</span>
                   </button>
-                </div>
-              </div>
-            ) : null}
+                );
+              })}
+            </div>
+          ) : null}
 
-            {!initialLoading && rows.length === 0 && companiesStatus === 'succeeded' ? (
-              <div className="bc-empty my-4">
-                <h3>No companies found</h3>
-                <p>Try a different search term.</p>
-              </div>
-            ) : null}
+          {initialLoading ? (
+            <div className="bc-company-grid" aria-busy="true" aria-label="Loading companies">
+              <CompanyCardSkeleton />
+              <CompanyCardSkeleton />
+              <CompanyCardSkeleton />
+            </div>
+          ) : null}
 
-            {rows.length > 0 ? (
-              <div className="bc-company-grid">
-                {rows.map((company) => {
-                  const isSelf = sessionCompanyId && company.id === String(sessionCompanyId);
-                  const requestEnabled = company.showStoreForRequest === true;
-                  const outgoingStatus = outgoingByCompanyId[String(company.id)] || '';
-                  const alreadyRequested = outgoingStatus === 'pending' || outgoingStatus === 'approved';
+          {!initialLoading && companiesStatus === 'failed' && rows.length === 0 ? (
+            <div className="bc-listing-state bc-listing-state--error" role="alert">
+              <h3>Couldn’t load companies</h3>
+              <p>{companiesError || 'Something went wrong. Please try again.'}</p>
+              <button
+                type="button"
+                className="bc-btn bc-btn-primary"
+                onClick={() =>
+                  dispatch(
+                    fetchMarketplaceCompanies({
+                      page: 1,
+                      limit: companiesPagination.limit,
+                      search: companiesSearch,
+                      append: false,
+                    })
+                  )
+                }
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
 
-                  return (
-                    <article key={company.id} className="bc-company-card">
-                      <div
-                        className="bc-company-banner"
-                        style={
-                          company.coverUrl
-                            ? { backgroundImage: `url(${company.coverUrl})` }
-                            : undefined
-                        }
-                        role="img"
-                        aria-label={`${company.name || 'Company'} banner`}
-                      />
-                      <div className="bc-company-card-body">
-                        <div className="bc-company-identity">
-                          {company.logoUrl ? (
-                            <img
-                              className="bc-company-avatar"
-                              src={company.logoUrl}
-                              alt=""
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="bc-company-avatar bc-company-avatar--fallback">
-                              {(company.name || 'C').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="bc-company-identity-text">
-                            <h5 className="bc-company-card-name" title={company.name}>
+          {!initialLoading && rows.length === 0 && companiesStatus === 'succeeded' ? (
+            <div className="bc-listing-state">
+              <FaStore aria-hidden="true" />
+              <h3>No companies found</h3>
+              <p>
+                {localSearch.trim()
+                  ? 'Try a different search term.'
+                  : 'There are no stores available to browse yet.'}
+              </p>
+            </div>
+          ) : null}
+
+          {!initialLoading &&
+          rows.length > 0 &&
+          filteredRows.length === 0 &&
+          companiesStatus !== 'failed' ? (
+            <div className="bc-listing-state">
+              <FaStore aria-hidden="true" />
+              <h3>No stores in this filter</h3>
+              <p>
+                {connectionFilter === 'connected'
+                  ? 'You are not connected to any of the loaded stores yet.'
+                  : connectionFilter === 'requested'
+                    ? 'You have no pending requests for the loaded stores.'
+                    : 'No stores match this connection filter.'}
+              </p>
+              <button
+                type="button"
+                className="bc-btn bc-btn-ghost"
+                onClick={() => setConnectionFilter('all')}
+              >
+                Show all stores
+              </button>
+            </div>
+          ) : null}
+
+          {filteredRows.length > 0 ? (
+            <div className="bc-company-grid">
+              {filteredRows.map((company) => {
+                const isSelf = sessionCompanyId && company.id === String(sessionCompanyId);
+                const requestEnabled = company.showStoreForRequest === true;
+                const outgoing = getOutgoingConnection(company.id);
+                const outgoingStatus = outgoing?.status || '';
+                const outgoingRequestId = String(outgoing?.requestId || '').trim();
+                const alreadyRequested =
+                  outgoingStatus === 'pending' || outgoingStatus === 'approved';
+                const canCancelRequest =
+                  !isSelf && outgoingStatus === 'pending' && Boolean(outgoingRequestId);
+                const canManageSettings =
+                  !isSelf && outgoingStatus === 'approved' && Boolean(outgoingRequestId);
+                const cancelling =
+                  canCancelRequest && cancellingRequestId === outgoingRequestId;
+                const productCount = Number(company.totalProducts || 0);
+
+                return (
+                  <article key={company.id} className="bc-company-card">
+                    <div
+                      className={`bc-company-banner${company.coverUrl ? ' has-cover' : ''}`}
+                      style={
+                        company.coverUrl
+                          ? { backgroundImage: `url(${company.coverUrl})` }
+                          : undefined
+                      }
+                      role="img"
+                      aria-label={`${company.name || 'Company'} banner`}
+                    />
+                    <div className="bc-company-card-body">
+                      <div className="bc-company-identity">
+                        {company.logoUrl ? (
+                          <img
+                            className="bc-company-avatar"
+                            src={company.logoUrl}
+                            alt=""
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="bc-company-avatar bc-company-avatar--fallback">
+                            {(company.name || 'C').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="bc-company-identity-text">
+                          <div className="bc-company-name-row">
+                            <h2 className="bc-company-card-name" title={company.name}>
                               {company.name}
-                            </h5>
-                            {company.location ? (
-                              <p className="bc-company-card-meta">{company.location}</p>
-                            ) : null}
-                            {company.phone ? (
-                              <p className="bc-company-card-meta">{company.phone}</p>
+                            </h2>
+                            {isSelf ? <span className="bc-pill">You</span> : null}
+                            {outgoingStatus === 'approved' ? (
+                              <span className="bc-pill bc-pill--connected">Connected</span>
                             ) : null}
                           </div>
+                          {company.location ? (
+                            <p className="bc-company-card-meta">
+                              <FaLocationDot aria-hidden="true" />
+                              <span>{company.location}</span>
+                            </p>
+                          ) : null}
+                          {company.phone &&
+                          String(company.phone).trim().toUpperCase() !== 'N/A' ? (
+                            <p className="bc-company-card-meta">
+                              <FaPhone aria-hidden="true" />
+                              <span>{company.phone}</span>
+                            </p>
+                          ) : null}
                         </div>
+                      </div>
 
-                        {company.description ? (
-                          <p className="bc-company-card-desc">{company.description}</p>
+                      {company.description ? (
+                        <p className="bc-company-card-desc">{company.description}</p>
+                      ) : null}
+
+                      <div className="bc-company-stats">
+                        <span className="bc-company-stat">
+                          <strong>{productCount.toLocaleString()}</strong>
+                          {productCount === 1 ? ' product' : ' products'}
+                        </span>
+                      </div>
+
+                      <div className="bc-company-actions">
+                        {canCancelRequest ? (
+                          <button
+                            type="button"
+                            className="bc-btn bc-btn-danger-ghost"
+                            disabled={cancelling || requesting}
+                            title="Cancel pending store request"
+                            onClick={() => handleCancelRequest(company)}
+                          >
+                            <FaXmark aria-hidden="true" />
+                            {cancelling ? 'Cancelling…' : 'Cancel request'}
+                          </button>
+                        ) : canManageSettings ? (
+                          <button
+                            type="button"
+                            className="bc-btn bc-btn-ghost"
+                            title="Connected store settings"
+                            onClick={() =>
+                              setSettingsTarget({
+                                company,
+                                connection: {
+                                  ...(outgoing?.connection || {}),
+                                  _id: outgoingRequestId,
+                                  ...normalizeConnectionSyncSettings(
+                                    outgoing?.settings || outgoing?.connection || {}
+                                  ),
+                                },
+                              })
+                            }
+                          >
+                            <FaGear aria-hidden="true" />
+                            Settings
+                          </button>
                         ) : (
-                          <p className="bc-company-card-desc bc-muted">No description</p>
-                        )}
-
-                        <div className="bc-company-stats">
-                          <span>
-                            {Number(company.totalProducts || 0).toLocaleString()} products
-                          </span>
-                          {isSelf ? <span className="bc-pill">Your company</span> : null}
-                        </div>
-
-                        <div className="bc-company-actions">
                           <button
                             type="button"
                             className="bc-btn bc-btn-ghost"
@@ -442,72 +684,55 @@ export default function BigCommerceListingPage() {
                                 ? 'Cannot request your own store'
                                 : !requestEnabled
                                   ? 'This store is not accepting requests'
-                                  : outgoingStatus === 'approved'
-                                    ? 'Already connected'
-                                    : outgoingStatus === 'pending'
-                                      ? 'Request already sent'
-                                      : 'Send store request'
+                                  : outgoingStatus === 'pending'
+                                    ? 'Request already sent'
+                                    : 'Send store request'
                             }
                             onClick={() => openRequestModal(company)}
                           >
                             <FaPaperPlane aria-hidden="true" />
-                            {outgoingStatus === 'approved'
-                              ? 'Connected'
-                              : outgoingStatus === 'pending'
-                                ? 'Requested'
-                                : 'Send request'}
+                            {outgoingStatus === 'pending' ? 'Requested' : 'Send request'}
                           </button>
-                          <button
-                            type="button"
-                            className="bc-btn bc-btn-primary"
-                            onClick={() => openStore(company)}
-                            disabled={openingStoreId === String(company.id)}
-                          >
-                            <FaStore aria-hidden="true" />
-                            {openingStoreId === String(company.id) ? 'Opening…' : 'View store'}
-                          </button>
-                        </div>
+                        )}
+                        <button
+                          type="button"
+                          className="bc-btn bc-btn-primary"
+                          onClick={() => openStore(company)}
+                          disabled={openingStoreId === String(company.id)}
+                        >
+                          <FaStore aria-hidden="true" />
+                          {openingStoreId === String(company.id) ? 'Opening…' : 'View store'}
+                        </button>
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
 
-            <div ref={sentinelRef} className="bc-scroll-sentinel" aria-hidden="true" />
+          <div ref={sentinelRef} className="bc-scroll-sentinel" aria-hidden="true" />
 
-            {loadingMore ? (
-              <div className="bc-scroll-loading text-center py-3">
-                <div
-                  className="spinner-border spinner-border-sm text-primary"
-                  role="status"
-                >
-                  <span className="visually-hidden">Loading more…</span>
-                </div>
-                <span className="text-muted text-sm ms-2">Loading more companies…</span>
-              </div>
-            ) : null}
+          {loadingMore ? (
+            <div className="bc-scroll-loading" role="status">
+              <div className="spinner-border spinner-border-sm" aria-hidden="true" />
+              <span>Loading more…</span>
+            </div>
+          ) : null}
 
-            {!initialLoading && !loadingMore && rows.length > 0 && !companiesHasMore ? (
-              <p className="bc-scroll-end text-center text-muted text-sm mb-0 py-3">
-                You&apos;ve reached the end of the list
-              </p>
-            ) : null}
+          {!initialLoading && !loadingMore && rows.length > 0 && !companiesHasMore ? (
+            <p className="bc-scroll-end mb-0">End of list</p>
+          ) : null}
 
-            {companiesStatus === 'failed' && rows.length > 0 ? (
-              <div className="text-center py-3">
-                <p className="text-danger text-sm mb-2">{companiesError}</p>
-                <button
-                  type="button"
-                  className="bc-btn bc-btn-ghost bc-btn-sm"
-                  onClick={loadNextPage}
-                >
-                  Try again
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
+          {companiesStatus === 'failed' && rows.length > 0 ? (
+            <div className="bc-scroll-loading">
+              <p className="text-danger text-sm mb-2">{companiesError}</p>
+              <button type="button" className="bc-btn bc-btn-ghost bc-btn-sm" onClick={loadNextPage}>
+                Try again
+              </button>
+            </div>
+          ) : null}
+        </section>
       </div>
 
       <AppModal
@@ -557,6 +782,34 @@ export default function BigCommerceListingPage() {
           disabled={requesting}
         />
       </AppModal>
+
+      <ConnectedStoreSettingsModal
+        open={Boolean(settingsTarget)}
+        connection={settingsTarget?.connection}
+        partnerName={settingsTarget?.company?.name || 'store'}
+        onClose={() => setSettingsTarget(null)}
+        onSaved={(nextSettings) => {
+          const companyId = String(settingsTarget?.company?.id || '').trim();
+          const requestId = String(settingsTarget?.connection?._id || '').trim();
+          if (!companyId || !requestId) return;
+          const sync = normalizeConnectionSyncSettings(nextSettings || {});
+          setOutgoingByCompanyId((prev) => {
+            const existing = prev[companyId];
+            if (!existing) return prev;
+            return {
+              ...prev,
+              [companyId]: {
+                ...existing,
+                settings: sync,
+                connection: {
+                  ...(existing.connection || {}),
+                  ...sync,
+                },
+              },
+            };
+          });
+        }}
+      />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />
     </div>

@@ -7,6 +7,7 @@ import {
   fetchProductVariation,
   updateProduct,
   updateProductVariation,
+  deleteProduct,
   clearUpdateStatus,
   clearCurrentProduct,
 } from '../../features/products/productsSlice.js';
@@ -16,10 +17,12 @@ import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
 import { fetchAttributesRequest } from '../../features/attributes/attributesAPI.js';
 import { toast } from '../../utils/toast.js';
+import { resetFetchedMarketplaceProductRequest } from '../../features/bigCommerce/bigCommerceAPI.js';
 import ProductVariationsModal from '../../components/product/ProductVariationsModal.jsx';
 import ProductVariationCard from '../../components/product/ProductVariationCard.jsx';
 import QuickAddCategoryModal from '../../components/category/QuickAddCategoryModal.jsx';
 import QuickAddBrandModal from '../../components/brand/QuickAddBrandModal.jsx';
+import ConfirmDialog from '../../components/support/ConfirmDialog.jsx';
 import RichTextEditor from '../../components/common/RichTextEditor.jsx';
 import {
   variationProductIdFromRecord,
@@ -111,6 +114,7 @@ const ProductEdit = () => {
   const [showQuickAddBrand, setShowQuickAddBrand] = useState(false);
   /** Me-too products: hide BigCommerce on parent form + all variation cards. */
   const [hideBigCommerceSection, setHideBigCommerceSection] = useState(false);
+  const [resettingMeToo, setResettingMeToo] = useState(false);
 
   // Image states
   const [singleImage, setSingleImage] = useState(null);
@@ -131,9 +135,12 @@ const ProductEdit = () => {
   const [selectedAttributes, setSelectedAttributes] = useState({}); // { attributeId: [valueNames] }
   const [variations, setVariations] = useState([]); // Array of variation objects
   const [applyingBarcodes, setApplyingBarcodes] = useState(false);
+  const [variationPendingDelete, setVariationPendingDelete] = useState(null);
+  const [removingVariationId, setRemovingVariationId] = useState('');
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
+  const isRemovingVariation = Boolean(removingVariationId);
 
   const productId = String(id ?? '').trim();
 
@@ -871,9 +878,44 @@ const ProductEdit = () => {
     }
   };
 
-  // Remove variation
+  // Confirm, then soft-delete persisted variations (temp drafts are removed locally only)
   const handleRemoveVariation = (variationId) => {
-    setVariations((prev) => prev.filter((v) => v.id !== variationId));
+    if (isSubmitting || isRemovingVariation) return;
+    const target = variations.find((v) => v.id === variationId);
+    if (!target) return;
+    setVariationPendingDelete(target);
+  };
+
+  const handleCancelRemoveVariation = () => {
+    if (isRemovingVariation) return;
+    setVariationPendingDelete(null);
+  };
+
+  const handleConfirmRemoveVariation = async () => {
+    const target = variationPendingDelete;
+    if (!target) return;
+
+    const localId = target.id;
+    const persistedId = variationProductIdFromRecord(target);
+
+    // Unsaved combination — drop from UI only
+    if (!persistedId) {
+      setVariations((prev) => prev.filter((v) => v.id !== localId));
+      setVariationPendingDelete(null);
+      return;
+    }
+
+    setRemovingVariationId(localId);
+    try {
+      await dispatch(deleteProduct(persistedId)).unwrap();
+      setVariations((prev) => prev.filter((v) => v.id !== localId));
+      setVariationPendingDelete(null);
+      toast.success('Variation deleted.');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to delete variation');
+    } finally {
+      setRemovingVariationId('');
+    }
   };
 
   // Close modal and reset state (but keep variations)
@@ -936,9 +978,8 @@ const ProductEdit = () => {
           }
 
           const updated = { ...variation, name: newVariationName };
-          if (!variation.slug || variation.slug === generateSlug(variation.name)) {
-            updated.slug = generateSlug(newVariationName);
-          }
+          // Slug is read-only — always keep it in sync with the variation name.
+          updated.slug = generateSlug(newVariationName);
           return updated;
         })
       );
@@ -988,8 +1029,8 @@ const ProductEdit = () => {
         }
       }
 
-      // Auto-generate slug from name
-      if (name === 'name' && (!prev.slug || prev.slug === generateSlug(prev.name))) {
+      // Slug is read-only — always regenerate from the product name.
+      if (name === 'name') {
         updated.slug = generateSlug(nextValue);
       }
 
@@ -1014,6 +1055,25 @@ const ProductEdit = () => {
     setForm((prev) => ({ ...prev, barcode }));
     if (errors.barcode) {
       setErrors((prev) => ({ ...prev, barcode: '' }));
+    }
+  };
+
+  const handleResetMeToo = async () => {
+    if (!productId || resettingMeToo || isSubmitting) return;
+    const confirmed = window.confirm(
+      'Reset this Me too product from the origin?\n\nName, prices, images, SKU, barcode, description, and variants will be overwritten from the source. Brand, category, and stock are kept.'
+    );
+    if (!confirmed) return;
+
+    setResettingMeToo(true);
+    try {
+      await resetFetchedMarketplaceProductRequest(productId);
+      toast.success('Product reset from origin successfully.');
+      dispatch(fetchProductVariation(productId));
+    } catch (error) {
+      toast.error(error?.message || 'Failed to reset Me too product');
+    } finally {
+      setResettingMeToo(false);
     }
   };
 
@@ -1464,14 +1524,42 @@ const ProductEdit = () => {
                 </p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary mb-0"
-              onClick={() => navigate('/products')}
-            >
-              <i className="fas fa-arrow-left me-1" aria-hidden="true" />
-              Back to list
-            </button>
+            <div className="product-form-header-actions">
+              {hideBigCommerceSection ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-warning mb-0"
+                  onClick={handleResetMeToo}
+                  disabled={isSubmitting || resettingMeToo || !productId}
+                  title="Overwrite details from the origin Me too product"
+                >
+                  {resettingMeToo ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-1"
+                        role="status"
+                        aria-hidden="true"
+                      />
+                      Resetting…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-sync-alt me-1" aria-hidden="true" />
+                      Reset Me too
+                    </>
+                  )}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary mb-0"
+                onClick={() => navigate('/products')}
+                disabled={resettingMeToo}
+              >
+                <i className="fas fa-arrow-left me-1" aria-hidden="true" />
+                Back to list
+              </button>
+            </div>
           </div>
 
           <div className="product-form-body">
@@ -2246,7 +2334,7 @@ const ProductEdit = () => {
                           hideBigCommerce={
                             hideBigCommerceSection || Boolean(variation.hideBigCommerce)
                           }
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || isRemovingVariation}
                           fileInputId={`product-edit-variation-image-${variation.id}`}
                           onChange={handleVariationChange}
                           onImageChange={handleVariationImageChange}
@@ -2310,7 +2398,23 @@ const ProductEdit = () => {
         onVariationImageChange={handleVariationImageChange}
         onRemoveVariation={handleRemoveVariation}
         onApply={handleCloseModal}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmitting || isRemovingVariation}
+      />
+
+      <ConfirmDialog
+        open={Boolean(variationPendingDelete)}
+        title="Delete variation"
+        message={
+          variationPendingDelete
+            ? `Delete "${variationPendingDelete.name || 'this variation'}"? It will be soft-deleted from your catalog.`
+            : ''
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={isRemovingVariation}
+        onConfirm={handleConfirmRemoveVariation}
+        onClose={handleCancelRemoveVariation}
       />
 
       <QuickAddCategoryModal
