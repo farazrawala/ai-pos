@@ -29,6 +29,7 @@ export default function ColumnVisibilityMenu({
         className="btn btn-sm btn-outline-secondary mb-0 d-inline-flex align-items-center"
         id={id}
         data-bs-toggle="dropdown"
+        data-bs-display="static"
         data-bs-auto-close="outside"
         aria-expanded="false"
         title="Show / hide columns"
@@ -37,7 +38,7 @@ export default function ColumnVisibilityMenu({
         {buttonLabel}
       </button>
       <div
-        className="dropdown-menu dropdown-menu-end column-visibility-panel p-0"
+        className="dropdown-menu column-visibility-panel p-0"
         aria-labelledby={id}
       >
         <div className="d-flex align-items-center justify-content-between px-3 pt-3 pb-2">
