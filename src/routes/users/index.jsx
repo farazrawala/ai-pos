@@ -27,6 +27,8 @@ import {
 } from '../../constants/pakistanLocations.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
+import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
 import { DEBUG } from '../../config/env.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
@@ -51,6 +53,22 @@ const userProfileImageUrl = (user) => {
   return resolveCategoryMediaUrl(raw);
 };
 
+const USER_COLUMNS = [
+  { key: 'sno', label: '#', alwaysVisible: true },
+  { key: 'photo', label: 'Photo' },
+  { key: 'name', label: 'Name', alwaysVisible: true },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'role', label: 'Role' },
+  { key: 'balance', label: 'Balance' },
+  { key: 'permissions', label: 'Permissions' },
+  { key: 'status', label: 'Status' },
+  { key: 'created', label: 'Created' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
+];
+
 const Users = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -74,6 +92,7 @@ const Users = () => {
   const { canCreate, canEdit } = usePermissions('users');
   useRequireModuleAccess('users');
   const loading = status === 'loading';
+  const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('users', USER_COLUMNS);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [togglingUserId, setTogglingUserId] = useState(null);
   const searchTimeoutRef = useRef(null);
@@ -283,6 +302,13 @@ const Users = () => {
                 </div>
                 <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <ColumnVisibilityMenu
+                      columns={USER_COLUMNS}
+                      isVisible={isVisible}
+                      onToggle={toggle}
+                      onReset={reset}
+                      id="usersColumnVisibilityMenu"
+                    />
                     <div className="users-location-filter">
                       <SearchableSelect
                         id="users-filter-state"
@@ -353,25 +379,41 @@ const Users = () => {
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
-                      <th className="text-center list-col-sno">#</th>
-                      <th className="list-col-user-photo">Photo</th>
-                      {sortableTh('name', 'Name', 'list-col-truncate')}
-                      {sortableTh('email', 'Email', 'list-col-truncate')}
-                      <th className="list-col-truncate-sm">Phone</th>
-                      {sortableTh('city', 'City', 'list-col-truncate-sm')}
-                      {sortableTh('state', 'State', 'list-col-truncate-sm')}
-                      <th className="list-col-user-roles">Role</th>
-                      {sortableTh('initial_balance', 'Balance', 'text-end list-col-amount')}
-                      <th className="list-col-permissions">Permissions</th>
-                      {sortableTh('status', 'Status')}
-                      {sortableTh('createdAt', 'Created', 'list-col-date')}
-                      <th className="text-end list-col-actions list-col-actions--users">Actions</th>
+                      {isVisible('sno') ? <th className="text-center list-col-sno">#</th> : null}
+                      {isVisible('photo') ? <th className="list-col-user-photo">Photo</th> : null}
+                      {isVisible('name') ? sortableTh('name', 'Name', 'list-col-truncate') : null}
+                      {isVisible('email')
+                        ? sortableTh('email', 'Email', 'list-col-truncate')
+                        : null}
+                      {isVisible('phone') ? <th className="list-col-truncate-sm">Phone</th> : null}
+                      {isVisible('city')
+                        ? sortableTh('city', 'City', 'list-col-truncate-sm')
+                        : null}
+                      {isVisible('state')
+                        ? sortableTh('state', 'State', 'list-col-truncate-sm')
+                        : null}
+                      {isVisible('role') ? <th className="list-col-user-roles">Role</th> : null}
+                      {isVisible('balance')
+                        ? sortableTh('initial_balance', 'Balance', 'text-end list-col-amount')
+                        : null}
+                      {isVisible('permissions') ? (
+                        <th className="list-col-permissions">Permissions</th>
+                      ) : null}
+                      {isVisible('status') ? sortableTh('status', 'Status') : null}
+                      {isVisible('created')
+                        ? sortableTh('createdAt', 'Created', 'list-col-date')
+                        : null}
+                      {isVisible('actions') ? (
+                        <th className="text-end list-col-actions list-col-actions--users">
+                          Actions
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="text-center py-5 text-muted">
+                        <td colSpan={visibleCount || 13} className="text-center py-5 text-muted">
                           {emptyMessage}
                         </td>
                       </tr>
@@ -395,137 +437,161 @@ const Users = () => {
                         const updated = item.updatedAt ?? item.updated_at ?? item.updated;
                         return (
                           <tr key={key}>
-                            <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                            <td>
-                              {profileUrl ? (
-                                <img
-                                  src={profileUrl}
-                                  alt={displayName !== '—' ? `${displayName} profile` : 'Profile'}
-                                  className="list-user-avatar"
-                                />
-                              ) : (
-                                <div className="list-user-avatar list-user-avatar--empty">
-                                  <i className="fas fa-user text-muted" aria-hidden="true" />
-                                </div>
-                              )}
-                            </td>
-                            <td className="list-cell-truncate">
-                              <div
-                                className="text-sm font-weight-bold text-dark text-truncate"
-                                title={displayName !== '—' ? displayName : undefined}
-                              >
-                                {displayName}
-                              </div>
-                              {isDefaultCustomer || isDefaultVendor ? (
-                                <div className="d-flex flex-wrap gap-1 mt-1">
-                                  {isDefaultCustomer ? (
-                                    <span className="badge text-xxs bg-gradient-primary mb-0">
-                                      Default customer
-                                    </span>
-                                  ) : null}
-                                  {isDefaultVendor ? (
-                                    <span className="badge text-xxs bg-gradient-dark mb-0">
-                                      Default vendor
-                                    </span>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td
-                              className="text-sm text-muted list-cell-truncate"
-                              title={email !== '—' ? email : undefined}
-                            >
-                              {email}
-                            </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm"
-                              title={phone !== '—' ? phone : undefined}
-                            >
-                              {phone}
-                            </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm"
-                              title={city !== '—' ? city : undefined}
-                            >
-                              {city}
-                            </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm"
-                              title={state !== '—' ? state : undefined}
-                            >
-                              {state}
-                            </td>
-                            <td>{renderRoleCell(item.role)}</td>
-                            <td
-                              className={`text-sm text-end font-weight-bold list-col-amount ${balanceTextClass(
-                                openingBalance
-                              )}`}
-                            >
-                              {fmtMoney(openingBalance)}
-                            </td>
-                            <td className="list-col-permissions">
-                              <UsersPermissionsCell permissions={item.permissions} />
-                            </td>
-                            <td className="text-sm">
-                              {canEdit ? (
-                                <div className="d-flex align-items-center gap-2">
-                                  <div className="form-check form-switch mb-0">
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      role="switch"
-                                      id={`user-status-${userId || index}`}
-                                      checked={isActive}
-                                      onChange={() => handleToggleStatus(userId, isActive)}
-                                      disabled={togglingUserId === userId}
-                                      aria-label={`${displayName} status ${isActive ? 'active' : 'inactive'}`}
-                                      style={{
-                                        width: '2.5rem',
-                                        height: '1.25rem',
-                                        cursor:
-                                          togglingUserId === userId ? 'not-allowed' : 'pointer',
-                                      }}
-                                    />
+                            {isVisible('sno') ? (
+                              <td className="text-center text-muted text-sm">{seriesNumber}</td>
+                            ) : null}
+                            {isVisible('photo') ? (
+                              <td>
+                                {profileUrl ? (
+                                  <img
+                                    src={profileUrl}
+                                    alt={displayName !== '—' ? `${displayName} profile` : 'Profile'}
+                                    className="list-user-avatar"
+                                  />
+                                ) : (
+                                  <div className="list-user-avatar list-user-avatar--empty">
+                                    <i className="fas fa-user text-muted" aria-hidden="true" />
                                   </div>
-                                  {togglingUserId === userId ? (
-                                    <span
-                                      className="spinner-border spinner-border-sm text-primary"
-                                      role="status"
-                                      style={{ width: '1rem', height: '1rem' }}
-                                    >
-                                      <span className="visually-hidden">Saving…</span>
-                                    </span>
-                                  ) : null}
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('name') ? (
+                              <td className="list-cell-truncate">
+                                <div
+                                  className="text-sm font-weight-bold text-dark text-truncate"
+                                  title={displayName !== '—' ? displayName : undefined}
+                                >
+                                  {displayName}
                                 </div>
-                              ) : (
-                                <span className="text-muted text-sm">—</span>
-                              )}
-                            </td>
-                            <td
-                              className="text-sm text-nowrap list-col-date"
-                              title={
-                                updated
-                                  ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                  : undefined
-                              }
-                            >
-                              {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
-                            </td>
-                            <td className="text-end">
-                              <div className="list-table-actions">
+                                {isDefaultCustomer || isDefaultVendor ? (
+                                  <div className="d-flex flex-wrap gap-1 mt-1">
+                                    {isDefaultCustomer ? (
+                                      <span className="badge text-xxs bg-gradient-primary mb-0">
+                                        Default customer
+                                      </span>
+                                    ) : null}
+                                    {isDefaultVendor ? (
+                                      <span className="badge text-xxs bg-gradient-dark mb-0">
+                                        Default vendor
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </td>
+                            ) : null}
+                            {isVisible('email') ? (
+                              <td
+                                className="text-sm text-muted list-cell-truncate"
+                                title={email !== '—' ? email : undefined}
+                              >
+                                {email}
+                              </td>
+                            ) : null}
+                            {isVisible('phone') ? (
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={phone !== '—' ? phone : undefined}
+                              >
+                                {phone}
+                              </td>
+                            ) : null}
+                            {isVisible('city') ? (
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={city !== '—' ? city : undefined}
+                              >
+                                {city}
+                              </td>
+                            ) : null}
+                            {isVisible('state') ? (
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={state !== '—' ? state : undefined}
+                              >
+                                {state}
+                              </td>
+                            ) : null}
+                            {isVisible('role') ? <td>{renderRoleCell(item.role)}</td> : null}
+                            {isVisible('balance') ? (
+                              <td
+                                className={`text-sm text-end font-weight-bold list-col-amount ${balanceTextClass(
+                                  openingBalance
+                                )}`}
+                              >
+                                {fmtMoney(openingBalance)}
+                              </td>
+                            ) : null}
+                            {isVisible('permissions') ? (
+                              <td className="list-col-permissions">
+                                <UsersPermissionsCell permissions={item.permissions} />
+                              </td>
+                            ) : null}
+                            {isVisible('status') ? (
+                              <td className="text-sm">
                                 {canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-primary mb-0"
-                                    onClick={() => navigate(`/users/edit/${userId}`)}
-                                  >
-                                    Edit
-                                  </button>
+                                  <div className="d-flex align-items-center gap-2">
+                                    <div className="form-check form-switch mb-0">
+                                      <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id={`user-status-${userId || index}`}
+                                        checked={isActive}
+                                        onChange={() => handleToggleStatus(userId, isActive)}
+                                        disabled={togglingUserId === userId}
+                                        aria-label={`${displayName} status ${isActive ? 'active' : 'inactive'}`}
+                                        style={{
+                                          width: '2.5rem',
+                                          height: '1.25rem',
+                                          cursor:
+                                            togglingUserId === userId ? 'not-allowed' : 'pointer',
+                                        }}
+                                      />
+                                    </div>
+                                    {togglingUserId === userId ? (
+                                      <span
+                                        className="spinner-border spinner-border-sm text-primary"
+                                        role="status"
+                                        style={{ width: '1rem', height: '1rem' }}
+                                      >
+                                        <span className="visually-hidden">Saving…</span>
+                                      </span>
+                                    ) : null}
+                                  </div>
                                 ) : (
                                   <span className="text-muted text-sm">—</span>
                                 )}
-                              </div>
-                            </td>
+                              </td>
+                            ) : null}
+                            {isVisible('created') ? (
+                              <td
+                                className="text-sm text-nowrap list-col-date"
+                                title={
+                                  updated
+                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
+                                    : undefined
+                                }
+                              >
+                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              </td>
+                            ) : null}
+                            {isVisible('actions') ? (
+                              <td className="text-end">
+                                <div className="list-table-actions">
+                                  {canEdit ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary mb-0"
+                                      onClick={() => navigate(`/users/edit/${userId}`)}
+                                    >
+                                      Edit
+                                    </button>
+                                  ) : (
+                                    <span className="text-muted text-sm">—</span>
+                                  )}
+                                </div>
+                              </td>
+                            ) : null}
                           </tr>
                         );
                       })
