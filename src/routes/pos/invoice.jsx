@@ -19,7 +19,10 @@ import {
   formatInvoiceDate,
 } from '../../features/orders/invoiceViewMapper.js';
 import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
-import { fetchProductActiveRequest, POS_PRODUCT_SEARCH_FIELDS } from '../../features/products/productsAPI.js';
+import {
+  fetchProductActiveRequest,
+  POS_PRODUCT_SEARCH_FIELDS,
+} from '../../features/products/productsAPI.js';
 import {
   fetchUsersListRequest,
   formatUserOptionLabel,
@@ -32,10 +35,7 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
-import {
-  DEFAULT_USER_CITY,
-  DEFAULT_USER_STATE,
-} from '../../constants/pakistanLocations.js';
+import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
 import {
   extractPrinterSettingsFromCompanyBody,
   fetchCompanyById,
@@ -177,13 +177,18 @@ const ADD_CUSTOMER_INITIAL = {
   name: '',
   email: '',
   phone: '03',
+  area: '',
   city: DEFAULT_USER_CITY,
   state: DEFAULT_USER_STATE,
 };
 const INVOICE_ADD_CUSTOMER_MODAL_ID = 'posInvoiceAddCustomerModal';
 
 function parseInvoiceMoneyInput(raw) {
-  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(
+    String(raw ?? '')
+      .replace(/,/g, '')
+      .trim()
+  );
   return Number.isFinite(n) ? n : null;
 }
 
@@ -295,14 +300,7 @@ const normalizeOrderStatus = (value) => {
 const orderSnapshotMatchesId = (row, invoiceId) => {
   if (!row || typeof row !== 'object' || !invoiceId) return false;
   const id = String(invoiceId).trim();
-  const candidates = [
-    row._id,
-    row.id,
-    row.order_id,
-    row.orderId,
-    row.order_no,
-    row.orderNo,
-  ]
+  const candidates = [row._id, row.id, row.order_id, row.orderId, row.order_no, row.orderNo]
     .map((v) => (v != null ? String(v).trim() : ''))
     .filter(Boolean);
   return candidates.includes(id);
@@ -437,6 +435,7 @@ const PosInvoice = () => {
   const [invoiceDateTime, setInvoiceDateTime] = useState(nowDatetimeLocalValue);
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
+  const [showAddCustomerLocation, setShowAddCustomerLocation] = useState(false);
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [users, setUsers] = useState([]);
@@ -507,9 +506,7 @@ const PosInvoice = () => {
       sourceOrder.account_id ??
       '';
     setInvoicePosPayMethod(pm != null && String(pm).trim() !== '' ? String(pm).trim() : '');
-    setInvoiceDateTime(
-      toDatetimeLocalValue(sourceOrder.createdAt ?? sourceOrder.created_at)
-    );
+    setInvoiceDateTime(toDatetimeLocalValue(sourceOrder.createdAt ?? sourceOrder.created_at));
   }, [sourceOrder]);
 
   useEffect(() => {
@@ -887,13 +884,10 @@ const PosInvoice = () => {
           order_status: next,
           ...(fromStatus ? { from_status: fromStatus } : {}),
         });
-        const savedStatus =
-          normalizeOrderStatus(result?.data?.order?.order_status) || next;
+        const savedStatus = normalizeOrderStatus(result?.data?.order?.order_status) || next;
         setInvoiceOrderStatus(savedStatus);
         setSourceOrder((prev) =>
-          prev && typeof prev === 'object'
-            ? { ...prev, order_status: savedStatus }
-            : prev
+          prev && typeof prev === 'object' ? { ...prev, order_status: savedStatus } : prev
         );
         toast.success('Order status updated.');
       } catch (err) {
@@ -907,9 +901,7 @@ const PosInvoice = () => {
   );
 
   const canUpdateInvoice =
-    !isReadOnlyView &&
-    Boolean(sourceOrder) &&
-    (sourceOrder._id != null || sourceOrder.id != null);
+    !isReadOnlyView && Boolean(sourceOrder) && (sourceOrder._id != null || sourceOrder.id != null);
 
   const customerOptions = useMemo(() => {
     const walkIn = { value: '', label: 'Walk in (no customer)' };
@@ -931,6 +923,7 @@ const PosInvoice = () => {
     setAddCustomerForm(ADD_CUSTOMER_INITIAL);
     setAddCustomerErrors({});
     setCreateCustomerError('');
+    setShowAddCustomerLocation(false);
     const el = document.getElementById(INVOICE_ADD_CUSTOMER_MODAL_ID);
     if (el && window.bootstrap?.Modal) {
       const M = window.bootstrap.Modal;
@@ -1000,8 +993,9 @@ const PosInvoice = () => {
           phone: addCustomerForm.phone,
           password: POS_DEFAULT_CUSTOMER_PASSWORD,
           role: ['CUSTOMER'],
-          city: addCustomerForm.city,
-          state: addCustomerForm.state,
+          city: showAddCustomerLocation ? addCustomerForm.city : '',
+          state: showAddCustomerLocation ? addCustomerForm.state : '',
+          area: showAddCustomerLocation ? addCustomerForm.area : '',
         });
         const created = pickCreatedUserFromResponse(json);
         const newId = getUserOptionValue(created);
@@ -1019,13 +1013,17 @@ const PosInvoice = () => {
         let selectedId = newId || '';
         if (!selectedId && resolvedEmail) {
           const match = (Array.isArray(list) ? list : []).find(
-            (u) => String(u?.email || '').trim().toLowerCase() === resolvedEmail.toLowerCase()
+            (u) =>
+              String(u?.email || '')
+                .trim()
+                .toLowerCase() === resolvedEmail.toLowerCase()
           );
           selectedId = getUserOptionValue(match) || '';
         }
         if (selectedId) setInvoiceCustomerId(selectedId);
 
         setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+        setShowAddCustomerLocation(false);
         closeAddCustomerModal();
         toast.success('Customer added successfully.');
       } catch (err) {
@@ -1034,7 +1032,7 @@ const PosInvoice = () => {
         setCreateCustomerSubmitting(false);
       }
     },
-    [addCustomerForm, closeAddCustomerModal, users, validateAddCustomer]
+    [addCustomerForm, closeAddCustomerModal, showAddCustomerLocation, users, validateAddCustomer]
   );
 
   const billToDisplay = useMemo(() => {
@@ -1187,8 +1185,7 @@ const PosInvoice = () => {
     const pct = String(invoiceDiscountPercentInput ?? '').trim();
     const amt = String(invoiceDiscountInput ?? '').trim();
     const mode =
-      discountEditSourceRef.current ||
-      (pct !== '' ? 'percent' : amt !== '' ? 'amount' : null);
+      discountEditSourceRef.current || (pct !== '' ? 'percent' : amt !== '' ? 'amount' : null);
 
     if (mode === 'percent') {
       const pct = String(invoiceDiscountPercentInput).trim();
@@ -1270,10 +1267,7 @@ const PosInvoice = () => {
     if (lastEdit === 'amount' && hasAmtInput) {
       discount = Math.max(0, round2(amtParsed));
     } else if (hasPctInput) {
-      discount = Math.max(
-        0,
-        round2((Number(totalBeforeAdjust) || 0) * (discountPercentage / 100))
-      );
+      discount = Math.max(0, round2((Number(totalBeforeAdjust) || 0) * (discountPercentage / 100)));
     } else if (hasAmtInput) {
       discount = Math.max(0, round2(amtParsed));
     } else {
@@ -1473,8 +1467,7 @@ const PosInvoice = () => {
     const companyLabel = companyBrand?.name || shopName;
     const totalLabel = fmt(grossDisplay);
 
-    const greeting =
-      clientName && clientName !== '—' ? `Hello ${clientName},` : 'Hello,';
+    const greeting = clientName && clientName !== '—' ? `Hello ${clientName},` : 'Hello,';
     const message = [
       greeting,
       '',
@@ -2119,7 +2112,11 @@ const PosInvoice = () => {
                           <label className="form-label" htmlFor="pos-inv-add-product">
                             Add product
                           </label>
-                          <div className="pos-inv-segment" role="group" aria-label="Line item add order">
+                          <div
+                            className="pos-inv-segment"
+                            role="group"
+                            aria-label="Line item add order"
+                          >
                             <button
                               type="button"
                               className={`pos-inv-segment__btn${
@@ -2473,7 +2470,12 @@ const PosInvoice = () => {
                             <span
                               className="fw-semibold"
                               style={{
-                                color: totalDifference > 0 ? '#2dce89' : totalDifference < 0 ? '#f5365c' : undefined,
+                                color:
+                                  totalDifference > 0
+                                    ? '#2dce89'
+                                    : totalDifference < 0
+                                      ? '#f5365c'
+                                      : undefined,
                               }}
                             >
                               {formatSignedMoney(totalDifference)}
@@ -2510,7 +2512,9 @@ const PosInvoice = () => {
                                       style={{ maxWidth: 140 }}
                                       inputMode="decimal"
                                       value={invoiceAmountReceivedInput}
-                                      onChange={(e) => setInvoiceAmountReceivedInput(e.target.value)}
+                                      onChange={(e) =>
+                                        setInvoiceAmountReceivedInput(e.target.value)
+                                      }
                                       aria-label="Amount received"
                                     />
                                     <span className="d-none d-print-inline-block fw-semibold">
@@ -2709,11 +2713,21 @@ const PosInvoice = () => {
                   <PakistanCityStateFields
                     city={addCustomerForm.city}
                     state={addCustomerForm.state}
+                    area={addCustomerForm.area}
+                    includeArea
                     idPrefix="pos_inv_customer"
                     disabled={createCustomerSubmitting}
-                    className="mt-3 mb-0"
-                    onChange={({ city, state }) =>
-                      setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                    className="mb-0"
+                    showToggle
+                    showFields={showAddCustomerLocation}
+                    onShowFieldsChange={setShowAddCustomerLocation}
+                    onChange={({ city, state, area }) =>
+                      setAddCustomerForm((prev) => ({
+                        ...prev,
+                        city,
+                        state,
+                        ...(area !== undefined ? { area } : {}),
+                      }))
                     }
                   />
                   {createCustomerError ? (

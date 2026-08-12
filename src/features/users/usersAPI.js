@@ -83,6 +83,7 @@ function buildUserUpdateFields(payload = {}) {
     initial_balance:
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     address: pickOptionalStringField(payload, 'address'),
+    area: pickOptionalStringField(payload, 'area'),
     city: pickOptionalStringField(payload, 'city'),
     state: pickOptionalStringField(payload, 'state'),
     country: pickOptionalStringField(payload, 'country'),
@@ -135,7 +136,12 @@ export async function markUserAsDefaultVendorRequest(userId) {
 }
 
 export async function updateUserStatusRequest(userId, status) {
-  const normalized = String(status || '').trim().toLowerCase() === 'active' ? 'active' : 'inactive';
+  const normalized =
+    String(status || '')
+      .trim()
+      .toLowerCase() === 'active'
+      ? 'active'
+      : 'inactive';
   return patchUserFieldsRequest(userId, { status: normalized });
 }
 
@@ -213,6 +219,8 @@ export async function createCustomerUserRequest({
   phone,
   password,
   role,
+  address,
+  area,
   city,
   state,
   country,
@@ -224,7 +232,11 @@ export async function createCustomerUserRequest({
   }
 
   const roleList = (Array.isArray(role) ? role : role ? [role] : ['CUSTOMER'])
-    .map((r) => String(r || '').trim().toUpperCase())
+    .map((r) =>
+      String(r || '')
+        .trim()
+        .toUpperCase()
+    )
     .filter(Boolean);
   const roles = roleList.length > 0 ? roleList : ['CUSTOMER'];
 
@@ -234,9 +246,13 @@ export async function createCustomerUserRequest({
   formData.append('phone', String(phone || '').trim());
   formData.append('password', String(password || POS_DEFAULT_CUSTOMER_PASSWORD));
   formData.append('status', 'active');
+  const addressTrim = String(address || '').trim();
+  const areaTrim = String(area || '').trim();
   const cityTrim = String(city || '').trim();
   const stateTrim = String(state || '').trim();
   const countryTrim = String(country || '').trim() || (cityTrim || stateTrim ? 'Pakistan' : '');
+  if (addressTrim) formData.append('address', addressTrim);
+  if (areaTrim) formData.append('area', areaTrim);
   if (cityTrim) formData.append('city', cityTrim);
   if (stateTrim) formData.append('state', stateTrim);
   if (countryTrim) formData.append('country', countryTrim);
@@ -315,6 +331,7 @@ export async function fetchUsersRequest(params = {}) {
   if (params.role) query.set('role', String(params.role));
   if (params.state) query.set('state', String(params.state));
   if (params.city) query.set('city', String(params.city));
+  if (params.area) query.set('area', String(params.area));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
@@ -485,6 +502,7 @@ export async function createUserRequest(payload = {}) {
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     permissions,
     address: pickOptionalStringField(payload, 'address') ?? '',
+    area: pickOptionalStringField(payload, 'area') ?? '',
     city: pickOptionalStringField(payload, 'city') ?? '',
     state: pickOptionalStringField(payload, 'state') ?? '',
     country: pickOptionalStringField(payload, 'country') ?? '',

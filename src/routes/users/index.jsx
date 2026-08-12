@@ -12,6 +12,7 @@ import {
   setRoleFilter,
   setStateFilter,
   setCityFilter,
+  setAreaFilter,
   USER_LIST_ROLE_TABS,
 } from '../../features/users/usersSlice.js';
 import { isDefaultCustomerUser, isDefaultVendorUser } from '../../features/users/usersAPI.js';
@@ -20,10 +21,12 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import { getPakistanAreas } from '../../constants/pakistanAreas.js';
 import {
   PAKISTAN_STATES,
   getPakistanCities,
   getStateForCity,
+  withCurrentOption,
 } from '../../constants/pakistanLocations.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -61,6 +64,7 @@ const USER_COLUMNS = [
   { key: 'phone', label: 'Phone' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
+  { key: 'area', label: 'Area' },
   { key: 'role', label: 'Role' },
   { key: 'balance', label: 'Balance' },
   { key: 'permissions', label: 'Permissions' },
@@ -82,6 +86,7 @@ const Users = () => {
     roleFilter,
     stateFilter = '',
     cityFilter = '',
+    areaFilter = '',
   } = useSelector((state) => state.users);
 
   const activeRoleTab = useMemo(
@@ -110,6 +115,7 @@ const Users = () => {
     if (activeRoleTab.role) params.role = activeRoleTab.role;
     if (stateFilter) params.state = stateFilter;
     if (cityFilter) params.city = cityFilter;
+    if (areaFilter) params.area = areaFilter;
     dispatch(fetchUsers(params));
   }, [
     dispatch,
@@ -121,6 +127,7 @@ const Users = () => {
     activeRoleTab.role,
     stateFilter,
     cityFilter,
+    areaFilter,
   ]);
 
   useEffect(() => {
@@ -197,6 +204,17 @@ const Users = () => {
     ];
   }, [stateFilter]);
 
+  const areaFilterOptions = useMemo(() => {
+    if (!cityFilter) {
+      return [{ value: '', label: 'All areas' }];
+    }
+    const areas = withCurrentOption(getPakistanAreas(cityFilter), areaFilter);
+    return [
+      { value: '', label: 'All areas' },
+      ...areas.map((item) => ({ value: item, label: item })),
+    ];
+  }, [cityFilter, areaFilter]);
+
   const handleStateFilterChange = (nextState) => {
     dispatch(setStateFilter(nextState));
     if (cityFilter) {
@@ -204,12 +222,24 @@ const Users = () => {
       const stillValid = cities.some(
         (item) => item.toLowerCase() === String(cityFilter).toLowerCase()
       );
-      if (!stillValid) dispatch(setCityFilter(''));
+      if (!stillValid) {
+        dispatch(setCityFilter(''));
+        dispatch(setAreaFilter(''));
+      }
     }
   };
 
   const handleCityFilterChange = (nextCity) => {
     dispatch(setCityFilter(nextCity));
+    if (!nextCity) {
+      dispatch(setAreaFilter(''));
+    } else if (areaFilter) {
+      const areas = getPakistanAreas(nextCity);
+      const areaStillValid = areas.some(
+        (item) => item.toLowerCase() === String(areaFilter).toLowerCase()
+      );
+      if (!areaStillValid) dispatch(setAreaFilter(''));
+    }
     if (nextCity && !stateFilter) {
       const matchedState = getStateForCity(nextCity);
       if (matchedState) dispatch(setStateFilter(matchedState));
@@ -239,25 +269,30 @@ const Users = () => {
   const filteredData = useMemo(() => {
     const stateNeedle = String(stateFilter || '').trim().toLowerCase();
     const cityNeedle = String(cityFilter || '').trim().toLowerCase();
-    if (!stateNeedle && !cityNeedle) return data;
+    const areaNeedle = String(areaFilter || '').trim().toLowerCase();
+    if (!stateNeedle && !cityNeedle && !areaNeedle) return data;
     return data.filter((user) => {
       const userState = String(user?.state || '').trim().toLowerCase();
       const userCity = String(user?.city || '').trim().toLowerCase();
+      const userArea = String(user?.area || '').trim().toLowerCase();
       if (stateNeedle && userState !== stateNeedle) return false;
       if (cityNeedle && userCity !== cityNeedle) return false;
+      if (areaNeedle && userArea !== areaNeedle) return false;
       return true;
     });
-  }, [data, stateFilter, cityFilter]);
+  }, [data, stateFilter, cityFilter, areaFilter]);
 
   const emptyMessage = useMemo(() => {
     const locationHint =
-      stateFilter || cityFilter ? ' Try a different state or city filter.' : '';
+      stateFilter || cityFilter || areaFilter
+        ? ' Try a different state, city, or area filter.'
+        : '';
     if (activeRoleTab.id === 'customer')
       return `No customers found. Try adjusting your search.${locationHint}`;
     if (activeRoleTab.id === 'vendor')
       return `No vendors found. Try adjusting your search.${locationHint}`;
     return `No users found. Try adjusting your search.${locationHint}`;
-  }, [activeRoleTab.id, stateFilter, cityFilter]);
+  }, [activeRoleTab.id, stateFilter, cityFilter, areaFilter]);
 
   const searchPlaceholder = useMemo(() => {
     if (activeRoleTab.id === 'customer') return 'Search customers…';
@@ -329,6 +364,17 @@ const Users = () => {
                         onChange={handleCityFilterChange}
                       />
                     </div>
+                    <div className="users-location-filter">
+                      <SearchableSelect
+                        id="users-filter-area"
+                        options={areaFilterOptions}
+                        value={areaFilter}
+                        placeholder={cityFilter ? 'All areas' : 'Select city first'}
+                        searchPlaceholder="Search area…"
+                        disabled={!cityFilter}
+                        onChange={(nextArea) => dispatch(setAreaFilter(nextArea))}
+                      />
+                    </div>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -392,6 +438,9 @@ const Users = () => {
                       {isVisible('state')
                         ? sortableTh('state', 'State', 'list-col-truncate-sm')
                         : null}
+                      {isVisible('area')
+                        ? sortableTh('area', 'Area', 'list-col-truncate-sm')
+                        : null}
                       {isVisible('role') ? <th className="list-col-user-roles">Role</th> : null}
                       {isVisible('balance')
                         ? sortableTh('initial_balance', 'Balance', 'text-end list-col-amount')
@@ -433,6 +482,7 @@ const Users = () => {
                         const phone = userPhoneDisplay(item);
                         const city = String(item.city || '').trim() || '—';
                         const state = String(item.state || '').trim() || '—';
+                        const area = String(item.area || '').trim() || '—';
                         const created = item.createdAt ?? item.created_at ?? item.created;
                         const updated = item.updatedAt ?? item.updated_at ?? item.updated;
                         return (
@@ -509,6 +559,14 @@ const Users = () => {
                                 title={state !== '—' ? state : undefined}
                               >
                                 {state}
+                              </td>
+                            ) : null}
+                            {isVisible('area') ? (
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={area !== '—' ? area : undefined}
+                              >
+                                {area}
                               </td>
                             ) : null}
                             {isVisible('role') ? <td>{renderRoleCell(item.role)}</td> : null}

@@ -65,6 +65,18 @@ const UserAddressFields = ({ form, setForm, idPrefix, disabled = false }) => {
         />
       </div>
       <div className="col-md-6">
+        <label className="user-form-label d-block" htmlFor={`${idPrefix}-area`}>
+          Area
+        </label>
+        <input
+          id={`${idPrefix}-area`}
+          className="form-control user-form-control"
+          value={form.area}
+          onChange={(e) => setForm((prev) => ({ ...prev, area: e.target.value }))}
+          disabled={disabled}
+        />
+      </div>
+      <div className="col-md-6">
         <label className="user-form-label d-block" htmlFor={`${idPrefix}-country`}>
           Country
         </label>

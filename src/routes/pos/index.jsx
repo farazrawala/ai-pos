@@ -87,16 +87,14 @@ import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
-import {
-  DEFAULT_USER_CITY,
-  DEFAULT_USER_STATE,
-} from '../../constants/pakistanLocations.js';
+import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
 import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = {
   name: '',
   email: '',
   phone: '03',
+  area: '',
   city: DEFAULT_USER_CITY,
   state: DEFAULT_USER_STATE,
 };
@@ -865,6 +863,7 @@ const Pos = () => {
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
+  const [showAddCustomerLocation, setShowAddCustomerLocation] = useState(false);
   const [createCustomerSubmitting, setCreateCustomerSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
@@ -1861,10 +1860,9 @@ const Pos = () => {
     if (entered === null) return;
     const label = String(entered).trim() || suggested;
     const payload = buildDraftPayload();
-    const selectedCustomer =
-      selectedCustomerId
-        ? users.find((u) => getUserOptionValue(u) === selectedCustomerId)
-        : null;
+    const selectedCustomer = selectedCustomerId
+      ? users.find((u) => getUserOptionValue(u) === selectedCustomerId)
+      : null;
     payload.customerName = selectedCustomer
       ? formatUserOptionLabel(selectedCustomer) || 'Customer'
       : 'Walk in';
@@ -2213,6 +2211,7 @@ const Pos = () => {
     );
     setAddCustomerErrors({});
     setCreateCustomerError('');
+    setShowAddCustomerLocation(false);
     setCustomerMenuOpen(false);
     const el = document.getElementById('posAddCustomerModal');
     if (el && window.bootstrap?.Modal) {
@@ -2281,8 +2280,9 @@ const Pos = () => {
         phone: addCustomerForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
         role: ['CUSTOMER'],
-        city: addCustomerForm.city,
-        state: addCustomerForm.state,
+        city: showAddCustomerLocation ? addCustomerForm.city : '',
+        state: showAddCustomerLocation ? addCustomerForm.state : '',
+        area: showAddCustomerLocation ? addCustomerForm.area : '',
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);
@@ -2291,6 +2291,7 @@ const Pos = () => {
         fallbackEmail: newId ? undefined : resolvedEmail,
       });
       setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+      setShowAddCustomerLocation(false);
       closeAddCustomerModal();
     } catch (err) {
       console.error('[POS] Create customer failed', err);
@@ -2987,11 +2988,21 @@ const Pos = () => {
                 <PakistanCityStateFields
                   city={addCustomerForm.city}
                   state={addCustomerForm.state}
+                  area={addCustomerForm.area}
+                  includeArea
                   idPrefix="pos_customer"
                   disabled={createCustomerSubmitting}
                   className="mb-0"
-                  onChange={({ city, state }) =>
-                    setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                  showToggle
+                  showFields={showAddCustomerLocation}
+                  onShowFieldsChange={setShowAddCustomerLocation}
+                  onChange={({ city, state, area }) =>
+                    setAddCustomerForm((prev) => ({
+                      ...prev,
+                      city,
+                      state,
+                      ...(area !== undefined ? { area } : {}),
+                    }))
                   }
                 />
 

@@ -94,12 +94,11 @@ order status sync to stores
 
 
 // 10 august.
+
+P1 :: Postex :: tracking part
+
 Tcs :: live token testing
 Leopard :: not started.
-Postex :: waiting for reply
 
 Address incomplete :: initial done.
 order scrapping :: not started
-
-Bigcommerce request part 
-Strategy of big commerce product update.

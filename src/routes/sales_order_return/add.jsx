@@ -34,10 +34,7 @@ import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
-import {
-  DEFAULT_USER_CITY,
-  DEFAULT_USER_STATE,
-} from '../../constants/pakistanLocations.js';
+import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const fmt = (n) =>
@@ -173,6 +170,7 @@ const ADD_CUSTOMER_INITIAL = {
   name: '',
   email: '',
   phone: '03',
+  area: '',
   city: DEFAULT_USER_CITY,
   state: DEFAULT_USER_STATE,
 };
@@ -249,6 +247,7 @@ const SalesReturnAdd = () => {
   const [usersError, setUsersError] = useState(null);
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
+  const [showAddCustomerLocation, setShowAddCustomerLocation] = useState(false);
   const [createCustomerSubmitting, setCreateVendorSubmitting] = useState(false);
   const [createCustomerError, setCreateCustomerError] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
@@ -371,8 +370,7 @@ const SalesReturnAdd = () => {
 
   useEffect(() => {
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
     if (!companyId) return undefined;
 
     let cancelled = false;
@@ -527,26 +525,29 @@ const SalesReturnAdd = () => {
     [defaultWarehouseId]
   );
 
-  const findExactProductForScan = useCallback(async (query) => {
-    const q = String(query ?? '').trim();
-    if (!q) return null;
+  const findExactProductForScan = useCallback(
+    async (query) => {
+      const q = String(query ?? '').trim();
+      if (!q) return null;
 
-    const fromResults = pickScannedProduct(addProductResults, q);
-    if (fromResults) return fromResults;
+      const fromResults = pickScannedProduct(addProductResults, q);
+      if (fromResults) return fromResults;
 
-    try {
-      const res = await fetchProductActiveRequest({
-        search: q,
-        searchFields: POS_PRODUCT_SEARCH_FIELDS,
-        page: 1,
-        limit: 50,
-      });
-      return pickScannedProduct(Array.isArray(res?.data) ? res.data : [], q);
-    } catch (err) {
-      console.warn('[Sales return add] Barcode lookup failed', err);
-      return null;
-    }
-  }, [addProductResults]);
+      try {
+        const res = await fetchProductActiveRequest({
+          search: q,
+          searchFields: POS_PRODUCT_SEARCH_FIELDS,
+          page: 1,
+          limit: 50,
+        });
+        return pickScannedProduct(Array.isArray(res?.data) ? res.data : [], q);
+      } catch (err) {
+        console.warn('[Sales return add] Barcode lookup failed', err);
+        return null;
+      }
+    },
+    [addProductResults]
+  );
 
   const handleProductSearchKeyDown = useCallback(
     async (e) => {
@@ -655,8 +656,7 @@ const SalesReturnAdd = () => {
     let settings = printerSettings;
     let brand = companyBrand;
     const companyId =
-      getCompanyIdFromUser(authUser) ||
-      String(authCompany?._id ?? authCompany?.id ?? '').trim();
+      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
 
     if (companyId) {
       try {
@@ -664,9 +664,7 @@ const SalesReturnAdd = () => {
         const company = getCompanyFromApiBody(body);
         if (company && typeof company === 'object') {
           const merged = mergeCompanyRecordForSettings(company, authCompany);
-          settings = mergePrinterSettings(
-            extractPrinterSettingsFromCompanyBody({ data: merged })
-          );
+          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
           brand = {
             name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
             phone: String(merged?.company_phone || merged?.phone || '').trim(),
@@ -867,6 +865,7 @@ const SalesReturnAdd = () => {
     );
     setAddCustomerErrors({});
     setCreateCustomerError('');
+    setShowAddCustomerLocation(false);
     setCustomerMenuOpen(false);
     const el = document.getElementById('srAddCustomerModal');
     if (el && window.bootstrap?.Modal) {
@@ -935,8 +934,9 @@ const SalesReturnAdd = () => {
         phone: addCustomerForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
         role: ['CUSTOMER'],
-        city: addCustomerForm.city,
-        state: addCustomerForm.state,
+        city: showAddCustomerLocation ? addCustomerForm.city : '',
+        state: showAddCustomerLocation ? addCustomerForm.state : '',
+        area: showAddCustomerLocation ? addCustomerForm.area : '',
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);
@@ -945,6 +945,7 @@ const SalesReturnAdd = () => {
         fallbackEmail: newId ? undefined : resolvedEmail,
       });
       setAddCustomerForm(ADD_CUSTOMER_INITIAL);
+      setShowAddCustomerLocation(false);
       closeAddCustomerModal();
       toast.success('Customer created and selected.');
     } catch (err) {
@@ -1696,11 +1697,21 @@ const SalesReturnAdd = () => {
                 <PakistanCityStateFields
                   city={addCustomerForm.city}
                   state={addCustomerForm.state}
+                  area={addCustomerForm.area}
+                  includeArea
                   idPrefix="sr_customer"
                   disabled={createCustomerSubmitting}
                   className="mb-0"
-                  onChange={({ city, state }) =>
-                    setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                  showToggle
+                  showFields={showAddCustomerLocation}
+                  onShowFieldsChange={setShowAddCustomerLocation}
+                  onChange={({ city, state, area }) =>
+                    setAddCustomerForm((prev) => ({
+                      ...prev,
+                      city,
+                      state,
+                      ...(area !== undefined ? { area } : {}),
+                    }))
                   }
                 />
 
