@@ -16,9 +16,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  * }} props
  */
 export default function SearchableSelect({
+  id,
   options = [],
   value,
   placeholder = 'Select…',
+  searchPlaceholder = 'Search…',
+  className = '',
   disabled = false,
   loading = false,
   filterLocally = true,
@@ -86,9 +89,10 @@ export default function SearchableSelect({
     <div ref={wrapRef} className="position-relative">
       <button
         type="button"
+        id={id}
         className={`form-select text-start d-flex align-items-center justify-content-between text-sm ${
           !display ? 'text-muted' : ''
-        }`}
+        } ${className}`.trim()}
         disabled={disabled}
         onClick={handleToggle}
         aria-expanded={open}
@@ -111,10 +115,11 @@ export default function SearchableSelect({
             <input
               type="text"
               className="form-control border-start-0 ps-0 text-sm"
-              placeholder="Search…"
+              placeholder={searchPlaceholder}
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
               autoComplete="off"
+              autoFocus
             />
           </div>
           <div className="overflow-auto" style={{ maxHeight: 220 }}>

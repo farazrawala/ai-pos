@@ -28,6 +28,11 @@ import {
   resolveDefaultExpenseListFilterIds,
 } from '../../features/expenses/expensesAPI.js';
 import { getCompanyIdFromUser } from '../../features/company/companyAPI.js';
+import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
+import {
+  DEFAULT_USER_CITY,
+  DEFAULT_USER_STATE,
+} from '../../constants/pakistanLocations.js';
 import {
   PO_STATUS_OPTIONS,
   PO_LINE_ORDER_FIFO,
@@ -203,7 +208,13 @@ const normalizeProductDetail = (result) => {
 
 const newLineKey = () => `po-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-const ADD_VENDOR_INITIAL = { name: '', email: '', phone: '03' };
+const ADD_VENDOR_INITIAL = {
+  name: '',
+  email: '',
+  phone: '03',
+  city: DEFAULT_USER_CITY,
+  state: DEFAULT_USER_STATE,
+};
 
 const emptyForm = () => ({
   purchase_order_no: '',
@@ -923,6 +934,8 @@ const PurchaseOrderAdd = () => {
         phone: addVendorForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
         role: ['VENDOR'],
+        city: addVendorForm.city,
+        state: addVendorForm.state,
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);
@@ -1932,6 +1945,16 @@ const PurchaseOrderAdd = () => {
                     <div className="invalid-feedback d-block">{addVendorErrors.email}</div>
                   )}
                 </div>
+                <PakistanCityStateFields
+                  city={addVendorForm.city}
+                  state={addVendorForm.state}
+                  idPrefix="po_vendor"
+                  disabled={createVendorSubmitting}
+                  className="mb-0"
+                  onChange={({ city, state }) =>
+                    setAddVendorForm((prev) => ({ ...prev, city, state }))
+                  }
+                />
 
                 {createVendorError && (
                   <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">

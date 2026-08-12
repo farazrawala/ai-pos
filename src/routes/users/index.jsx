@@ -10,6 +10,8 @@ import {
   setLimit,
   setSort,
   setRoleFilter,
+  setStateFilter,
+  setCityFilter,
   USER_LIST_ROLE_TABS,
 } from '../../features/users/usersSlice.js';
 import { isDefaultCustomerUser, isDefaultVendorUser } from '../../features/users/usersAPI.js';
@@ -17,6 +19,12 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import {
+  PAKISTAN_STATES,
+  getPakistanCities,
+  getStateForCity,
+} from '../../constants/pakistanLocations.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import UsersPermissionsCell from '../../components/UsersPermissionsCell.jsx';
@@ -54,6 +62,8 @@ const Users = () => {
     search: searchTerm,
     sort,
     roleFilter,
+    stateFilter = '',
+    cityFilter = '',
   } = useSelector((state) => state.users);
 
   const activeRoleTab = useMemo(
@@ -79,6 +89,8 @@ const Users = () => {
       params.sortOrder = sort.sortOrder;
     }
     if (activeRoleTab.role) params.role = activeRoleTab.role;
+    if (stateFilter) params.state = stateFilter;
+    if (cityFilter) params.city = cityFilter;
     dispatch(fetchUsers(params));
   }, [
     dispatch,
@@ -88,6 +100,8 @@ const Users = () => {
     sort.sortBy,
     sort.sortOrder,
     activeRoleTab.role,
+    stateFilter,
+    cityFilter,
   ]);
 
   useEffect(() => {
@@ -144,6 +158,45 @@ const Users = () => {
     dispatch(setRoleFilter(tabId));
   };
 
+  const stateFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'All states' },
+      ...PAKISTAN_STATES.map((state) => ({ value: state, label: state })),
+    ],
+    []
+  );
+
+  const cityFilterOptions = useMemo(() => {
+    const cities = getPakistanCities(stateFilter);
+    return [
+      { value: '', label: 'All cities' },
+      ...cities.map((city) => ({
+        value: city,
+        label: city,
+        subLabel: stateFilter ? undefined : getStateForCity(city) || undefined,
+      })),
+    ];
+  }, [stateFilter]);
+
+  const handleStateFilterChange = (nextState) => {
+    dispatch(setStateFilter(nextState));
+    if (cityFilter) {
+      const cities = getPakistanCities(nextState);
+      const stillValid = cities.some(
+        (item) => item.toLowerCase() === String(cityFilter).toLowerCase()
+      );
+      if (!stillValid) dispatch(setCityFilter(''));
+    }
+  };
+
+  const handleCityFilterChange = (nextCity) => {
+    dispatch(setCityFilter(nextCity));
+    if (nextCity && !stateFilter) {
+      const matchedState = getStateForCity(nextCity);
+      if (matchedState) dispatch(setStateFilter(matchedState));
+    }
+  };
+
   const handleToggleStatus = async (userId, isCurrentlyActive) => {
     if (!userId || !canEdit || togglingUserId) return;
     const nextStatus = isCurrentlyActive ? 'inactive' : 'active';
@@ -164,11 +217,28 @@ const Users = () => {
     }
   };
 
+  const filteredData = useMemo(() => {
+    const stateNeedle = String(stateFilter || '').trim().toLowerCase();
+    const cityNeedle = String(cityFilter || '').trim().toLowerCase();
+    if (!stateNeedle && !cityNeedle) return data;
+    return data.filter((user) => {
+      const userState = String(user?.state || '').trim().toLowerCase();
+      const userCity = String(user?.city || '').trim().toLowerCase();
+      if (stateNeedle && userState !== stateNeedle) return false;
+      if (cityNeedle && userCity !== cityNeedle) return false;
+      return true;
+    });
+  }, [data, stateFilter, cityFilter]);
+
   const emptyMessage = useMemo(() => {
-    if (activeRoleTab.id === 'customer') return 'No customers found. Try adjusting your search.';
-    if (activeRoleTab.id === 'vendor') return 'No vendors found. Try adjusting your search.';
-    return 'No users found. Try adjusting your search.';
-  }, [activeRoleTab.id]);
+    const locationHint =
+      stateFilter || cityFilter ? ' Try a different state or city filter.' : '';
+    if (activeRoleTab.id === 'customer')
+      return `No customers found. Try adjusting your search.${locationHint}`;
+    if (activeRoleTab.id === 'vendor')
+      return `No vendors found. Try adjusting your search.${locationHint}`;
+    return `No users found. Try adjusting your search.${locationHint}`;
+  }, [activeRoleTab.id, stateFilter, cityFilter]);
 
   const searchPlaceholder = useMemo(() => {
     if (activeRoleTab.id === 'customer') return 'Search customers…';
@@ -213,6 +283,26 @@ const Users = () => {
                 </div>
                 <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="users-location-filter">
+                      <SearchableSelect
+                        id="users-filter-state"
+                        options={stateFilterOptions}
+                        value={stateFilter}
+                        placeholder="All states"
+                        searchPlaceholder="Search state…"
+                        onChange={handleStateFilterChange}
+                      />
+                    </div>
+                    <div className="users-location-filter">
+                      <SearchableSelect
+                        id="users-filter-city"
+                        options={cityFilterOptions}
+                        value={cityFilter}
+                        placeholder="All cities"
+                        searchPlaceholder="Search city…"
+                        onChange={handleCityFilterChange}
+                      />
+                    </div>
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -268,6 +358,8 @@ const Users = () => {
                       {sortableTh('name', 'Name', 'list-col-truncate')}
                       {sortableTh('email', 'Email', 'list-col-truncate')}
                       <th className="list-col-truncate-sm">Phone</th>
+                      {sortableTh('city', 'City', 'list-col-truncate-sm')}
+                      {sortableTh('state', 'State', 'list-col-truncate-sm')}
                       <th className="list-col-user-roles">Role</th>
                       {sortableTh('initial_balance', 'Balance', 'text-end list-col-amount')}
                       <th className="list-col-permissions">Permissions</th>
@@ -277,14 +369,14 @@ const Users = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.length === 0 ? (
+                    {filteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="text-center py-5 text-muted">
+                        <td colSpan={13} className="text-center py-5 text-muted">
                           {emptyMessage}
                         </td>
                       </tr>
                     ) : (
-                      data.map((item, index) => {
+                      filteredData.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const key = item._id || item.id || index;
                         const isActive = String(item.status || '').toLowerCase() === 'active';
@@ -297,6 +389,8 @@ const Users = () => {
                           item.name || item.fullName || item.username || '—';
                         const email = String(item.email || '').trim() || '—';
                         const phone = userPhoneDisplay(item);
+                        const city = String(item.city || '').trim() || '—';
+                        const state = String(item.state || '').trim() || '—';
                         const created = item.createdAt ?? item.created_at ?? item.created;
                         const updated = item.updatedAt ?? item.updated_at ?? item.updated;
                         return (
@@ -348,6 +442,18 @@ const Users = () => {
                               title={phone !== '—' ? phone : undefined}
                             >
                               {phone}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate-sm"
+                              title={city !== '—' ? city : undefined}
+                            >
+                              {city}
+                            </td>
+                            <td
+                              className="text-sm list-cell-truncate-sm"
+                              title={state !== '—' ? state : undefined}
+                            >
+                              {state}
                             </td>
                             <td>{renderRoleCell(item.role)}</td>
                             <td

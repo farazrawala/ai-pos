@@ -96,6 +96,8 @@ const initialState = {
   },
   search: '',
   roleFilter: 'users',
+  stateFilter: '',
+  cityFilter: '',
   sort: {
     sortBy: null,
     sortOrder: 'asc',
@@ -125,6 +127,14 @@ const usersSlice = createSlice({
     },
     setRoleFilter: (state, action) => {
       state.roleFilter = action.payload;
+      state.pagination.page = 1;
+    },
+    setStateFilter: (state, action) => {
+      state.stateFilter = String(action.payload || '');
+      state.pagination.page = 1;
+    },
+    setCityFilter: (state, action) => {
+      state.cityFilter = String(action.payload || '');
       state.pagination.page = 1;
     },
     setPage: (state, action) => {
@@ -299,6 +309,8 @@ export const {
   clearError,
   setSearch,
   setRoleFilter,
+  setStateFilter,
+  setCityFilter,
   setPage,
   setLimit,
   setSort,

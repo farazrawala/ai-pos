@@ -12,6 +12,8 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import { DEFAULT_USER_COUNTRY } from '../../constants/pakistanLocations.js';
+import UserAddressFields from '../../components/users/UserAddressFields.jsx';
 import './user-form.css';
 
 const normalizePermissions = (input) => {
@@ -65,6 +67,11 @@ const EditUser = () => {
     password: '',
     initial_balance: '0',
     status: 'active',
+    address: '',
+    city: '',
+    state: '',
+    country: DEFAULT_USER_COUNTRY,
+    zip_code: '',
     role: ['USER'],
     permissions: normalizePermissions(null),
   });
@@ -120,6 +127,11 @@ const EditUser = () => {
       password: '',
       initial_balance: '0',
       status: 'active',
+      address: '',
+      city: '',
+      state: '',
+      country: DEFAULT_USER_COUNTRY,
+      zip_code: '',
       role: ['USER'],
       permissions: normalizePermissions(null),
     });
@@ -151,6 +163,11 @@ const EditUser = () => {
         currentUser.opening_balance ??
         0,
       status: currentUser.status || 'active',
+      address: currentUser.address || '',
+      city: currentUser.city || '',
+      state: currentUser.state || '',
+      country: currentUser.country || DEFAULT_USER_COUNTRY,
+      zip_code: currentUser.zip_code || currentUser.zipCode || '',
       role: Array.isArray(currentUser.role)
         ? currentUser.role
         : currentUser.role
@@ -301,6 +318,11 @@ const EditUser = () => {
             role: form.role,
             permissions: form.permissions,
             status: form.status,
+            address: form.address.trim(),
+            city: form.city.trim(),
+            state: form.state.trim(),
+            country: form.country.trim(),
+            zip_code: form.zip_code.trim(),
             profile_image: isUserUploadFilePart(profileImageFile) ? profileImageFile : undefined,
           },
         })
@@ -543,6 +565,20 @@ const EditUser = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="user-form-section mt-3">
+              <div className="user-form-section-title">
+                <i className="fas fa-location-dot text-primary" aria-hidden="true" />
+                Address
+              </div>
+              <p className="user-form-section-hint">Optional location details for this user.</p>
+              <UserAddressFields
+                form={form}
+                setForm={setForm}
+                idPrefix="user-edit"
+                disabled={isSubmitting}
+              />
             </div>
 
             <div className="user-form-section mt-3">

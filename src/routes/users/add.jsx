@@ -6,6 +6,12 @@ import { createUser, clearCreateStatus } from '../../features/users/usersSlice.j
 import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import {
+  DEFAULT_USER_CITY,
+  DEFAULT_USER_COUNTRY,
+  DEFAULT_USER_STATE,
+} from '../../constants/pakistanLocations.js';
+import UserAddressFields from '../../components/users/UserAddressFields.jsx';
 import './user-form.css';
 
 /** Backend accepts multiple `role[]` values on create user. */
@@ -43,6 +49,11 @@ const AddUser = () => {
     password: '',
     initial_balance: '0',
     status: 'active',
+    address: '',
+    city: DEFAULT_USER_CITY,
+    state: DEFAULT_USER_STATE,
+    country: DEFAULT_USER_COUNTRY,
+    zip_code: '',
     role: ['USER'],
     permissions: buildInitialPermissions(),
   });
@@ -200,6 +211,11 @@ const AddUser = () => {
           role: form.role,
           permissions: form.permissions,
           status: form.status,
+          address: form.address.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          country: form.country.trim(),
+          zip_code: form.zip_code.trim(),
           profile_image: isUserUploadFilePart(profileImageFile) ? profileImageFile : undefined,
         })
       ).unwrap();
@@ -403,6 +419,20 @@ const AddUser = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="user-form-section mt-3">
+              <div className="user-form-section-title">
+                <i className="fas fa-location-dot text-primary" aria-hidden="true" />
+                Address
+              </div>
+              <p className="user-form-section-hint">Optional location details for this user.</p>
+              <UserAddressFields
+                form={form}
+                setForm={setForm}
+                idPrefix="user-add"
+                disabled={isSubmitting}
+              />
             </div>
 
             <div className="user-form-section mt-3">

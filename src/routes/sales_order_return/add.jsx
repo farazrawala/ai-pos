@@ -33,6 +33,11 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
+import {
+  DEFAULT_USER_CITY,
+  DEFAULT_USER_STATE,
+} from '../../constants/pakistanLocations.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 
 const fmt = (n) =>
@@ -164,7 +169,13 @@ const normalizeProductDetail = (result) => {
 
 const newLineKey = () => `po-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+const ADD_CUSTOMER_INITIAL = {
+  name: '',
+  email: '',
+  phone: '03',
+  city: DEFAULT_USER_CITY,
+  state: DEFAULT_USER_STATE,
+};
 
 const emptyForm = () => ({
   sales_order_no: '',
@@ -924,6 +935,8 @@ const SalesReturnAdd = () => {
         phone: addCustomerForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
         role: ['CUSTOMER'],
+        city: addCustomerForm.city,
+        state: addCustomerForm.state,
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);
@@ -1680,6 +1693,16 @@ const SalesReturnAdd = () => {
                     <div className="invalid-feedback d-block">{addCustomerErrors.email}</div>
                   )}
                 </div>
+                <PakistanCityStateFields
+                  city={addCustomerForm.city}
+                  state={addCustomerForm.state}
+                  idPrefix="sr_customer"
+                  disabled={createCustomerSubmitting}
+                  className="mb-0"
+                  onChange={({ city, state }) =>
+                    setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                  }
+                />
 
                 {createCustomerError && (
                   <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">

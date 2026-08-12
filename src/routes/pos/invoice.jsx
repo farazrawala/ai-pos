@@ -31,6 +31,11 @@ import {
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
+import {
+  DEFAULT_USER_CITY,
+  DEFAULT_USER_STATE,
+} from '../../constants/pakistanLocations.js';
 import {
   extractPrinterSettingsFromCompanyBody,
   fetchCompanyById,
@@ -168,7 +173,13 @@ const DEMO_INVOICE = {
 
 const fmt = formatInvoiceMoney;
 
-const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+const ADD_CUSTOMER_INITIAL = {
+  name: '',
+  email: '',
+  phone: '03',
+  city: DEFAULT_USER_CITY,
+  state: DEFAULT_USER_STATE,
+};
 const INVOICE_ADD_CUSTOMER_MODAL_ID = 'posInvoiceAddCustomerModal';
 
 function parseInvoiceMoneyInput(raw) {
@@ -989,6 +1000,8 @@ const PosInvoice = () => {
           phone: addCustomerForm.phone,
           password: POS_DEFAULT_CUSTOMER_PASSWORD,
           role: ['CUSTOMER'],
+          city: addCustomerForm.city,
+          state: addCustomerForm.state,
         });
         const created = pickCreatedUserFromResponse(json);
         const newId = getUserOptionValue(created);
@@ -2693,6 +2706,16 @@ const PosInvoice = () => {
                       <div className="invalid-feedback d-block">{addCustomerErrors.email}</div>
                     ) : null}
                   </div>
+                  <PakistanCityStateFields
+                    city={addCustomerForm.city}
+                    state={addCustomerForm.state}
+                    idPrefix="pos_inv_customer"
+                    disabled={createCustomerSubmitting}
+                    className="mt-3 mb-0"
+                    onChange={({ city, state }) =>
+                      setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                    }
+                  />
                   {createCustomerError ? (
                     <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">
                       {createCustomerError}

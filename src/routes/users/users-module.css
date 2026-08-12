@@ -1,3 +1,15 @@
+.users-location-filter {
+  min-width: 150px;
+  max-width: 180px;
+  flex: 1 1 150px;
+}
+
+.users-location-filter .form-select {
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
 .users-role-tabs .nav-link {
   border: none;
   color: #67748e;

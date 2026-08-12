@@ -86,9 +86,20 @@ import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
+import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
+import {
+  DEFAULT_USER_CITY,
+  DEFAULT_USER_STATE,
+} from '../../constants/pakistanLocations.js';
 import './pos-module.css';
 
-const ADD_CUSTOMER_INITIAL = { name: '', email: '', phone: '03' };
+const ADD_CUSTOMER_INITIAL = {
+  name: '',
+  email: '',
+  phone: '03',
+  city: DEFAULT_USER_CITY,
+  state: DEFAULT_USER_STATE,
+};
 const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
 const POS_CART_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
 const POS_CART_ORDER_FIFO = 'fifo';
@@ -2270,6 +2281,8 @@ const Pos = () => {
         phone: addCustomerForm.phone,
         password: POS_DEFAULT_CUSTOMER_PASSWORD,
         role: ['CUSTOMER'],
+        city: addCustomerForm.city,
+        state: addCustomerForm.state,
       });
       const created = pickCreatedUserFromResponse(json);
       const newId = getUserOptionValue(created);
@@ -2971,6 +2984,16 @@ const Pos = () => {
                     <div className="invalid-feedback d-block">{addCustomerErrors.email}</div>
                   )}
                 </div>
+                <PakistanCityStateFields
+                  city={addCustomerForm.city}
+                  state={addCustomerForm.state}
+                  idPrefix="pos_customer"
+                  disabled={createCustomerSubmitting}
+                  className="mb-0"
+                  onChange={({ city, state }) =>
+                    setAddCustomerForm((prev) => ({ ...prev, city, state }))
+                  }
+                />
 
                 {createCustomerError && (
                   <div className="alert alert-danger text-sm mt-3 mb-0 py-2" role="alert">

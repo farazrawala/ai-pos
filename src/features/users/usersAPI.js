@@ -66,6 +66,11 @@ function appendUserFieldsToFormData(formData, data = {}) {
   }
 }
 
+function pickOptionalStringField(payload, key) {
+  if (payload[key] == null) return undefined;
+  return String(payload[key]).trim();
+}
+
 function buildUserUpdateFields(payload = {}) {
   const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
   const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
@@ -77,6 +82,11 @@ function buildUserUpdateFields(payload = {}) {
     permissions,
     initial_balance:
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
+    address: pickOptionalStringField(payload, 'address'),
+    city: pickOptionalStringField(payload, 'city'),
+    state: pickOptionalStringField(payload, 'state'),
+    country: pickOptionalStringField(payload, 'country'),
+    zip_code: pickOptionalStringField(payload, 'zip_code'),
   };
   if (payload.password != null && String(payload.password).trim()) {
     fields.password = String(payload.password);
@@ -197,7 +207,16 @@ export function pickCreatedUserFromResponse(result) {
  * Uses FormData `role[0]` so the backend multiselect parser applies CUSTOMER
  * (JSON `role: []` alone can be ignored and Mongoose then defaults to USER).
  */
-export async function createCustomerUserRequest({ name, email, phone, password, role }) {
+export async function createCustomerUserRequest({
+  name,
+  email,
+  phone,
+  password,
+  role,
+  city,
+  state,
+  country,
+} = {}) {
   const token = getAuthToken();
   const headers = {};
   if (token) {
@@ -215,6 +234,12 @@ export async function createCustomerUserRequest({ name, email, phone, password, 
   formData.append('phone', String(phone || '').trim());
   formData.append('password', String(password || POS_DEFAULT_CUSTOMER_PASSWORD));
   formData.append('status', 'active');
+  const cityTrim = String(city || '').trim();
+  const stateTrim = String(state || '').trim();
+  const countryTrim = String(country || '').trim() || (cityTrim || stateTrim ? 'Pakistan' : '');
+  if (cityTrim) formData.append('city', cityTrim);
+  if (stateTrim) formData.append('state', stateTrim);
+  if (countryTrim) formData.append('country', countryTrim);
   roles.forEach((r, index) => {
     formData.append(`role[${index}]`, r);
   });
@@ -288,6 +313,8 @@ export async function fetchUsersRequest(params = {}) {
   if (params.limit) query.set('limit', String(params.limit));
   if (params.search) query.set('search', String(params.search));
   if (params.role) query.set('role', String(params.role));
+  if (params.state) query.set('state', String(params.state));
+  if (params.city) query.set('city', String(params.city));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
@@ -457,6 +484,11 @@ export async function createUserRequest(payload = {}) {
     initial_balance:
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     permissions,
+    address: pickOptionalStringField(payload, 'address') ?? '',
+    city: pickOptionalStringField(payload, 'city') ?? '',
+    state: pickOptionalStringField(payload, 'state') ?? '',
+    country: pickOptionalStringField(payload, 'country') ?? '',
+    zip_code: pickOptionalStringField(payload, 'zip_code') ?? '',
   };
   if (payload.phone != null && String(payload.phone).trim() !== '') {
     body.phone = String(payload.phone).trim();
