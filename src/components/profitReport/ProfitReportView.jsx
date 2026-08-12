@@ -251,6 +251,7 @@ export default function ProfitReportView() {
       lineCount,
       profit,
       subtotal,
+      discount: groups.reduce((sum, row) => sum + (Number(row.discount) || 0), 0),
       marginPct: subtotal !== 0 ? (profit / subtotal) * 100 : null,
     };
   }, [ordersPageSummary, orderGroups, lines]);
@@ -600,6 +601,7 @@ export default function ProfitReportView() {
                         <th className="text-xxs text-uppercase">Order</th>
                         <th className="text-end text-xxs text-uppercase">Items</th>
                         <th className="text-end text-xxs text-uppercase">Items subtotal</th>
+                        <th className="text-end text-xxs text-uppercase">Discount</th>
                         <th className="text-end text-xxs text-uppercase">Order profit</th>
                         <th className="text-end text-xxs text-uppercase">Margin</th>
                         <th className="text-xxs text-uppercase">Date</th>
@@ -629,6 +631,13 @@ export default function ProfitReportView() {
                             </td>
                             <td className="text-sm text-end">{order.itemCount}</td>
                             <td className="text-sm text-end">{fmt(order.itemsSubtotal)}</td>
+                            <td className="text-sm text-end">
+                              {order.discount > 0 ? (
+                                <span className="text-danger">−{fmt(order.discount)}</span>
+                              ) : (
+                                fmt(order.discount || 0)
+                              )}
+                            </td>
                             <td className={`text-sm text-end fw-semibold ${profitClass}`}>
                               {fmt(order.orderProfit)}
                             </td>
@@ -648,6 +657,15 @@ export default function ProfitReportView() {
                         </td>
                         <td className="text-sm text-end fw-semibold">
                           {fmt(pageOrdersSummary.subtotal)}
+                        </td>
+                        <td className="text-sm text-end fw-semibold">
+                          {pageOrdersSummary.discount > 0 ? (
+                            <span className="text-danger">
+                              −{fmt(pageOrdersSummary.discount)}
+                            </span>
+                          ) : (
+                            fmt(pageOrdersSummary.discount || 0)
+                          )}
                         </td>
                         <td className="text-sm text-end fw-semibold text-primary">
                           {fmt(pageOrdersSummary.profit)}
@@ -763,6 +781,11 @@ export default function ProfitReportView() {
                                 className={`text-sm text-end fw-bold ${orderProfitClass}`}
                               >
                                 {fmt(group.orderProfit)}
+                                {group.discount > 0 ? (
+                                  <div className="text-xxs text-danger fw-normal">
+                                    after −{fmt(group.discount)} discount
+                                  </div>
+                                ) : null}
                               </td>
                               <td className="text-sm text-nowrap">
                                 {group.orderDate ? formatDisplayDate(group.orderDate) : '—'}

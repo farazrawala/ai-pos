@@ -102,3 +102,20 @@ Leopard :: not started.
 
 Address incomplete :: initial done.
 order scrapping :: not started
+
+
+
+//Postex status : 
+Unbooked  
+Booked  
+PostEx WareHouse  
+Out For Delivery  
+Delivered  
+Returned  
+Un-Assigned By Me  
+Expired  
+Delivery Under Review  
+Picked By PostEx  
+Out For Return  
+Attempted  
+En-Route to {city} warehouse  

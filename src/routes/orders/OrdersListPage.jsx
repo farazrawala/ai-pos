@@ -28,6 +28,8 @@ import {
   FaBan,
   FaUserClock,
   FaTrash,
+  FaCopy,
+  FaBarcode,
 } from 'react-icons/fa6';
 import {
   fetchOrders,
@@ -1349,6 +1351,20 @@ export default function OrdersListPage({ config }) {
     });
   };
 
+  const handleCopyTrackingId = async (trackingId) => {
+    const cn = String(trackingId || '').trim();
+    if (!cn) {
+      toast.error('No tracking number to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(cn);
+      toast.success('Tracking number copied.');
+    } catch {
+      toast.error('Could not copy tracking number.');
+    }
+  };
+
   const handleOpenTrackingStatus = ({
     orderId,
     trackingId,
@@ -2449,11 +2465,29 @@ export default function OrdersListPage({ config }) {
                                 {trackingInfo?.hasTracking ? (
                                   <div className="d-flex flex-column align-items-start gap-1 min-width-0">
                                     {trackingInfo.trackingId ? (
-                                      <div className="d-flex flex-wrap gap-1">
+                                      <div className="oms-tracking-id">
+                                        <span
+                                          className="oms-tracking-id__value"
+                                          title={trackingInfo.trackingId}
+                                        >
+                                          {trackingInfo.trackingId}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="btn btn-link btn-sm p-0 mb-0 oms-tracking-id__copy"
+                                          title="Copy tracking number"
+                                          aria-label="Copy tracking number"
+                                          onClick={() =>
+                                            handleCopyTrackingId(trackingInfo.trackingId)
+                                          }
+                                        >
+                                          <FaCopy aria-hidden="true" />
+                                        </button>
                                         <button
                                           type="button"
                                           className="btn btn-sm btn-outline-info mb-0 px-2"
                                           title="Get live tracking status"
+                                          aria-label="Get live tracking status"
                                           onClick={() =>
                                             handleOpenTrackingStatus({
                                               orderId,
@@ -2464,12 +2498,13 @@ export default function OrdersListPage({ config }) {
                                             })
                                           }
                                         >
-                                          Get status
+                                          <NavIcon icon={FaTruckFast} size={14} />
                                         </button>
                                         <button
                                           type="button"
                                           className="btn btn-sm btn-outline-dark mb-0 px-2"
                                           title="Print barcode for parcel"
+                                          aria-label="Print barcode for parcel"
                                           onClick={() =>
                                             handleOpenParcelBarcode({
                                               orderId,
@@ -2482,7 +2517,7 @@ export default function OrdersListPage({ config }) {
                                             })
                                           }
                                         >
-                                          Print barcode
+                                          <NavIcon icon={FaBarcode} size={14} />
                                         </button>
                                       </div>
                                     ) : null}

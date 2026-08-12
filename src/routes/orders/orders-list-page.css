@@ -174,3 +174,32 @@
   color: #8392ab;
 }
 
+.oms-tracking-id {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.oms-tracking-id__value {
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  color: #344767;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oms-tracking-id__copy {
+  flex-shrink: 0;
+  line-height: 1;
+  color: #67748e;
+}
+
+.oms-tracking-id__copy:hover {
+  color: #5e72e4;
+}
+

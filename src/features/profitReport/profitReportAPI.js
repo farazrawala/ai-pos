@@ -89,6 +89,71 @@ export function parseProfitNumber(raw) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Order-level discount (POS extra discount / invoice discount). */
+export function getOrderDiscountAmount(order) {
+  if (!order || typeof order !== 'object') return 0;
+  return parseProfitNumber(
+    order.discount ??
+      order.discount_amount ??
+      order.discountAmount ??
+      order.extra_discount ??
+      order.extraDiscount
+  );
+}
+
+/**
+ * Map order id / order no → discount for rolling discounts into profit groups.
+ * @param {unknown[]} orders
+ * @returns {Map<string, number>}
+ */
+export function buildOrderDiscountLookup(orders) {
+  const map = new Map();
+  for (const order of Array.isArray(orders) ? orders : []) {
+    if (!order || typeof order !== 'object') continue;
+    const discount = getOrderDiscountAmount(order);
+    const id = order._id ?? order.id;
+    if (id != null && String(id).trim()) map.set(String(id), discount);
+    const no = order.order_no ?? order.orderNo;
+    if (no != null && String(no).trim()) {
+      map.set(`no:${String(no).trim().toLowerCase()}`, discount);
+    }
+  }
+  return map;
+}
+
+export function resolveOrderDiscount(lookup, orderId, orderNo) {
+  if (!(lookup instanceof Map)) return 0;
+  if (orderId != null && lookup.has(String(orderId))) {
+    return parseProfitNumber(lookup.get(String(orderId)));
+  }
+  const no = String(orderNo || '')
+    .trim()
+    .toLowerCase();
+  if (no && lookup.has(`no:${no}`)) {
+    return parseProfitNumber(lookup.get(`no:${no}`));
+  }
+  return 0;
+}
+
+/**
+ * Subtract order discounts from grouped line profits.
+ * Gross line profit is (qty × price) − (qty × cost); net = gross − order discount.
+ */
+export function applyDiscountsToOrderProfitGroups(groups, orders) {
+  const lookup = buildOrderDiscountLookup(orders);
+  return (Array.isArray(groups) ? groups : []).map((group) => {
+    const discount = resolveOrderDiscount(lookup, group.orderId, group.orderNo);
+    const orderProfit = parseProfitNumber(group.orderProfit) - discount;
+    return {
+      ...group,
+      discount,
+      orderProfit,
+      marginPct:
+        group.orderSubtotal !== 0 ? (orderProfit / group.orderSubtotal) * 100 : null,
+    };
+  });
+}
+
 export function buildProfitByOrderItemUrl(params = {}) {
   const query = new URLSearchParams();
   appendDateParams(query, params);
@@ -274,6 +339,7 @@ export function groupProfitLinesByOrder(lines) {
         lines: [],
         orderProfit: 0,
         orderSubtotal: 0,
+        discount: 0,
         itemCount: 0,
         marginPct: null,
       };
@@ -302,6 +368,7 @@ export function summarizeOrderProfitGroups(orderGroups) {
   const groups = Array.isArray(orderGroups) ? orderGroups : [];
   const profit = groups.reduce((sum, row) => sum + row.orderProfit, 0);
   const subtotal = groups.reduce((sum, row) => sum + row.orderSubtotal, 0);
+  const discount = groups.reduce((sum, row) => sum + parseProfitNumber(row.discount), 0);
   const lineCount = groups.reduce((sum, row) => sum + row.itemCount, 0);
   const marginPct = subtotal !== 0 ? (profit / subtotal) * 100 : null;
   return {
@@ -309,6 +376,7 @@ export function summarizeOrderProfitGroups(orderGroups) {
     lineCount,
     profit,
     subtotal,
+    discount,
     marginPct,
   };
 }
@@ -343,9 +411,13 @@ export function mergeProfitSummaries(itemReport, orderPathReport, pageSummary) {
 export function normalizeOrderProfitSummary(order) {
   const lines = flattenOrdersToProfitLines([order]);
   const lineRollup = summarizeProfitLines(lines);
-  const orderProfit = parseProfitNumber(
-    order.total_profit ?? order.totalProfit ?? order.profit ?? lineRollup.profit
-  );
+  const discount = getOrderDiscountAmount(order);
+  // Gross from lines (qty×price − qty×cost). Prefer lines over API total_profit so we can
+  // reliably subtract order-level discount without double-counting.
+  const grossProfit = lines.length
+    ? lineRollup.profit
+    : parseProfitNumber(order.total_profit ?? order.totalProfit ?? order.profit);
+  const orderProfit = grossProfit - discount;
   const itemsSubtotal = parseProfitNumber(
     order.order_items_total ?? order.orderItemsTotal ?? order.items_total ?? lineRollup.subtotal
   );
@@ -358,6 +430,7 @@ export function normalizeOrderProfitSummary(order) {
     orderDate: order.createdAt ?? order.created_at ?? order.date ?? null,
     itemCount: Number.isFinite(itemCount) ? itemCount : lines.length,
     itemsSubtotal,
+    discount,
     orderProfit,
     totalAmount,
     marginPct: itemsSubtotal !== 0 ? (orderProfit / itemsSubtotal) * 100 : null,
@@ -488,7 +561,7 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
     orderId: params.orderId,
     productId: params.productId,
   });
-  const orderGroups = groupProfitLinesByOrder(lines);
+  const orderGroups = applyDiscountsToOrderProfitGroups(groupProfitLinesByOrder(lines), orders);
   const orderProfitRows = buildOrderProfitSummaries(orders).map((row) => {
     const group = orderGroups.find(
       (g) =>
@@ -500,6 +573,7 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
       ...row,
       orderProfit: group.orderProfit,
       itemsSubtotal: group.orderSubtotal,
+      discount: group.discount,
       itemCount: group.itemCount,
       marginPct: group.marginPct,
       lines: group.lines,
