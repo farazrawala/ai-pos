@@ -256,7 +256,7 @@ export async function createCustomerUserRequest({
   const stateTrim = String(state || '').trim();
   const countryTrim = String(country || '').trim() || (cityTrim || stateTrim ? 'Pakistan' : '');
   if (addressTrim) formData.append('address', addressTrim);
-  if (areaTrim) formData.append('area', areaTrim);
+  formData.append('area', areaTrim);
   if (cityTrim) formData.append('city', cityTrim);
   if (stateTrim) formData.append('state', stateTrim);
   if (countryTrim) formData.append('country', countryTrim);
