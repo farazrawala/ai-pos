@@ -1784,7 +1784,7 @@ const PosInvoice = () => {
                       title="A4 half page print"
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
-                      half print
+                      Half Print
                     </button>
                     <button
                       type="button"
@@ -1802,7 +1802,7 @@ const PosInvoice = () => {
                       title="A4 full page print"
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
-                      full print
+                      Full Print
                     </button>
                     <button
                       type="button"
