@@ -1397,62 +1397,76 @@ const PosInvoice = () => {
     };
   }, []);
 
-  const handleNormalPrint = useCallback(async () => {
-    let settings = printerSettings;
-    let brand = companyBrand;
+  const runInvoicePrint = useCallback(
+    async (printOptions = {}) => {
+      let settings = printerSettings;
+      let brand = companyBrand;
 
-    if (companyId) {
-      try {
-        const body = await fetchCompanyById(companyId);
-        const company = getCompanyFromApiBody(body);
-        if (company && typeof company === 'object') {
-          const merged = mergeCompanyRecordForSettings(company, authCompany);
-          setInvoiceCompany(merged);
-          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
-          brand = buildBrandFromCompany(merged);
+      if (companyId) {
+        try {
+          const body = await fetchCompanyById(companyId);
+          const company = getCompanyFromApiBody(body);
+          if (company && typeof company === 'object') {
+            const merged = mergeCompanyRecordForSettings(company, authCompany);
+            setInvoiceCompany(merged);
+            settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
+            brand = buildBrandFromCompany(merged);
+          }
+        } catch {
+          // print with last known settings
         }
-      } catch {
-        // print with last known settings
       }
-    }
 
-    await openNormalInvoicePrint(
-      {
-        printerSettings: settings,
-        companyBrand: brand,
-        invoiceNo: data.invoiceNo,
-        invoiceDate: data.invoiceDate,
-        terms: data.terms,
-        note: data.note,
-        termsBody: data.termsBody,
-        publicUrl: sharePublicUrl,
-        billTo: billToDisplay,
-        lines: printLines,
-        summary: summaryDisplay,
-        grossAmount: grossDisplay,
-        paymentMethod: paymentMethodDisplay,
-        amountReceived: sourceOrder?.amount_received,
-        changeGiven: sourceOrder?.change_given,
-        currentUserName: billCurrentUserName,
-      },
-      { documentTitlePrefix: 'Invoice POS' }
-    );
-  }, [
-    companyId,
-    printerSettings,
-    companyBrand,
-    authCompany,
-    buildBrandFromCompany,
-    data,
-    billToDisplay,
-    printLines,
-    summaryDisplay,
-    grossDisplay,
-    paymentMethodDisplay,
-    sourceOrder,
-    billCurrentUserName,
-    sharePublicUrl,
-  ]);
+      await openNormalInvoicePrint(
+        {
+          printerSettings: settings,
+          companyBrand: brand,
+          invoiceNo: data.invoiceNo,
+          invoiceDate: data.invoiceDate,
+          terms: data.terms,
+          note: data.note,
+          termsBody: data.termsBody,
+          publicUrl: sharePublicUrl,
+          billTo: billToDisplay,
+          lines: printLines,
+          summary: summaryDisplay,
+          grossAmount: grossDisplay,
+          paymentMethod: paymentMethodDisplay,
+          amountReceived: sourceOrder?.amount_received,
+          changeGiven: sourceOrder?.change_given,
+          currentUserName: billCurrentUserName,
+        },
+        { documentTitlePrefix: 'Invoice POS', ...printOptions }
+      );
+    },
+    [
+      companyId,
+      printerSettings,
+      companyBrand,
+      authCompany,
+      buildBrandFromCompany,
+      data,
+      billToDisplay,
+      printLines,
+      summaryDisplay,
+      grossDisplay,
+      paymentMethodDisplay,
+      sourceOrder,
+      billCurrentUserName,
+      sharePublicUrl,
+    ]
+  );
+
+  const handleNormalPrint = useCallback(() => runInvoicePrint(), [runInvoicePrint]);
+
+  const handleHalfPrint = useCallback(
+    () =>
+      runInvoicePrint({
+        halfPage: true,
+        windowFeatures: 'width=640,height=900',
+      }),
+    [runInvoicePrint]
+  );
 
   const handleShareWhatsApp = useCallback(() => {
     const publicUrl = String(sharePublicUrl || '').trim();
@@ -1765,6 +1779,15 @@ const PosInvoice = () => {
                   <div className="pos-inv-header-actions mt-2 mt-lg-0">
                     <button
                       type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={handleHalfPrint}
+                      title="A4 half page print"
+                    >
+                      <i className="fas fa-print me-1" aria-hidden="true" />
+                      half print
+                    </button>
+                    <button
+                      type="button"
                       className="btn btn-sm btn-outline-secondary"
                       onClick={handleThermalPrint}
                       title="80mm thermal receipt"
@@ -1776,10 +1799,10 @@ const PosInvoice = () => {
                       type="button"
                       className="btn btn-sm btn-outline-success"
                       onClick={handleNormalPrint}
-                      title="A4 / normal invoice print"
+                      title="A4 full page print"
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
-                      Print
+                      full print
                     </button>
                     <button
                       type="button"

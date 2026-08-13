@@ -92,7 +92,7 @@ export const showToast = ({
 
   const closeEl = document.createElement('button');
   closeEl.type = 'button';
-  closeEl.className = 'btn-close ms-2';
+  closeEl.className = 'btn-close app-toast-close ms-2';
   closeEl.setAttribute('data-bs-dismiss', 'toast');
   closeEl.setAttribute('aria-label', 'Close');
   closeEl.title = 'Close';

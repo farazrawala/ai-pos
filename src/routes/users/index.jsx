@@ -4,7 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchUsers,
+  fetchDeletedUsers,
   updateUserStatus,
+  deleteUser,
+  restoreUser,
   setSearch,
   setPage,
   setLimit,
@@ -13,6 +16,8 @@ import {
   setStateFilter,
   setCityFilter,
   setAreaFilter,
+  clearDeleteStatus,
+  clearRestoreStatus,
   USER_LIST_ROLE_TABS,
 } from '../../features/users/usersSlice.js';
 import { isDefaultCustomerUser, isDefaultVendorUser } from '../../features/users/usersAPI.js';
@@ -56,6 +61,24 @@ const userProfileImageUrl = (user) => {
   return resolveCategoryMediaUrl(raw);
 };
 
+const pickUserCreatedOn = (item) => item?.createdAt ?? item?.created_at ?? item?.created;
+
+const pickUserDeletedOn = (item) =>
+  item?.deletedAt ?? item?.deleted_at ?? item?.deleted_on ?? item?.deletedOn ?? null;
+
+const formatDeletedAgo = (value) => {
+  const when = moment(value);
+  if (!when.isValid()) return '—';
+  const minutes = Math.max(0, moment().diff(when, 'minutes'));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = moment().diff(when, 'hours');
+  if (hours < 24) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  const days = moment().diff(when, 'days');
+  if (days < 30) return days === 1 ? '1 day ago' : `${days} days ago`;
+  return when.fromNow();
+};
+
 const USER_COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
   { key: 'photo', label: 'Photo' },
@@ -87,19 +110,26 @@ const Users = () => {
     stateFilter = '',
     cityFilter = '',
     areaFilter = '',
+    deleteStatus,
+    deleteError,
+    restoreStatus,
+    restoreError,
   } = useSelector((state) => state.users);
 
   const activeRoleTab = useMemo(
     () => USER_LIST_ROLE_TABS.find((t) => t.id === roleFilter) ?? USER_LIST_ROLE_TABS[0],
     [roleFilter]
   );
+  const isDeletedCustomersView = activeRoleTab.id === 'deleted-customers';
 
-  const { canCreate, canEdit } = usePermissions('users');
+  const { canCreate, canEdit, canDelete } = usePermissions('users');
   useRequireModuleAccess('users');
   const loading = status === 'loading';
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility('users', USER_COLUMNS);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [togglingUserId, setTogglingUserId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [restoringUserId, setRestoringUserId] = useState(null);
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -116,7 +146,11 @@ const Users = () => {
     if (stateFilter) params.state = stateFilter;
     if (cityFilter) params.city = cityFilter;
     if (areaFilter) params.area = areaFilter;
-    dispatch(fetchUsers(params));
+    if (isDeletedCustomersView) {
+      dispatch(fetchDeletedUsers(params));
+    } else {
+      dispatch(fetchUsers(params));
+    }
   }, [
     dispatch,
     pagination.page,
@@ -125,6 +159,7 @@ const Users = () => {
     sort.sortBy,
     sort.sortOrder,
     activeRoleTab.role,
+    isDeletedCustomersView,
     stateFilter,
     cityFilter,
     areaFilter,
@@ -139,6 +174,40 @@ const Users = () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (deleteStatus === 'succeeded') {
+      const label =
+        activeRoleTab.id === 'customer'
+          ? 'Customer'
+          : activeRoleTab.id === 'vendor'
+            ? 'Vendor'
+            : 'User';
+      showToast({ message: `${label} deleted successfully.`, variant: 'success' });
+      dispatch(clearDeleteStatus());
+    }
+  }, [deleteStatus, dispatch, activeRoleTab.id]);
+
+  useEffect(() => {
+    if (deleteError) {
+      showToast({ message: deleteError, variant: 'error' });
+      dispatch(clearDeleteStatus());
+    }
+  }, [deleteError, dispatch]);
+
+  useEffect(() => {
+    if (restoreStatus === 'succeeded') {
+      showToast({ message: 'Customer restored successfully.', variant: 'success' });
+      dispatch(clearRestoreStatus());
+    }
+  }, [restoreStatus, dispatch]);
+
+  useEffect(() => {
+    if (restoreError) {
+      showToast({ message: restoreError, variant: 'error' });
+      dispatch(clearRestoreStatus());
+    }
+  }, [restoreError, dispatch]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -266,6 +335,58 @@ const Users = () => {
     }
   };
 
+  const handleDeleteUser = async (
+    userId,
+    displayName,
+    { isDefaultCustomer = false, isDefaultVendor = false } = {}
+  ) => {
+    if (!userId || !canDelete || deletingUserId) return;
+    if (isDefaultCustomer) {
+      showToast({ message: 'Default customer cannot be deleted.', variant: 'error' });
+      return;
+    }
+    if (isDefaultVendor) {
+      showToast({ message: 'Default vendor cannot be deleted.', variant: 'error' });
+      return;
+    }
+    const entityLabel =
+      activeRoleTab.id === 'vendor' ? 'vendor' : activeRoleTab.id === 'customer' ? 'customer' : 'user';
+    const nameLabel = displayName !== '—' ? displayName : `this ${entityLabel}`;
+    if (
+      !window.confirm(`Delete "${nameLabel}"? This action cannot be undone.`)
+    ) {
+      return;
+    }
+    setDeletingUserId(userId);
+    try {
+      await dispatch(deleteUser(userId)).unwrap();
+    } catch (err) {
+      const message =
+        typeof err === 'string' ? err : err?.message || `Failed to delete ${entityLabel}`;
+      showToast({ message, variant: 'error' });
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const handleRestoreUser = async (userId, displayName) => {
+    if (!userId || !canEdit || restoringUserId) return;
+    const nameLabel = displayName !== '—' ? displayName : 'this customer';
+    if (!window.confirm(`Restore "${nameLabel}"? The customer will appear in the Customers list again.`)) {
+      return;
+    }
+    setRestoringUserId(userId);
+    try {
+      await dispatch(restoreUser(userId)).unwrap();
+    } catch (err) {
+      const message =
+        typeof err === 'string' ? err : err?.message || 'Failed to restore customer';
+      showToast({ message, variant: 'error' });
+    } finally {
+      setRestoringUserId(null);
+    }
+  };
+
   const filteredData = useMemo(() => {
     const stateNeedle = String(stateFilter || '').trim().toLowerCase();
     const cityNeedle = String(cityFilter || '').trim().toLowerCase();
@@ -289,6 +410,8 @@ const Users = () => {
         : '';
     if (activeRoleTab.id === 'customer')
       return `No customers found. Try adjusting your search.${locationHint}`;
+    if (activeRoleTab.id === 'deleted-customers')
+      return `No deleted customers found.${locationHint}`;
     if (activeRoleTab.id === 'vendor')
       return `No vendors found. Try adjusting your search.${locationHint}`;
     return `No users found. Try adjusting your search.${locationHint}`;
@@ -296,6 +419,7 @@ const Users = () => {
 
   const searchPlaceholder = useMemo(() => {
     if (activeRoleTab.id === 'customer') return 'Search customers…';
+    if (activeRoleTab.id === 'deleted-customers') return 'Search deleted customers…';
     if (activeRoleTab.id === 'vendor') return 'Search vendors…';
     return 'Search users…';
   }, [activeRoleTab.id]);
@@ -388,7 +512,7 @@ const Users = () => {
                         aria-label={searchPlaceholder}
                       />
                     </div>
-                    {canCreate ? (
+                    {canCreate && !isDeletedCustomersView ? (
                       <AddNewButton to="/users/add" label={addButtonLabel} size="sm" />
                     ) : null}
                   </div>
@@ -413,9 +537,13 @@ const Users = () => {
               <ListDataTable
                 className="list-data-table--users"
                 loading={loading}
-                loadingLabel="Loading users…"
+                loadingLabel={
+                  isDeletedCustomersView ? 'Loading deleted users…' : 'Loading users…'
+                }
                 error={error}
-                errorPrefix="Error loading users"
+                errorPrefix={
+                  isDeletedCustomersView ? 'Error loading deleted users' : 'Error loading users'
+                }
                 pagination={pagination}
                 onPageChange={handlePageChange}
                 onLimitChange={handleLimitChange}
@@ -450,7 +578,11 @@ const Users = () => {
                       ) : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
                       {isVisible('created')
-                        ? sortableTh('createdAt', 'Created', 'list-col-date')
+                        ? sortableTh(
+                            isDeletedCustomersView ? 'deletedAt' : 'createdAt',
+                            isDeletedCustomersView ? 'Deleted' : 'Created',
+                            'list-col-date'
+                          )
                         : null}
                       {isVisible('actions') ? (
                         <th className="text-end list-col-actions list-col-actions--users">
@@ -483,8 +615,9 @@ const Users = () => {
                         const city = String(item.city || '').trim() || '—';
                         const state = String(item.state || '').trim() || '—';
                         const area = String(item.area || '').trim() || '—';
-                        const created = item.createdAt ?? item.created_at ?? item.created;
-                        const updated = item.updatedAt ?? item.updated_at ?? item.updated;
+                        const created = pickUserCreatedOn(item);
+                        const deletedOn = pickUserDeletedOn(item);
+                        const dateValue = isDeletedCustomersView ? deletedOn : created;
                         return (
                           <tr key={key}>
                             {isVisible('sno') ? (
@@ -586,7 +719,11 @@ const Users = () => {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                {canEdit ? (
+                                {isDeletedCustomersView ? (
+                                  <span className="badge text-xxs bg-gradient-secondary mb-0">
+                                    Deleted
+                                  </span>
+                                ) : canEdit ? (
                                   <div className="d-flex align-items-center gap-2">
                                     <div className="form-check form-switch mb-0">
                                       <input
@@ -625,18 +762,37 @@ const Users = () => {
                               <td
                                 className="text-sm text-nowrap list-col-date"
                                 title={
-                                  updated
-                                    ? `Updated ${moment(updated).format('DD MMM YYYY h:mm a')}`
-                                    : undefined
+                                  isDeletedCustomersView
+                                    ? deletedOn
+                                      ? `Deleted ${moment(deletedOn).format('DD MMM YYYY h:mm a')}`
+                                      : undefined
+                                    : created
+                                      ? `Created ${moment(created).format('DD MMM YYYY h:mm a')}`
+                                      : undefined
                                 }
                               >
-                                {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                                {dateValue
+                                  ? isDeletedCustomersView
+                                    ? formatDeletedAgo(dateValue)
+                                    : moment(dateValue).format('DD MMM YYYY h:mm a')
+                                  : '—'}
                               </td>
                             ) : null}
                             {isVisible('actions') ? (
                               <td className="text-end">
                                 <div className="list-table-actions">
-                                  {canEdit ? (
+                                  {canEdit && isDeletedCustomersView ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-success mb-0"
+                                      title="Restore customer"
+                                      onClick={() => handleRestoreUser(userId, displayName)}
+                                      disabled={restoringUserId === userId}
+                                    >
+                                      {restoringUserId === userId ? 'Restoring…' : 'Restore'}
+                                    </button>
+                                  ) : null}
+                                  {canEdit && !isDeletedCustomersView ? (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-primary mb-0"
@@ -644,9 +800,39 @@ const Users = () => {
                                     >
                                       Edit
                                     </button>
-                                  ) : (
+                                  ) : null}
+                                  {canDelete &&
+                                  !isDeletedCustomersView &&
+                                  ((activeRoleTab.id === 'customer' && !isDefaultCustomer) ||
+                                    (activeRoleTab.id === 'vendor' && !isDefaultVendor)) ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger mb-0"
+                                      title={
+                                        activeRoleTab.id === 'vendor'
+                                          ? 'Delete vendor'
+                                          : 'Delete customer'
+                                      }
+                                      onClick={() =>
+                                        handleDeleteUser(userId, displayName, {
+                                          isDefaultCustomer,
+                                          isDefaultVendor,
+                                        })
+                                      }
+                                      disabled={deletingUserId === userId}
+                                    >
+                                      {deletingUserId === userId ? 'Deleting…' : 'Delete'}
+                                    </button>
+                                  ) : null}
+                                  {!canEdit &&
+                                  !(
+                                    canDelete &&
+                                    !isDeletedCustomersView &&
+                                    ((activeRoleTab.id === 'customer' && !isDefaultCustomer) ||
+                                      (activeRoleTab.id === 'vendor' && !isDefaultVendor))
+                                  ) ? (
                                     <span className="text-muted text-sm">—</span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </td>
                             ) : null}

@@ -1,11 +1,13 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchUsersRequest,
+  fetchDeletedUsersRequest,
   fetchUserByIdRequest,
   createUserRequest,
   updateUserRequest,
   updateUserStatusRequest,
   deleteUserRequest,
+  restoreUserRequest,
 } from './usersAPI.js';
 
 export const fetchUsers = createAsyncThunk(
@@ -16,6 +18,18 @@ export const fetchUsers = createAsyncThunk(
       return response;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch users');
+    }
+  }
+);
+
+export const fetchDeletedUsers = createAsyncThunk(
+  'users/fetchDeletedUsers',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await fetchDeletedUsersRequest(params);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch deleted users');
     }
   }
 );
@@ -78,10 +92,23 @@ export const deleteUser = createAsyncThunk(
   }
 );
 
+export const restoreUser = createAsyncThunk(
+  'users/restoreUser',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const response = await restoreUserRequest(userId);
+      return { userId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to restore user');
+    }
+  }
+);
+
 export const USER_LIST_ROLE_TABS = [
   { id: 'users', label: 'Users', role: 'USER' },
   { id: 'customer', label: 'Customers', role: 'CUSTOMER' },
   { id: 'vendor', label: 'Vendors', role: 'VENDOR' },
+  { id: 'deleted-customers', label: 'Deleted customers', role: 'CUSTOMER', deleted: true },
 ];
 
 const initialState = {
@@ -113,6 +140,8 @@ const initialState = {
   updateError: null,
   deleteStatus: 'idle',
   deleteError: null,
+  restoreStatus: 'idle',
+  restoreError: null,
 };
 
 const usersSlice = createSlice({
@@ -180,6 +209,10 @@ const usersSlice = createSlice({
       state.deleteStatus = 'idle';
       state.deleteError = null;
     },
+    clearRestoreStatus: (state) => {
+      state.restoreStatus = 'idle';
+      state.restoreError = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -201,6 +234,27 @@ const usersSlice = createSlice({
       .addCase(fetchUsers.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload || action.error.message || 'Failed to fetch users';
+        state.list = [];
+      })
+      .addCase(fetchDeletedUsers.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchDeletedUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.list = action.payload.data || [];
+        state.pagination = {
+          page: action.payload.page || state.pagination.page,
+          limit: action.payload.limit || state.pagination.limit,
+          total: action.payload.total || 0,
+          totalPages: action.payload.totalPages || 0,
+        };
+        state.error = null;
+      })
+      .addCase(fetchDeletedUsers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error =
+          action.payload || action.error.message || 'Failed to fetch deleted users';
         state.list = [];
       })
       .addCase(fetchUserById.pending, (state, action) => {
@@ -306,6 +360,21 @@ const usersSlice = createSlice({
       .addCase(deleteUser.rejected, (state, action) => {
         state.deleteStatus = 'failed';
         state.deleteError = action.payload || action.error.message || 'Failed to delete user';
+      })
+      .addCase(restoreUser.pending, (state) => {
+        state.restoreStatus = 'loading';
+        state.restoreError = null;
+      })
+      .addCase(restoreUser.fulfilled, (state, action) => {
+        state.restoreStatus = 'succeeded';
+        const userId = String(action.payload.userId);
+        state.list = state.list.filter((item) => String(item._id || item.id) !== userId);
+        if (state.pagination.total > 0) state.pagination.total -= 1;
+      })
+      .addCase(restoreUser.rejected, (state, action) => {
+        state.restoreStatus = 'failed';
+        state.restoreError =
+          action.payload || action.error.message || 'Failed to restore user';
       });
   },
 });
@@ -324,5 +393,6 @@ export const {
   clearCreateStatus,
   clearUpdateStatus,
   clearDeleteStatus,
+  clearRestoreStatus,
 } = usersSlice.actions;
 export default usersSlice.reducer;

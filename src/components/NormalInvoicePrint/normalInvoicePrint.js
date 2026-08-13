@@ -42,6 +42,7 @@ import { escapeHtml, formatThermalMoney } from '../ThermalReceiptPrint/thermalRe
  * @property {string} [documentHeading='INVOICE']
  * @property {string} [billToLabel='Bill To']
  * @property {string} [dateLabel='Invoice Date:']
+ * @property {boolean} [halfPage=false] — A5 / half A4 compact layout
  */
 
 function fmtMoney(amount, options = {}) {
@@ -81,6 +82,7 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     documentHeading = 'INVOICE',
     billToLabel = 'Bill To',
     dateLabel = 'Invoice Date:',
+    halfPage = false,
   } = options;
 
   const fmtOpts = { currencyLabel, locale };
@@ -228,15 +230,47 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
 
   const title = `${documentTitlePrefix} ${escapeHtml(payload.invoiceNo || '')}`;
 
+  const pageCss = halfPage
+    ? `
+  @page { size: A5 portrait; margin: 8mm; }
+  body { font-size: 9pt; }
+  .page { max-width: 128mm; }
+  .header { padding-bottom: 10px; margin-bottom: 12px; gap: 10px; }
+  .brand { gap: 10px; }
+  .logo, .logo-placeholder { width: 48px; height: 48px; }
+  .company-name { font-size: 11pt; }
+  .invoice-title { font-size: 18pt; margin-bottom: 6px; }
+  .meta-row { font-size: 8.5pt; margin-bottom: 3px; }
+  .muted { font-size: 8pt; }
+  .section { gap: 16px; margin-bottom: 12px; }
+  .bill-name { font-size: 9.5pt; }
+  .gross-row { font-size: 10pt; margin-bottom: 10px; }
+  table.items { margin-bottom: 14px; }
+  table.items th, table.items td { padding: 5px 7px; }
+  table.items th { font-size: 7pt; }
+  table.items td { font-size: 8.5pt; }
+  .bottom { gap: 16px; margin-bottom: 14px; }
+  .bottom-right { width: 48%; min-width: 160px; }
+  .note-block { margin-bottom: 8px; font-size: 8.5pt; }
+  .note-text { min-height: 40px; padding: 6px 8px; font-size: 8.5pt; }
+  .summary-box { padding: 8px 10px; }
+  .sum-row { font-size: 8.5pt; padding: 2px 0; }
+  .footer { padding-top: 12px; }
+  .qr-wrap img { width: 72px; height: 72px; }
+  .terms-list { font-size: 8.5pt; }`
+    : `
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-size: 11pt; }
+  .page { max-width: 186mm; }`;
+
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>
 <style>
-  @page { size: A4 portrait; margin: 12mm; }
+  ${pageCss}
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Open Sans', system-ui, sans-serif;
-    font-size: 11pt;
     color: #212529;
     background: #fff;
     -webkit-print-color-adjust: exact;
@@ -244,7 +278,6 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
   }
   .page {
     width: 100%;
-    max-width: 186mm;
     margin: 0 auto;
     padding: 0;
   }

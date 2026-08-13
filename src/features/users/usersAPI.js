@@ -23,12 +23,16 @@ const normalizeUsersPayload = (result) => {
  * Adjust `USER_LIST_PATH` if your backend uses a different route.
  */
 const USER_LIST_PATH = 'user/get-all-active';
+const USER_DELETED_LIST_PATH = 'user/get-deleted';
+const USER_DELETED_LIST_FALLBACK_PATH = 'users/get-deleted';
 
 /** POST body for POS quick customer. Change path if your API differs. */
 const USER_CREATE_PATH = 'user/create';
 const USER_GET_PATH = 'user/get';
 const USER_UPDATE_PATH = 'user/update';
 const USER_DELETE_PATH = 'user/delete';
+const USER_RESTORE_PATH = 'user/restore';
+const USER_RESTORE_FALLBACK_PATH = 'users/restore';
 const TOTAL_CUSTOMERS_PATH = 'user/total-customers';
 const TOTAL_USERS_PATH = 'user/total-users';
 
@@ -311,15 +315,10 @@ export async function fetchUsersListRequest(params = {}) {
   return normalizeUsersPayload(result);
 }
 
-export async function fetchUsersRequest(params = {}) {
-  const token = getAuthToken();
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
+function buildUserListQueryParams(params = {}, { deleted = false } = {}) {
   const query = new URLSearchParams();
   query.set('include_inactive', 'true');
+  if (deleted) query.set('deleted', '1');
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     query.set('skip', String(skip));
@@ -334,20 +333,10 @@ export async function fetchUsersRequest(params = {}) {
   if (params.area) query.set('area', String(params.area));
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
+  return query;
+}
 
-  const queryString = query.toString();
-  const url = `${BASE_URL}${USER_LIST_PATH}?${queryString}`;
-  const response = await fetch(url, { method: 'GET', headers });
-
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    const message = errBody.message || `HTTP ${response.status}`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  const result = await response.json();
+function parseUserListResponse(result, params = {}) {
   const data = normalizeUsersPayload(result);
 
   if (result?.pagination && typeof result.pagination === 'object') {
@@ -373,6 +362,62 @@ export async function fetchUsersRequest(params = {}) {
     limit: fallbackLimit,
     totalPages: fallbackLimit > 0 ? Math.ceil(fallbackTotal / fallbackLimit) : 0,
   };
+}
+
+async function fetchUserListUrl(url, params = {}) {
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { method: 'GET', headers });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    const message = errBody.message || `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+
+  const result = await response.json();
+  return parseUserListResponse(result, params);
+}
+
+export function buildDeletedUsersUrl(params = {}) {
+  const queryString = buildUserListQueryParams(params).toString();
+  return `${BASE_URL}${USER_DELETED_LIST_PATH}${queryString ? `?${queryString}` : ''}`;
+}
+
+export async function fetchUsersRequest(params = {}) {
+  const queryString = buildUserListQueryParams(params).toString();
+  const url = `${BASE_URL}${USER_LIST_PATH}?${queryString}`;
+  return fetchUserListUrl(url, params);
+}
+
+/**
+ * GET deleted users — tries dedicated deleted routes, then active list with `deleted=1`.
+ */
+export async function fetchDeletedUsersRequest(params = {}) {
+  const queryString = buildUserListQueryParams(params).toString();
+  const candidates = [
+    `${BASE_URL}${USER_DELETED_LIST_PATH}${queryString ? `?${queryString}` : ''}`,
+    `${BASE_URL}${USER_DELETED_LIST_FALLBACK_PATH}${queryString ? `?${queryString}` : ''}`,
+  ];
+
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      return await fetchUserListUrl(url, params);
+    } catch (err) {
+      lastError = err;
+      // `/user/get/:id` can swallow `/user/get-deleted` on older APIs (400/404).
+      if (err?.status === 404 || err?.status === 400) continue;
+    }
+  }
+
+  throw lastError || new Error('Failed to load deleted users');
 }
 
 const normalizeSingleUserPayload = (result) => {
@@ -605,6 +650,74 @@ export async function deleteUserRequest(userId) {
   } catch {
     return { success: true };
   }
+}
+
+/**
+ * Restore a soft-deleted user — tries POST restore routes, then PATCH clears deletedAt.
+ */
+export async function restoreUserRequest(userId) {
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const id = String(userId ?? '').trim();
+  if (!id) throw new Error('Missing user id');
+
+  const restoreCandidates = [
+    `${BASE_URL}${USER_RESTORE_PATH}/${id}`,
+    `${BASE_URL}${USER_RESTORE_FALLBACK_PATH}/${id}`,
+  ];
+
+  let lastError = null;
+  for (const url of restoreCandidates) {
+    try {
+      const response = await fetch(url, { method: 'POST', headers });
+      if (response.ok) {
+        const result = await response.json().catch(() => ({}));
+        if (result && result.success === false) {
+          throw new Error(result.message || result.error || 'Failed to restore user');
+        }
+        return normalizeSingleUserPayload(result) || result;
+      }
+      const errBody = await response.json().catch(() => ({}));
+      const message = errBody.message || errBody.error || `HTTP ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      if (response.status === 404) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    } catch (err) {
+      if (err?.status === 404) {
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const url = `${BASE_URL}${USER_UPDATE_PATH}/${id}`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ deletedAt: null, status: 'active' }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(
+      errBody.message || errBody.error || lastError?.message || `HTTP ${response.status}`
+    );
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || result.error || 'Failed to restore user');
+  }
+  return normalizeSingleUserPayload(result) || result;
 }
 
 /**
