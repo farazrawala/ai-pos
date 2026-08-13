@@ -42,7 +42,7 @@ import { escapeHtml, formatThermalMoney } from '../ThermalReceiptPrint/thermalRe
  * @property {string} [documentHeading='INVOICE']
  * @property {string} [billToLabel='Bill To']
  * @property {string} [dateLabel='Invoice Date:']
- * @property {boolean} [halfPage=false] — A5 / half A4 compact layout
+ * @property {boolean} [halfPage=false] — A4 portrait, receipt in the top 148.5mm only
  */
 
 function fmtMoney(amount, options = {}) {
@@ -229,35 +229,99 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
       : '';
 
   const title = `${documentTitlePrefix} ${escapeHtml(payload.invoiceNo || '')}`;
+  const bodyClass = halfPage ? 'half-print' : '';
+  const pageClass = halfPage ? 'page page--half' : 'page';
+  const halfFitScript = halfPage
+    ? `<script>
+(function () {
+  function fitHalfReceipt() {
+    var page = document.querySelector('.page--half');
+    if (!page) return;
+    var max = page.clientHeight;
+    if (!max) return;
+    var size = 9;
+    document.body.style.fontSize = size + 'pt';
+    var guard = 0;
+    while (page.scrollHeight > max && size > 6.5 && guard < 24) {
+      size -= 0.25;
+      document.body.style.fontSize = size + 'pt';
+      guard += 1;
+    }
+  }
+  if (document.readyState === 'complete') fitHalfReceipt();
+  else window.addEventListener('load', fitHalfReceipt);
+})();
+</script>`
+    : '';
 
   const pageCss = halfPage
     ? `
-  @page { size: A5 portrait; margin: 8mm; }
+  @page { size: A4 portrait; margin: 0; }
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   body { font-size: 9pt; }
-  .page { max-width: 128mm; }
-  .header { padding-bottom: 10px; margin-bottom: 12px; gap: 10px; }
+  .page--half {
+    width: 210mm;
+    height: 148.5mm;
+    max-height: 148.5mm;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 8mm 10mm;
+    margin: 0;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+  .header { padding-bottom: 8px; margin-bottom: 8px; gap: 10px; }
   .brand { gap: 10px; }
   .logo, .logo-placeholder { width: 48px; height: 48px; }
-  .company-name { font-size: 11pt; }
-  .invoice-title { font-size: 18pt; margin-bottom: 6px; }
-  .meta-row { font-size: 8.5pt; margin-bottom: 3px; }
+  .company-name { font-size: 12pt; }
+  .invoice-title { font-size: 18pt; margin-bottom: 4px; }
+  .meta-row { font-size: 8.5pt; margin-bottom: 2px; }
   .muted { font-size: 8pt; }
-  .section { gap: 16px; margin-bottom: 12px; }
+  .section { gap: 16px; margin-bottom: 8px; }
+  .section-label { margin-bottom: 4px; }
   .bill-name { font-size: 9.5pt; }
-  .gross-row { font-size: 10pt; margin-bottom: 10px; }
-  table.items { margin-bottom: 14px; }
-  table.items th, table.items td { padding: 5px 7px; }
+  .gross-row { font-size: 10pt; margin-bottom: 8px; }
+  table.items { margin-bottom: 8px; }
+  table.items th, table.items td { padding: 4px 6px; }
   table.items th { font-size: 7pt; }
   table.items td { font-size: 8.5pt; }
-  .bottom { gap: 16px; margin-bottom: 14px; }
+  .bottom { gap: 16px; margin-bottom: 8px; }
   .bottom-right { width: 48%; min-width: 160px; }
-  .note-block { margin-bottom: 8px; font-size: 8.5pt; }
-  .note-text { min-height: 40px; padding: 6px 8px; font-size: 8.5pt; }
-  .summary-box { padding: 8px 10px; }
-  .sum-row { font-size: 8.5pt; padding: 2px 0; }
-  .footer { padding-top: 12px; }
-  .qr-wrap img { width: 72px; height: 72px; }
-  .terms-list { font-size: 8.5pt; }`
+  .note-block { margin-bottom: 6px; font-size: 8.5pt; }
+  .note-text { min-height: 28px; padding: 5px 7px; font-size: 8.5pt; }
+  .summary-box { padding: 6px 8px; }
+  .sum-row { font-size: 8.5pt; padding: 1px 0; }
+  .sum-row.total { margin-top: 4px; padding-top: 5px; }
+  .footer { padding-top: 8px; }
+  .qr-wrap { margin-bottom: 8px; }
+  .qr-wrap img { width: 64px; height: 64px; }
+  .terms-list { font-size: 8pt; }
+  @media print {
+    html, body {
+      width: 210mm;
+      height: 297mm;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden;
+    }
+    .page--half {
+      width: 210mm;
+      height: 148.5mm;
+      max-height: 148.5mm;
+      box-sizing: border-box;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }`
     : `
   @page { size: A4 portrait; margin: 12mm; }
   body { font-size: 11pt; }
@@ -449,8 +513,8 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     font-size: 9.5pt;
   }
   .terms-list li { margin-bottom: 4px; }
-</style></head><body>
-  <div class="page">
+</style></head><body class="${bodyClass}">
+  <div class="${pageClass}">
     <div class="header">
       <div class="brand">
         ${logoHtml}
@@ -505,6 +569,7 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
       ${termsHtml}
     </div>
   </div>
+  ${halfFitScript}
 </body></html>`;
 }
 

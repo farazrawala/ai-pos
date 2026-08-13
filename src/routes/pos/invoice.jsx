@@ -1463,7 +1463,7 @@ const PosInvoice = () => {
     () =>
       runInvoicePrint({
         halfPage: true,
-        windowFeatures: 'width=640,height=900',
+        windowFeatures: 'width=820,height=1180',
       }),
     [runInvoicePrint]
   );
@@ -1925,71 +1925,6 @@ const PosInvoice = () => {
                     {printerSettings.show_customer_email && billToDisplay.email ? (
                       <div className="pos-inv-billto-meta">{billToDisplay.email}</div>
                     ) : null}
-                    {canUpdateInvoice ? (
-                      <div className="row g-2 mt-2 pos-inv-no-print">
-                        <div className="col-12">
-                          <label className="form-label" htmlFor="posInvAddress">
-                            Address
-                          </label>
-                          <textarea
-                            id="posInvAddress"
-                            className="form-control form-control-sm"
-                            rows={2}
-                            value={invoiceAddress}
-                            onChange={(e) => setInvoiceAddress(e.target.value)}
-                            placeholder="Street address"
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label" htmlFor="posInvCity">
-                            City
-                          </label>
-                          <input
-                            id="posInvCity"
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={invoiceCity}
-                            onChange={(e) => setInvoiceCity(e.target.value)}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label" htmlFor="posInvState">
-                            State
-                          </label>
-                          <input
-                            id="posInvState"
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={invoiceState}
-                            onChange={(e) => setInvoiceState(e.target.value)}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label" htmlFor="posInvZip">
-                            Zip
-                          </label>
-                          <input
-                            id="posInvZip"
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={invoiceZip}
-                            onChange={(e) => setInvoiceZip(e.target.value)}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label" htmlFor="posInvCountry">
-                            Country
-                          </label>
-                          <input
-                            id="posInvCountry"
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={invoiceCountry}
-                            onChange={(e) => setInvoiceCountry(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
                     {[
                       billToDisplay.address,
                       [billToDisplay.city, billToDisplay.state, billToDisplay.zip]
@@ -2387,6 +2322,71 @@ const PosInvoice = () => {
                       defaultValue={data.note}
                       readOnly
                     />
+                    {canUpdateInvoice ? (
+                      <div className="row g-2 mt-3 pos-inv-no-print">
+                        <div className="col-12">
+                          <label className="form-label" htmlFor="posInvAddress">
+                            Address
+                          </label>
+                          <textarea
+                            id="posInvAddress"
+                            className="form-control form-control-sm"
+                            rows={2}
+                            value={invoiceAddress}
+                            onChange={(e) => setInvoiceAddress(e.target.value)}
+                            placeholder="Street address"
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvCity">
+                            City
+                          </label>
+                          <input
+                            id="posInvCity"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceCity}
+                            onChange={(e) => setInvoiceCity(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvState">
+                            State
+                          </label>
+                          <input
+                            id="posInvState"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceState}
+                            onChange={(e) => setInvoiceState(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvZip">
+                            Zip
+                          </label>
+                          <input
+                            id="posInvZip"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceZip}
+                            onChange={(e) => setInvoiceZip(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label" htmlFor="posInvCountry">
+                            Country
+                          </label>
+                          <input
+                            id="posInvCountry"
+                            type="text"
+                            className="form-control form-control-sm"
+                            value={invoiceCountry}
+                            onChange={(e) => setInvoiceCountry(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="col-lg-6">
                     <div className="pos-inv-summary-panel">
