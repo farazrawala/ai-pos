@@ -108,7 +108,7 @@ export const USER_LIST_ROLE_TABS = [
   { id: 'users', label: 'Users', role: 'USER' },
   { id: 'customer', label: 'Customers', role: 'CUSTOMER' },
   { id: 'vendor', label: 'Vendors', role: 'VENDOR' },
-  { id: 'deleted-customers', label: 'Deleted customers', role: 'CUSTOMER', deleted: true },
+  { id: 'deleted-users', label: 'Deleted users', deleted: true },
 ];
 
 const initialState = {

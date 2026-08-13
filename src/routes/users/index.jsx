@@ -116,11 +116,11 @@ const Users = () => {
     restoreError,
   } = useSelector((state) => state.users);
 
-  const activeRoleTab = useMemo(
-    () => USER_LIST_ROLE_TABS.find((t) => t.id === roleFilter) ?? USER_LIST_ROLE_TABS[0],
-    [roleFilter]
-  );
-  const isDeletedCustomersView = activeRoleTab.id === 'deleted-customers';
+  const activeRoleTab = useMemo(() => {
+    const tabId = roleFilter === 'deleted-customers' ? 'deleted-users' : roleFilter;
+    return USER_LIST_ROLE_TABS.find((t) => t.id === tabId) ?? USER_LIST_ROLE_TABS[0];
+  }, [roleFilter]);
+  const isDeletedUsersView = Boolean(activeRoleTab.deleted);
 
   const { canCreate, canEdit, canDelete } = usePermissions('users');
   useRequireModuleAccess('users');
@@ -146,7 +146,7 @@ const Users = () => {
     if (stateFilter) params.state = stateFilter;
     if (cityFilter) params.city = cityFilter;
     if (areaFilter) params.area = areaFilter;
-    if (isDeletedCustomersView) {
+    if (isDeletedUsersView) {
       dispatch(fetchDeletedUsers(params));
     } else {
       dispatch(fetchUsers(params));
@@ -159,7 +159,7 @@ const Users = () => {
     sort.sortBy,
     sort.sortOrder,
     activeRoleTab.role,
-    isDeletedCustomersView,
+    isDeletedUsersView,
     stateFilter,
     cityFilter,
     areaFilter,
@@ -197,7 +197,7 @@ const Users = () => {
 
   useEffect(() => {
     if (restoreStatus === 'succeeded') {
-      showToast({ message: 'Customer restored successfully.', variant: 'success' });
+      showToast({ message: 'User restored successfully.', variant: 'success' });
       dispatch(clearRestoreStatus());
     }
   }, [restoreStatus, dispatch]);
@@ -371,8 +371,8 @@ const Users = () => {
 
   const handleRestoreUser = async (userId, displayName) => {
     if (!userId || !canEdit || restoringUserId) return;
-    const nameLabel = displayName !== '—' ? displayName : 'this customer';
-    if (!window.confirm(`Restore "${nameLabel}"? The customer will appear in the Customers list again.`)) {
+    const nameLabel = displayName !== '—' ? displayName : 'this user';
+    if (!window.confirm(`Restore "${nameLabel}"? The user will be active again.`)) {
       return;
     }
     setRestoringUserId(userId);
@@ -380,7 +380,7 @@ const Users = () => {
       await dispatch(restoreUser(userId)).unwrap();
     } catch (err) {
       const message =
-        typeof err === 'string' ? err : err?.message || 'Failed to restore customer';
+        typeof err === 'string' ? err : err?.message || 'Failed to restore user';
       showToast({ message, variant: 'error' });
     } finally {
       setRestoringUserId(null);
@@ -410,8 +410,8 @@ const Users = () => {
         : '';
     if (activeRoleTab.id === 'customer')
       return `No customers found. Try adjusting your search.${locationHint}`;
-    if (activeRoleTab.id === 'deleted-customers')
-      return `No deleted customers found.${locationHint}`;
+    if (activeRoleTab.id === 'deleted-users')
+      return `No deleted users found.${locationHint}`;
     if (activeRoleTab.id === 'vendor')
       return `No vendors found. Try adjusting your search.${locationHint}`;
     return `No users found. Try adjusting your search.${locationHint}`;
@@ -419,7 +419,7 @@ const Users = () => {
 
   const searchPlaceholder = useMemo(() => {
     if (activeRoleTab.id === 'customer') return 'Search customers…';
-    if (activeRoleTab.id === 'deleted-customers') return 'Search deleted customers…';
+    if (activeRoleTab.id === 'deleted-users') return 'Search deleted users…';
     if (activeRoleTab.id === 'vendor') return 'Search vendors…';
     return 'Search users…';
   }, [activeRoleTab.id]);
@@ -512,7 +512,7 @@ const Users = () => {
                         aria-label={searchPlaceholder}
                       />
                     </div>
-                    {canCreate && !isDeletedCustomersView ? (
+                    {canCreate && !isDeletedUsersView ? (
                       <AddNewButton to="/users/add" label={addButtonLabel} size="sm" />
                     ) : null}
                   </div>
@@ -538,11 +538,11 @@ const Users = () => {
                 className="list-data-table--users"
                 loading={loading}
                 loadingLabel={
-                  isDeletedCustomersView ? 'Loading deleted users…' : 'Loading users…'
+                  isDeletedUsersView ? 'Loading deleted users…' : 'Loading users…'
                 }
                 error={error}
                 errorPrefix={
-                  isDeletedCustomersView ? 'Error loading deleted users' : 'Error loading users'
+                  isDeletedUsersView ? 'Error loading deleted users' : 'Error loading users'
                 }
                 pagination={pagination}
                 onPageChange={handlePageChange}
@@ -579,8 +579,8 @@ const Users = () => {
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
                       {isVisible('created')
                         ? sortableTh(
-                            isDeletedCustomersView ? 'deletedAt' : 'createdAt',
-                            isDeletedCustomersView ? 'Deleted' : 'Created',
+                            isDeletedUsersView ? 'deletedAt' : 'createdAt',
+                            isDeletedUsersView ? 'Deleted' : 'Created',
                             'list-col-date'
                           )
                         : null}
@@ -617,7 +617,7 @@ const Users = () => {
                         const area = String(item.area || '').trim() || '—';
                         const created = pickUserCreatedOn(item);
                         const deletedOn = pickUserDeletedOn(item);
-                        const dateValue = isDeletedCustomersView ? deletedOn : created;
+                        const dateValue = isDeletedUsersView ? deletedOn : created;
                         return (
                           <tr key={key}>
                             {isVisible('sno') ? (
@@ -719,7 +719,7 @@ const Users = () => {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                {isDeletedCustomersView ? (
+                                {isDeletedUsersView ? (
                                   <span className="badge text-xxs bg-gradient-secondary mb-0">
                                     Deleted
                                   </span>
@@ -762,7 +762,7 @@ const Users = () => {
                               <td
                                 className="text-sm text-nowrap list-col-date"
                                 title={
-                                  isDeletedCustomersView
+                                  isDeletedUsersView
                                     ? deletedOn
                                       ? `Deleted ${moment(deletedOn).format('DD MMM YYYY h:mm a')}`
                                       : undefined
@@ -772,7 +772,7 @@ const Users = () => {
                                 }
                               >
                                 {dateValue
-                                  ? isDeletedCustomersView
+                                  ? isDeletedUsersView
                                     ? formatDeletedAgo(dateValue)
                                     : moment(dateValue).format('DD MMM YYYY h:mm a')
                                   : '—'}
@@ -781,18 +781,18 @@ const Users = () => {
                             {isVisible('actions') ? (
                               <td className="text-end">
                                 <div className="list-table-actions">
-                                  {canEdit && isDeletedCustomersView ? (
+                                  {canEdit && isDeletedUsersView ? (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-success mb-0"
-                                      title="Restore customer"
+                                      title="Restore user"
                                       onClick={() => handleRestoreUser(userId, displayName)}
                                       disabled={restoringUserId === userId}
                                     >
                                       {restoringUserId === userId ? 'Restoring…' : 'Restore'}
                                     </button>
                                   ) : null}
-                                  {canEdit && !isDeletedCustomersView ? (
+                                  {canEdit && !isDeletedUsersView ? (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-primary mb-0"
@@ -802,7 +802,7 @@ const Users = () => {
                                     </button>
                                   ) : null}
                                   {canDelete &&
-                                  !isDeletedCustomersView &&
+                                  !isDeletedUsersView &&
                                   ((activeRoleTab.id === 'customer' && !isDefaultCustomer) ||
                                     (activeRoleTab.id === 'vendor' && !isDefaultVendor)) ? (
                                     <button
@@ -827,7 +827,7 @@ const Users = () => {
                                   {!canEdit &&
                                   !(
                                     canDelete &&
-                                    !isDeletedCustomersView &&
+                                    !isDeletedUsersView &&
                                     ((activeRoleTab.id === 'customer' && !isDefaultCustomer) ||
                                       (activeRoleTab.id === 'vendor' && !isDefaultVendor))
                                   ) ? (
