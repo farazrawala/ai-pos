@@ -994,98 +994,113 @@ const PurchaseOrderEdit = () => {
     [lines]
   );
 
-  const handleNormalPrint = useCallback(async () => {
-    let settings = printerSettings;
-    let brand = companyBrand;
-    const companyId =
-      getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
+  const runPurchaseOrderPrint = useCallback(
+    async (printOptions = {}) => {
+      let settings = printerSettings;
+      let brand = companyBrand;
+      const companyId =
+        getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim();
 
-    if (companyId) {
-      try {
-        const body = await fetchCompanyById(companyId);
-        const company = getCompanyFromApiBody(body);
-        if (company && typeof company === 'object') {
-          const merged = mergeCompanyRecordForSettings(company, authCompany);
-          settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
-          brand = {
-            name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
-            phone: String(merged?.company_phone || merged?.phone || '').trim(),
-            email: String(merged?.company_email || merged?.email || '').trim(),
-            address: String(merged?.company_address || merged?.address || '').trim(),
-            logoUrl: pickCompanyLogoUrl(merged),
-          };
+      if (companyId) {
+        try {
+          const body = await fetchCompanyById(companyId);
+          const company = getCompanyFromApiBody(body);
+          if (company && typeof company === 'object') {
+            const merged = mergeCompanyRecordForSettings(company, authCompany);
+            settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
+            brand = {
+              name: String(merged?.company_name || merged?.name || shopName).trim() || shopName,
+              phone: String(merged?.company_phone || merged?.phone || '').trim(),
+              email: String(merged?.company_email || merged?.email || '').trim(),
+              address: String(merged?.company_address || merged?.address || '').trim(),
+              logoUrl: pickCompanyLogoUrl(merged),
+            };
+          }
+        } catch {
+          // print with last known settings
         }
-      } catch {
-        // print with last known settings
       }
-    }
 
-    const supplierUser = supplierOptions.find(
-      (u) => String(getUserOptionValue(u)) === String(form.supplier_id).trim()
-    );
-    const payAccount = accountOptions.find(
-      (a) => accountOptionValue(a) === String(form.account_id).trim()
-    );
+      const supplierUser = supplierOptions.find(
+        (u) => String(getUserOptionValue(u)) === String(form.supplier_id).trim()
+      );
+      const payAccount = accountOptions.find(
+        (a) => accountOptionValue(a) === String(form.account_id).trim()
+      );
 
-    await openNormalInvoicePrint(
-      {
-        printerSettings: settings,
-        companyBrand: brand,
-        invoiceNo: form.purchase_order_no.trim() || '—',
-        invoiceDate: poPrintDate,
-        terms: form.notes.trim() || 'Purchase Order',
-        note: form.expected_delivery_date
-          ? `Expected delivery: ${formatDisplayDate(form.expected_delivery_date)}`
-          : '',
-        billTo: {
-          name: supplierLabel,
-          phone: String(
-            supplierUser?.mobile ?? supplierUser?.phone ?? supplierUser?.phoneNumber ?? ''
-          ).trim(),
-          email: String(supplierUser?.email ?? '').trim(),
+      await openNormalInvoicePrint(
+        {
+          printerSettings: settings,
+          companyBrand: brand,
+          invoiceNo: form.purchase_order_no.trim() || '—',
+          invoiceDate: poPrintDate,
+          terms: form.notes.trim() || 'Purchase Order',
+          note: form.expected_delivery_date
+            ? `Expected delivery: ${formatDisplayDate(form.expected_delivery_date)}`
+            : '',
+          billTo: {
+            name: supplierLabel,
+            phone: String(
+              supplierUser?.mobile ?? supplierUser?.phone ?? supplierUser?.phoneNumber ?? ''
+            ).trim(),
+            email: String(supplierUser?.email ?? '').trim(),
+          },
+          lines: printLines,
+          summary: {
+            subTotal: summary.subTotal,
+            tax: 0,
+            discount: summary.discount,
+            shipping: summary.shipment,
+            total: summary.total,
+            paymentMade: amountPaidNum,
+            balanceDue: paymentRemaining,
+          },
+          grossAmount: summary.total,
+          paymentMethod: payAccount ? accountOptionLabel(payAccount) : '—',
+          amountReceived: form.amount_received,
         },
-        lines: printLines,
-        summary: {
-          subTotal: summary.subTotal,
-          tax: 0,
-          discount: summary.discount,
-          shipping: summary.shipment,
-          total: summary.total,
-          paymentMade: amountPaidNum,
-          balanceDue: paymentRemaining,
-        },
-        grossAmount: summary.total,
-        paymentMethod: payAccount ? accountOptionLabel(payAccount) : '—',
-        amountReceived: form.amount_received,
-      },
-      {
-        documentTitlePrefix: 'Purchase Order',
-        invoiceNumberPrefix: 'PO#',
-        documentHeading: 'PURCHASE ORDER',
-        billToLabel: 'Supplier',
-        dateLabel: 'Order Date:',
-      }
-    );
-  }, [
-    printerSettings,
-    companyBrand,
-    authUser,
-    authCompany,
-    supplierOptions,
-    accountOptions,
-    form.purchase_order_no,
-    form.notes,
-    form.expected_delivery_date,
-    form.supplier_id,
-    form.account_id,
-    form.amount_received,
-    poPrintDate,
-    supplierLabel,
-    printLines,
-    summary,
-    amountPaidNum,
-    paymentRemaining,
-  ]);
+        {
+          documentTitlePrefix: 'Purchase Order',
+          invoiceNumberPrefix: 'PO#',
+          documentHeading: 'PURCHASE ORDER',
+          billToLabel: 'Supplier',
+          dateLabel: 'Order Date:',
+          ...printOptions,
+        }
+      );
+    },
+    [
+      printerSettings,
+      companyBrand,
+      authUser,
+      authCompany,
+      supplierOptions,
+      accountOptions,
+      form.purchase_order_no,
+      form.notes,
+      form.expected_delivery_date,
+      form.supplier_id,
+      form.account_id,
+      form.amount_received,
+      poPrintDate,
+      supplierLabel,
+      printLines,
+      summary,
+      amountPaidNum,
+      paymentRemaining,
+    ]
+  );
+
+  const handleNormalPrint = useCallback(() => runPurchaseOrderPrint(), [runPurchaseOrderPrint]);
+
+  const handleHalfPrint = useCallback(
+    () =>
+      runPurchaseOrderPrint({
+        halfPage: true,
+        windowFeatures: 'width=820,height=1180',
+      }),
+    [runPurchaseOrderPrint]
+  );
 
   const hasSaveableLines = useMemo(
     () => lines.some((d) => String(d?.productId ?? '').trim()),
@@ -1426,12 +1441,22 @@ const PurchaseOrderEdit = () => {
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-success"
-                      onClick={handleNormalPrint}
+                      onClick={handleHalfPrint}
                       disabled={!hasSaveableLines}
-                      title={!hasSaveableLines ? 'Add at least one product line' : 'A4 print'}
+                      title={!hasSaveableLines ? 'Add at least one product line' : 'A4 half page print'}
                     >
                       <i className="fas fa-print me-1" aria-hidden="true" />
-                      Print
+                      Half Print
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={handleNormalPrint}
+                      disabled={!hasSaveableLines}
+                      title={!hasSaveableLines ? 'Add at least one product line' : 'A4 full page print'}
+                    >
+                      <i className="fas fa-print me-1" aria-hidden="true" />
+                      Full Print
                     </button>
                     <button
                       type="button"
