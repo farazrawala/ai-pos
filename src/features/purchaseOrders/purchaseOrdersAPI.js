@@ -17,8 +17,8 @@ const BASE_URL = `${API_BASE_URL}/`;
 
 const ENDPOINT_PATH = 'purchase_order/get-purchase-order-by-purchase-item';
 
-/** Appended on GET list/detail for this route so `vendor_id` is populated (e.g. Mongoose). */
-const PURCHASE_ORDER_GET_POPULATE = 'vendor_id';
+/** Appended on GET list/detail so vendor and actor refs are populated (e.g. Mongoose). */
+const PURCHASE_ORDER_GET_POPULATE = 'vendor_id,created_by,updated_by';
 
 /**
  * Query / JSON body keys to try (in order). Backends vary: snake_case, camelCase, generic `id`.
@@ -270,7 +270,7 @@ export function normalizePurchaseOrdersListResponse(result, params = {}) {
 
 /**
  * Paginated list: `GET purchase_order/get-purchase-order-by-purchase-item`
- * with `populate=vendor_id`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
+ * with `populate=vendor_id,created_by,updated_by`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
  */
 export async function fetchPurchaseOrdersListRequest(params = {}) {
   const queryParams = new URLSearchParams();
@@ -385,7 +385,7 @@ export function unwrapPurchaseOrderRecord(result) {
 }
 
 /**
- * GET `purchase_order/get-purchase-order-by-purchase-item/:id?populate=vendor_id`
+ * GET `purchase_order/get-purchase-order-by-purchase-item/:id?populate=vendor_id,created_by,updated_by`
  * (purchase order id in path). Response shape: `{ data: [ purchaseOrder ], ... }`.
  */
 export async function fetchPurchaseOrderByIdRequest(purchaseOrderId) {

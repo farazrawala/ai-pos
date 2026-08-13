@@ -47,10 +47,39 @@ const PURCHASE_ORDER_COLUMNS = [
   { key: 'supplier', label: 'Supplier' },
   { key: 'trace_id', label: 'Trace ID' },
   { key: 'amount', label: 'Amount' },
-  { key: 'created', label: 'Created' },
-  { key: 'updated', label: 'Last updated' },
+  { key: 'dates', label: 'Created / Updated' },
+  { key: 'actors', label: 'Created / Updated by' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
+
+/** Display name from a populated user ref (or plain string id fallback). */
+function getUserRefLabel(user) {
+  if (user && typeof user === 'object' && !Array.isArray(user)) {
+    const name = String(user.name ?? user.fullName ?? user.username ?? '').trim();
+    if (name) return name;
+    const email = String(user.email ?? '').trim();
+    if (email) return email;
+    return '';
+  }
+  if (typeof user === 'string' && user.trim()) return user.trim();
+  return '';
+}
+
+function getCreatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return (
+    getUserRefLabel(row.created_by ?? row.createdBy) ||
+    String(row.created_by_name ?? row.createdByName ?? '').trim()
+  );
+}
+
+function getUpdatedByLabel(row) {
+  if (!row || typeof row !== 'object') return '';
+  return (
+    getUserRefLabel(row.updated_by ?? row.updatedBy) ||
+    String(row.updated_by_name ?? row.updatedByName ?? '').trim()
+  );
+}
 
 const poRef = (row) =>
   row?.purchase_order_no ??
@@ -487,12 +516,14 @@ const PurchaseOrders = () => {
                         {isVisible('amount')
                           ? sortableTh('total_amount', 'Amount', 'text-end list-col-amount')
                           : null}
-                        {isVisible('created')
-                          ? sortableTh('createdAt', 'Created', 'list-col-date')
+                        {isVisible('dates')
+                          ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
                           : null}
-                        {isVisible('updated')
-                          ? sortableTh('updatedAt', 'Last updated', 'list-col-date')
-                          : null}
+                        {isVisible('actors') ? (
+                          <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
+                            Created / Updated by
+                          </th>
+                        ) : null}
                         <th className="text-end list-col-actions">Actions</th>
                       </tr>
                     </thead>
@@ -513,6 +544,8 @@ const PurchaseOrders = () => {
                           const ref = poRef(item);
                           const created = poCreated(item);
                           const updated = poUpdated(item);
+                          const createdByLabel = getCreatedByLabel(item);
+                          const updatedByLabel = getUpdatedByLabel(item);
                           const txn = poTransactionNumber(item);
                           const statusVal = poStatus(item);
                           return (
@@ -576,21 +609,64 @@ const PurchaseOrders = () => {
                                   {poTotalAmount(item)}
                                 </td>
                               ) : null}
-                              {isVisible('created') ? (
-                                <td className="text-sm text-nowrap list-col-date">
-                                  {created ? moment(created).format('DD MMM YYYY h:mm a') : '—'}
+                              {isVisible('dates') ? (
+                                <td className="text-sm list-col-date">
+                                  {created || updated ? (
+                                    <div className="oms-dates-cell">
+                                      <div
+                                        className="oms-dates-cell__created text-nowrap"
+                                        title={
+                                          created
+                                            ? moment(created).format('DD MMM YYYY h:mm a')
+                                            : undefined
+                                        }
+                                      >
+                                        {created
+                                          ? moment(created).format('DD MMM YYYY h:mm a')
+                                          : '—'}
+                                      </div>
+                                      <div
+                                        className="oms-dates-cell__updated text-nowrap"
+                                        title={
+                                          updated
+                                            ? moment(updated).format('DD MMM YYYY h:mm a')
+                                            : undefined
+                                        }
+                                      >
+                                        {updated ? `Updated ${moment(updated).fromNow()}` : '—'}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    '—'
+                                  )}
                                 </td>
                               ) : null}
-                              {isVisible('updated') ? (
-                                <td
-                                  className="text-sm text-nowrap list-col-date"
-                                  title={
-                                    updated
-                                      ? moment(updated).format('DD MMM YYYY h:mm a')
-                                      : undefined
-                                  }
-                                >
-                                  {updated ? moment(updated).fromNow() : '—'}
+                              {isVisible('actors') ? (
+                                <td className="text-sm">
+                                  {createdByLabel || updatedByLabel ? (
+                                    <div className="oms-actors-cell">
+                                      {createdByLabel ? (
+                                        <div
+                                          className="oms-actors-cell__line text-truncate"
+                                          title={`Created by ${createdByLabel}`}
+                                        >
+                                          <span className="oms-actors-cell__label">Created</span>
+                                          {createdByLabel}
+                                        </div>
+                                      ) : null}
+                                      {updatedByLabel ? (
+                                        <div
+                                          className="oms-actors-cell__line text-truncate"
+                                          title={`Updated by ${updatedByLabel}`}
+                                        >
+                                          <span className="oms-actors-cell__label">Updated</span>
+                                          {updatedByLabel}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : (
+                                    '—'
+                                  )}
                                 </td>
                               ) : null}
                               <td className="text-end">
