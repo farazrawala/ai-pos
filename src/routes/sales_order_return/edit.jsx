@@ -35,6 +35,7 @@ import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import '../purchase_order/po-form-module.css';
 
 function normalizeSearchToken(value) {
@@ -648,6 +649,7 @@ const SalesReturnEdit = () => {
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
+      playPosScanBeep('success');
     },
     [defaultWarehouseId]
   );
@@ -1209,6 +1211,7 @@ const SalesReturnEdit = () => {
                           setAddProductQuery(e.target.value);
                         }}
                         onKeyDown={handleProductSearchKeyDown}
+                        onFocus={unlockPosScanAudio}
                         autoComplete="off"
                         disabled={isSubmitting}
                         aria-label="Search products by name, SKU, or barcode. Press Enter to add."

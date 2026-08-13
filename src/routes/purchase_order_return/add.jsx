@@ -44,6 +44,7 @@ import {
   sanitizeAmountPaidInput,
 } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import '../purchase_order/po-form-module.css';
 
 const fmt = (n) =>
@@ -475,6 +476,7 @@ const PurchaseOrderReturnAdd = () => {
       setLines((prev) =>
         lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
       );
+      playPosScanBeep('success');
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
@@ -1160,6 +1162,7 @@ const PurchaseOrderReturnAdd = () => {
               placeholder="Search name, SKU, or barcode (min. 2 characters)…"
               value={addProductQuery}
               onChange={(e) => setAddProductQuery(e.target.value)}
+              onFocus={unlockPosScanAudio}
               autoComplete="off"
               disabled={isSubmitting}
             />

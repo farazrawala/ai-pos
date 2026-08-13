@@ -33,6 +33,7 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
@@ -521,6 +522,7 @@ const SalesReturnAdd = () => {
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
+      playPosScanBeep('success');
     },
     [defaultWarehouseId]
   );
@@ -1290,6 +1292,7 @@ const SalesReturnAdd = () => {
                 setAddProductQuery(e.target.value);
               }}
               onKeyDown={handleProductSearchKeyDown}
+              onFocus={unlockPosScanAudio}
               autoComplete="off"
               disabled={isSubmitting}
               aria-label="Search products by name, SKU, or barcode. Press Enter to add."

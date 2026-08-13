@@ -85,6 +85,7 @@ import {
 import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
@@ -240,6 +241,103 @@ async function loadCachedPosLayout(companyId) {
     /* ignore */
   }
   return fromLocal;
+}
+
+const POS_CART_SESSION_STORAGE_KEY = 'pos.cartSession';
+const POS_CART_SESSION_META_KEY = 'pos_cart_session';
+
+function posCartSessionLocalStorageKey(companyId, userId) {
+  const company = String(companyId || '').trim();
+  const user = String(userId || '').trim();
+  if (company && user) return `${POS_CART_SESSION_STORAGE_KEY}.${company}.${user}`;
+  if (company) return `${POS_CART_SESSION_STORAGE_KEY}.${company}`;
+  return POS_CART_SESSION_STORAGE_KEY;
+}
+
+function posCartSessionMetaKey(companyId, userId) {
+  const company = String(companyId || '').trim();
+  const user = String(userId || '').trim();
+  if (company && user) return `${POS_CART_SESSION_META_KEY}.${company}.${user}`;
+  if (company) return `${POS_CART_SESSION_META_KEY}.${company}`;
+  return POS_CART_SESSION_META_KEY;
+}
+
+function normalizeStoredCartLines(lines) {
+  if (!Array.isArray(lines)) return [];
+  return lines.filter(
+    (line) => line && typeof line === 'object' && String(line.productId || '').trim()
+  );
+}
+
+function normalizeCartSession(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      cartLines: [],
+      selectedCustomerId: '',
+      shipping: '',
+      orderDateTime: '',
+      extraDiscount: '',
+      extraDiscountPercent: '',
+      activeDraftId: null,
+    };
+  }
+  const activeDraftId =
+    raw.activeDraftId != null && String(raw.activeDraftId).trim() !== ''
+      ? String(raw.activeDraftId)
+      : null;
+  return {
+    cartLines: normalizeStoredCartLines(raw.cartLines),
+    selectedCustomerId:
+      raw.selectedCustomerId != null && String(raw.selectedCustomerId).trim() !== ''
+        ? String(raw.selectedCustomerId)
+        : '',
+    shipping: raw.shipping != null ? String(raw.shipping) : '',
+    orderDateTime: raw.orderDateTime != null ? String(raw.orderDateTime) : '',
+    extraDiscount: raw.extraDiscount != null ? String(raw.extraDiscount) : '',
+    extraDiscountPercent: raw.extraDiscountPercent != null ? String(raw.extraDiscountPercent) : '',
+    activeDraftId,
+  };
+}
+
+function readStoredCartSession(companyId, userId) {
+  const scoped = readLocalStorageJson(posCartSessionLocalStorageKey(companyId, userId));
+  if (scoped) return normalizeCartSession(scoped);
+  return null;
+}
+
+function persistCartSession(session, companyId, userId) {
+  const next = normalizeCartSession(session);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(
+        posCartSessionLocalStorageKey(companyId, userId),
+        JSON.stringify(next)
+      );
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
+  setMeta(posCartSessionMetaKey(companyId, userId), next).catch((err) => {
+    console.warn('[POS] Could not cache cart session offline', err);
+  });
+  return next;
+}
+
+/** Prefer localStorage; fall back to offline meta cache. */
+async function loadCachedCartSession(companyId, userId) {
+  const fromLocal = readStoredCartSession(companyId, userId);
+  if (fromLocal) return fromLocal;
+  try {
+    const fromMeta = await getMeta(posCartSessionMetaKey(companyId, userId));
+    if (fromMeta) {
+      const normalized = normalizeCartSession(fromMeta);
+      persistCartSession(normalized, companyId, userId);
+      return normalized;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /** Value for `<input type="datetime-local">` (local wall clock). */
@@ -783,6 +881,11 @@ const Pos = () => {
     [authUser, authCompany]
   );
 
+  const userId = useMemo(
+    () => String(authUser?._id ?? authUser?.id ?? '').trim(),
+    [authUser]
+  );
+
   const defaultWarehouseId = useMemo(() => getWarehouseIdFromCompany(authCompany), [authCompany]);
 
   const authCompanyRef = useRef(authCompany);
@@ -830,10 +933,18 @@ const Pos = () => {
 
   const companyBrand = useMemo(() => buildCompanyBrandFromRecord(authCompany), [authCompany]);
 
+  const initialCartSessionRef = useRef(undefined);
+  if (initialCartSessionRef.current === undefined) {
+    initialCartSessionRef.current = readStoredCartSession(companyId, userId);
+  }
+  const initialCartSession = initialCartSessionRef.current;
+
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    () => initialCartSession?.selectedCustomerId || ''
+  );
   const [customerFilter, setCustomerFilter] = useState('');
   const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const customerPickerRef = useRef(null);
@@ -843,12 +954,20 @@ const Pos = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const [categoriesError, setCategoriesError] = useState(null);
-  const [shipping, setShipping] = useState('');
-  const [orderDateTime, setOrderDateTime] = useState(nowDatetimeLocalValue);
-  const [extraDiscount, setExtraDiscount] = useState('');
-  const [extraDiscountPercent, setExtraDiscountPercent] = useState('');
+  const [shipping, setShipping] = useState(() => initialCartSession?.shipping || '');
+  const [orderDateTime, setOrderDateTime] = useState(() =>
+    initialCartSession?.orderDateTime
+      ? toDatetimeLocalValue(initialCartSession.orderDateTime)
+      : nowDatetimeLocalValue()
+  );
+  const [extraDiscount, setExtraDiscount] = useState(() => initialCartSession?.extraDiscount || '');
+  const [extraDiscountPercent, setExtraDiscountPercent] = useState(
+    () => initialCartSession?.extraDiscountPercent || ''
+  );
   const discountEditSourceRef = useRef(null);
-  const [cartLines, setCartLines] = useState([]);
+  const [cartLines, setCartLines] = useState(() =>
+    Array.isArray(initialCartSession?.cartLines) ? initialCartSession.cartLines : []
+  );
   const [cartDisplayOrder, setCartDisplayOrder] = useState(readStoredCartDisplayOrder);
   const [posLayout, setPosLayout] = useState(() => readStoredPosLayout(companyId));
   const [layoutSettingsOpen, setLayoutSettingsOpen] = useState(false);
@@ -856,8 +975,13 @@ const Pos = () => {
   cartDisplayOrderRef.current = cartDisplayOrder;
   const posLayoutCompanyIdRef = useRef(companyId);
   posLayoutCompanyIdRef.current = companyId;
+  const cartSessionScopeRef = useRef(`${companyId}:${userId}`);
+  const cartSessionHydratedScopeRef = useRef(
+    initialCartSession != null ? `${companyId}:${userId}` : ''
+  );
   const [cartProductFilter, setCartProductFilter] = useState('');
-  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [activeDraftId, setActiveDraftId] = useState(() => initialCartSession?.activeDraftId || null);
+  const [cartSessionReady, setCartSessionReady] = useState(() => initialCartSession != null);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDeletingId, setDraftDeletingId] = useState(null);
 
@@ -880,6 +1004,92 @@ const Pos = () => {
       cancelled = true;
     };
   }, [companyId]);
+
+  const applyCartSession = useCallback((session) => {
+    const data = session && typeof session === 'object' ? session : {};
+    setCartLines(Array.isArray(data.cartLines) ? data.cartLines : []);
+    setSelectedCustomerId(
+      data.selectedCustomerId != null && String(data.selectedCustomerId).trim() !== ''
+        ? String(data.selectedCustomerId)
+        : ''
+    );
+    setShipping(data.shipping != null ? String(data.shipping) : '');
+    setOrderDateTime(
+      data.orderDateTime ? toDatetimeLocalValue(data.orderDateTime) : nowDatetimeLocalValue()
+    );
+    setExtraDiscount(data.extraDiscount != null ? String(data.extraDiscount) : '');
+    setExtraDiscountPercent(
+      data.extraDiscountPercent != null ? String(data.extraDiscountPercent) : ''
+    );
+    setActiveDraftId(
+      data.activeDraftId != null && String(data.activeDraftId).trim() !== ''
+        ? String(data.activeDraftId)
+        : null
+    );
+    discountEditSourceRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const scope = `${companyId}:${userId}`;
+    const scopeChanged = cartSessionScopeRef.current !== scope;
+    cartSessionScopeRef.current = scope;
+
+    const fromLocal = readStoredCartSession(companyId, userId);
+    if (fromLocal && !scopeChanged) {
+      cartSessionHydratedScopeRef.current = scope;
+      setCartSessionReady(true);
+      return undefined;
+    }
+
+    let cancelled = false;
+    if (scopeChanged) setCartSessionReady(false);
+
+    loadCachedCartSession(companyId, userId).then((session) => {
+      if (cancelled) return;
+      if (session) {
+        applyCartSession(session);
+      } else if (scopeChanged) {
+        applyCartSession(null);
+      }
+      cartSessionHydratedScopeRef.current = scope;
+      setCartSessionReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, userId, applyCartSession]);
+
+  useEffect(() => {
+    if (!cartSessionReady) return undefined;
+    const scope = `${companyId}:${userId}`;
+    if (cartSessionHydratedScopeRef.current !== scope) return undefined;
+    persistCartSession(
+      {
+        cartLines,
+        selectedCustomerId,
+        shipping,
+        orderDateTime,
+        extraDiscount,
+        extraDiscountPercent,
+        activeDraftId,
+      },
+      companyId,
+      userId
+    );
+    return undefined;
+  }, [
+    cartSessionReady,
+    cartLines,
+    selectedCustomerId,
+    shipping,
+    orderDateTime,
+    extraDiscount,
+    extraDiscountPercent,
+    activeDraftId,
+    companyId,
+    userId,
+  ]);
 
   const runPosMasterSync = useCallback(
     async ({ force = false, showSuccessToast = false } = {}) => {
@@ -1213,23 +1423,28 @@ const Pos = () => {
         warehouseId: defaultWarehouseId,
       });
 
+      unlockPosScanAudio();
+      let added = false;
+      let blockMsg = '';
+
       setCartLines((prev) => {
         const i = prev.findIndex((l) => l.productId === productId);
         const currentQty = i >= 0 ? parsePosQty(prev[i].quantity) : 0;
         const nextQty = currentQty + 1;
         const stockInCart = i >= 0 ? (prev[i].availableStock ?? availableStock) : availableStock;
 
-        const blockMsg = posStockBlocksQty({
+        const stockBlock = posStockBlocksQty({
           allowWhenInsufficient: allowAddWhenStockInsufficient,
           availableStock: stockInCart,
           requestedQty: nextQty,
           productName: name,
         });
-        if (blockMsg) {
-          queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
+        if (stockBlock) {
+          blockMsg = stockBlock;
           return prev;
         }
 
+        added = true;
         if (i >= 0) {
           const next = [...prev];
           next[i] = {
@@ -1257,6 +1472,13 @@ const Pos = () => {
         // FIFO: oldest first (append). LIFO: newest first (prepend).
         return cartDisplayOrder === POS_CART_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine];
       });
+
+      if (blockMsg) {
+        playPosScanBeep('error');
+        queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
+        return;
+      }
+      if (added) playPosScanBeep('success');
     },
     [defaultWarehouseId, allowAddWhenStockInsufficient, cartDisplayOrder]
   );
@@ -1790,14 +2012,28 @@ const Pos = () => {
   ]);
 
   const clearCartAfterSale = useCallback(() => {
+    const nextDateTime = nowDatetimeLocalValue();
     setCartLines([]);
     setShipping('');
-    setOrderDateTime(nowDatetimeLocalValue());
+    setOrderDateTime(nextDateTime);
     setExtraDiscount('');
     setExtraDiscountPercent('');
     discountEditSourceRef.current = null;
     setActiveDraftId(null);
-  }, []);
+    persistCartSession(
+      {
+        cartLines: [],
+        selectedCustomerId,
+        shipping: '',
+        orderDateTime: nextDateTime,
+        extraDiscount: '',
+        extraDiscountPercent: '',
+        activeDraftId: null,
+      },
+      companyId,
+      userId
+    );
+  }, [selectedCustomerId, companyId, userId]);
 
   const draftOrders = useMemo(() => normalizeCompanyDraftOrders(authCompany), [authCompany]);
 

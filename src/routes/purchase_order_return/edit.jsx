@@ -41,6 +41,7 @@ import {
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import '../purchase_order/po-form-module.css';
 
 const accountOptionLabel = (a) => {
@@ -624,6 +625,7 @@ const PurchaseOrderReturnEdit = () => {
       setLines((prev) =>
         lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
       );
+      playPosScanBeep('success');
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
@@ -1173,6 +1175,7 @@ const PurchaseOrderReturnEdit = () => {
                         placeholder="Search name, SKU, or barcode (min. 2 characters)…"
                         value={addProductQuery}
                         onChange={(e) => setAddProductQuery(e.target.value)}
+                        onFocus={unlockPosScanAudio}
                         autoComplete="off"
                         disabled={isSubmitting}
                       />
