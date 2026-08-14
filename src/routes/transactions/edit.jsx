@@ -121,6 +121,7 @@ const TransactionEdit = () => {
                   initialValues={initialValues}
                   submitting={submitting}
                   submitLabel="Update transaction"
+                  readOnlyTransactionNumber
                   onSubmit={handleSubmit}
                   onCancel={() => navigate('/transactions')}
                 />

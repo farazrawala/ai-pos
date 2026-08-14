@@ -600,7 +600,9 @@ const Transactions = () => {
                               ) : null}
                               <span
                                 className={`journal-chip ${
-                                  sums.balanced ? 'journal-chip--success' : 'journal-chip--warning'
+                                  sums.balanced
+                                    ? 'journal-chip--success'
+                                    : 'journal-chip--warning journal-chip--alert'
                                 }`}
                                 title="Debits should equal credits for a complete posting"
                               >

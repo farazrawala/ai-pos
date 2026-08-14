@@ -40,6 +40,7 @@ export default function TransactionForm({
   submitting = false,
   submitLabel = 'Save transaction',
   onCancel,
+  readOnlyTransactionNumber = false,
 }) {
   const [form, setForm] = useState(() =>
     initialValues
@@ -100,7 +101,7 @@ export default function TransactionForm({
     if (!String(form.account_id).trim()) next.account_id = 'Account is required';
     if (form.type !== 'debit' && form.type !== 'credit') next.type = 'Select debit or credit';
     const amt = Number(String(form.amount).replace(/,/g, ''));
-    if (!Number.isFinite(amt) || amt <= 0) next.amount = 'Enter a valid amount greater than zero';
+    if (!Number.isFinite(amt) || amt < 0) next.amount = 'Enter a valid amount (0 or greater)';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -139,22 +140,29 @@ export default function TransactionForm({
             value={form.transaction_number}
             onChange={handleChange}
             disabled={submitting}
+            readOnly={readOnlyTransactionNumber}
             placeholder="e.g. TXN-030726-025334-3975229"
           />
-          <button
-            type="button"
-            className="btn btn-outline-secondary mb-0"
-            onClick={handleRegenerateNumber}
-            disabled={submitting}
-            title="Generate a new reference"
-          >
-            <i className="fas fa-sync-alt" aria-hidden="true" />
-          </button>
+          {!readOnlyTransactionNumber ? (
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              onClick={handleRegenerateNumber}
+              disabled={submitting}
+              title="Generate a new reference"
+            >
+              <i className="fas fa-sync-alt" aria-hidden="true" />
+            </button>
+          ) : null}
           {errors.transaction_number && (
             <div className="invalid-feedback d-block">{errors.transaction_number}</div>
           )}
         </div>
-        <div className="form-text">Must be unique. Auto-suggested — edit if needed.</div>
+        <div className="form-text">
+          {readOnlyTransactionNumber
+            ? 'Transaction number cannot be changed after creation.'
+            : 'Must be unique. Auto-suggested — edit if needed.'}
+        </div>
       </div>
 
       <div className="mb-3">
@@ -209,7 +217,7 @@ export default function TransactionForm({
             id="amount"
             name="amount"
             type="number"
-            min="0.01"
+            min="0"
             step="0.01"
             className={`form-control ${errors.amount ? 'is-invalid' : ''}`}
             value={form.amount}
