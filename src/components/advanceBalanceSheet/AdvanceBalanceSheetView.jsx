@@ -349,23 +349,29 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
 
   const current = le.current_liabilities;
   if (current) {
-    pushGroup('current_liabilities', current.label || 'Current Liabilities');
-    if (expanded.has('current_liabilities')) {
-      (current.accounts || []).forEach((acc) => {
-        pushLeaf(acc.name || 'Account', acc.balance);
-      });
-      pushSubtotal(`Total ${current.label || 'Current Liabilities'}`, current.subtotal);
+    const accounts = (current.accounts || []).filter((acc) => Number(acc?.balance) !== 0);
+    if (accounts.length > 0 || Number(current.subtotal) !== 0) {
+      pushGroup('current_liabilities', current.label || 'Current Liabilities');
+      if (expanded.has('current_liabilities')) {
+        accounts.forEach((acc) => {
+          pushLeaf(acc.name || 'Account', acc.balance);
+        });
+        pushSubtotal(`Total ${current.label || 'Current Liabilities'}`, current.subtotal);
+      }
     }
   }
 
   const longTerm = le.long_term_liabilities;
   if (longTerm) {
-    pushGroup('long_term_liabilities', longTerm.label || 'Long-Term Liabilities');
-    if (expanded.has('long_term_liabilities')) {
-      (longTerm.accounts || []).forEach((acc) => {
-        pushLeaf(acc.name || 'Account', acc.balance);
-      });
-      pushSubtotal(`Total ${longTerm.label || 'Long-Term Liabilities'}`, longTerm.subtotal);
+    const accounts = (longTerm.accounts || []).filter((acc) => Number(acc?.balance) !== 0);
+    if (accounts.length > 0 || Number(longTerm.subtotal) !== 0) {
+      pushGroup('long_term_liabilities', longTerm.label || 'Long-Term Liabilities');
+      if (expanded.has('long_term_liabilities')) {
+        accounts.forEach((acc) => {
+          pushLeaf(acc.name || 'Account', acc.balance);
+        });
+        pushSubtotal(`Total ${longTerm.label || 'Long-Term Liabilities'}`, longTerm.subtotal);
+      }
     }
   }
 
@@ -374,7 +380,7 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
     pushGroup('owners_equity', equity.label || "Owner's Equity");
     if (expanded.has('owners_equity')) {
       const profitOrders = equity.profit_from_orders;
-      if (profitOrders) {
+      if (profitOrders && Number(profitOrders.amount) !== 0) {
         const hint = profitOrders.line_count
           ? `${profitOrders.line_count} lines · ${profitOrders.source || ''}`
           : profitOrders.source || '';
@@ -383,14 +389,14 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         });
       }
 
-      if (summary.profit_vs_gl_gap != null) {
+      if (summary.profit_vs_gl_gap != null && Number(summary.profit_vs_gl_gap) !== 0) {
         const aligned = Boolean(summary.profit_reconciliation_aligned);
         const hint = aligned ? 'Reconciliation aligned' : 'Line profit vs GL bridged equity';
         pushLeaf('Profit vs GL gap', summary.profit_vs_gl_gap, hint, { calculated: true });
       }
 
       const profitReturns = equity.profit_from_sales_returns;
-      if (profitReturns) {
+      if (profitReturns && Number(profitReturns.amount) !== 0) {
         const hint = profitReturns.line_count
           ? `${profitReturns.line_count} lines · ${profitReturns.source || ''}`
           : profitReturns.source || '';
@@ -399,22 +405,13 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         });
       }
 
-      const otherAccounts = equity.other_accounts || [];
+      const otherAccounts = (equity.other_accounts || []).filter(
+        (acc) => Number(acc?.balance) !== 0
+      );
       if (otherAccounts.length > 0) {
         pushGroup('other_accounts', 'Other accounts');
         if (expanded.has('other_accounts')) {
           otherAccounts.forEach((acc) => {
-            const hint = acc.account_type ? String(acc.account_type).replace(/_/g, ' ') : '';
-            pushLeaf(acc.name || 'Account', acc.balance, hint);
-          });
-        }
-      }
-
-      const glPool = equity.gl_pool_accounts || [];
-      if (glPool.length > 0) {
-        pushGroup('gl_pool', 'GL pool accounts');
-        if (expanded.has('gl_pool')) {
-          glPool.forEach((acc) => {
             const hint = acc.account_type ? String(acc.account_type).replace(/_/g, ' ') : '';
             pushLeaf(acc.name || 'Account', acc.balance, hint);
           });
@@ -426,21 +423,6 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         Number(equity.gl_bridged_equity) ||
         Number(equity.subtotal_line_profit_method) + profitGap;
       pushSubtotal("Subtotal (Owner's Equity)", reconciledEquitySubtotal);
-
-      const bridge = equity.gl_bridge;
-      if (bridge) {
-        pushGroup('gl_bridge', 'GL bridge detail');
-        if (expanded.has('gl_bridge')) {
-          pushLeaf('Sales revenue GL balance', bridge.sales_revenue_gl_balance);
-          pushLeaf('Purchase account net debit', bridge.purchase_account_net_debit);
-          pushLeaf('Implied COGS sold', bridge.implied_cogs_sold, 'Derived from GL bridge', {
-            calculated: true,
-          });
-          pushLeaf('GL bridged equity', bridge.gl_bridged_equity, 'Derived from GL bridge', {
-            calculated: true,
-          });
-        }
-      }
     }
   }
 
@@ -465,14 +447,7 @@ export default function AdvanceBalanceSheetView() {
   );
   const [expandedLe, setExpandedLe] = useState(
     () =>
-      new Set([
-        'current_liabilities',
-        'long_term_liabilities',
-        'owners_equity',
-        'other_accounts',
-        'gl_pool',
-        'gl_bridge',
-      ])
+      new Set(['current_liabilities', 'long_term_liabilities', 'owners_equity', 'other_accounts'])
   );
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
