@@ -286,15 +286,21 @@ function buildAssetsRows(assets, expanded, filter) {
 
   const inventory = assets.inventory;
   if (inventory) {
-    pushGroup('inventory', inventory.label || 'Inventory');
+    const goodsLabel = 'Cost of goods available';
+    pushGroup('inventory', goodsLabel);
     if (expanded.has('inventory')) {
+      let goodsTotal = 0;
       (inventory.lines || []).forEach((line) => {
         const qty = Number(line.total_qty) || 0;
         const price = Number(line.wholesale_price) || 0;
+        const lineValue = qty * price;
+        goodsTotal += lineValue;
         const hint = `${qty} × ${formatCurrencyAccounting(price)}`;
-        pushLeaf(line.product_name || 'Product', line.inventory_value, hint);
+        pushLeaf(line.product_name || 'Product', lineValue, hint);
       });
-      pushSubtotal(`Total ${inventory.label || 'Inventory'}`, inventory.subtotal);
+      const lines = inventory.lines || [];
+      const subtotal = lines.length > 0 ? goodsTotal : Number(inventory.subtotal) || 0;
+      pushSubtotal(`Total ${goodsLabel}`, subtotal);
     }
   }
 
@@ -637,7 +643,8 @@ export default function AdvanceBalanceSheetView() {
                     <div className="col-md-5 col-lg-4">
                       <h6 className="mb-1">Statement lines</h6>
                       <p className="text-sm text-muted mb-0">
-                        Expand sections to view accounts, inventory, and GL bridge detail.
+                        Expand sections to view accounts, cost of goods available, and GL bridge
+                        detail.
                       </p>
                     </div>
                     <div className="col-md-7 col-lg-8">
@@ -703,7 +710,7 @@ export default function AdvanceBalanceSheetView() {
                       <div>
                         <h6 className="mb-0">Diagnostics</h6>
                         <p className="text-sm text-muted mb-0">
-                          Inventory reconciliation and line subtotal checks.
+                          Cost of goods available reconciliation and line subtotal checks.
                         </p>
                       </div>
                       <button
@@ -719,7 +726,7 @@ export default function AdvanceBalanceSheetView() {
                         <div className="row g-3 text-sm">
                           <div className="col-md-4">
                             <span className="text-muted d-block text-xs text-uppercase">
-                              Inventory value
+                              Cost of goods available
                             </span>
                             <span className="font-weight-bold">
                               {fmt(diagnostics.inventory_value)}
