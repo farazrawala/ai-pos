@@ -286,22 +286,15 @@ function buildAssetsRows(assets, expanded, filter) {
 
   const inventory = assets.inventory;
   if (inventory) {
-    const goodsLabel = 'Cost of goods available';
-    pushGroup('inventory', goodsLabel);
-    if (expanded.has('inventory')) {
-      let goodsTotal = 0;
-      (inventory.lines || []).forEach((line) => {
-        const qty = Number(line.total_qty) || 0;
-        const price = Number(line.wholesale_price) || 0;
-        const lineValue = qty * price;
-        goodsTotal += lineValue;
-        const hint = `${qty} × ${formatCurrencyAccounting(price)}`;
-        pushLeaf(line.product_name || 'Product', lineValue, hint);
-      });
-      const lines = inventory.lines || [];
-      const subtotal = lines.length > 0 ? goodsTotal : Number(inventory.subtotal) || 0;
-      pushSubtotal(`Total ${goodsLabel}`, subtotal);
-    }
+    const lines = inventory.lines || [];
+    let goodsTotal = 0;
+    lines.forEach((line) => {
+      const qty = Number(line.total_qty) || 0;
+      const price = Number(line.wholesale_price) || 0;
+      goodsTotal += qty * price;
+    });
+    const amount = lines.length > 0 ? goodsTotal : Number(inventory.subtotal) || 0;
+    pushLeaf('Cost of goods available', amount);
   }
 
   const fixed = assets.fixed_assets;
@@ -444,7 +437,7 @@ export default function AdvanceBalanceSheetView() {
 
   const [tableFilter, setTableFilter] = useState('');
   const [expandedAssets, setExpandedAssets] = useState(
-    () => new Set(['current_assets', 'inventory', 'fixed_assets'])
+    () => new Set(['current_assets', 'fixed_assets'])
   );
   const [expandedLe, setExpandedLe] = useState(
     () =>
@@ -643,8 +636,7 @@ export default function AdvanceBalanceSheetView() {
                     <div className="col-md-5 col-lg-4">
                       <h6 className="mb-1">Statement lines</h6>
                       <p className="text-sm text-muted mb-0">
-                        Expand sections to view accounts, cost of goods available, and GL bridge
-                        detail.
+                        Expand sections to view accounts and GL bridge detail.
                       </p>
                     </div>
                     <div className="col-md-7 col-lg-8">
