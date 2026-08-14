@@ -104,7 +104,7 @@ export const NAV_ITEMS = [
       { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
       { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
       // { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
-      { to: '/advance-balance-sheet', label: 'balance sheet', icon: FaScaleBalanced },
+      { to: '/advance-balance-sheet', label: 'Balance sheet', icon: FaScaleBalanced },
       { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
       { to: '/profit-report', label: 'Profit report', icon: FaChartBar },
       { to: '/income-statement', label: 'Income statement', icon: FaChartPie },

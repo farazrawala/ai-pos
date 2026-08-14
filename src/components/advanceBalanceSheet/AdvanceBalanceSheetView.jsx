@@ -18,7 +18,9 @@ import {
   FaFileExport,
   FaMoneyBillTransfer,
   FaTriangleExclamation,
+  FaEye,
 } from 'react-icons/fa6';
+import EquityDetailModal from './EquityDetailModal.jsx';
 
 function formatCompactMillions(n) {
   const x = Number(n);
@@ -109,7 +111,7 @@ function subtotalRowVariant(label) {
   return 'section';
 }
 
-function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
+function AccountLinesStatement({ rows, expanded, onToggleSection, fmt, onOpenDetail }) {
   if (!rows.length) {
     return (
       <div className="text-center py-5 text-muted">
@@ -158,7 +160,21 @@ function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
                 }`}
               >
                 <span className="income-statement-lines-desc">
-                  {row.label}
+                  <span className="d-inline-flex align-items-center gap-2 flex-wrap">
+                    <span>{row.label}</span>
+                    {row.detailKey ? (
+                      <button
+                        type="button"
+                        className="btn btn-link btn-sm p-0 text-primary income-statement-lines-detail-btn"
+                        onClick={() => onOpenDetail?.(row.detailKey)}
+                        title={`View ${row.label} details`}
+                        aria-label={`View ${row.label} details`}
+                      >
+                        <NavIcon icon={FaEye} size={12} className="me-1" />
+                        Details
+                      </button>
+                    ) : null}
+                  </span>
                   {row.hint ? (
                     <span className="d-block text-xs text-muted mt-0">{row.hint}</span>
                   ) : null}
@@ -278,9 +294,16 @@ function buildAssetsRows(assets, expanded, filter) {
   const pushGroup = (id, title) => {
     rows.push({ type: 'group', id, title });
   };
-  const pushLeaf = (label, amount, hint = '', { calculated = false } = {}) => {
+  const pushLeaf = (label, amount, hint = '', { calculated = false, detailKey = null } = {}) => {
     if (!match(label) && !match(hint)) return;
-    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint, calculated });
+    rows.push({
+      type: 'leaf',
+      label,
+      amount: Number(amount) || 0,
+      hint,
+      calculated,
+      detailKey,
+    });
   };
   const pushSubtotal = (label, amount) => {
     if (!match(label)) return;
@@ -338,9 +361,16 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
   const pushGroup = (id, title) => {
     rows.push({ type: 'group', id, title });
   };
-  const pushLeaf = (label, amount, hint = '', { calculated = false } = {}) => {
+  const pushLeaf = (label, amount, hint = '', { calculated = false, detailKey = null } = {}) => {
     if (!match(label) && !match(hint)) return;
-    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint, calculated });
+    rows.push({
+      type: 'leaf',
+      label,
+      amount: Number(amount) || 0,
+      hint,
+      calculated,
+      detailKey,
+    });
   };
   const pushSubtotal = (label, amount) => {
     if (!match(label)) return;
@@ -386,13 +416,17 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
           : profitOrders.source || '';
         pushLeaf(profitOrders.label || 'Profit', profitOrders.amount, hint, {
           calculated: true,
+          detailKey: 'profit',
         });
       }
 
       if (summary.profit_vs_gl_gap != null && Number(summary.profit_vs_gl_gap) !== 0) {
         const aligned = Boolean(summary.profit_reconciliation_aligned);
         const hint = aligned ? 'Reconciliation aligned' : 'Line profit vs GL bridged equity';
-        pushLeaf('Profit vs GL gap', summary.profit_vs_gl_gap, hint, { calculated: true });
+        pushLeaf('Profit vs GL gap', summary.profit_vs_gl_gap, hint, {
+          calculated: true,
+          detailKey: 'profit_vs_gl_gap',
+        });
       }
 
       const profitReturns = equity.profit_from_sales_returns;
@@ -402,6 +436,7 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
           : profitReturns.source || '';
         pushLeaf(profitReturns.label || 'Sales Return Profit', profitReturns.amount, hint, {
           calculated: true,
+          detailKey: 'sales_return_profit',
         });
       }
 
@@ -450,6 +485,7 @@ export default function AdvanceBalanceSheetView() {
       new Set(['current_liabilities', 'long_term_liabilities', 'owners_equity', 'other_accounts'])
   );
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [equityDetailKey, setEquityDetailKey] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAdvanceBalanceSheet());
@@ -692,9 +728,16 @@ export default function AdvanceBalanceSheetView() {
                         expanded={expandedLe}
                         onToggleSection={toggleLeSection}
                         fmt={fmt}
+                        onOpenDetail={setEquityDetailKey}
                       />
                     </div>
                   </div>
+
+                  <EquityDetailModal
+                    open={Boolean(equityDetailKey)}
+                    detailKey={equityDetailKey}
+                    onClose={() => setEquityDetailKey(null)}
+                  />
 
                   <div className="card mt-4 shadow-sm border-0 bg-gray-100">
                     <div className="card-header pb-0 bg-transparent d-flex align-items-center justify-content-between">

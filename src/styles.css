@@ -243,6 +243,18 @@ body {
   background: rgba(251, 176, 59, 0.05);
 }
 
+.income-statement-lines-detail-btn {
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none !important;
+  vertical-align: baseline;
+}
+
+.income-statement-lines-detail-btn:hover {
+  text-decoration: underline !important;
+}
+
 .income-statement-lines-row--net .income-statement-lines-amt--calculated {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
