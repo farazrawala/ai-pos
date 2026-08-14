@@ -72,6 +72,8 @@ const initialState = {
   filters: {
     startDate: '',
     endDate: '',
+    refId: '',
+    documentKind: '',
   },
 };
 
@@ -108,9 +110,18 @@ const transactionsSlice = createSlice({
       state.filters.endDate = action.payload?.endDate || '';
       state.pagination.page = 1;
     },
+    setDocumentRefFilter: (state, action) => {
+      state.filters.refId = action.payload?.refId ? String(action.payload.refId).trim() : '';
+      state.filters.documentKind = action.payload?.documentKind
+        ? String(action.payload.documentKind).trim()
+        : '';
+      state.pagination.page = 1;
+    },
     clearDateFilters: (state) => {
       state.filters.startDate = '';
       state.filters.endDate = '';
+      state.filters.refId = '';
+      state.filters.documentKind = '';
       state.pagination.page = 1;
     },
   },
@@ -151,6 +162,13 @@ const transactionsSlice = createSlice({
   },
 });
 
-export const { setSearch, setPage, setLimit, setSort, setDateFilters, clearDateFilters } =
-  transactionsSlice.actions;
+export const {
+  setSearch,
+  setPage,
+  setLimit,
+  setSort,
+  setDateFilters,
+  setDocumentRefFilter,
+  clearDateFilters,
+} = transactionsSlice.actions;
 export default transactionsSlice.reducer;

@@ -83,7 +83,7 @@ const normalizeTransactionsPayload = (result) => {
 };
 
 /**
- * GET /transaction/get-all-active?populate=account_id,ref_id&amount_gt=0&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=
+ * GET /transaction/get-all-active?populate=account_id,ref_id&amount_gt=0&skip=&limit=&search=&sortBy=&sortOrder=&startDate=&endDate=&ref_id=&order_id=&purchase_order_id=
  * User ledger: `populate=account_id,ref_id,reference_user_id&reference_user_id=<userId>`
  */
 const DEFAULT_TRANSACTION_POPULATE = 'account_id,ref_id';
@@ -157,6 +157,15 @@ const buildTransactionListQuery = (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
   if (params.startDate) queryParams.append('startDate', String(params.startDate));
   if (params.endDate) queryParams.append('endDate', String(params.endDate));
+  if (params.refId != null && String(params.refId).trim() !== '') {
+    queryParams.set('ref_id', String(params.refId).trim());
+  }
+  if (params.orderId != null && String(params.orderId).trim() !== '') {
+    queryParams.set('order_id', String(params.orderId).trim());
+  }
+  if (params.purchaseOrderId != null && String(params.purchaseOrderId).trim() !== '') {
+    queryParams.set('purchase_order_id', String(params.purchaseOrderId).trim());
+  }
 
   return queryParams.toString();
 };

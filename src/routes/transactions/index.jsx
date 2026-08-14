@@ -10,6 +10,7 @@ import {
   setLimit,
   setSort,
   setDateFilters,
+  setDocumentRefFilter,
   clearDateFilters,
 } from '../../features/transactions/transactionsSlice.js';
 import {
@@ -21,14 +22,51 @@ import {
   enrichTransactionDescription,
   buildDocumentRefLinkMap,
 } from '../../features/transactions/transactionsAPI.js';
+import { fetchOrdersRequest } from '../../features/orders/ordersAPI.js';
+import { fetchPurchaseOrdersListRequest } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
 import { FaFilter, FaPen } from 'react-icons/fa6';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import TablePagination from '../../components/TablePagination.jsx';
 import { renderTransactionDescriptionLinks } from '../../components/transactions/TransactionDescriptionLinks.jsx';
 import { DEBUG } from '../../config/env.js';
+
+const encodeDocumentFilterValue = (kind, id) => `${kind}:${id}`;
+
+const parseDocumentFilterValue = (raw) => {
+  const value = String(raw || '').trim();
+  if (!value) return { refId: '', documentKind: '' };
+  const colon = value.indexOf(':');
+  if (colon <= 0) return { refId: value, documentKind: '' };
+  const documentKind = value.slice(0, colon);
+  const refId = value.slice(colon + 1).trim();
+  if (!refId) return { refId: '', documentKind: '' };
+  if (documentKind !== 'order' && documentKind !== 'purchase_order') {
+    return { refId: value, documentKind: '' };
+  }
+  return { refId, documentKind };
+};
+
+const orderOptionRef = (row) => {
+  const n = row?.order_no ?? row?.orderNo ?? row?.invoice_no ?? row?.invoiceNo ?? '';
+  const s = String(n).trim();
+  return s || '';
+};
+
+const poOptionRef = (row) => {
+  const n =
+    row?.purchase_order_no ??
+    row?.po_no ??
+    row?.order_no ??
+    row?.reference ??
+    row?.invoice_no ??
+    '';
+  const s = String(n).trim();
+  return s || '';
+};
 
 const Transactions = () => {
   const dispatch = useDispatch();
@@ -49,17 +87,29 @@ const Transactions = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [localStartDate, setLocalStartDate] = useState(filters.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(filters.endDate || '');
-  const [showFilters, setShowFilters] = useState(Boolean(filters.startDate || filters.endDate));
+  const [showFilters, setShowFilters] = useState(
+    Boolean(filters.startDate || filters.endDate || filters.refId)
+  );
   /** 'journal' | 'lines' — layout for both active and deleted data */
   const [viewMode, setViewMode] = useState('journal');
   const [showDeleted, setShowDeleted] = useState(false);
+  const [documentFilterOptions, setDocumentFilterOptions] = useState([
+    { value: '', label: 'All orders / purchase orders' },
+  ]);
+  const [documentFilterStatus, setDocumentFilterStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
   const isDeletedView = showDeleted;
   const isJournalView = viewMode === 'journal';
   const isLinesView = viewMode === 'lines';
 
-  const activeFilterCount = (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0);
+  const documentFilterValue =
+    filters.refId && filters.documentKind
+      ? encodeDocumentFilterValue(filters.documentKind, filters.refId)
+      : filters.refId || '';
+
+  const activeFilterCount =
+    (filters.startDate ? 1 : 0) + (filters.endDate ? 1 : 0) + (filters.refId ? 1 : 0);
 
   const journals = useMemo(() => groupTransactionsIntoJournals(data), [data]);
 
@@ -72,6 +122,11 @@ const Transactions = () => {
     }
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.refId) {
+      params.refId = filters.refId;
+      if (filters.documentKind === 'order') params.orderId = filters.refId;
+      if (filters.documentKind === 'purchase_order') params.purchaseOrderId = filters.refId;
+    }
     if (isDeletedView) {
       dispatch(fetchDeletedTransactions(params));
     } else {
@@ -86,8 +141,69 @@ const Transactions = () => {
     sort.sortOrder,
     filters.startDate,
     filters.endDate,
+    filters.refId,
+    filters.documentKind,
     isDeletedView,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDocumentFilterStatus('loading');
+    (async () => {
+      try {
+        const [ordersResult, poResult] = await Promise.all([
+          fetchOrdersRequest({ page: 1, limit: 500 }),
+          fetchPurchaseOrdersListRequest({ page: 1, limit: 500 }),
+        ]);
+        if (cancelled) return;
+
+        const orderRows = Array.isArray(ordersResult?.data) ? ordersResult.data : [];
+        const poRows = Array.isArray(poResult?.data) ? poResult.data : [];
+
+        const orderOptions = orderRows
+          .map((row) => {
+            const id = String(row?._id ?? row?.id ?? '').trim();
+            if (!id) return null;
+            const ref = orderOptionRef(row);
+            return {
+              value: encodeDocumentFilterValue('order', id),
+              label: ref || `Order ${id.slice(0, 8)}…`,
+              subLabel: 'Order',
+            };
+          })
+          .filter(Boolean);
+
+        const poOptions = poRows
+          .map((row) => {
+            const id = String(row?._id ?? row?.id ?? '').trim();
+            if (!id) return null;
+            const ref = poOptionRef(row);
+            return {
+              value: encodeDocumentFilterValue('purchase_order', id),
+              label: ref || `PO ${id.slice(0, 8)}…`,
+              subLabel: 'Purchase order',
+            };
+          })
+          .filter(Boolean);
+
+        setDocumentFilterOptions([
+          { value: '', label: 'All orders / purchase orders' },
+          ...orderOptions,
+          ...poOptions,
+        ]);
+        setDocumentFilterStatus('succeeded');
+      } catch (err) {
+        console.error('[Transactions] Failed to load order/PO filter options', err);
+        if (!cancelled) {
+          setDocumentFilterOptions([{ value: '', label: 'All orders / purchase orders' }]);
+          setDocumentFilterStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleViewModeChange = (mode) => {
     if (mode === viewMode) return;
@@ -183,6 +299,15 @@ const Transactions = () => {
     dispatch(clearDateFilters());
   };
 
+  const handleDocumentFilterChange = useCallback(
+    (next) => {
+      const parsed = parseDocumentFilterValue(next);
+      dispatch(setDocumentRefFilter(parsed));
+      if (parsed.refId) setShowFilters(true);
+    },
+    [dispatch]
+  );
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       dispatch(setPage(newPage));
@@ -241,7 +366,9 @@ const Transactions = () => {
             <div className="card-header">
               <div className="row align-items-center gy-2">
                 <div className="col-md-6">
-                  <h5 className="mb-0">{isDeletedView ? 'Deleted Transactions' : 'Transactions'}</h5>
+                  <h5 className="mb-0">
+                    {isDeletedView ? 'Deleted Transactions' : 'Transactions'}
+                  </h5>
                   {DEBUG ? (
                     <p className="text-sm mb-0 text-muted">
                       {isDeletedView ? (
@@ -321,8 +448,8 @@ const Transactions = () => {
                       onClick={() => setShowFilters((prev) => !prev)}
                       aria-expanded={showFilters}
                       aria-controls="transactions-filter-panel"
-                      aria-label="Date filters"
-                      title="Date filters"
+                      aria-label="Filters"
+                      title="Filters"
                     >
                       <NavIcon icon={FaFilter} size={14} />
                       {activeFilterCount > 0 ? (
@@ -369,7 +496,24 @@ const Transactions = () => {
                         onChange={(e) => setLocalEndDate(e.target.value)}
                       />
                     </div>
-                    <div className="col-md-6 d-flex flex-wrap gap-2">
+                    <div className="col-md-3">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="transactions-document-filter"
+                      >
+                        Order / Purchase order
+                      </label>
+                      <SearchableSelect
+                        id="transactions-document-filter"
+                        options={documentFilterOptions}
+                        value={documentFilterValue}
+                        placeholder="All orders / purchase orders"
+                        disabled={loading || documentFilterStatus === 'loading'}
+                        loading={documentFilterStatus === 'loading'}
+                        onChange={handleDocumentFilterChange}
+                      />
+                    </div>
+                    <div className="col-md-3 d-flex flex-wrap gap-2">
                       <button
                         type="button"
                         className="btn btn-primary btn-sm mb-0"
@@ -404,11 +548,14 @@ const Transactions = () => {
                 </div>
               )}
               {!loading && !error && isJournalView && (
-                <div className="w-100 d-flex flex-column gap-3">
+                <div className="journal-entry-list">
                   {journals.length === 0 ? (
-                    <p className="text-center text-sm text-muted p-4 mb-0">
-                      {isDeletedView ? 'No deleted transactions found' : 'No transactions found'}
-                    </p>
+                    <div className="journal-entry-empty">
+                      <i className="fas fa-book-open" aria-hidden="true" />
+                      <span>
+                        {isDeletedView ? 'No deleted transactions found' : 'No transactions found'}
+                      </span>
+                    </div>
                   ) : (
                     journals.map((lines, jIndex) => {
                       const meta = journalMeta(lines);
@@ -417,32 +564,43 @@ const Transactions = () => {
                       const sums = sumDebitCreditForLines(lines);
                       const jKey = lines[0]?._id || lines[0]?.id || `${pagination.page}-${jIndex}`;
                       return (
-                        <div key={jKey} className="card shadow-none border mb-0 w-100">
-                          <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-start gap-2 bg-gray-100">
+                        <div
+                          key={jKey}
+                          className={`journal-entry-card${isDeletedView ? ' is-deleted' : ''}`}
+                        >
+                          <div className="journal-entry-head">
                             <div>
-                              <span className="text-xs text-uppercase text-muted d-block">
+                              <span className="journal-entry-eyebrow">
                                 {isDeletedView ? 'Deleted journal entry' : 'Journal entry'}
                               </span>
-                              <strong className="text-sm">Ref. {meta.ref}</strong>
-                              <span className="text-sm text-muted ms-2">
-                                {meta.createdAt ? meta.createdAt.format('MM-DD-YYYY h:mm a') : '—'}
-                              </span>
+                              <div className="journal-entry-idline">
+                                <span className="journal-entry-ref">
+                                  <i className="fas fa-hashtag" aria-hidden="true" />
+                                  {meta.ref}
+                                </span>
+                                <span className="journal-entry-date">
+                                  <i className="far fa-clock" aria-hidden="true" />
+                                  {meta.createdAt
+                                    ? meta.createdAt.format('MM-DD-YYYY h:mm a')
+                                    : '—'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-end">
+                            <div className="journal-entry-badges">
                               {meta.status ? (
                                 <span
-                                  className={`badge ${
+                                  className={`journal-chip ${
                                     String(meta.status).toLowerCase() === 'active'
-                                      ? 'bg-success'
-                                      : 'bg-secondary'
+                                      ? 'journal-chip--success'
+                                      : 'journal-chip--muted'
                                   }`}
                                 >
                                   {meta.status}
                                 </span>
                               ) : null}
                               <span
-                                className={`badge ms-1 ${
-                                  sums.balanced ? 'bg-gradient-success' : 'bg-gradient-warning'
+                                className={`journal-chip ${
+                                  sums.balanced ? 'journal-chip--success' : 'journal-chip--warning'
                                 }`}
                                 title="Debits should equal credits for a complete posting"
                               >
@@ -450,60 +608,93 @@ const Transactions = () => {
                               </span>
                             </div>
                           </div>
-                          <div className="card-body py-2 px-3 w-100">
-                            <div className="rounded bg-gray-100 px-3 py-2 mb-2">
-                              <p className="text-sm font-weight-bold text-dark mb-0 lh-base">
-                                {renderTransactionDescriptionLinks(meta.description, linkMap)}
-                              </p>
-                            </div>
-                            <table className="table table-sm table-flush mb-0 w-100">
+                          <div className="journal-entry-body">
+                            {meta.description && meta.description !== '—' ? (
+                              <div className="journal-entry-source">
+                                <i className="fas fa-file-invoice-dollar" aria-hidden="true" />
+                                <span>
+                                  {renderTransactionDescriptionLinks(meta.description, linkMap)}
+                                </span>
+                              </div>
+                            ) : null}
+                            <table className="journal-entry-table">
                               <thead>
                                 <tr>
                                   {isAdmin && !isDeletedView ? (
-                                    <th className="text-xs text-uppercase" style={{ width: '40px' }} />
+                                    <th style={{ width: '48px' }} />
                                   ) : null}
-                                  <th className="text-xs text-uppercase">Account</th>
-                                  <th className="text-xs text-uppercase text-end">Debit</th>
-                                  <th className="text-xs text-uppercase text-end">Credit</th>
+                                  <th>Account</th>
+                                  <th className="text-end">Debit</th>
+                                  <th className="text-end">Credit</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {sortedLines.map((item, idx) => {
                                   const { debit, credit } = debitCreditCells(item);
                                   const rowKey = item._id || item.id || idx;
+                                  const isDebitLine =
+                                    String(item.type || '')
+                                      .toLowerCase()
+                                      .trim() === 'debit';
                                   return (
                                     <tr key={rowKey}>
                                       {isAdmin && !isDeletedView ? (
                                         <td>
                                           <button
                                             type="button"
-                                            className="btn btn-sm btn-outline-primary mb-0 py-1 px-2"
+                                            className="journal-entry-edit"
                                             title="Edit transaction"
+                                            aria-label="Edit transaction"
                                             onClick={() =>
-                                              navigate(`/transactions/edit/${item._id || item.id}`, {
-                                                state: { transaction: item },
-                                              })
+                                              navigate(
+                                                `/transactions/edit/${item._id || item.id}`,
+                                                {
+                                                  state: { transaction: item },
+                                                }
+                                              )
                                             }
                                           >
-                                            <NavIcon icon={FaPen} size={12} />
+                                            <NavIcon icon={FaPen} size={11} />
                                           </button>
                                         </td>
                                       ) : null}
-                                      <td className="text-sm">{getAccountName(item)}</td>
-                                      <td className="text-sm text-end">{debit}</td>
-                                      <td className="text-sm text-end">{credit}</td>
+                                      <td>
+                                        <span className="journal-entry-account">
+                                          <span
+                                            className={`journal-entry-dot journal-entry-dot--${
+                                              isDebitLine ? 'debit' : 'credit'
+                                            }`}
+                                            aria-hidden="true"
+                                          />
+                                          {getAccountName(item)}
+                                        </span>
+                                      </td>
+                                      <td
+                                        className={`text-end journal-entry-amount${
+                                          debit === '—' ? ' is-empty' : ''
+                                        }`}
+                                      >
+                                        {debit}
+                                      </td>
+                                      <td
+                                        className={`text-end journal-entry-amount${
+                                          credit === '—' ? ' is-empty' : ''
+                                        }`}
+                                      >
+                                        {credit}
+                                      </td>
                                     </tr>
                                   );
                                 })}
                               </tbody>
                               <tfoot>
-                                <tr className="font-weight-bold">
-                                  {isAdmin && !isDeletedView ? <td className="pt-2" /> : null}
-                                  <td className="text-sm pt-2">Totals</td>
-                                  <td className="text-sm text-end pt-2">
+                                <tr>
+                                  {isAdmin && !isDeletedView ? <td /> : null}
+                                  <td>Totals</td>
+                                  <td className="text-end journal-entry-amount">
                                     {formatTransactionAmount(sums.debit)}
                                   </td>
-                                  <td className="text-sm text-end pt-2">
+                                  <td className="text-end journal-entry-amount">
                                     {formatTransactionAmount(sums.credit)}
                                   </td>
                                 </tr>
@@ -567,9 +758,7 @@ const Transactions = () => {
                             Created
                             {renderSortIcon('createdAt')}
                           </th>
-                          {isAdmin && !isDeletedView ? (
-                            <th className="text-end">Actions</th>
-                          ) : null}
+                          {isAdmin && !isDeletedView ? <th className="text-end">Actions</th> : null}
                         </tr>
                       </thead>
                       <tbody>
