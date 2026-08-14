@@ -226,6 +226,27 @@ body {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: #344767;
+  text-align: right;
+}
+
+.income-statement-lines-amt--calculated {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.4rem;
+  background: rgba(251, 176, 59, 0.18);
+  color: #a35b00;
+  border: 1px solid rgba(251, 176, 59, 0.45);
+  font-weight: 700;
+}
+
+.income-statement-lines-row--calculated.income-statement-lines-row--leaf {
+  background: rgba(251, 176, 59, 0.05);
+}
+
+.income-statement-lines-row--net .income-statement-lines-amt--calculated {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 /* List pages — pagination toolbar (fixes cramped / overlapping controls) */

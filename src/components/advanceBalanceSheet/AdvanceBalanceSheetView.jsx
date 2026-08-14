@@ -153,7 +153,9 @@ function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
             return (
               <li
                 key={`leaf-${row.label}-${idx}`}
-                className="income-statement-lines-row income-statement-lines-row--leaf"
+                className={`income-statement-lines-row income-statement-lines-row--leaf${
+                  row.calculated ? ' income-statement-lines-row--calculated' : ''
+                }`}
               >
                 <span className="income-statement-lines-desc">
                   {row.label}
@@ -161,7 +163,14 @@ function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
                     <span className="d-block text-xs text-muted mt-0">{row.hint}</span>
                   ) : null}
                 </span>
-                <span className="income-statement-lines-amt">{fmt(row.amount)}</span>
+                <span
+                  className={`income-statement-lines-amt${
+                    row.calculated ? ' income-statement-lines-amt--calculated' : ''
+                  }`}
+                  title={row.calculated ? 'Calculated amount' : undefined}
+                >
+                  {fmt(row.amount)}
+                </span>
               </li>
             );
           }
@@ -175,10 +184,15 @@ function AccountLinesStatement({ rows, expanded, onToggleSection, fmt }) {
           return (
             <li
               key={`sub-${row.label}-${idx}`}
-              className={`income-statement-lines-row income-statement-lines-row--subtotal ${variantClass}`}
+              className={`income-statement-lines-row income-statement-lines-row--subtotal income-statement-lines-row--calculated ${variantClass}`}
             >
               <span className="income-statement-lines-desc">{row.label}</span>
-              <span className="income-statement-lines-amt">{fmt(row.amount)}</span>
+              <span
+                className="income-statement-lines-amt income-statement-lines-amt--calculated"
+                title="Calculated amount"
+              >
+                {fmt(row.amount)}
+              </span>
             </li>
           );
         })}
@@ -264,13 +278,13 @@ function buildAssetsRows(assets, expanded, filter) {
   const pushGroup = (id, title) => {
     rows.push({ type: 'group', id, title });
   };
-  const pushLeaf = (label, amount, hint = '') => {
+  const pushLeaf = (label, amount, hint = '', { calculated = false } = {}) => {
     if (!match(label) && !match(hint)) return;
-    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint });
+    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint, calculated });
   };
   const pushSubtotal = (label, amount) => {
     if (!match(label)) return;
-    rows.push({ type: 'subtotal', label, amount: Number(amount) || 0 });
+    rows.push({ type: 'subtotal', label, amount: Number(amount) || 0, calculated: true });
   };
 
   const current = assets.current_assets;
@@ -294,7 +308,9 @@ function buildAssetsRows(assets, expanded, filter) {
       goodsTotal += qty * price;
     });
     const amount = lines.length > 0 ? goodsTotal : Number(inventory.subtotal) || 0;
-    pushLeaf('Cost of goods available', amount);
+    pushLeaf('Cost of goods available', amount, 'Σ (qty × wholesale price)', {
+      calculated: true,
+    });
   }
 
   const fixed = assets.fixed_assets;
@@ -322,13 +338,13 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
   const pushGroup = (id, title) => {
     rows.push({ type: 'group', id, title });
   };
-  const pushLeaf = (label, amount, hint = '') => {
+  const pushLeaf = (label, amount, hint = '', { calculated = false } = {}) => {
     if (!match(label) && !match(hint)) return;
-    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint });
+    rows.push({ type: 'leaf', label, amount: Number(amount) || 0, hint, calculated });
   };
   const pushSubtotal = (label, amount) => {
     if (!match(label)) return;
-    rows.push({ type: 'subtotal', label, amount: Number(amount) || 0 });
+    rows.push({ type: 'subtotal', label, amount: Number(amount) || 0, calculated: true });
   };
 
   const current = le.current_liabilities;
@@ -362,13 +378,15 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         const hint = profitOrders.line_count
           ? `${profitOrders.line_count} lines · ${profitOrders.source || ''}`
           : profitOrders.source || '';
-        pushLeaf(profitOrders.label || 'Profit', profitOrders.amount, hint);
+        pushLeaf(profitOrders.label || 'Profit', profitOrders.amount, hint, {
+          calculated: true,
+        });
       }
 
       if (summary.profit_vs_gl_gap != null) {
         const aligned = Boolean(summary.profit_reconciliation_aligned);
         const hint = aligned ? 'Reconciliation aligned' : 'Line profit vs GL bridged equity';
-        pushLeaf('Profit vs GL gap', summary.profit_vs_gl_gap, hint);
+        pushLeaf('Profit vs GL gap', summary.profit_vs_gl_gap, hint, { calculated: true });
       }
 
       const profitReturns = equity.profit_from_sales_returns;
@@ -376,7 +394,9 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         const hint = profitReturns.line_count
           ? `${profitReturns.line_count} lines · ${profitReturns.source || ''}`
           : profitReturns.source || '';
-        pushLeaf(profitReturns.label || 'Sales Return Profit', profitReturns.amount, hint);
+        pushLeaf(profitReturns.label || 'Sales Return Profit', profitReturns.amount, hint, {
+          calculated: true,
+        });
       }
 
       const otherAccounts = equity.other_accounts || [];
@@ -413,8 +433,12 @@ function buildLiabilitiesEquityRows(le, expanded, filter, summary = {}) {
         if (expanded.has('gl_bridge')) {
           pushLeaf('Sales revenue GL balance', bridge.sales_revenue_gl_balance);
           pushLeaf('Purchase account net debit', bridge.purchase_account_net_debit);
-          pushLeaf('Implied COGS sold', bridge.implied_cogs_sold);
-          pushLeaf('GL bridged equity', bridge.gl_bridged_equity);
+          pushLeaf('Implied COGS sold', bridge.implied_cogs_sold, 'Derived from GL bridge', {
+            calculated: true,
+          });
+          pushLeaf('GL bridged equity', bridge.gl_bridged_equity, 'Derived from GL bridge', {
+            calculated: true,
+          });
         }
       }
     }
