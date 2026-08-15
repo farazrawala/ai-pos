@@ -94,11 +94,15 @@ order status sync to stores
 
 
 // 10 august.
-
-P1 :: Postex :: tracking part
-
+Postex :: tracking part
 Tcs :: live token testing
 Leopard :: not started.
+
+Bykea :: not open (connect to support) 
+Jazz cash :: connect to support
+Easy Pais :: connect to support
+
+
 
 Address incomplete :: initial done.
 order scrapping :: not started
