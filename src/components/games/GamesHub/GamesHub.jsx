@@ -3,10 +3,18 @@ import {
   FaBrain,
   FaGamepad,
   FaHashtag,
+  FaPlay,
   FaShapes,
   FaStaffSnake,
   FaTableCellsLarge,
 } from 'react-icons/fa6';
+import {
+  Game2048Art,
+  MemoryArt,
+  SnakeArt,
+  TetrisArt,
+  TicTacToeArt,
+} from './GameArt.jsx';
 import './GamesHub.css';
 
 const GAMES = [
@@ -14,32 +22,42 @@ const GAMES = [
     to: '/games/snake',
     title: 'Snake',
     description: 'Guide the snake, collect food, and chase your best score.',
+    tag: 'Arcade',
     icon: FaStaffSnake,
+    art: SnakeArt,
     available: true,
   },
   {
     to: '/games/2048',
     title: '2048',
     description: 'Slide and merge matching tiles to reach 2048.',
+    tag: 'Puzzle',
     icon: FaTableCellsLarge,
+    art: Game2048Art,
   },
   {
     to: '/games/tetris',
     title: 'Tetris',
     description: 'Stack falling pieces and clear complete lines.',
+    tag: 'Arcade',
     icon: FaShapes,
+    art: TetrisArt,
   },
   {
     to: '/games/memory',
     title: 'Memory',
     description: 'Turn over cards and find every matching pair.',
+    tag: 'Brain teaser',
     icon: FaBrain,
+    art: MemoryArt,
   },
   {
     to: '/games/tic-tac-toe',
     title: 'Tic-Tac-Toe',
     description: 'Line up three marks in the classic strategy game.',
+    tag: 'Strategy',
     icon: FaHashtag,
+    art: TicTacToeArt,
   },
 ];
 
@@ -59,23 +77,34 @@ const GamesHub = () => (
     </header>
 
     <div className="games-hub__grid">
-      {GAMES.map(({ to, title, description, icon: Icon, available }) => (
-        <article className="games-hub__card" key={to}>
-          <div className="games-hub__icon" aria-hidden="true">
-            <Icon />
-          </div>
-          <div className="games-hub__card-copy">
+      {GAMES.map(({ to, title, description, tag, icon: Icon, art: Art, available }) => (
+        <article className={`games-hub__card${available ? ' is-ready' : ''}`} key={to}>
+          <Link to={to} className="games-hub__cover" aria-label={`Open ${title}`}>
+            <Art />
+            <span className="games-hub__cover-veil" aria-hidden="true" />
+            <span className={`games-hub__status${available ? ' is-ready' : ''}`}>
+              {available ? 'Ready to play' : 'Coming soon'}
+            </span>
+            <span className="games-hub__play" aria-hidden="true">
+              <FaPlay />
+            </span>
+          </Link>
+
+          <div className="games-hub__body">
             <div className="games-hub__card-heading">
-              <h2>{title}</h2>
-              <span className={available ? 'games-hub__status is-ready' : 'games-hub__status'}>
-                {available ? 'Ready' : 'Coming soon'}
+              <span className="games-hub__icon" aria-hidden="true">
+                <Icon />
               </span>
+              <div>
+                <h2>{title}</h2>
+                <span className="games-hub__tag">{tag}</span>
+              </div>
             </div>
             <p>{description}</p>
+            <Link to={to} className="games-hub__action">
+              {available ? 'Play now' : 'View game'}
+            </Link>
           </div>
-          <Link to={to} className="btn bg-gradient-primary">
-            {available ? 'Play now' : 'View game'}
-          </Link>
         </article>
       ))}
     </div>

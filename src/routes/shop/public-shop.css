@@ -1499,10 +1499,19 @@
 }
 
 .shop-footer-made {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: #d7deea;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.shop-footer-flag {
+  flex-shrink: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .shop-mobile-cart {

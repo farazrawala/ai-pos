@@ -963,7 +963,28 @@ export default function PublicShop() {
           <span>
             © {new Date().getFullYear()} {store.company_name}. All rights reserved.
           </span>
-          <span className="shop-footer-made">Made in Pakistan</span>
+          <span className="shop-footer-made">
+            <svg
+              className="shop-footer-flag"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 60 40"
+              width="22"
+              height="15"
+              role="img"
+              aria-label="Pakistan"
+            >
+              <title>Pakistan</title>
+              <rect width="60" height="40" fill="#01411C" />
+              <rect width="15" height="40" fill="#FFFFFF" />
+              <circle cx="36" cy="20" r="9" fill="#FFFFFF" />
+              <circle cx="39.2" cy="20" r="7.4" fill="#01411C" />
+              <polygon
+                fill="#FFFFFF"
+                points="44.5,14.2 45.7,17.8 49.5,17.8 46.4,20.1 47.6,23.7 44.5,21.4 41.4,23.7 42.6,20.1 39.5,17.8 43.3,17.8"
+              />
+            </svg>
+            Made in Pakistan
+          </span>
           <span>Secure checkout · Cash on delivery available</span>
         </div>
       </footer>
