@@ -17,7 +17,7 @@ import {
   FaXmark,
 } from 'react-icons/fa6';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
-import { buildShopWhatsAppUrl, stripShopHtml } from './shopUtils.js';
+import { buildShopWhatsAppUrl, stripShopHtml, toShopWhatsAppDigits } from './shopUtils.js';
 import './public-shop.css';
 
 const SORT_OPTIONS = [
@@ -355,7 +355,13 @@ export default function PublicShop() {
   const logo = resolveCategoryMediaUrl(store.company_logo);
   const banner = resolveCategoryMediaUrl(store.company_banner);
   const initials = String(store.company_name || '?').trim().charAt(0).toUpperCase();
-  const whatsappUrl = buildShopWhatsAppUrl(store.whatsapp_number);
+  const whatsappUrl =
+    buildShopWhatsAppUrl(store.whatsapp_number) ||
+    buildShopWhatsAppUrl(store.company_phone);
+  const whatsappLabel =
+    toShopWhatsAppDigits(store.whatsapp_number).length >= 10 ?
+      String(store.whatsapp_number).trim()
+    : store.company_phone || 'WhatsApp';
   const activeCategoryName =
     categories.find((category) => String(category._id) === categoryId)?.name || '';
   const searchableCategories = categories.filter((category) =>
@@ -566,7 +572,7 @@ export default function PublicShop() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaWhatsapp /> WhatsApp
+                <FaWhatsapp /> {whatsappLabel}
               </a>
             ) : null}
             {store.company_email ? (
@@ -687,6 +693,19 @@ export default function PublicShop() {
               <FaMagnifyingGlass />
             </button>
           </form>
+
+          {whatsappUrl ? (
+            <a
+              className="shop-header-whatsapp"
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Chat on WhatsApp"
+            >
+              <FaWhatsapp />
+              <span>WhatsApp</span>
+            </a>
+          ) : null}
 
           <button
             type="button"
@@ -998,6 +1017,16 @@ export default function PublicShop() {
             {store.company_phone ? (
               <a href={`tel:${store.company_phone}`}>
                 <FaPhone /> {store.company_phone}
+              </a>
+            ) : null}
+            {whatsappUrl ? (
+              <a
+                className="shop-footer-whatsapp"
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FaWhatsapp /> {whatsappLabel}
               </a>
             ) : null}
             {store.company_email ? (
