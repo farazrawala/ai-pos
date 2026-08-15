@@ -356,36 +356,6 @@
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
-.shop-header-whatsapp {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid #b7efd0;
-  border-radius: 4px;
-  background: #edfdf4;
-  color: #128c7e;
-  font-size: 0.84rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition:
-    background 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
-}
-
-.shop-header-whatsapp:hover {
-  border-color: #25d366;
-  background: #25d366;
-  color: #fff;
-}
-
-.shop-header-whatsapp svg {
-  font-size: 1.05rem;
-}
-
 .shop-cart-btn:hover {
   border-color: #cfd5df;
   box-shadow: 0 2px 8px rgba(28, 35, 49, 0.06);
@@ -1662,16 +1632,6 @@
 
   .shop-cart-btn {
     margin-left: auto;
-  }
-
-  .shop-header-whatsapp span {
-    display: none;
-  }
-
-  .shop-header-whatsapp {
-    width: 44px;
-    padding: 0;
-    justify-content: center;
   }
 }
 

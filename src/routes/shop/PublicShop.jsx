@@ -694,19 +694,6 @@ export default function PublicShop() {
             </button>
           </form>
 
-          {whatsappUrl ? (
-            <a
-              className="shop-header-whatsapp"
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Chat on WhatsApp"
-            >
-              <FaWhatsapp />
-              <span>WhatsApp</span>
-            </a>
-          ) : null}
-
           <button
             type="button"
             className="shop-cart-btn"
