@@ -70,7 +70,7 @@ import {
   FaRegCopy,
 } from 'react-icons/fa6';
 import { showToast } from '../../utils/toast.js';
-import { absoluteAppUrl } from '../../config/appBase.js';
+import { absoluteAppUrl, openAppPathInNewTab } from '../../config/appBase.js';
 import GoogleAddressMapField from './GoogleAddressMapField.jsx';
 
 const WHATSAPP_NUMBER_MAX_LENGTH = 12;
@@ -235,11 +235,15 @@ export default function CompanySettingsView() {
     return map;
   }, []);
 
-  const shopStoreUrl = useMemo(() => {
+  const shopStorePath = useMemo(() => {
     const slug = normalizeCompanySlugInput(form.company_slug);
-    if (!slug) return '';
-    return absoluteAppUrl(`/shop/${slug}`);
+    return slug ? `/shop/${slug}` : '';
   }, [form.company_slug]);
+
+  const shopStoreUrl = useMemo(
+    () => (shopStorePath ? absoluteAppUrl(shopStorePath) : ''),
+    [shopStorePath]
+  );
 
   const [storeUrlCopied, setStoreUrlCopied] = useState(false);
 
@@ -1479,6 +1483,12 @@ export default function CompanySettingsView() {
                             href={shopStoreUrl}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(event) => {
+                              // Installed PWAs capture same-origin _blank links into the
+                              // desktop app window; force a real browser tab instead.
+                              event.preventDefault();
+                              openAppPathInNewTab(shopStorePath);
+                            }}
                           >
                             <FaArrowUpRightFromSquare aria-hidden="true" /> Visit
                           </a>

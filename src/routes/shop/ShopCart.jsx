@@ -98,6 +98,9 @@ export default function ShopCart() {
     return <div className="checkout-loading">Loading your cart…</div>;
   }
 
+  const logoUrl = resolveCategoryMediaUrl(store?.company_logo);
+  const brandInitial = String(store?.company_name || 'S').trim().charAt(0).toUpperCase();
+
   return (
     <div className="checkout-page">
       <header className="checkout-header">
@@ -105,7 +108,16 @@ export default function ShopCart() {
           <button type="button" onClick={() => navigate(`/shop/${companySlug}`)}>
             <FaArrowLeft /> Continue shopping
           </button>
-          <strong>{store?.company_name || 'Store'}</strong>
+          <div className="checkout-brand">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="checkout-brand-logo" />
+            ) : (
+              <span className="checkout-brand-fallback" aria-hidden="true">
+                {brandInitial}
+              </span>
+            )}
+            <strong>{store?.company_name || 'Store'}</strong>
+          </div>
           <span>
             <FaShieldHalved /> Secure checkout
           </span>

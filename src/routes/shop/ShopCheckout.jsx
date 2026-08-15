@@ -7,6 +7,7 @@ import {
   FaShieldHalved,
   FaTruck,
 } from 'react-icons/fa6';
+import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import {
   cartLines,
   cartSubtotal,
@@ -192,6 +193,9 @@ export default function ShopCheckout() {
     );
   }
 
+  const logoUrl = resolveCategoryMediaUrl(store?.company_logo);
+  const brandInitial = String(store?.company_name || 'S').trim().charAt(0).toUpperCase();
+
   return (
     <div className="checkout-page">
       <header className="checkout-header">
@@ -199,7 +203,16 @@ export default function ShopCheckout() {
           <button type="button" onClick={() => navigate(`/shop/${companySlug}/cart`)}>
             <FaArrowLeft /> Back to cart
           </button>
-          <strong>{store?.company_name || 'Checkout'}</strong>
+          <div className="checkout-brand">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="checkout-brand-logo" />
+            ) : (
+              <span className="checkout-brand-fallback" aria-hidden="true">
+                {brandInitial}
+              </span>
+            )}
+            <strong>{store?.company_name || 'Checkout'}</strong>
+          </div>
           <span>
             <FaShieldHalved /> Secure checkout
           </span>

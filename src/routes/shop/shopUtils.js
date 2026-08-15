@@ -81,6 +81,35 @@ export function stripShopHtml(raw) {
     .trim();
 }
 
+/** Title-case labels for storefront display (e.g. "mom & me" → "Mom & Me"). */
+export function toShopTitleCase(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[^a-z0-9])([a-z])/g, (_, prefix, char) => `${prefix}${char.toUpperCase()}`);
+}
+
+/**
+ * Short label for a variant, e.g.
+ * ("Velora Line Women Suit", "Velora Line Women Suit [Black - Large]") → "Black - Large".
+ */
+export function shopVariantLabel(parentName, variantName) {
+  const full = String(variantName || '').trim();
+  if (!full) return 'Variant';
+
+  const parent = String(parentName || '').trim();
+  let rest = full;
+  if (parent && rest.toLowerCase().startsWith(parent.toLowerCase())) {
+    rest = rest.slice(parent.length).trim();
+  }
+
+  const bracketed = rest.match(/^[[(]([^\])]+)[\])]$/);
+  if (bracketed) rest = bracketed[1].trim();
+
+  rest = rest.replace(/^[\s\-–—:|,]+/, '').trim();
+  return rest || full;
+}
+
 /** Digits-only WhatsApp number for `wa.me` links. */
 export function toShopWhatsAppDigits(phone) {
   let digits = String(phone || '').replace(/\D/g, '');

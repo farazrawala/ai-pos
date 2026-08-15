@@ -17,7 +17,13 @@ import {
   FaXmark,
 } from 'react-icons/fa6';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
-import { buildShopWhatsAppUrl, stripShopHtml, toShopWhatsAppDigits } from './shopUtils.js';
+import {
+  buildShopWhatsAppUrl,
+  shopVariantLabel,
+  stripShopHtml,
+  toShopTitleCase,
+  toShopWhatsAppDigits,
+} from './shopUtils.js';
 import './public-shop.css';
 
 const SORT_OPTIONS = [
@@ -104,8 +110,14 @@ export default function PublicShop() {
   const [quickVariantId, setQuickVariantId] = useState('');
   const [quickQty, setQuickQty] = useState(1);
 
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [activeSearchBox, setActiveSearchBox] = useState('');
+
   const requestSeq = useRef(0);
+  const suggestSeq = useRef(0);
   const categoryMenuRef = useRef(null);
+  const searchBoxRef = useRef(null);
   const loadMoreRef = useRef(null);
   const cartStorageKey = store?._id ? `shop_cart_${store._id}` : '';
 
@@ -116,6 +128,56 @@ export default function PublicShop() {
     }, 350);
     return () => clearTimeout(timer);
   }, [searchInput]);
+
+  // Type-ahead suggestions, independent of the main grid request.
+  useEffect(() => {
+    const term = searchInput.trim();
+    if (!activeSearchBox) return undefined;
+    if (term.length < 2) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      return undefined;
+    }
+
+    setSuggestLoading(true);
+    const timer = setTimeout(() => {
+      const seq = suggestSeq.current + 1;
+      suggestSeq.current = seq;
+      const params = new URLSearchParams({ page: '1', limit: '6', search: term });
+      if (categoryId) params.set('category', categoryId);
+
+      fetchPublicShop(`shop/${slug}/products?${params.toString()}`)
+        .then((body) => {
+          if (suggestSeq.current !== seq) return;
+          setSuggestions(Array.isArray(body?.data) ? body.data : []);
+        })
+        .catch(() => {
+          if (suggestSeq.current !== seq) return;
+          setSuggestions([]);
+        })
+        .finally(() => {
+          if (suggestSeq.current === seq) setSuggestLoading(false);
+        });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, slug, categoryId, activeSearchBox]);
+
+  useEffect(() => {
+    if (!activeSearchBox) return undefined;
+    const closeOnOutside = (event) => {
+      if (!searchBoxRef.current?.contains(event.target)) setActiveSearchBox('');
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setActiveSearchBox('');
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [activeSearchBox]);
 
   useEffect(() => {
     if (!categoryMenuOpen) return undefined;
@@ -152,8 +214,22 @@ export default function PublicShop() {
       .then(([storeBody, categoryBody, brandBody]) => {
         if (cancelled) return;
         setStore(storeBody?.data || null);
-        setCategories(Array.isArray(categoryBody?.data) ? categoryBody.data : []);
-        setBrands(Array.isArray(brandBody?.data) ? brandBody.data : []);
+        setCategories(
+          Array.isArray(categoryBody?.data) ?
+            categoryBody.data.map((category) => ({
+              ...category,
+              name: toShopTitleCase(category.name),
+            }))
+          : []
+        );
+        setBrands(
+          Array.isArray(brandBody?.data) ?
+            brandBody.data.map((brand) => ({
+              ...brand,
+              name: toShopTitleCase(brand.name),
+            }))
+          : []
+        );
       })
       .catch((requestError) => {
         if (!cancelled) setError(requestError.message);
@@ -243,8 +319,14 @@ export default function PublicShop() {
       });
   }, [slug, page, sort, search, categoryId, brandId, stockStatus, priceMin, priceMax]);
 
-  const addToCart = useCallback((product, qty = 1) => {
+  const addToCart = useCallback((product, qty = 1, mediaFallback = null) => {
     const amount = Math.max(1, Number(qty) || 1);
+    const image =
+      product.product_image_thumbnail_url ||
+      product.product_image ||
+      mediaFallback?.product_image_thumbnail_url ||
+      mediaFallback?.product_image ||
+      '';
     setCart((prev) => {
       const existing = prev[product._id];
       return {
@@ -253,8 +335,8 @@ export default function PublicShop() {
           product_id: product._id,
           name: product.product_name,
           sku: product.sku || product.product_code || '',
-          image: product.product_image_thumbnail_url || product.product_image || '',
-          price: Number(product.unit_price) || 0,
+          image,
+          price: Number(product.unit_price) || Number(mediaFallback?.unit_price) || 0,
           qty: (existing?.qty || 0) + amount,
         },
       };
@@ -369,6 +451,71 @@ export default function PublicShop() {
       .toLowerCase()
       .includes(categorySearch.trim().toLowerCase())
   );
+
+  const searchTerm = searchInput.trim();
+
+  const renderSuggestions = (box) => {
+    if (activeSearchBox !== box || searchTerm.length < 2) return null;
+
+    return (
+      <div className="shop-suggest" role="listbox" aria-label="Product suggestions">
+        {suggestLoading && !suggestions.length ? (
+          <div className="shop-suggest-state">
+            <span className="shop-suggest-spinner" aria-hidden="true" />
+            Searching products…
+          </div>
+        ) : suggestions.length ? (
+          <>
+            {suggestLoading ? (
+              <div className="shop-suggest-progress" aria-hidden="true" />
+            ) : null}
+            {suggestions.map((product) => {
+              const thumb = resolveCategoryMediaUrl(
+                product.product_image_thumbnail_url || product.product_image
+              );
+              return (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  className="shop-suggest-item"
+                  key={product._id}
+                  onClick={() => {
+                    setActiveSearchBox('');
+                    openQuickView(product);
+                  }}
+                >
+                  <span className="shop-suggest-thumb">
+                    {thumb ? <img src={thumb} alt="" loading="lazy" /> : <FaStore />}
+                  </span>
+                  <span className="shop-suggest-text">
+                    <strong>{product.product_name}</strong>
+                    <small>{product.brand_id?.name || 'Generic'}</small>
+                  </span>
+                  <span className="shop-suggest-price">
+                    {formatPrice(product.unit_price)}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className="shop-suggest-all"
+              onClick={() => {
+                setSearch(searchTerm);
+                setPage(1);
+                setActiveSearchBox('');
+              }}
+            >
+              View all results for “{searchTerm}”
+            </button>
+          </>
+        ) : (
+          <div className="shop-suggest-state is-empty">No products match “{searchTerm}”</div>
+        )}
+      </div>
+    );
+  };
 
   const filterPanel = (
     <>
@@ -603,19 +750,31 @@ export default function PublicShop() {
 
           <form
             className="shop-searchbar"
+            ref={activeSearchBox === 'header' ? searchBoxRef : null}
             onSubmit={(event) => {
               event.preventDefault();
               setSearch(searchInput.trim());
               setPage(1);
+              setActiveSearchBox('');
             }}
           >
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search for products"
-              aria-label="Search for products"
-            />
+            <div className="shop-searchbar-field">
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(event) => {
+                  setSearchInput(event.target.value);
+                  setActiveSearchBox('header');
+                }}
+                onFocus={() => setActiveSearchBox('header')}
+                placeholder="Search for products"
+                aria-label="Search for products"
+              />
+              {suggestLoading && activeSearchBox === 'header' ? (
+                <span className="shop-searchbar-spinner" aria-hidden="true" />
+              ) : null}
+            </div>
+            {renderSuggestions('header')}
             <div className="shop-category-picker" ref={categoryMenuRef}>
               <button
                 type="button"
@@ -790,30 +949,46 @@ export default function PublicShop() {
             <div className="shop-results-info">
               <h2>{activeCategoryName || (search ? `Results for “${search}”` : 'All products')}</h2>
               <span>
-                {productsLoading && !products.length ?
-                  'Loading…'
+                {productsLoading ?
+                  <>
+                    <span className="shop-results-inline-spinner" aria-hidden="true" />
+                    Fetching products…
+                  </>
                 : `Showing ${products.length} of ${total} products`}
               </span>
             </div>
 
-            <div className="shop-results-search">
+            <div
+              className="shop-results-search"
+              ref={activeSearchBox === 'results' ? searchBoxRef : null}
+            >
               <FaMagnifyingGlass />
               <input
                 type="search"
                 value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
+                onChange={(event) => {
+                  setSearchInput(event.target.value);
+                  setActiveSearchBox('results');
+                }}
+                onFocus={() => setActiveSearchBox('results')}
                 placeholder="Search products…"
                 aria-label="Search products"
               />
-              {searchInput ? (
+              {suggestLoading && activeSearchBox === 'results' ? (
+                <span className="shop-results-spinner" aria-hidden="true" />
+              ) : searchInput ? (
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={() => {
+                    setSearchInput('');
+                    setActiveSearchBox('');
+                  }}
                   aria-label="Clear search"
                 >
                   <FaXmark />
                 </button>
               ) : null}
+              {renderSuggestions('results')}
             </div>
 
             <div className="shop-results-actions">
@@ -850,7 +1025,7 @@ export default function PublicShop() {
             </div>
           ) : products.length ? (
             <>
-              <div className="shop-grid">
+              <div className={`shop-grid${productsLoading ? ' is-refreshing' : ''}`}>
                 {products.map((product) => {
                   const image = resolveCategoryMediaUrl(
                     product.product_image_thumbnail_url || product.product_image
@@ -864,10 +1039,11 @@ export default function PublicShop() {
                         0
                       )
                     : cart[product._id]?.qty || 0;
-                  const categoryLabel =
+                  const categoryLabel = toShopTitleCase(
                     (Array.isArray(product.category_id) ?
                       product.category_id[0]?.name
-                    : product.category_id?.name) || 'Products';
+                    : product.category_id?.name) || 'Products'
+                  );
 
                   return (
                     <article className="shop-card" key={product._id}>
@@ -939,11 +1115,13 @@ export default function PublicShop() {
                           {product.is_available ?
                             <>
                               <FaCartShopping />
-                              {hasVariants ?
-                                inCart ? `Choose options · ${inCart} in cart`
-                                : 'Choose options'
-                              : inCart ? `In cart (${inCart})`
-                              : 'Add to cart'}
+                              <span>
+                                {hasVariants ?
+                                  inCart ? `In cart (${inCart})`
+                                  : 'Choose options'
+                                : inCart ? `In cart (${inCart})`
+                                : 'Add to cart'}
+                              </span>
                             </>
                           : 'Out of stock'}
                         </button>
@@ -956,7 +1134,10 @@ export default function PublicShop() {
               <div className="shop-infinite" aria-live="polite">
                 {hasMore ? <div ref={loadMoreRef} className="shop-infinite-sentinel" /> : null}
                 {loadingMore ? (
-                  <div className="shop-infinite-status">Loading more products…</div>
+                  <div className="shop-infinite-status">
+                    <span className="shop-results-inline-spinner" aria-hidden="true" />
+                    Loading more products…
+                  </div>
                 ) : null}
                 {!hasMore && products.length ? (
                   <div className="shop-infinite-status is-done">
@@ -1070,17 +1251,39 @@ export default function PublicShop() {
           const qvVariants = Array.isArray(quickView.variants) ? quickView.variants : [];
           const selectedVariant =
             qvVariants.find((variant) => String(variant._id) === quickVariantId) || null;
-          const cartProduct = selectedVariant || quickView;
+          const cartProduct =
+            selectedVariant ?
+              {
+                ...selectedVariant,
+                product_image:
+                  selectedVariant.product_image || quickView.product_image || null,
+                product_image_thumbnail_url:
+                  selectedVariant.product_image_thumbnail_url ||
+                  quickView.product_image_thumbnail_url ||
+                  selectedVariant.product_image ||
+                  quickView.product_image ||
+                  null,
+                unit_price:
+                  Number(selectedVariant.unit_price) > 0 ?
+                    selectedVariant.unit_price
+                  : quickView.unit_price,
+                list_price:
+                  Number(selectedVariant.list_price) > 0 ?
+                    selectedVariant.list_price
+                  : quickView.list_price,
+              }
+            : quickView;
           const qvImage = resolveCategoryMediaUrl(
-            selectedVariant?.product_image ||
-              selectedVariant?.product_image_thumbnail_url ||
+            cartProduct.product_image ||
+              cartProduct.product_image_thumbnail_url ||
               quickView.product_image ||
               quickView.product_image_thumbnail_url
           );
-          const qvCategory =
+          const qvCategory = toShopTitleCase(
             (Array.isArray(quickView.category_id) ?
               quickView.category_id[0]?.name
-            : quickView.category_id?.name) || 'Products';
+            : quickView.category_id?.name) || 'Products'
+          );
           const qvInCart = cart[cartProduct._id]?.qty || 0;
           const qvDescription = stripShopHtml(quickView.product_description);
 
@@ -1113,68 +1316,87 @@ export default function PublicShop() {
                 </div>
 
                 <div className="shop-qv-body">
-                  <span className="shop-card-cat">{qvCategory}</span>
-                  <h2>{quickView.product_name}</h2>
-                  <div className="shop-qv-meta">
-                    <span>{quickView.brand_id?.name || 'Generic'}</span>
-                    {cartProduct.sku || cartProduct.product_code ? (
-                      <span>SKU: {cartProduct.sku || cartProduct.product_code}</span>
-                    ) : null}
+                  <div className="shop-qv-head">
+                    <span className="shop-card-cat">{qvCategory}</span>
+                    <h2>{quickView.product_name}</h2>
+                    <div className="shop-qv-meta">
+                      <span>{quickView.brand_id?.name || 'Generic'}</span>
+                      {cartProduct.sku || cartProduct.product_code ? (
+                        <span className="shop-qv-sku">
+                          SKU {cartProduct.sku || cartProduct.product_code}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="shop-card-price shop-qv-price">
-                    <strong>{formatPrice(cartProduct.unit_price)}</strong>
-                    {cartProduct.list_price ?
-                      <del>{formatPrice(cartProduct.list_price)}</del>
-                    : null}
-                    {cartProduct.discount_percent ? (
-                      <em className="shop-qv-discount">-{cartProduct.discount_percent}%</em>
-                    ) : null}
-                  </div>
+                  <div className="shop-qv-pricing">
+                    <div className="shop-card-price shop-qv-price">
+                      <strong>{formatPrice(cartProduct.unit_price)}</strong>
+                      {cartProduct.list_price ?
+                        <del>{formatPrice(cartProduct.list_price)}</del>
+                      : null}
+                      {cartProduct.discount_percent ? (
+                        <em className="shop-qv-discount">-{cartProduct.discount_percent}%</em>
+                      ) : null}
+                    </div>
 
-                  <div className="shop-card-stock">
-                    {cartProduct.is_available ? (
-                      <span className="in">
-                        <FaCheck /> In stock
-                        {Number(cartProduct.available_qty) > 0 ?
-                          ` · ${cartProduct.available_qty} available`
-                        : ''}
-                      </span>
-                    ) : (
-                      <span className="out">Unavailable</span>
-                    )}
+                    <div className="shop-card-stock">
+                      {cartProduct.is_available ? (
+                        <span className="in">
+                          <FaCheck /> In stock
+                          {Number(cartProduct.available_qty) > 0 ?
+                            ` · ${cartProduct.available_qty} available`
+                          : ''}
+                        </span>
+                      ) : (
+                        <span className="out">Unavailable</span>
+                      )}
+                    </div>
                   </div>
 
                   {qvVariants.length ? (
                     <div className="shop-qv-variants">
                       <div className="shop-qv-variants-head">
-                        <strong>Select a variant</strong>
+                        <strong>
+                          {selectedVariant ?
+                            <>
+                              Variant:{' '}
+                              <b>
+                                {shopVariantLabel(
+                                  quickView.product_name,
+                                  selectedVariant.product_name
+                                )}
+                              </b>
+                            </>
+                          : 'Select a variant'}
+                        </strong>
                         <span>{qvVariants.length} options</span>
                       </div>
-                      <div className="shop-qv-variant-list">
+                      <div className="shop-qv-variant-list" role="listbox">
                         {qvVariants.map((variant) => {
                           const selected = String(variant._id) === quickVariantId;
+                          const label = shopVariantLabel(
+                            quickView.product_name,
+                            variant.product_name
+                          );
                           return (
                             <button
                               type="button"
+                              role="option"
+                              aria-selected={selected}
                               key={variant._id}
                               className={selected ? 'is-selected' : ''}
                               disabled={!variant.is_available}
+                              title={
+                                variant.is_available ? label : `${label} — out of stock`
+                              }
                               onClick={() => {
                                 setQuickVariantId(String(variant._id));
                                 setQuickQty(1);
                               }}
                             >
-                              <span>
-                                <strong>{variant.product_name}</strong>
-                                <small>
-                                  {variant.sku || variant.product_code || 'Variant'}
-                                </small>
-                              </span>
-                              <span>
-                                <strong>{formatPrice(variant.unit_price)}</strong>
-                                <small>{variant.is_available ? 'In stock' : 'Out of stock'}</small>
-                              </span>
+                              {label}
+                              {!variant.is_available ? <em>Sold out</em> : null}
                             </button>
                           );
                         })}
@@ -1215,7 +1437,7 @@ export default function PublicShop() {
                       className={`shop-add-btn shop-qv-add ${qvInCart ? 'is-added' : ''}`}
                       disabled={!cartProduct.is_available || (qvVariants.length > 0 && !selectedVariant)}
                       onClick={() => {
-                        addToCart(cartProduct, quickQty);
+                        addToCart(cartProduct, quickQty, quickView);
                         closeQuickView();
                       }}
                     >

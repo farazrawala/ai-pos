@@ -45,6 +45,38 @@
   font-size: 1.05rem;
 }
 
+.checkout-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.checkout-brand-logo,
+.checkout-brand-fallback {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.checkout-brand-fallback {
+  display: grid;
+  place-items: center;
+  color: #344767;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.checkout-brand strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .checkout-header span {
   display: inline-flex;
   align-items: center;
