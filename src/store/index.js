@@ -36,6 +36,7 @@ import bigCommerceReducer from '../features/bigCommerce/bigCommerceSlice.js';
 import whatsappMessagesReducer from '../features/whatsappMessages/whatsappMessagesSlice.js';
 import whatsappChatReducer from '../features/whatsappChat/whatsappChatSlice.js';
 import supportReducer from '../features/support/supportSlice.js';
+import tasksReducer from '../features/tasks/tasksSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
 const store = configureStore({
@@ -77,6 +78,7 @@ const store = configureStore({
     whatsappMessages: whatsappMessagesReducer,
     whatsappChat: whatsappChatReducer,
     support: supportReducer,
+    tasks: tasksReducer,
   },
 });
 

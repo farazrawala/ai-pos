@@ -43,6 +43,7 @@ export const PERMISSION_MODULE_KEYS = [
   'whatsapp-messages',
   'logs',
   'support',
+  'tasks',
 ];
 
 export const PERMISSION_ACTIONS = ['view', 'add', 'edit', 'delete'];
@@ -94,6 +95,11 @@ export const ROUTE_PERMISSION_MODULE = {
   '/support': 'support',
   '/support/new': 'support',
   '/admin/support': 'support',
+  '/tasks/boards': 'tasks',
+  '/tasks/my-tasks': 'tasks',
+  '/tasks/assigned': 'tasks',
+  '/tasks/created': 'tasks',
+  '/tasks/completed': 'tasks',
   '/logs': 'logs',
   '/company-cache': null,
   '/company-queues': null,
@@ -107,6 +113,9 @@ export function getPermissionModuleForPath(pathname = '') {
   // /support/:id and /admin/support/:id
   if (/^\/support\/[^/]+$/.test(path) || /^\/admin\/support(\/[^/]+)?$/.test(path)) {
     return 'support';
+  }
+  if (/^\/tasks(\/|$)/.test(path)) {
+    return 'tasks';
   }
   const segments = path.split('/').filter(Boolean);
   if (segments.length === 0) return null;

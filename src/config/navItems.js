@@ -55,10 +55,13 @@ import {
   FaTruck,
   FaTruckFast,
   FaUser,
+  FaUserCheck,
+  FaUserPen,
   FaVial,
   FaWallet,
   FaWarehouse,
   FaWhatsapp,
+  FaCircleCheck,
 } from 'react-icons/fa6';
 
 /**
@@ -189,6 +192,18 @@ export const NAV_ITEMS = [
       { to: '/support', label: 'My tickets', icon: FaClipboardList },
       { to: '/support/new', label: 'Create ticket', icon: FaTicket },
       { to: '/admin/support', label: 'Ticket management', icon: FaClipboardList, adminOnly: true },
+    ],
+  },
+  {
+    id: 'tasks',
+    label: 'Task Management',
+    icon: FaClipboardCheck,
+    children: [
+      { to: '/tasks/boards', label: 'Boards', icon: FaLayerGroup },
+      { to: '/tasks/my-tasks', label: 'My Tasks', icon: FaClipboardList },
+      { to: '/tasks/assigned', label: 'Assigned to Me', icon: FaUserCheck },
+      { to: '/tasks/created', label: 'Created by Me', icon: FaUserPen },
+      { to: '/tasks/completed', label: 'Completed Tasks', icon: FaCircleCheck },
     ],
   },
   {

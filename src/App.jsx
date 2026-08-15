@@ -133,6 +133,9 @@ import CreateTicket from './routes/support/CreateTicket.jsx';
 import TicketDetails from './routes/support/TicketDetails.jsx';
 import AdminTicketList from './routes/support/admin/AdminTicketList.jsx';
 import AdminTicketDetails from './routes/support/admin/AdminTicketDetails.jsx';
+import BoardsPage from './routes/tasks/BoardsPage.jsx';
+import BoardKanbanPage from './routes/tasks/BoardKanbanPage.jsx';
+import TasksScopedPage from './routes/tasks/TasksScopedPage.jsx';
 import { selectIsAuthenticated, selectAuthUser, setUser } from './features/user/userSlice.js';
 import { SidenavProvider, useSidenav } from './context/SidenavContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
@@ -263,6 +266,12 @@ const App = () => {
           <Route path="/support/:id" element={<TicketDetails />} />
           <Route path="/admin/support" element={<AdminTicketList />} />
           <Route path="/admin/support/:id" element={<AdminTicketDetails />} />
+          <Route path="/tasks/boards" element={<BoardsPage />} />
+          <Route path="/tasks/boards/:boardId" element={<BoardKanbanPage />} />
+          <Route path="/tasks/my-tasks" element={<TasksScopedPage scopeKey="my_tasks" />} />
+          <Route path="/tasks/assigned" element={<TasksScopedPage scopeKey="assigned_to_me" />} />
+          <Route path="/tasks/created" element={<TasksScopedPage scopeKey="created_by_me" />} />
+          <Route path="/tasks/completed" element={<TasksScopedPage scopeKey="completed" />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
@@ -452,6 +461,12 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/support/:id" element={<TicketDetails />} />
           <Route path="/admin/support" element={<AdminTicketList />} />
           <Route path="/admin/support/:id" element={<AdminTicketDetails />} />
+          <Route path="/tasks/boards" element={<BoardsPage />} />
+          <Route path="/tasks/boards/:boardId" element={<BoardKanbanPage />} />
+          <Route path="/tasks/my-tasks" element={<TasksScopedPage scopeKey="my_tasks" />} />
+          <Route path="/tasks/assigned" element={<TasksScopedPage scopeKey="assigned_to_me" />} />
+          <Route path="/tasks/created" element={<TasksScopedPage scopeKey="created_by_me" />} />
+          <Route path="/tasks/completed" element={<TasksScopedPage scopeKey="completed" />} />
           <Route path="/users" element={<Users />} />
           <Route path="/users/add" element={<UsersAdd />} />
           <Route path="/users/edit/:id" element={<UsersEdit />} />
