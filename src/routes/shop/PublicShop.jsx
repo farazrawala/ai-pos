@@ -96,6 +96,7 @@ export default function PublicShop() {
 
   const [bootLoading, setBootLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cart, setCart] = useState({});
@@ -104,6 +105,7 @@ export default function PublicShop() {
 
   const requestSeq = useRef(0);
   const categoryMenuRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const cartStorageKey = store?._id ? `shop_cart_${store._id}` : '';
 
   useEffect(() => {
@@ -187,7 +189,13 @@ export default function PublicShop() {
   useEffect(() => {
     const seq = requestSeq.current + 1;
     requestSeq.current = seq;
-    setProductsLoading(true);
+    const isFirstPage = page === 1;
+    if (isFirstPage) {
+      setProductsLoading(true);
+      setLoadingMore(false);
+    } else {
+      setLoadingMore(true);
+    }
 
     const params = new URLSearchParams({
       page: String(page),
@@ -208,16 +216,29 @@ export default function PublicShop() {
     fetchPublicShop(`shop/${slug}/products?${params.toString()}`)
       .then((body) => {
         if (requestSeq.current !== seq) return;
-        setProducts(Array.isArray(body?.data) ? body.data : []);
+        const rows = Array.isArray(body?.data) ? body.data : [];
         setTotal(Number(body?.total) || 0);
+        if (isFirstPage) {
+          setProducts(rows);
+          return;
+        }
+        setProducts((prev) => {
+          const seen = new Set(prev.map((item) => String(item._id)));
+          const next = rows.filter((item) => !seen.has(String(item._id)));
+          return next.length ? [...prev, ...next] : prev;
+        });
       })
       .catch(() => {
         if (requestSeq.current !== seq) return;
-        setProducts([]);
-        setTotal(0);
+        if (isFirstPage) {
+          setProducts([]);
+          setTotal(0);
+        }
       })
       .finally(() => {
-        if (requestSeq.current === seq) setProductsLoading(false);
+        if (requestSeq.current !== seq) return;
+        setProductsLoading(false);
+        setLoadingMore(false);
       });
   }, [slug, page, sort, search, categoryId, brandId, stockStatus, priceMin, priceMax]);
 
@@ -280,7 +301,22 @@ export default function PublicShop() {
     (stockStatus ? 1 : 0) +
     (priceMin !== '' || priceMax !== '' ? 1 : 0);
 
-  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+  const hasMore = products.length < total;
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMore || productsLoading || loadingMore) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setPage((prev) => prev + 1);
+      },
+      { root: null, rootMargin: '280px 0px', threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, productsLoading, loadingMore, products.length]);
 
   const clearFilters = () => {
     setCategoryId('');
@@ -741,7 +777,11 @@ export default function PublicShop() {
           <div className="shop-results-bar">
             <div className="shop-results-info">
               <h2>{activeCategoryName || (search ? `Results for “${search}”` : 'All products')}</h2>
-              <span>{productsLoading ? 'Loading…' : `Showing ${products.length} of ${total} products`}</span>
+              <span>
+                {productsLoading && !products.length ?
+                  'Loading…'
+                : `Showing ${products.length} of ${total} products`}
+              </span>
             </div>
 
             <div className="shop-results-search">
@@ -790,7 +830,7 @@ export default function PublicShop() {
             </div>
           </div>
 
-          {productsLoading ? (
+          {productsLoading && !products.length ? (
             <div className="shop-grid">
               {Array.from({ length: 8 }).map((_, index) => (
                 <ProductSkeleton key={index} />
@@ -883,33 +923,17 @@ export default function PublicShop() {
                 })}
               </div>
 
-              {totalPages > 1 ? (
-                <div className="shop-pagination">
-                  <button
-                    type="button"
-                    disabled={page <= 1}
-                    onClick={() => {
-                      setPage((prev) => Math.max(prev - 1, 1));
-                      window.scrollTo({ top: 340, behavior: 'smooth' });
-                    }}
-                  >
-                    Previous
-                  </button>
-                  <span>
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={page >= totalPages}
-                    onClick={() => {
-                      setPage((prev) => Math.min(prev + 1, totalPages));
-                      window.scrollTo({ top: 340, behavior: 'smooth' });
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
-              ) : null}
+              <div className="shop-infinite" aria-live="polite">
+                {hasMore ? <div ref={loadMoreRef} className="shop-infinite-sentinel" /> : null}
+                {loadingMore ? (
+                  <div className="shop-infinite-status">Loading more products…</div>
+                ) : null}
+                {!hasMore && products.length ? (
+                  <div className="shop-infinite-status is-done">
+                    You have reached the end · {total} products
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : (
             <div className="shop-empty">
@@ -1004,7 +1028,7 @@ export default function PublicShop() {
       {quickView ? (
         (() => {
           const qvImage = resolveCategoryMediaUrl(
-            quickView.product_image_thumbnail_url || quickView.product_image
+            quickView.product_image || quickView.product_image_thumbnail_url
           );
           const qvCategory =
             (Array.isArray(quickView.category_id) ?
