@@ -101,6 +101,7 @@ export default function PublicShop() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cart, setCart] = useState({});
   const [quickView, setQuickView] = useState(null);
+  const [quickVariantId, setQuickVariantId] = useState('');
   const [quickQty, setQuickQty] = useState(1);
 
   const requestSeq = useRef(0);
@@ -262,11 +263,16 @@ export default function PublicShop() {
 
   const openQuickView = useCallback((product) => {
     setQuickView(product);
+    const variants = Array.isArray(product?.variants) ? product.variants : [];
+    const initialVariant =
+      variants.find((variant) => variant.is_available) || variants[0] || null;
+    setQuickVariantId(initialVariant ? String(initialVariant._id) : '');
     setQuickQty(1);
   }, []);
 
   const closeQuickView = useCallback(() => {
     setQuickView(null);
+    setQuickVariantId('');
     setQuickQty(1);
   }, []);
 
@@ -843,7 +849,15 @@ export default function PublicShop() {
                   const image = resolveCategoryMediaUrl(
                     product.product_image_thumbnail_url || product.product_image
                   );
-                  const inCart = cart[product._id]?.qty || 0;
+                  const variants = Array.isArray(product.variants) ? product.variants : [];
+                  const hasVariants = variants.length > 0;
+                  const inCart =
+                    hasVariants ?
+                      variants.reduce(
+                        (sum, variant) => sum + (Number(cart[variant._id]?.qty) || 0),
+                        0
+                      )
+                    : cart[product._id]?.qty || 0;
                   const categoryLabel =
                     (Array.isArray(product.category_id) ?
                       product.category_id[0]?.name
@@ -908,12 +922,22 @@ export default function PublicShop() {
                           type="button"
                           className={`shop-add-btn ${inCart ? 'is-added' : ''}`}
                           disabled={!product.is_available}
-                          onClick={() => addToCart(product)}
+                          onClick={() => {
+                            if (hasVariants) {
+                              openQuickView(product);
+                              return;
+                            }
+                            addToCart(product);
+                          }}
                         >
                           {product.is_available ?
                             <>
                               <FaCartShopping />
-                              {inCart ? `In cart (${inCart})` : 'Add to cart'}
+                              {hasVariants ?
+                                inCart ? `Choose options · ${inCart} in cart`
+                                : 'Choose options'
+                              : inCart ? `In cart (${inCart})`
+                              : 'Add to cart'}
                             </>
                           : 'Out of stock'}
                         </button>
@@ -1027,14 +1051,21 @@ export default function PublicShop() {
 
       {quickView ? (
         (() => {
+          const qvVariants = Array.isArray(quickView.variants) ? quickView.variants : [];
+          const selectedVariant =
+            qvVariants.find((variant) => String(variant._id) === quickVariantId) || null;
+          const cartProduct = selectedVariant || quickView;
           const qvImage = resolveCategoryMediaUrl(
-            quickView.product_image || quickView.product_image_thumbnail_url
+            selectedVariant?.product_image ||
+              selectedVariant?.product_image_thumbnail_url ||
+              quickView.product_image ||
+              quickView.product_image_thumbnail_url
           );
           const qvCategory =
             (Array.isArray(quickView.category_id) ?
               quickView.category_id[0]?.name
             : quickView.category_id?.name) || 'Products';
-          const qvInCart = cart[quickView._id]?.qty || 0;
+          const qvInCart = cart[cartProduct._id]?.qty || 0;
           const qvDescription = stripShopHtml(quickView.product_description);
 
           return (
@@ -1070,31 +1101,70 @@ export default function PublicShop() {
                   <h2>{quickView.product_name}</h2>
                   <div className="shop-qv-meta">
                     <span>{quickView.brand_id?.name || 'Generic'}</span>
-                    {quickView.sku || quickView.product_code ? (
-                      <span>SKU: {quickView.sku || quickView.product_code}</span>
+                    {cartProduct.sku || cartProduct.product_code ? (
+                      <span>SKU: {cartProduct.sku || cartProduct.product_code}</span>
                     ) : null}
                   </div>
 
                   <div className="shop-card-price shop-qv-price">
-                    <strong>{formatPrice(quickView.unit_price)}</strong>
-                    {quickView.list_price ? <del>{formatPrice(quickView.list_price)}</del> : null}
-                    {quickView.discount_percent ? (
-                      <em className="shop-qv-discount">-{quickView.discount_percent}%</em>
+                    <strong>{formatPrice(cartProduct.unit_price)}</strong>
+                    {cartProduct.list_price ?
+                      <del>{formatPrice(cartProduct.list_price)}</del>
+                    : null}
+                    {cartProduct.discount_percent ? (
+                      <em className="shop-qv-discount">-{cartProduct.discount_percent}%</em>
                     ) : null}
                   </div>
 
                   <div className="shop-card-stock">
-                    {quickView.is_available ? (
+                    {cartProduct.is_available ? (
                       <span className="in">
                         <FaCheck /> In stock
-                        {Number(quickView.available_qty) > 0 ?
-                          ` · ${quickView.available_qty} available`
+                        {Number(cartProduct.available_qty) > 0 ?
+                          ` · ${cartProduct.available_qty} available`
                         : ''}
                       </span>
                     ) : (
                       <span className="out">Unavailable</span>
                     )}
                   </div>
+
+                  {qvVariants.length ? (
+                    <div className="shop-qv-variants">
+                      <div className="shop-qv-variants-head">
+                        <strong>Select a variant</strong>
+                        <span>{qvVariants.length} options</span>
+                      </div>
+                      <div className="shop-qv-variant-list">
+                        {qvVariants.map((variant) => {
+                          const selected = String(variant._id) === quickVariantId;
+                          return (
+                            <button
+                              type="button"
+                              key={variant._id}
+                              className={selected ? 'is-selected' : ''}
+                              disabled={!variant.is_available}
+                              onClick={() => {
+                                setQuickVariantId(String(variant._id));
+                                setQuickQty(1);
+                              }}
+                            >
+                              <span>
+                                <strong>{variant.product_name}</strong>
+                                <small>
+                                  {variant.sku || variant.product_code || 'Variant'}
+                                </small>
+                              </span>
+                              <span>
+                                <strong>{formatPrice(variant.unit_price)}</strong>
+                                <small>{variant.is_available ? 'In stock' : 'Out of stock'}</small>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
 
                   {qvDescription ? (
                     <p className="shop-qv-desc">{qvDescription}</p>
@@ -1127,16 +1197,19 @@ export default function PublicShop() {
                     <button
                       type="button"
                       className={`shop-add-btn shop-qv-add ${qvInCart ? 'is-added' : ''}`}
-                      disabled={!quickView.is_available}
+                      disabled={!cartProduct.is_available || (qvVariants.length > 0 && !selectedVariant)}
                       onClick={() => {
-                        addToCart(quickView, quickQty);
+                        addToCart(cartProduct, quickQty);
                         closeQuickView();
                       }}
                     >
-                      {quickView.is_available ?
+                      {cartProduct.is_available ?
                         <>
                           <FaCartShopping />
-                          Add to cart
+                          {qvInCart ?
+                            `Add more · ${qvInCart} in cart`
+                          : qvVariants.length ? 'Add variant to cart'
+                          : 'Add to cart'}
                         </>
                       : 'Out of stock'}
                     </button>
