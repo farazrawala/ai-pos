@@ -1,0 +1,328 @@
+.memory-game {
+  color: var(--game-text);
+}
+
+.memory-game__toolbar,
+.memory-game__difficulty,
+.memory-game__scoreboard {
+  display: flex;
+  align-items: center;
+}
+
+.memory-game__toolbar {
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.memory-game__difficulty {
+  overflow: hidden;
+  border: 1px solid var(--game-border);
+  border-radius: 0.75rem;
+  background: #f8f9fa;
+}
+
+.memory-game__difficulty button {
+  min-width: 4.6rem;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-right: 1px solid var(--game-border);
+  background: transparent;
+  color: var(--game-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.memory-game__difficulty button:last-child {
+  border-right: 0;
+}
+
+.memory-game__difficulty button small {
+  display: block;
+  margin-top: 0.05rem;
+  font-size: 0.58rem;
+  font-weight: 600;
+}
+
+.memory-game__difficulty button:hover,
+.memory-game__difficulty button.is-active {
+  background: var(--app-theme);
+  color: #fff;
+}
+
+.memory-game__new-button {
+  flex-shrink: 0;
+  margin: 0;
+  color: #fff;
+}
+
+.memory-game__scoreboard {
+  justify-content: stretch;
+  gap: 0.65rem;
+}
+
+.memory-game__scoreboard > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--game-border);
+  border-radius: 0.7rem;
+  background: #f8f9fa;
+}
+
+.memory-game__scoreboard span {
+  color: var(--game-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.memory-game__scoreboard strong {
+  color: var(--game-text);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-game__best {
+  margin: 0.55rem 0 0.8rem;
+  color: var(--game-muted);
+  font-size: 0.7rem;
+  text-align: right;
+}
+
+.memory-game__best strong {
+  color: var(--game-text);
+}
+
+.memory-game__board-shell {
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: clamp(0.35rem, 1.5vw, 0.65rem);
+  border-radius: 1rem;
+  background: linear-gradient(310deg, var(--app-theme), var(--app-theme-gradient-end));
+  box-shadow: 0 0.75rem 1.5rem -0.9rem rgba(var(--app-theme-rgb), 0.7);
+}
+
+.memory-game__board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--memory-columns), minmax(0, 1fr));
+  gap: clamp(0.25rem, 1vw, 0.55rem);
+  padding: clamp(0.4rem, 1.5vw, 0.7rem);
+  border-radius: 0.65rem;
+  background: #f1f5f9;
+}
+
+.memory-card {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  aspect-ratio: 1;
+  background: transparent;
+  cursor: pointer;
+  perspective: 700px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.memory-card__inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.memory-card.is-flipped .memory-card__inner {
+  transform: rotateY(180deg);
+}
+
+.memory-card__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: clamp(0.35rem, 1vw, 0.65rem);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.memory-card__back {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.2), transparent 35%),
+    linear-gradient(145deg, var(--app-theme), var(--app-theme-gradient-end));
+  color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0.28rem 0.55rem rgba(15, 23, 42, 0.2);
+}
+
+.memory-card__back span {
+  display: grid;
+  place-items: center;
+  width: 45%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: clamp(0.8rem, 3vw, 1.35rem);
+  font-weight: 800;
+}
+
+.memory-card__front {
+  transform: rotateY(180deg);
+  border: 1px solid rgba(var(--app-theme-rgb), 0.25);
+  background: #fff;
+  font-size: clamp(1.15rem, 4.8vw, 2.35rem);
+  box-shadow: inset 0 0 0 0.15rem rgba(var(--app-theme-rgb), 0.05);
+}
+
+.memory-game__board--hard .memory-card__front {
+  font-size: clamp(0.9rem, 3.4vw, 1.75rem);
+}
+
+.memory-card.is-matched .memory-card__front {
+  border-color: rgba(45, 206, 137, 0.7);
+  background: rgba(45, 206, 137, 0.11);
+  box-shadow: inset 0 0 0 0.15rem rgba(45, 206, 137, 0.12);
+}
+
+.memory-card:focus-visible {
+  outline: 0;
+}
+
+.memory-card:focus-visible .memory-card__inner {
+  border-radius: 0.65rem;
+  box-shadow: 0 0 0 0.22rem rgba(var(--app-theme-rgb), 0.34);
+}
+
+.memory-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.memory-game__completion {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.memory-game__completion-icon {
+  font-size: 2.5rem;
+}
+
+.memory-game__completion h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+}
+
+.memory-game__completion p {
+  max-width: 22rem;
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.85rem;
+}
+
+.memory-game__completion strong {
+  color: #fff;
+}
+
+.memory-game__completion .btn {
+  margin: 0.25rem 0 0;
+  color: #fff;
+}
+
+.memory-game__hint {
+  margin: 0.8rem 0 0;
+  color: var(--game-muted);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.memory-game button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.22rem rgba(var(--app-theme-rgb), 0.28);
+}
+
+body.dark-version .memory-game__difficulty,
+body.dark-version .memory-game__scoreboard > div {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+body.dark-version .memory-game__board {
+  background: #0f172a;
+}
+
+body.dark-version .memory-card__front {
+  background: #273449;
+}
+
+body.dark-version .memory-card.is-matched .memory-card__front {
+  background: rgba(45, 206, 137, 0.16);
+}
+
+@media (max-width: 575.98px) {
+  .memory-game__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .memory-game__difficulty {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .memory-game__difficulty button {
+    min-width: 0;
+  }
+
+  .memory-game__new-button {
+    width: 100%;
+  }
+
+  .memory-game__scoreboard {
+    gap: 0.35rem;
+  }
+
+  .memory-game__scoreboard > div {
+    align-items: center;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.45rem 0.25rem;
+  }
+
+  .memory-game__best {
+    text-align: center;
+  }
+
+  .memory-game__board {
+    gap: 0.25rem;
+    padding: 0.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-card__inner,
+  .memory-game__difficulty button {
+    transition: none;
+  }
+}

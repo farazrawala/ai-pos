@@ -75,13 +75,13 @@ describe('filterNavItems admin access', () => {
   it('keeps only permitted children inside a nav group', () => {
     const items = filterNavItems({
       isAdmin: false,
-      canView: (moduleKey) => moduleKey === 'pos',
+      canView: (moduleKey) => moduleKey === 'orders',
       routePermissionModule: ROUTE_PERMISSION_MODULE,
       debug: false,
     });
     const group = items.find((i) => i.id === 'pos-products');
     expect(group).toBeTruthy();
     expect(group.children).toHaveLength(1);
-    expect(group.children[0].to).toBe('/pos');
+    expect(group.children[0].to).toBe('/orders');
   });
 });

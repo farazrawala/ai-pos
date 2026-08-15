@@ -45,6 +45,16 @@ import AttributeEdit from './routes/attribute/edit.jsx';
 import Pos from './routes/pos/index.jsx';
 import PosInvoice from './routes/pos/invoice.jsx';
 import PublicInvoice from './routes/pos/PublicInvoice.jsx';
+import PublicShop from './routes/shop/PublicShop.jsx';
+import ShopCart from './routes/shop/ShopCart.jsx';
+import ShopCheckout from './routes/shop/ShopCheckout.jsx';
+import ShopOrderSuccess from './routes/shop/ShopOrderSuccess.jsx';
+import GamesHubPage from './routes/games/index.jsx';
+import SnakeGamePage from './routes/games/snake.jsx';
+import Game2048Page from './routes/games/2048.jsx';
+import TetrisGamePage from './routes/games/tetris.jsx';
+import MemoryGamePage from './routes/games/memory.jsx';
+import TicTacToePage from './routes/games/tic-tac-toe.jsx';
 import Logs from './routes/logs/index.jsx';
 import Users from './routes/users/index.jsx';
 import UsersAdd from './routes/users/add.jsx';
@@ -154,10 +164,12 @@ const App = () => {
   const authUser = useSelector(selectAuthUser);
   const authUserId = authUser?._id || authUser?.id || '';
   const isPublicInvoiceRoute = location.pathname.startsWith('/invoice/view/');
+  const isPublicShopRoute = location.pathname.startsWith('/shop/');
   const hideHeader =
     location.pathname === '/signin' ||
     location.pathname === '/signup' ||
     isPublicInvoiceRoute ||
+    isPublicShopRoute ||
     (!isAuthenticated && location.pathname === '/api-workflow');
 
   useEffect(() => {
@@ -230,6 +242,19 @@ const App = () => {
           <Route path="/invoice" element={<PosInvoice />} />
           <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
+          <Route path="/shop/:companySlug" element={<PublicShop />} />
+          <Route path="/shop/:companySlug/cart" element={<ShopCart />} />
+          <Route path="/shop/:companySlug/checkout" element={<ShopCheckout />} />
+          <Route
+            path="/shop/:companySlug/order-success/:orderId"
+            element={<ShopOrderSuccess />}
+          />
+          <Route path="/games" element={<GamesHubPage />} />
+          <Route path="/games/snake" element={<SnakeGamePage />} />
+          <Route path="/games/2048" element={<Game2048Page />} />
+          <Route path="/games/tetris" element={<TetrisGamePage />} />
+          <Route path="/games/memory" element={<MemoryGamePage />} />
+          <Route path="/games/tic-tac-toe" element={<TicTacToePage />} />
           <Route path="/logs" element={withDevToolsPassword(<Logs />)} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />
@@ -413,6 +438,12 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/invoice" element={<PosInvoice />} />
           <Route path="/invoice/:invoiceId" element={<PosInvoice />} />
           <Route path="/invoice/view/:token" element={<PublicInvoice />} />
+          <Route path="/games" element={<GamesHubPage />} />
+          <Route path="/games/snake" element={<SnakeGamePage />} />
+          <Route path="/games/2048" element={<Game2048Page />} />
+          <Route path="/games/tetris" element={<TetrisGamePage />} />
+          <Route path="/games/memory" element={<MemoryGamePage />} />
+          <Route path="/games/tic-tac-toe" element={<TicTacToePage />} />
           <Route path="/logs" element={withDevToolsPassword(<Logs />)} />
           <Route path="/whatsapp-messages" element={<WhatsappMessages />} />
           <Route path="/whatsapp-chat" element={<WhatsappChatPage />} />

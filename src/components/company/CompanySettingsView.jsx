@@ -63,7 +63,14 @@ import {
   updateCompanyDetailsRequest,
 } from '../../features/company/companyAPI.js';
 import { isUserUploadFilePart } from '../../features/users/usersAPI.js';
+import {
+  FaArrowUpRightFromSquare,
+  FaCheck,
+  FaGlobe,
+  FaRegCopy,
+} from 'react-icons/fa6';
 import { showToast } from '../../utils/toast.js';
+import { absoluteAppUrl } from '../../config/appBase.js';
 import GoogleAddressMapField from './GoogleAddressMapField.jsx';
 
 const WHATSAPP_NUMBER_MAX_LENGTH = 12;
@@ -227,6 +234,24 @@ export default function CompanySettingsView() {
     });
     return map;
   }, []);
+
+  const shopStoreUrl = useMemo(() => {
+    const slug = normalizeCompanySlugInput(form.company_slug);
+    if (!slug) return '';
+    return absoluteAppUrl(`/shop/${slug}`);
+  }, [form.company_slug]);
+
+  const [storeUrlCopied, setStoreUrlCopied] = useState(false);
+
+  useEffect(() => {
+    if (!storeUrlCopied) return undefined;
+    const timer = setTimeout(() => setStoreUrlCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [storeUrlCopied]);
+
+  useEffect(() => {
+    setStoreUrlCopied(false);
+  }, [shopStoreUrl]);
 
   useEffect(() => {
     return () => {
@@ -1401,8 +1426,75 @@ export default function CompanySettingsView() {
                   {!errors.company_slug && slugCheck.status === 'error' ? (
                     <div className="company-slug-status is-error">{slugCheck.message}</div>
                   ) : null}
-                  <p className="company-logo-hint mb-0">
-                    Lowercase letters, numbers, and hyphens. Used as your store URL.
+                  {shopStoreUrl ? (
+                    <div className="store-url-card mt-3">
+                      <div className="store-url-card-head">
+                        <span className="store-url-card-title">
+                          <FaGlobe aria-hidden="true" />
+                          Public store URL
+                        </span>
+                        <span
+                          className={`store-url-badge ${
+                            displayStoreOnBigcommerce ? 'is-live' : 'is-hidden'
+                          }`}
+                        >
+                          <i aria-hidden="true" />
+                          {displayStoreOnBigcommerce ? 'Live' : 'Not published'}
+                        </span>
+                      </div>
+
+                      <div className="store-url-card-row">
+                        <code className="store-url-value" title={shopStoreUrl}>
+                          {shopStoreUrl}
+                        </code>
+                        <div className="store-url-actions">
+                          <button
+                            type="button"
+                            className={`store-url-btn ${storeUrlCopied ? 'is-copied' : ''}`}
+                            disabled={!companyId}
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(shopStoreUrl);
+                                setStoreUrlCopied(true);
+                                showToast({ message: 'Store URL copied.', variant: 'success' });
+                              } catch {
+                                showToast({
+                                  message: 'Could not copy URL. Select and copy manually.',
+                                  variant: 'error',
+                                });
+                              }
+                            }}
+                          >
+                            {storeUrlCopied ?
+                              <>
+                                <FaCheck aria-hidden="true" /> Copied
+                              </>
+                            : <>
+                                <FaRegCopy aria-hidden="true" /> Copy
+                              </>
+                            }
+                          </button>
+                          <a
+                            className="store-url-btn is-primary"
+                            href={shopStoreUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <FaArrowUpRightFromSquare aria-hidden="true" /> Visit
+                          </a>
+                        </div>
+                      </div>
+
+                      <p className="store-url-hint">
+                        {displayStoreOnBigcommerce ?
+                          'Share this link with customers. They can browse products and place orders without signing in.'
+                        : 'Enable "Display store on Big Commerce" below to make this storefront publicly accessible.'}
+                      </p>
+                    </div>
+                  ) : null}
+                  <p className="company-logo-hint mb-0 mt-2">
+                    Lowercase letters, numbers, and hyphens. Used as your public store URL
+                    (/shop/your-slug).
                   </p>
                 </div>
 

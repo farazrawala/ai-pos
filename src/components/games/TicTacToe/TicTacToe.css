@@ -1,0 +1,195 @@
+.tic-tac-toe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.15rem;
+}
+
+.tic-tac-toe__scoreboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 27rem);
+  overflow: hidden;
+  border: 1px solid var(--game-border);
+  border-radius: 0.8rem;
+  background: rgba(var(--app-theme-rgb), 0.04);
+}
+
+.tic-tac-toe__scoreboard div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.7rem 0.4rem;
+}
+
+.tic-tac-toe__scoreboard div + div {
+  border-left: 1px solid var(--game-border);
+}
+
+.tic-tac-toe__scoreboard span {
+  color: var(--game-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tic-tac-toe__scoreboard strong {
+  color: var(--game-text);
+  font-size: 1.35rem;
+}
+
+.tic-tac-toe__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.tic-tac-toe__controls fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tic-tac-toe__controls legend {
+  width: auto;
+  margin: 0 0 0.3rem;
+  color: var(--game-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.tic-tac-toe__segmented {
+  display: flex;
+  padding: 0.2rem;
+  border: 1px solid var(--game-border);
+  border-radius: 0.65rem;
+  background: rgba(131, 146, 171, 0.08);
+}
+
+.tic-tac-toe__segmented button {
+  padding: 0.42rem 0.7rem;
+  border: 0;
+  border-radius: 0.48rem;
+  background: transparent;
+  color: var(--game-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.tic-tac-toe__segmented button.is-active {
+  background: var(--game-panel);
+  color: rgb(var(--app-theme-rgb));
+  box-shadow: 0 0.2rem 0.55rem rgba(20, 20, 43, 0.12);
+}
+
+.tic-tac-toe__segmented button:focus-visible,
+.tic-tac-toe__cell:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(var(--app-theme-rgb), 0.28);
+}
+
+.tic-tac-toe__status {
+  min-height: 1.55rem;
+  margin: 0;
+  color: var(--game-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.tic-tac-toe__status.is-finished {
+  color: rgb(var(--app-theme-rgb));
+}
+
+.tic-tac-toe__board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+  width: min(100%, 22rem);
+  padding: 0.55rem;
+  border-radius: 1rem;
+  background: rgba(var(--app-theme-rgb), 0.09);
+}
+
+.tic-tac-toe__cell {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid var(--game-border);
+  border-radius: 0.7rem;
+  background: var(--game-panel);
+  color: var(--game-text);
+  font-family: inherit;
+  font-size: clamp(2.2rem, 11vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0.25rem 0.7rem rgba(20, 20, 43, 0.08);
+  transition: transform 120ms ease, background-color 180ms ease;
+}
+
+.tic-tac-toe__cell:not(:disabled):hover {
+  transform: translateY(-2px);
+  background: rgba(var(--app-theme-rgb), 0.07);
+}
+
+.tic-tac-toe__cell.is-x {
+  color: rgb(var(--app-theme-rgb));
+}
+
+.tic-tac-toe__cell.is-o {
+  color: #2dce89;
+}
+
+.tic-tac-toe__cell.is-winning {
+  border-color: rgba(45, 206, 137, 0.65);
+  background: rgba(45, 206, 137, 0.14);
+  box-shadow: 0 0 0 0.16rem rgba(45, 206, 137, 0.13);
+}
+
+.tic-tac-toe__cell:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.tic-tac-toe__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.tic-tac-toe__actions .btn {
+  margin: 0;
+}
+
+body.dark-version .tic-tac-toe__segmented button.is-active {
+  box-shadow: 0 0.2rem 0.55rem rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 575.98px) {
+  .tic-tac-toe {
+    gap: 0.9rem;
+  }
+
+  .tic-tac-toe__controls {
+    gap: 0.65rem;
+  }
+
+  .tic-tac-toe__segmented button {
+    padding: 0.4rem 0.56rem;
+    font-size: 0.7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tic-tac-toe__segmented button,
+  .tic-tac-toe__cell {
+    transition: none;
+  }
+}
