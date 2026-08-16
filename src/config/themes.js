@@ -1,6 +1,8 @@
 /** App-wide color themes + light/dark mode. */
 
 export const THEME_STORAGE_KEY = 'app-theme';
+export const CUSTOM_THEME_ID = 'custom';
+export const DEFAULT_CUSTOM_COLOR = '#5e72e4';
 
 export const COLOR_THEMES = [
   {
@@ -147,9 +149,49 @@ const LEGACY_THEME_IDS = {
 export const DEFAULT_THEME = {
   colorId: 'default',
   mode: 'light',
+  customColor: DEFAULT_CUSTOM_COLOR,
 };
 
-export function getColorTheme(colorId) {
+export function normalizeHexColor(value, fallback = '') {
+  const raw = String(value || '').trim();
+  const expanded =
+    /^#[0-9a-f]{3}$/i.test(raw) ?
+      `#${raw
+        .slice(1)
+        .split('')
+        .map((char) => char + char)
+        .join('')}`
+    : raw;
+  return /^#[0-9a-f]{6}$/i.test(expanded) ? expanded.toLowerCase() : fallback;
+}
+
+function hexToRgb(hex) {
+  const normalized = normalizeHexColor(hex, DEFAULT_CUSTOM_COLOR);
+  return [1, 3, 5].map((offset) => parseInt(normalized.slice(offset, offset + 2), 16));
+}
+
+function mixWithWhite(rgb, amount = 0.28) {
+  return rgb.map((channel) => Math.round(channel + (255 - channel) * amount));
+}
+
+function rgbToHex(rgb) {
+  return `#${rgb.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+export function getColorTheme(colorId, customColor = DEFAULT_CUSTOM_COLOR) {
+  if (colorId === CUSTOM_THEME_ID) {
+    const color = normalizeHexColor(customColor, DEFAULT_CUSTOM_COLOR);
+    const rgb = hexToRgb(color);
+    return {
+      id: CUSTOM_THEME_ID,
+      label: 'Custom',
+      color,
+      rgb: rgb.join(', '),
+      gradientEnd: rgbToHex(mixWithWhite(rgb)),
+      headerColor: color,
+      swatch: color,
+    };
+  }
   const resolved = LEGACY_THEME_IDS[colorId] || colorId;
   return COLOR_THEMES.find((t) => t.id === resolved) || COLOR_THEMES[0];
 }
@@ -159,16 +201,18 @@ export function readStoredTheme() {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_THEME };
     const parsed = JSON.parse(raw);
-    const theme = getColorTheme(parsed?.colorId);
+    const customColor = normalizeHexColor(parsed?.customColor, DEFAULT_CUSTOM_COLOR);
+    const theme = getColorTheme(parsed?.colorId, customColor);
     const mode = parsed?.mode === 'dark' ? 'dark' : 'light';
-    return { colorId: theme.id, mode };
+    return { colorId: theme.id, mode, customColor };
   } catch {
     return { ...DEFAULT_THEME };
   }
 }
 
-export function applyThemeToDom({ colorId, mode }) {
-  const theme = getColorTheme(colorId);
+export function applyThemeToDom({ colorId, mode, customColor }) {
+  const normalizedCustomColor = normalizeHexColor(customColor, DEFAULT_CUSTOM_COLOR);
+  const theme = getColorTheme(colorId, normalizedCustomColor);
   const root = document.documentElement;
   const headerColor = theme.headerColor || theme.color;
   const headerGradientEnd = theme.headerGradientEnd || theme.gradientEnd;
@@ -197,7 +241,10 @@ export function applyThemeToDom({ colorId, mode }) {
   }
 
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ colorId: theme.id, mode }));
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ colorId: theme.id, mode, customColor: normalizedCustomColor })
+    );
   } catch {
     /* ignore quota / private mode */
   }

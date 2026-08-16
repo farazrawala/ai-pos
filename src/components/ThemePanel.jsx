@@ -1,7 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FaMoon, FaSun, FaXmark } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import {
+  CUSTOM_THEME_ID,
+  DEFAULT_CUSTOM_COLOR,
+  normalizeHexColor,
+} from '../config/themes.js';
 
 const ThemePanel = () => {
   const {
@@ -9,10 +14,17 @@ const ThemePanel = () => {
     closePanel,
     colorId,
     setColorId,
+    customColor,
+    setCustomColor,
     mode,
     setMode,
     colorThemes,
   } = useTheme();
+  const [customColorInput, setCustomColorInput] = useState(customColor);
+
+  useEffect(() => {
+    setCustomColorInput(customColor);
+  }, [customColor]);
 
   useEffect(() => {
     if (!panelOpen) return undefined;
@@ -72,6 +84,38 @@ const ThemePanel = () => {
                 </button>
               );
             })}
+          </div>
+
+          <div className={`theme-custom-color${colorId === CUSTOM_THEME_ID ? ' is-active' : ''}`}>
+            <label htmlFor="theme-custom-color-picker">Custom color</label>
+            <div className="theme-custom-color-controls">
+              <input
+                id="theme-custom-color-picker"
+                type="color"
+                value={normalizeHexColor(customColor, DEFAULT_CUSTOM_COLOR)}
+                onChange={(event) => setCustomColor(event.target.value)}
+                aria-label="Choose a custom theme color"
+              />
+              <input
+                type="text"
+                value={customColorInput}
+                maxLength={7}
+                spellCheck="false"
+                aria-label="Custom theme color hex value"
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setCustomColorInput(next);
+                  const validColor = normalizeHexColor(next);
+                  if (validColor) setCustomColor(validColor);
+                }}
+                onBlur={() =>
+                  setCustomColorInput(normalizeHexColor(customColor, DEFAULT_CUSTOM_COLOR))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur();
+                }}
+              />
+            </div>
           </div>
 
           <p className="theme-panel-section-title mt-4">Display mode</p>
