@@ -18,6 +18,7 @@ import {
   FaXmark,
 } from 'react-icons/fa6';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { APP_NAME } from '../../config/env.js';
 import ShopImage from './ShopImage.jsx';
 import {
   buildShopWhatsAppUrl,
@@ -78,6 +79,40 @@ const COLOR_VALUES = {
   yellow: '#eab308',
 };
 
+const NEW_PRODUCT_DAYS = 30;
+
+/**
+ * Badges are derived from what the API actually returns, so a product only gets
+ * one when the matching condition exists on its record.
+ */
+function productBadges(product, { onSale, discountPercent }) {
+  const badges = [];
+
+  if (!product.is_available) {
+    badges.push({ key: 'oos', tone: 'muted', label: 'Out of stock' });
+  }
+  if (onSale) {
+    badges.push({
+      key: 'sale',
+      tone: 'sale',
+      label: discountPercent > 0 ? `-${discountPercent}%` : 'Sale',
+    });
+  }
+  if (product.is_featured === true || product.featured === true) {
+    badges.push({ key: 'featured', tone: 'featured', label: 'Featured' });
+  }
+
+  const createdAt = product.created_at || product.createdAt;
+  if (createdAt) {
+    const age = Date.now() - new Date(createdAt).getTime();
+    if (Number.isFinite(age) && age >= 0 && age <= NEW_PRODUCT_DAYS * 86400000) {
+      badges.push({ key: 'new', tone: 'new', label: 'New' });
+    }
+  }
+
+  return badges;
+}
+
 function mediaValue(value) {
   if (typeof value === 'string') return value.trim();
   if (!value || typeof value !== 'object') return '';
@@ -110,13 +145,85 @@ function collectProductImages(product, parentProduct, variants = []) {
     });
 }
 
+function variantAttributePairs(variant) {
+  const pairs = [];
+  const append = (source) => {
+    if (Array.isArray(source)) {
+      source.forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        const label = item.name || item.label || item.attribute_name || item.key;
+        const value = item.value || item.attribute_value || item.option;
+        if (label && value != null && String(value).trim()) {
+          pairs.push({
+            label: toShopTitleCase(String(label).replace(/[_-]+/g, ' ')),
+            value: toShopTitleCase(String(value)),
+          });
+        }
+      });
+      return;
+    }
+    if (source && typeof source === 'object') {
+      Object.entries(source).forEach(([label, value]) => {
+        if (value != null && typeof value !== 'object' && String(value).trim()) {
+          pairs.push({
+            label: toShopTitleCase(String(label).replace(/[_-]+/g, ' ')),
+            value: toShopTitleCase(String(value)),
+          });
+        }
+      });
+    }
+  };
+
+  append(variant?.attributes);
+  append(variant?.product_attributes);
+  const seen = new Set();
+  return pairs
+    .filter(({ label }) => {
+      const key = label.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function inferVariantAxisLabel(values, index) {
+  const normalized = values.map((value) => String(value).toLowerCase());
+  if (normalized.some((value) => COLOR_VALUES[value])) return 'Color';
+  if (normalized.some((value) => /\b(?:age|year|years|month|months)\b/.test(value))) return 'Age';
+  if (
+    normalized.some((value) =>
+      /^(?:xxs|xs|s|m|l|xl|xxl|xxxl|\d+(?:\.\d+)?(?:\s*(?:cm|mm|inch|inches))?)$/i.test(value)
+    )
+  ) {
+    return 'Size';
+  }
+  return index === 0 ? 'Style' : `Option ${index + 1}`;
+}
+
 function parseVariantParts(parentName, variant) {
   const label = shopVariantLabel(parentName, variant?.product_name);
-  const parts = label
+  const attributePairs = variantAttributePairs(variant);
+  const labelParts = label
     .split(/\s+(?:\/|\||–|—)\s+|\s+-\s+/)
     .map((part) => toShopTitleCase(part))
     .filter(Boolean);
-  return { label: toShopTitleCase(label), parts };
+  return {
+    label: toShopTitleCase(label),
+    parts: attributePairs.length ? attributePairs.map(({ value }) => value) : labelParts,
+    axisLabels: attributePairs.map(({ label: attributeLabel }) => attributeLabel),
+  };
+}
+
+function variantColorValue(value, options) {
+  const source = options.find(({ parts }) => parts.includes(value))?.variant || {};
+  const suppliedColor =
+    source.color_hex ||
+    source.color_code ||
+    source.hex_code ||
+    source.swatch_color ||
+    source.swatch;
+  return suppliedColor || COLOR_VALUES[String(value).toLowerCase()] || '';
 }
 
 function collectProductHighlights(product, variant) {
@@ -322,20 +429,20 @@ export default function PublicShop() {
         if (cancelled) return;
         setStore(storeBody?.data || null);
         setCategories(
-          Array.isArray(categoryBody?.data) ?
-            categoryBody.data.map((category) => ({
-              ...category,
-              name: toShopTitleCase(category.name),
-            }))
-          : []
+          Array.isArray(categoryBody?.data)
+            ? categoryBody.data.map((category) => ({
+                ...category,
+                name: toShopTitleCase(category.name),
+              }))
+            : []
         );
         setBrands(
-          Array.isArray(brandBody?.data) ?
-            brandBody.data.map((brand) => ({
-              ...brand,
-              name: toShopTitleCase(brand.name),
-            }))
-          : []
+          Array.isArray(brandBody?.data)
+            ? brandBody.data.map((brand) => ({
+                ...brand,
+                name: toShopTitleCase(brand.name),
+              }))
+            : []
         );
       })
       .catch((requestError) => {
@@ -349,6 +456,49 @@ export default function PublicShop() {
       cancelled = true;
     };
   }, [slug]);
+
+  // Browser tab title + favicon match the store on this route only.
+  useEffect(() => {
+    if (!store?.company_name) return undefined;
+
+    const previousTitle = document.title;
+    document.title = String(store.company_name).trim() || APP_NAME;
+
+    const logoUrl = resolveCategoryMediaUrl(store.company_logo);
+    const touched = [];
+    const setIconHref = (rel, href) => {
+      let link = document.head.querySelector(`link[rel="${rel}"]`);
+      const created = !link;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = rel;
+        document.head.appendChild(link);
+      }
+      touched.push({ link, href: link.getAttribute('href'), created });
+      link.href = href;
+    };
+
+    if (logoUrl) {
+      setIconHref('icon', logoUrl);
+      const apple = document.head.querySelector('link[rel="apple-touch-icon"]');
+      if (apple) {
+        touched.push({ link: apple, href: apple.getAttribute('href'), created: false });
+        apple.href = logoUrl;
+      }
+    }
+
+    return () => {
+      document.title = previousTitle || APP_NAME;
+      touched.forEach(({ link, href, created }) => {
+        if (created) {
+          link.remove();
+          return;
+        }
+        if (href == null) link.removeAttribute('href');
+        else link.setAttribute('href', href);
+      });
+    };
+  }, [store]);
 
   // Cart is scoped per store so two storefronts never share items.
   useEffect(() => {
@@ -454,8 +604,7 @@ export default function PublicShop() {
     quickViewTriggerRef.current = trigger || document.activeElement;
     setQuickView(product);
     const variants = Array.isArray(product?.variants) ? product.variants : [];
-    const initialVariant =
-      variants.find((variant) => variant.is_available) || variants[0] || null;
+    const initialVariant = variants.find((variant) => variant.is_available) || variants[0] || null;
     setQuickVariantId(initialVariant ? String(initialVariant._id) : '');
     setQuickQty(1);
     setQuickImageIndex(0);
@@ -591,14 +740,16 @@ export default function PublicShop() {
 
   const logo = resolveCategoryMediaUrl(store.company_logo);
   const banner = resolveCategoryMediaUrl(store.company_banner);
-  const initials = String(store.company_name || '?').trim().charAt(0).toUpperCase();
+  const initials = String(store.company_name || '?')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
   const whatsappUrl =
-    buildShopWhatsAppUrl(store.whatsapp_number) ||
-    buildShopWhatsAppUrl(store.company_phone);
+    buildShopWhatsAppUrl(store.whatsapp_number) || buildShopWhatsAppUrl(store.company_phone);
   const whatsappLabel =
-    toShopWhatsAppDigits(store.whatsapp_number).length >= 10 ?
-      String(store.whatsapp_number).trim()
-    : store.company_phone || 'WhatsApp';
+    toShopWhatsAppDigits(store.whatsapp_number).length >= 10
+      ? String(store.whatsapp_number).trim()
+      : store.company_phone || 'WhatsApp';
   const activeCategoryName =
     categories.find((category) => String(category._id) === categoryId)?.name || '';
   const searchableCategories = categories.filter((category) =>
@@ -621,9 +772,7 @@ export default function PublicShop() {
           </div>
         ) : suggestions.length ? (
           <>
-            {suggestLoading ? (
-              <div className="shop-suggest-progress" aria-hidden="true" />
-            ) : null}
+            {suggestLoading ? <div className="shop-suggest-progress" aria-hidden="true" /> : null}
             {suggestions.map((product) => {
               const thumb = resolveCategoryMediaUrl(
                 product.product_image_thumbnail_url || product.product_image
@@ -641,20 +790,13 @@ export default function PublicShop() {
                   }}
                 >
                   <span className="shop-suggest-thumb">
-                    <ShopImage
-                      src={thumb}
-                      logo={logo}
-                      loading="lazy"
-                      fallback={<FaStore />}
-                    />
+                    <ShopImage src={thumb} logo={logo} loading="lazy" fallback={<FaStore />} />
                   </span>
                   <span className="shop-suggest-text">
                     <strong>{product.product_name}</strong>
                     <small>{product.brand_id?.name || 'Generic'}</small>
                   </span>
-                  <span className="shop-suggest-price">
-                    {formatPrice(product.unit_price)}
-                  </span>
+                  <span className="shop-suggest-price">{formatPrice(product.unit_price)}</span>
                 </button>
               );
             })}
@@ -863,9 +1005,7 @@ export default function PublicShop() {
     <div className="shop">
       <div className="shop-topbar">
         <div className="shop-container shop-topbar-inner">
-          <span className="shop-topbar-welcome">
-            Welcome to {store.company_name}
-          </span>
+          <span className="shop-topbar-welcome">Welcome to {store.company_name}</span>
           <div className="shop-topbar-links">
             {store.company_phone ? (
               <a href={`tel:${store.company_phone}`}>
@@ -1016,14 +1156,21 @@ export default function PublicShop() {
           <button
             type="button"
             className="shop-cart-btn"
-            aria-label="Open cart"
+            aria-label={`Open cart, ${cartCount} item${cartCount === 1 ? '' : 's'}, ${formatPrice(
+              cartSubtotal
+            )}`}
             onClick={() => navigate(`/shop/${companySlug}/cart`)}
           >
             <span className="shop-cart-icon">
               <FaCartShopping />
               {cartCount ? <em>{cartCount}</em> : null}
             </span>
-            <span className="shop-cart-total">{formatPrice(cartSubtotal)}</span>
+            <span className="shop-cart-text">
+              <small>
+                {cartCount ? `${cartCount} item${cartCount === 1 ? '' : 's'}` : 'My cart'}
+              </small>
+              <span className="shop-cart-total">{formatPrice(cartSubtotal)}</span>
+            </span>
           </button>
         </div>
       </header>
@@ -1058,13 +1205,15 @@ export default function PublicShop() {
         </div>
       </nav>
 
-      <section className="shop-hero">
-        <div
-          className="shop-hero-media"
-          style={banner ? { backgroundImage: `url("${banner}")` } : undefined}
-          aria-label={`${store.company_name} banner`}
-        />
-      </section>
+      {banner ? (
+        <section className="shop-hero">
+          <div className="shop-container">
+            <div className="shop-hero-media">
+              <ShopImage src={banner} alt={`${store.company_name} banner`} loading="eager" />
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="shop-container shop-breadcrumb">
         <span>Home</span>
@@ -1109,12 +1258,14 @@ export default function PublicShop() {
             <div className="shop-results-info">
               <h2>{activeCategoryName || (search ? `Results for “${search}”` : 'All products')}</h2>
               <span>
-                {productsLoading ?
+                {productsLoading ? (
                   <>
                     <span className="shop-results-inline-spinner" aria-hidden="true" />
                     Fetching products…
                   </>
-                : `Showing ${products.length} of ${total} products`}
+                ) : (
+                  `Showing ${products.length} of ${total} products`
+                )}
               </span>
             </div>
 
@@ -1192,21 +1343,35 @@ export default function PublicShop() {
                   );
                   const variants = Array.isArray(product.variants) ? product.variants : [];
                   const hasVariants = variants.length > 0;
-                  const inCart =
-                    hasVariants ?
-                      variants.reduce(
+                  const inCart = hasVariants
+                    ? variants.reduce(
                         (sum, variant) => sum + (Number(cart[variant._id]?.qty) || 0),
                         0
                       )
                     : cart[product._id]?.qty || 0;
                   const categoryLabel = toShopTitleCase(
-                    (Array.isArray(product.category_id) ?
-                      product.category_id[0]?.name
-                    : product.category_id?.name) || 'Products'
+                    (Array.isArray(product.category_id)
+                      ? product.category_id[0]?.name
+                      : product.category_id?.name) || 'Products'
                   );
+                  const cardUnitPrice = Number(product.unit_price) || 0;
+                  const cardListPrice = Number(product.list_price) || 0;
+                  const onSale = cardListPrice > cardUnitPrice;
+                  const cardDiscount =
+                    Number(product.discount_percent) ||
+                    (onSale
+                      ? Math.round(((cardListPrice - cardUnitPrice) / cardListPrice) * 100)
+                      : 0);
+                  const badges = productBadges(product, {
+                    onSale,
+                    discountPercent: cardDiscount,
+                  });
 
                   return (
-                    <article className="shop-card" key={product._id}>
+                    <article
+                      className={`shop-card${product.is_available ? '' : ' is-oos'}`}
+                      key={product._id}
+                    >
                       <div className="shop-card-media">
                         <ShopImage
                           src={image}
@@ -1219,11 +1384,14 @@ export default function PublicShop() {
                             </span>
                           }
                         />
-                        {product.discount_percent ? (
-                          <span className="shop-badge">-{product.discount_percent}%</span>
-                        ) : null}
-                        {!product.is_available ? (
-                          <span className="shop-card-oos">Out of stock</span>
+                        {badges.length ? (
+                          <div className="shop-card-badges">
+                            {badges.map((badge) => (
+                              <span key={badge.key} className={`shop-badge is-${badge.tone}`}>
+                                {badge.label}
+                              </span>
+                            ))}
+                          </div>
                         ) : null}
                         <div className="shop-card-actions">
                           <button
@@ -1249,9 +1417,9 @@ export default function PublicShop() {
                           {product.brand_id?.name || 'Generic'}
                         </span>
 
-                        <div className="shop-card-price">
-                          <strong>{formatPrice(product.unit_price)}</strong>
-                          {product.list_price ? <del>{formatPrice(product.list_price)}</del> : null}
+                        <div className={`shop-card-price${onSale ? ' is-sale' : ''}`}>
+                          <strong>{formatPrice(cardUnitPrice)}</strong>
+                          {onSale ? <del>{formatPrice(cardListPrice)}</del> : null}
                         </div>
 
                         <div className="shop-card-stock">
@@ -1260,7 +1428,7 @@ export default function PublicShop() {
                               <FaCheck /> In stock
                             </span>
                           ) : (
-                            <span className="out">Unavailable</span>
+                            <span className="out">Out of stock</span>
                           )}
                         </div>
 
@@ -1276,18 +1444,22 @@ export default function PublicShop() {
                             addToCart(product);
                           }}
                         >
-                          {product.is_available ?
+                          {product.is_available ? (
                             <>
                               <FaCartShopping />
                               <span>
-                                {hasVariants ?
-                                  inCart ? `In cart (${inCart})`
-                                  : 'Choose options'
-                                : inCart ? `In cart (${inCart})`
-                                : 'Add to cart'}
+                                {hasVariants
+                                  ? inCart
+                                    ? `In cart (${inCart})`
+                                    : 'Choose options'
+                                  : inCart
+                                    ? `In cart (${inCart})`
+                                    : 'Add to cart'}
                               </span>
                             </>
-                          : 'Out of stock'}
+                          ) : (
+                            'Out of stock'
+                          )}
                         </button>
                       </div>
                     </article>
@@ -1336,9 +1508,7 @@ export default function PublicShop() {
       <footer className="shop-footer">
         <div className="shop-container shop-footer-top">
           <div className="shop-footer-brand">
-            <div className="shop-footer-logo">
-              {logo ? <img src={logo} alt="" /> : initials}
-            </div>
+            <div className="shop-footer-logo">{logo ? <img src={logo} alt="" /> : initials}</div>
             <div>
               <strong>{store.company_name}</strong>
               {store.company_address ? <p>{store.company_address}</p> : null}
@@ -1410,416 +1580,452 @@ export default function PublicShop() {
         </button>
       ) : null}
 
-      {quickView ? (
-        (() => {
-          const qvVariants = Array.isArray(quickView.variants) ? quickView.variants : [];
-          const selectedVariant =
-            qvVariants.find((variant) => String(variant._id) === quickVariantId) || null;
-          const cartProduct =
-            selectedVariant ?
-              {
-                ...selectedVariant,
-                product_image:
-                  selectedVariant.product_image || quickView.product_image || null,
-                product_image_thumbnail_url:
-                  selectedVariant.product_image_thumbnail_url ||
-                  quickView.product_image_thumbnail_url ||
-                  selectedVariant.product_image ||
-                  quickView.product_image ||
-                  null,
-                unit_price:
-                  Number(selectedVariant.unit_price) > 0 ?
-                    selectedVariant.unit_price
-                  : quickView.unit_price,
-                list_price:
-                  Number(selectedVariant.list_price) > 0 ?
-                    selectedVariant.list_price
-                  : quickView.list_price,
-              }
-            : quickView;
-          const qvImages = collectProductImages(cartProduct, quickView, qvVariants);
-          const qvImage = qvImages[quickImageIndex] || '';
-          const qvCategory = toShopTitleCase(
-            (Array.isArray(quickView.category_id) ?
-              quickView.category_id[0]?.name
-            : quickView.category_id?.name) || 'Products'
-          );
-          const qvInCart = cart[cartProduct._id]?.qty || 0;
-          const qvDescription = stripShopHtml(quickView.product_description);
-          const qvHighlights = collectProductHighlights(quickView, selectedVariant);
-          const availableQty = Math.max(0, Number(cartProduct.available_qty) || 0);
-          const hasStockLimit = availableQty > 0;
-          const maxAddQty = hasStockLimit ? Math.max(0, availableQty - qvInCart) : 99;
-          const canAdd =
-            cartProduct.is_available &&
-            maxAddQty > 0 &&
-            (qvVariants.length === 0 || Boolean(selectedVariant));
-          const listPrice = Number(cartProduct.list_price) || 0;
-          const unitPrice = Number(cartProduct.unit_price) || 0;
-          const discountPercent =
-            Number(cartProduct.discount_percent) ||
-            (listPrice > unitPrice && unitPrice > 0 ?
-              Math.round(((listPrice - unitPrice) / listPrice) * 100)
-            : 0);
-          const variantOptions = qvVariants.map((variant) => ({
-            variant,
-            ...parseVariantParts(quickView.product_name, variant),
-          }));
-          const structuredVariants =
-            variantOptions.length > 1 &&
-            variantOptions.every(({ parts }) => parts.length === 2);
-          const selectedOption = variantOptions.find(
-            ({ variant }) => String(variant._id) === quickVariantId
-          );
-          const uniqueOptionValues = (index) =>
-            [...new Set(variantOptions.map(({ parts }) => parts[index]).filter(Boolean))];
-          const chooseOption = (index, value) => {
-            const preferredParts = selectedOption?.parts || [];
-            const matches = variantOptions.filter(({ parts }) => parts[index] === value);
-            const exact =
-              matches.find(
+      {quickView
+        ? (() => {
+            const qvVariants = Array.isArray(quickView.variants) ? quickView.variants : [];
+            const selectedVariant =
+              qvVariants.find((variant) => String(variant._id) === quickVariantId) || null;
+            const cartProduct = selectedVariant
+              ? {
+                  ...selectedVariant,
+                  product_image: selectedVariant.product_image || quickView.product_image || null,
+                  product_image_thumbnail_url:
+                    selectedVariant.product_image_thumbnail_url ||
+                    quickView.product_image_thumbnail_url ||
+                    selectedVariant.product_image ||
+                    quickView.product_image ||
+                    null,
+                  unit_price:
+                    Number(selectedVariant.unit_price) > 0
+                      ? selectedVariant.unit_price
+                      : quickView.unit_price,
+                  list_price:
+                    Number(selectedVariant.list_price) > 0
+                      ? selectedVariant.list_price
+                      : quickView.list_price,
+                }
+              : quickView;
+            const qvImages = collectProductImages(cartProduct, quickView, qvVariants);
+            const qvImage = qvImages[quickImageIndex] || '';
+            const qvCategory = toShopTitleCase(
+              (Array.isArray(quickView.category_id)
+                ? quickView.category_id[0]?.name
+                : quickView.category_id?.name) || 'Products'
+            );
+            const qvInCart = cart[cartProduct._id]?.qty || 0;
+            const qvDescription = stripShopHtml(quickView.product_description);
+            const qvHighlights = collectProductHighlights(quickView, selectedVariant);
+            const availableQty = Math.max(0, Number(cartProduct.available_qty) || 0);
+            const hasStockLimit = availableQty > 0;
+            const maxAddQty = hasStockLimit ? Math.max(0, availableQty - qvInCart) : 99;
+            const canAdd =
+              cartProduct.is_available &&
+              maxAddQty > 0 &&
+              (qvVariants.length === 0 || Boolean(selectedVariant));
+            const listPrice = Number(cartProduct.list_price) || 0;
+            const unitPrice = Number(cartProduct.unit_price) || 0;
+            const discountPercent =
+              Number(cartProduct.discount_percent) ||
+              (listPrice > unitPrice && unitPrice > 0
+                ? Math.round(((listPrice - unitPrice) / listPrice) * 100)
+                : 0);
+            const qvRating = Number(
+              quickView.rating || quickView.average_rating || quickView.rating_average
+            );
+            const qvReviewCount = Number(
+              quickView.review_count || quickView.reviews_count || quickView.total_reviews
+            );
+            const variantOptions = qvVariants.map((variant) => ({
+              variant,
+              ...parseVariantParts(quickView.product_name, variant),
+            }));
+            const variantPartCount = variantOptions[0]?.parts.length || 0;
+            const structuredVariants =
+              variantOptions.length > 0 &&
+              variantPartCount > 0 &&
+              variantOptions.every(({ parts }) => parts.length === variantPartCount);
+            const selectedOption = variantOptions.find(
+              ({ variant }) => String(variant._id) === quickVariantId
+            );
+            const uniqueOptionValues = (index) => [
+              ...new Set(variantOptions.map(({ parts }) => parts[index]).filter(Boolean)),
+            ];
+            const variantAxes = structuredVariants
+              ? Array.from({ length: variantPartCount }, (_, index) => {
+                  const values = uniqueOptionValues(index);
+                  const explicitLabel = variantOptions.find(({ axisLabels }) => axisLabels[index])
+                    ?.axisLabels[index];
+                  const label = explicitLabel || inferVariantAxisLabel(values, index);
+                  return {
+                    index,
+                    label,
+                    values,
+                    isColor: /colou?r/i.test(label),
+                  };
+                })
+              : [];
+            const isOptionEnabled = (index, value) =>
+              variantOptions.some(({ parts, variant }) => {
+                if (!variant.is_available || parts[index] !== value) return false;
+                return parts.every(
+                  (part, partIndex) =>
+                    partIndex >= index ||
+                    !selectedOption?.parts[partIndex] ||
+                    part === selectedOption.parts[partIndex]
+                );
+              });
+            const chooseOption = (index, value) => {
+              const preferredParts = selectedOption?.parts || [];
+              const matches = variantOptions.filter(
                 ({ parts, variant }) =>
                   variant.is_available &&
+                  parts[index] === value &&
+                  parts.every(
+                    (part, partIndex) =>
+                      partIndex >= index ||
+                      !preferredParts[partIndex] ||
+                      part === preferredParts[partIndex]
+                  )
+              );
+              const exact =
+                matches.find(({ parts }) =>
                   parts.every(
                     (part, partIndex) =>
                       partIndex === index ||
                       !preferredParts[partIndex] ||
                       part === preferredParts[partIndex]
                   )
-              ) ||
-              matches.find(({ variant }) => variant.is_available) ||
-              matches[0];
-            if (exact?.variant) {
-              setQuickVariantId(String(exact.variant._id));
-              setQuickQty(1);
-            }
-          };
+                ) || matches[0];
+              if (exact?.variant) {
+                setQuickVariantId(String(exact.variant._id));
+                setQuickQty(1);
+              }
+            };
+            const visibleThumbCount = 6;
+            const thumbStart = Math.min(
+              Math.max(0, quickImageIndex - Math.floor(visibleThumbCount / 2)),
+              Math.max(0, qvImages.length - visibleThumbCount)
+            );
+            const visibleThumbnails = qvImages.slice(thumbStart, thumbStart + visibleThumbCount);
 
-          return (
-            <div className={`shop-qv ${quickClosing ? 'is-closing' : ''}`}>
-              <div
-                className="shop-qv-backdrop"
-                aria-label="Close quick view"
-                onClick={closeQuickView}
-              />
-              <div
-                className="shop-qv-panel"
-                ref={quickViewPanelRef}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="shop-qv-title"
-              >
-                <button
-                  type="button"
-                  className="shop-qv-close"
-                  ref={quickViewCloseRef}
-                  aria-label="Close product quick view"
+            return (
+              <div className={`shop-qv ${quickClosing ? 'is-closing' : ''}`}>
+                <div
+                  className="shop-qv-backdrop"
+                  aria-label="Close quick view"
                   onClick={closeQuickView}
+                />
+                <div
+                  className="shop-qv-panel"
+                  ref={quickViewPanelRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="shop-qv-title"
                 >
-                  <FaXmark />
-                </button>
+                  <button
+                    type="button"
+                    className="shop-qv-close"
+                    ref={quickViewCloseRef}
+                    aria-label="Close product quick view"
+                    onClick={closeQuickView}
+                  >
+                    <FaXmark />
+                  </button>
 
-                <div className="shop-qv-media">
-                  <div className="shop-qv-image-stage">
-                    <ShopImage
-                      src={qvImage}
-                      logo={logo}
-                      alt={cartProduct.product_name || quickView.product_name}
-                      fallback={
-                        <span className="shop-card-noimg">
-                          <FaStore />
-                          <small>Image unavailable</small>
-                        </span>
-                      }
-                    />
-                    {qvImages.length > 1 ? (
-                      <>
-                        <button
-                          type="button"
-                          className="shop-qv-gallery-nav is-prev"
-                          aria-label="Previous product image"
-                          onClick={() =>
-                            setQuickImageIndex(
-                              (quickImageIndex - 1 + qvImages.length) % qvImages.length
-                            )
-                          }
-                        >
-                          <FaChevronLeft />
-                        </button>
-                        <button
-                          type="button"
-                          className="shop-qv-gallery-nav is-next"
-                          aria-label="Next product image"
-                          onClick={() =>
-                            setQuickImageIndex((quickImageIndex + 1) % qvImages.length)
-                          }
-                        >
-                          <FaChevronRight />
-                        </button>
-                        <span className="shop-qv-image-count">
-                          {quickImageIndex + 1} / {qvImages.length}
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                  {qvImages.length > 1 ? (
-                    <div className="shop-qv-thumbnails" aria-label="Product images">
-                      {qvImages.map((image, index) => (
-                        <button
-                          type="button"
-                          key={image}
-                          className={index === quickImageIndex ? 'is-active' : ''}
-                          aria-label={`View product image ${index + 1}`}
-                          aria-current={index === quickImageIndex ? 'true' : undefined}
-                          onClick={() => setQuickImageIndex(index)}
-                        >
-                          <img src={image} alt="" />
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="shop-qv-body">
-                  <div className="shop-qv-content">
-                    <div className="shop-qv-head">
-                    <span className="shop-card-cat">{qvCategory}</span>
-                    <h2 id="shop-qv-title">{quickView.product_name}</h2>
-                    <div className="shop-qv-meta">
-                      <span>{quickView.brand_id?.name || 'Generic'}</span>
-                      {cartProduct.sku || cartProduct.product_code ? (
-                        <span className="shop-qv-sku">
-                          SKU {cartProduct.sku || cartProduct.product_code}
-                        </span>
+                  <div className="shop-qv-media">
+                    <div className="shop-qv-image-stage">
+                      <ShopImage
+                        src={qvImage}
+                        logo={logo}
+                        alt={cartProduct.product_name || quickView.product_name}
+                        fallback={
+                          <span className="shop-card-noimg">
+                            <FaStore />
+                            <small>Image unavailable</small>
+                          </span>
+                        }
+                      />
+                      {qvImages.length > 1 ? (
+                        <>
+                          <button
+                            type="button"
+                            className="shop-qv-gallery-nav is-prev"
+                            aria-label="Previous product image"
+                            onClick={() =>
+                              setQuickImageIndex(
+                                (quickImageIndex - 1 + qvImages.length) % qvImages.length
+                              )
+                            }
+                          >
+                            <FaChevronLeft />
+                          </button>
+                          <button
+                            type="button"
+                            className="shop-qv-gallery-nav is-next"
+                            aria-label="Next product image"
+                            onClick={() =>
+                              setQuickImageIndex((quickImageIndex + 1) % qvImages.length)
+                            }
+                          >
+                            <FaChevronRight />
+                          </button>
+                          <span className="shop-qv-image-count">
+                            {quickImageIndex + 1} / {qvImages.length}
+                          </span>
+                        </>
                       ) : null}
                     </div>
-                    </div>
-
-                    <div className="shop-qv-pricing">
-                      <div className="shop-card-price shop-qv-price">
-                        <strong>{formatPrice(unitPrice)}</strong>
-                        {listPrice > unitPrice ?
-                          <del>{formatPrice(listPrice)}</del>
-                      : null}
-                        {discountPercent ? (
-                          <em className="shop-qv-discount">{discountPercent}% off</em>
-                        ) : null}
-                      </div>
-
-                      <div
-                        className={`shop-qv-stock ${
-                          !cartProduct.is_available ? 'is-out'
-                          : availableQty > 0 && availableQty <= 2 ? 'is-low'
-                          : 'is-in'
-                        }`}
-                        role="status"
-                      >
-                        <span>
-                          {cartProduct.is_available ? <FaCheck /> : <FaXmark />}
-                          {cartProduct.is_available ? 'In stock' : 'Out of stock'}
-                        </span>
-                        {cartProduct.is_available && availableQty > 0 ? (
-                          <small>
-                            {availableQty <= 2 ?
-                              `Only ${availableQty} left`
-                            : `${availableQty} available`}
-                          </small>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {qvVariants.length ? (
-                      <div className="shop-qv-variants">
-                        <div className="shop-qv-variants-head">
-                          <strong>Choose your options</strong>
-                          <span>{qvVariants.length} variants</span>
-                        </div>
-                        {structuredVariants ? (
-                          [0, 1].map((partIndex) => {
-                            const values = uniqueOptionValues(partIndex);
-                            const isColor =
-                              partIndex === 1 &&
-                              values.some((value) => COLOR_VALUES[value.toLowerCase()]);
-                            return (
-                              <div className="shop-qv-option-group" key={partIndex}>
-                                <div className="shop-qv-option-label">
-                                  <strong>{isColor ? 'Color' : partIndex === 0 ? 'Size' : 'Style'}</strong>
-                                  <span>{selectedOption?.parts[partIndex] || ''}</span>
-                                </div>
-                                <div
-                                  className={`shop-qv-variant-list ${isColor ? 'is-colors' : ''}`}
-                                  role="listbox"
-                                  aria-label={isColor ? 'Choose color' : 'Choose size'}
-                                >
-                                  {values.map((value) => {
-                                    const matching = variantOptions.filter(
-                                      ({ parts }) => parts[partIndex] === value
-                                    );
-                                    const enabled = matching.some(
-                                      ({ variant }) => variant.is_available
-                                    );
-                                    const selected = selectedOption?.parts[partIndex] === value;
-                                    return (
-                                      <button
-                                        type="button"
-                                        role="option"
-                                        aria-selected={selected}
-                                        key={value}
-                                        className={selected ? 'is-selected' : ''}
-                                        disabled={!enabled}
-                                        onClick={() => chooseOption(partIndex, value)}
-                                      >
-                                        {isColor ? (
-                                          <i
-                                            className="shop-qv-color"
-                                            style={{
-                                              background: COLOR_VALUES[value.toLowerCase()] || '#cbd5e1',
-                                            }}
-                                            aria-hidden="true"
-                                          />
-                                        ) : null}
-                                        {value}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="shop-qv-option-group">
-                            <div className="shop-qv-option-label">
-                              <strong>Variant</strong>
-                              <span>{selectedOption?.label || 'Select an option'}</span>
-                            </div>
-                            <div className="shop-qv-variant-list" role="listbox">
-                              {variantOptions.map(({ variant, label }) => {
-                                const selected = String(variant._id) === quickVariantId;
-                                return (
-                                  <button
-                                    type="button"
-                                    role="option"
-                                    aria-selected={selected}
-                                    key={variant._id}
-                                    className={selected ? 'is-selected' : ''}
-                                    disabled={!variant.is_available}
-                                    title={
-                                      variant.is_available ? label : `${label} — out of stock`
-                                    }
-                                    onClick={() => {
-                                      setQuickVariantId(String(variant._id));
-                                      setQuickQty(1);
-                                    }}
-                                  >
-                                    {label}
-                                    {!variant.is_available ? <em>Sold out</em> : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {qvHighlights.length ? (
-                      <div className="shop-qv-highlights">
-                        {qvHighlights.map(([label, value]) => (
-                          <div key={label}>
-                            <span>{toShopTitleCase(label.replace(/[_-]+/g, ' '))}</span>
-                            <strong>{String(value)}</strong>
-                          </div>
+                    {qvImages.length > 1 ? (
+                      <div className="shop-qv-thumbnails" aria-label="Product images">
+                        {qvImages.map((image, index) => (
+                          <button
+                            type="button"
+                            key={image}
+                            className={index === quickImageIndex ? 'is-active' : ''}
+                            aria-label={`View product image ${index + 1}`}
+                            aria-current={index === quickImageIndex ? 'true' : undefined}
+                            onClick={() => setQuickImageIndex(index)}
+                          >
+                            <img src={image} alt="" />
+                          </button>
                         ))}
                       </div>
                     ) : null}
-
-                    <section className="shop-qv-description">
-                      <h3>Description</h3>
-                      {qvDescription ? (
-                        <>
-                          <p className={quickDescriptionOpen ? 'is-open' : ''}>{qvDescription}</p>
-                          {qvDescription.length > 220 ? (
-                            <button
-                              type="button"
-                              onClick={() => setQuickDescriptionOpen((open) => !open)}
-                              aria-expanded={quickDescriptionOpen}
-                            >
-                              {quickDescriptionOpen ? 'Show less' : 'Read more'}
-                              <FaChevronRight aria-hidden="true" />
-                            </button>
-                          ) : null}
-                        </>
-                      ) : (
-                        <p className="is-muted">No description available for this product.</p>
-                      )}
-                    </section>
                   </div>
 
-                  <div className="shop-qv-actions">
-                    <div className="shop-qv-purchase-row">
-                      <label>Quantity</label>
-                      <div className="shop-qv-qty">
-                      <button
-                        type="button"
-                        aria-label="Decrease quantity"
-                        disabled={quickQty <= 1}
-                        onClick={() => setQuickQty((prev) => Math.max(1, prev - 1))}
-                      >
-                        <FaMinus />
-                      </button>
-                      <span>{quickQty}</span>
-                      <button
-                        type="button"
-                        aria-label="Increase quantity"
-                        disabled={!canAdd || quickQty >= maxAddQty}
-                        onClick={() => setQuickQty((prev) => Math.min(maxAddQty, prev + 1))}
-                      >
-                        <FaPlus />
-                      </button>
+                  <div className="shop-qv-body">
+                    <div className="shop-qv-content">
+                      <div className="shop-qv-head">
+                        <span className="shop-card-cat">{qvCategory}</span>
+                        <h2 id="shop-qv-title">{quickView.product_name}</h2>
+                        <div className="shop-qv-meta">
+                          <span>{quickView.brand_id?.name || 'Generic'}</span>
+                          {cartProduct.sku || cartProduct.product_code ? (
+                            <span className="shop-qv-sku">
+                              SKU {cartProduct.sku || cartProduct.product_code}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
+
+                      <div className="shop-qv-pricing">
+                        <div className="shop-card-price shop-qv-price">
+                          <strong>{formatPrice(unitPrice)}</strong>
+                          {listPrice > unitPrice ? <del>{formatPrice(listPrice)}</del> : null}
+                          {discountPercent ? (
+                            <em className="shop-qv-discount">{discountPercent}% off</em>
+                          ) : null}
+                        </div>
+
+                        <div
+                          className={`shop-qv-stock ${
+                            cartProduct.is_available ? 'is-in' : 'is-out'
+                          }`}
+                          role="status"
+                        >
+                          <span>
+                            {cartProduct.is_available ? <FaCheck /> : <FaXmark />}
+                            {cartProduct.is_available ? 'In stock' : 'Out of stock'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {qvVariants.length ? (
+                        <div className="shop-qv-variants">
+                          <div className="shop-qv-variants-head">
+                            <strong>Choose your options</strong>
+                            <span>{qvVariants.length} variants</span>
+                          </div>
+                          {structuredVariants ? (
+                            [0, 1].map((partIndex) => {
+                              const values = uniqueOptionValues(partIndex);
+                              const isColor =
+                                partIndex === 1 &&
+                                values.some((value) => COLOR_VALUES[value.toLowerCase()]);
+                              return (
+                                <div className="shop-qv-option-group" key={partIndex}>
+                                  <div className="shop-qv-option-label">
+                                    <strong>
+                                      {isColor ? 'Color' : partIndex === 0 ? 'Size' : 'Style'}
+                                    </strong>
+                                    <span>{selectedOption?.parts[partIndex] || ''}</span>
+                                  </div>
+                                  <div
+                                    className={`shop-qv-variant-list ${isColor ? 'is-colors' : ''}`}
+                                    role="listbox"
+                                    aria-label={isColor ? 'Choose color' : 'Choose size'}
+                                  >
+                                    {values.map((value) => {
+                                      const matching = variantOptions.filter(
+                                        ({ parts }) => parts[partIndex] === value
+                                      );
+                                      const enabled = matching.some(
+                                        ({ variant }) => variant.is_available
+                                      );
+                                      const selected = selectedOption?.parts[partIndex] === value;
+                                      return (
+                                        <button
+                                          type="button"
+                                          role="option"
+                                          aria-selected={selected}
+                                          key={value}
+                                          className={selected ? 'is-selected' : ''}
+                                          disabled={!enabled}
+                                          onClick={() => chooseOption(partIndex, value)}
+                                        >
+                                          {isColor ? (
+                                            <i
+                                              className="shop-qv-color"
+                                              style={{
+                                                background:
+                                                  COLOR_VALUES[value.toLowerCase()] || '#cbd5e1',
+                                              }}
+                                              aria-hidden="true"
+                                            />
+                                          ) : null}
+                                          {value}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="shop-qv-option-group">
+                              <div className="shop-qv-option-label">
+                                <strong>Variant</strong>
+                                <span>{selectedOption?.label || 'Select an option'}</span>
+                              </div>
+                              <div className="shop-qv-variant-list" role="listbox">
+                                {variantOptions.map(({ variant, label }) => {
+                                  const selected = String(variant._id) === quickVariantId;
+                                  return (
+                                    <button
+                                      type="button"
+                                      role="option"
+                                      aria-selected={selected}
+                                      key={variant._id}
+                                      className={selected ? 'is-selected' : ''}
+                                      disabled={!variant.is_available}
+                                      onClick={() => {
+                                        setQuickVariantId(String(variant._id));
+                                        setQuickQty(1);
+                                      }}
+                                    >
+                                      {label}
+                                      {!variant.is_available ? <em>Sold out</em> : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {qvHighlights.length ? (
+                        <div className="shop-qv-highlights">
+                          {qvHighlights.map(([label, value]) => (
+                            <div key={label}>
+                              <span>{toShopTitleCase(label.replace(/[_-]+/g, ' '))}</span>
+                              <strong>{String(value)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <section className="shop-qv-description">
+                        <h3>Description</h3>
+                        {qvDescription ? (
+                          <>
+                            <p className={quickDescriptionOpen ? 'is-open' : ''}>{qvDescription}</p>
+                            {qvDescription.length > 220 ? (
+                              <button
+                                type="button"
+                                onClick={() => setQuickDescriptionOpen((open) => !open)}
+                                aria-expanded={quickDescriptionOpen}
+                              >
+                                {quickDescriptionOpen ? 'Show less' : 'Read more'}
+                                <FaChevronRight aria-hidden="true" />
+                              </button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="is-muted">No description available for this product.</p>
+                        )}
+                      </section>
                     </div>
 
-                    <button
-                      type="button"
-                      className={`shop-qv-add ${quickAdded ? 'is-success' : ''}`}
-                      disabled={!canAdd || quickAdded}
-                      onClick={() => {
-                        addToCart(cartProduct, quickQty, quickView);
-                        setQuickAdded(true);
-                      }}
-                    >
-                      {quickAdded ?
-                        <>
-                          <FaCheck /> Added to cart
-                        </>
-                      : canAdd ?
-                        <>
-                          <FaCartShopping />
-                          Add to cart · {formatPrice(unitPrice * quickQty)}
-                        </>
-                      : qvInCart && hasStockLimit && qvInCart >= availableQty ?
-                        'Maximum quantity in cart'
-                      : 'Out of stock'}
-                    </button>
-
-                    {quickAdded ? (
-                      <div className="shop-qv-after-add">
-                        <button type="button" onClick={closeQuickView}>Continue shopping</button>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/shop/${companySlug}/cart`)}
-                        >
-                          View cart <FaChevronRight />
-                        </button>
+                    <div className="shop-qv-actions">
+                      <div className="shop-qv-purchase-row">
+                        <label>Quantity</label>
+                        <div className="shop-qv-qty">
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            disabled={quickQty <= 1}
+                            onClick={() => setQuickQty((prev) => Math.max(1, prev - 1))}
+                          >
+                            <FaMinus />
+                          </button>
+                          <span>{quickQty}</span>
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            disabled={!canAdd || quickQty >= maxAddQty}
+                            onClick={() => setQuickQty((prev) => Math.min(maxAddQty, prev + 1))}
+                          >
+                            <FaPlus />
+                          </button>
+                        </div>
                       </div>
-                    ) : null}
+
+                      <button
+                        type="button"
+                        className={`shop-qv-add ${quickAdded ? 'is-success' : ''}`}
+                        disabled={!canAdd || quickAdded}
+                        onClick={() => {
+                          addToCart(cartProduct, quickQty, quickView);
+                          setQuickAdded(true);
+                        }}
+                      >
+                        {quickAdded ? (
+                          <>
+                            <FaCheck /> Added to cart
+                          </>
+                        ) : canAdd ? (
+                          <>
+                            <FaCartShopping />
+                            Add to cart · {formatPrice(unitPrice * quickQty)}
+                          </>
+                        ) : qvInCart && hasStockLimit && qvInCart >= availableQty ? (
+                          'Maximum quantity in cart'
+                        ) : (
+                          'Out of stock'
+                        )}
+                      </button>
+
+                      {quickAdded ? (
+                        <div className="shop-qv-after-add">
+                          <button type="button" onClick={closeQuickView}>
+                            Continue shopping
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/shop/${companySlug}/cart`)}
+                          >
+                            View cart <FaChevronRight />
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })()
-      ) : null}
+            );
+          })()
+        : null}
     </div>
   );
 }

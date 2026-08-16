@@ -131,7 +131,7 @@ export default function ShopCart() {
             <span>Step 1 of 2</span>
             <h1>Shopping cart</h1>
           </div>
-          <p>
+          <p className="cart-count">
             {lines.length} item{lines.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -164,12 +164,15 @@ export default function ShopCart() {
                     </div>
                     <div className="cart-line-info">
                       <h2>{line.name}</h2>
-                      {line.sku ? <span>SKU: {line.sku}</span> : null}
-                      <strong>{formatShopPrice(line.price)}</strong>
+                      {line.sku ? <span className="cart-line-sku">SKU {line.sku}</span> : null}
+                      <span className="cart-line-unit">
+                        {formatShopPrice(line.price)} each
+                      </span>
                     </div>
                     <div className="cart-qty">
                       <button
                         type="button"
+                        disabled={Number(line.qty) <= 1}
                         onClick={() => updateQty(line.product_id, Number(line.qty) - 1)}
                         aria-label="Decrease quantity"
                       >
