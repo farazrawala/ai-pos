@@ -185,6 +185,13 @@
   object-fit: contain;
 }
 
+/* Store logo shown in place of a missing product picture */
+.cart-line-image img.shop-img-logo {
+  padding: 18px;
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+
 .cart-line-info h2 {
   margin: 0 0 5px;
   font-size: 0.98rem;

@@ -18,6 +18,7 @@ import {
   FaXmark,
 } from 'react-icons/fa6';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import ShopImage from './ShopImage.jsx';
 import {
   buildShopWhatsAppUrl,
   shopVariantLabel,
@@ -640,7 +641,12 @@ export default function PublicShop() {
                   }}
                 >
                   <span className="shop-suggest-thumb">
-                    {thumb ? <img src={thumb} alt="" loading="lazy" /> : <FaStore />}
+                    <ShopImage
+                      src={thumb}
+                      logo={logo}
+                      loading="lazy"
+                      fallback={<FaStore />}
+                    />
                   </span>
                   <span className="shop-suggest-text">
                     <strong>{product.product_name}</strong>
@@ -1202,13 +1208,17 @@ export default function PublicShop() {
                   return (
                     <article className="shop-card" key={product._id}>
                       <div className="shop-card-media">
-                        {image ? (
-                          <img src={image} alt={product.product_name} loading="lazy" />
-                        ) : (
-                          <span className="shop-card-noimg">
-                            <FaStore />
-                          </span>
-                        )}
+                        <ShopImage
+                          src={image}
+                          logo={logo}
+                          alt={product.product_name}
+                          loading="lazy"
+                          fallback={
+                            <span className="shop-card-noimg">
+                              <FaStore />
+                            </span>
+                          }
+                        />
                         {product.discount_percent ? (
                           <span className="shop-badge">-{product.discount_percent}%</span>
                         ) : null}
@@ -1511,14 +1521,17 @@ export default function PublicShop() {
 
                 <div className="shop-qv-media">
                   <div className="shop-qv-image-stage">
-                    {qvImage ? (
-                      <img src={qvImage} alt={cartProduct.product_name || quickView.product_name} />
-                    ) : (
-                      <span className="shop-card-noimg">
-                        <FaStore />
-                        <small>Image unavailable</small>
-                      </span>
-                    )}
+                    <ShopImage
+                      src={qvImage}
+                      logo={logo}
+                      alt={cartProduct.product_name || quickView.product_name}
+                      fallback={
+                        <span className="shop-card-noimg">
+                          <FaStore />
+                          <small>Image unavailable</small>
+                        </span>
+                      }
+                    />
                     {qvImages.length > 1 ? (
                       <>
                         <button

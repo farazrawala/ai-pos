@@ -9,6 +9,7 @@ import {
   FaTrash,
 } from 'react-icons/fa6';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import ShopImage from './ShopImage.jsx';
 import {
   cartLines,
   cartSubtotal,
@@ -154,7 +155,12 @@ export default function ShopCart() {
                 return (
                   <article className="cart-line" key={line.product_id}>
                     <div className="cart-line-image">
-                      {image ? <img src={image} alt={line.name} /> : <FaCartShopping />}
+                      <ShopImage
+                        src={image}
+                        logo={logoUrl}
+                        alt={line.name}
+                        fallback={<FaCartShopping />}
+                      />
                     </div>
                     <div className="cart-line-info">
                       <h2>{line.name}</h2>
