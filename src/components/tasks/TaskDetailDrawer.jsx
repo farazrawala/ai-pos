@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import {
+  FaBoxArchive,
+  FaCalendarDays,
+  FaCheck,
+  FaFlag,
+  FaPaperclip,
+  FaPlus,
+  FaRegCommentDots,
+  FaTrashCan,
+  FaUserGroup,
+} from 'react-icons/fa6';
 import AppModal from '../AppModal.jsx';
 import { selectAuthUser } from '../../features/user/userSlice.js';
 import * as api from '../../features/tasks/tasksAPI.js';
-import { TASK_PRIORITIES, ATTACHMENT_ACCEPT, getPriorityMeta } from '../../features/tasks/tasksConstants.js';
+import {
+  TASK_PRIORITIES,
+  ATTACHMENT_ACCEPT,
+  getLabelStyle,
+  getPriorityMeta,
+  userInitials,
+} from '../../features/tasks/tasksConstants.js';
 import { toast } from '../../utils/toast.js';
 
 function toInputDate(value) {
@@ -11,6 +28,15 @@ function toInputDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
+}
+
+function SectionTitle({ children, icon: Icon }) {
+  return (
+    <h6 className="tasks-detail-section-title">
+      {Icon ? <Icon aria-hidden /> : null}
+      {children}
+    </h6>
+  );
 }
 
 export default function TaskDetailDrawer({
@@ -164,43 +190,78 @@ export default function TaskDetailDrawer({
   };
 
   const priority = getPriorityMeta(task?.priority);
+  const labels = task?.labels || [];
 
   return (
     <AppModal
       open={open}
       onClose={onClose}
       size="xl"
-      title={task ? `#${task.task_number} ${task.title}` : 'Task'}
-      subtitle={task ? priority.label : ''}
+      title={
+        task ? (
+          <span className="tasks-detail-modal-title">
+            <span className="tasks-detail-modal-number">#{task.task_number}</span>
+            {task.title}
+          </span>
+        ) : (
+          'Task'
+        )
+      }
+      subtitle={
+        task ? (
+          <span className="tasks-detail-modal-meta">
+            <span
+              className="tasks-label-chip tasks-detail-priority-chip"
+              style={{ background: priority.chipBg, color: priority.chipColor }}
+            >
+              <FaFlag size={10} aria-hidden />
+              {priority.label}
+            </span>
+            {task.is_completed ? (
+              <span className="tasks-detail-status-chip is-done">
+                <FaCheck size={10} aria-hidden />
+                Completed
+              </span>
+            ) : null}
+            {saving ? <span className="tasks-saving-pill">Saving…</span> : null}
+          </span>
+        ) : null
+      }
       footer={
-        <div className="d-flex justify-content-between w-100">
-          <div className="d-flex gap-2">
+        <div className="tasks-detail-footer">
+          <div className="tasks-detail-footer-left">
             {canDelete ? (
               <>
-                <button type="button" className="btn btn-outline-warning btn-sm" onClick={archive}>
+                <button type="button" className="tasks-detail-btn tasks-detail-btn-archive" onClick={archive}>
+                  <FaBoxArchive aria-hidden />
                   Archive
                 </button>
-                <button type="button" className="btn btn-outline-danger btn-sm" onClick={remove}>
+                <button type="button" className="tasks-detail-btn tasks-detail-btn-danger" onClick={remove}>
+                  <FaTrashCan aria-hidden />
                   Delete
                 </button>
               </>
             ) : null}
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
+          <button type="button" className="tasks-detail-btn tasks-detail-btn-close" onClick={onClose}>
             Close
           </button>
         </div>
       }
     >
       {loading || !task ? (
-        <div className="p-4 text-center text-muted">Loading…</div>
+        <div className="tasks-module tasks-detail-loading">
+          <div className="tasks-skeleton-card" style={{ height: 72, marginBottom: '0.85rem' }} />
+          <div className="tasks-skeleton-card" style={{ height: 140, marginBottom: '0.85rem' }} />
+          <div className="tasks-skeleton-card" style={{ height: 100 }} />
+        </div>
       ) : (
-        <div className="row">
-          <div className="col-lg-8">
-            <div className="tasks-detail-section">
-              <h6>Title</h6>
+        <div className="tasks-module tasks-detail-layout">
+          <div className="tasks-detail-main">
+            <div className="tasks-detail-panel">
+              <SectionTitle>Title</SectionTitle>
               <input
-                className="form-control"
+                className="tasks-detail-input tasks-detail-title-input"
                 defaultValue={task.title}
                 disabled={!canEdit || saving}
                 onBlur={(e) => {
@@ -210,11 +271,13 @@ export default function TaskDetailDrawer({
                 }}
               />
             </div>
-            <div className="tasks-detail-section">
-              <h6>Description</h6>
+
+            <div className="tasks-detail-panel">
+              <SectionTitle>Description</SectionTitle>
               <textarea
-                className="form-control"
+                className="tasks-detail-input tasks-detail-textarea"
                 rows={5}
+                placeholder="Add a more detailed description…"
                 defaultValue={task.description || ''}
                 disabled={!canEdit || saving}
                 onBlur={(e) => {
@@ -225,37 +288,44 @@ export default function TaskDetailDrawer({
               />
             </div>
 
-            <div className="tasks-detail-section">
-              <h6>Checklists</h6>
+            <div className="tasks-detail-panel">
+              <SectionTitle>Checklists</SectionTitle>
               {(task.checklists || []).map((cl) => {
                 const done = (cl.items || []).filter((i) => i.is_completed).length;
                 const total = (cl.items || []).length;
+                const pct = total ? Math.round((done / total) * 100) : 0;
                 return (
-                  <div key={cl._id} className="border rounded p-2 mb-2">
-                    <div className="d-flex justify-content-between mb-2">
+                  <div key={cl._id} className="tasks-checklist-card">
+                    <div className="tasks-checklist-card-head">
                       <strong>{cl.title}</strong>
-                      <span className="text-muted small">
+                      <span className={`tasks-checklist-progress-label ${pct === 100 ? 'is-done' : ''}`}>
                         {done}/{total} completed
                       </span>
                     </div>
-                    {(cl.items || []).map((item) => (
-                      <label key={item._id} className="d-flex align-items-center gap-2 mb-1">
-                        <input
-                          type="checkbox"
-                          checked={!!item.is_completed}
-                          disabled={!canEdit}
-                          onChange={() => toggleItem(cl._id, item._id)}
-                        />
-                        <span className={item.is_completed ? 'text-decoration-line-through text-muted' : ''}>
-                          {item.title}
-                        </span>
-                      </label>
-                    ))}
+                    <div className="tasks-checklist-bar" aria-hidden>
+                      <div className="tasks-checklist-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="tasks-checklist-items">
+                      {(cl.items || []).map((item) => (
+                        <label
+                          key={item._id}
+                          className={`tasks-checklist-item ${item.is_completed ? 'is-done' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!item.is_completed}
+                            disabled={!canEdit}
+                            onChange={() => toggleItem(cl._id, item._id)}
+                          />
+                          <span>{item.title}</span>
+                        </label>
+                      ))}
+                    </div>
                     {canEdit ? (
-                      <div className="input-group input-group-sm mt-2">
+                      <div className="tasks-inline-add">
                         <input
-                          className="form-control"
-                          placeholder="Add item"
+                          className="tasks-detail-input"
+                          placeholder="Add an item"
                           value={newItemByChecklist[cl._id] || ''}
                           onChange={(e) =>
                             setNewItemByChecklist((prev) => ({ ...prev, [cl._id]: e.target.value }))
@@ -267,7 +337,7 @@ export default function TaskDetailDrawer({
                             }
                           }}
                         />
-                        <button type="button" className="btn btn-outline-primary" onClick={() => addItem(cl._id)}>
+                        <button type="button" className="tasks-detail-btn tasks-detail-btn-ghost" onClick={() => addItem(cl._id)}>
                           Add
                         </button>
                       </div>
@@ -276,61 +346,70 @@ export default function TaskDetailDrawer({
                 );
               })}
               {canEdit ? (
-                <div className="input-group input-group-sm">
+                <div className="tasks-inline-add tasks-inline-add-primary">
                   <input
-                    className="form-control"
+                    className="tasks-detail-input"
                     value={checklistTitle}
                     onChange={(e) => setChecklistTitle(e.target.value)}
                     placeholder="New checklist title"
                   />
-                  <button type="button" className="btn btn-primary" onClick={addChecklist}>
+                  <button type="button" className="tasks-detail-btn tasks-detail-btn-primary" onClick={addChecklist}>
+                    <FaPlus size={11} aria-hidden />
                     Add checklist
                   </button>
                 </div>
               ) : null}
             </div>
 
-            <div className="tasks-detail-section">
-              <h6>Comments</h6>
-              <div className="mb-3">
+            <div className="tasks-detail-panel">
+              <SectionTitle icon={FaRegCommentDots}>Comments</SectionTitle>
+              <div className="tasks-comment-list">
                 {(task.comments || []).map((c) => (
-                  <div key={c._id} className="border rounded p-2 mb-2">
-                    <div className="d-flex justify-content-between">
-                      <strong>{c.user_id?.name || 'User'}</strong>
-                      <span className="text-muted small">
-                        {c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}
-                        {c.is_edited ? ' (edited)' : ''}
-                      </span>
+                  <div key={c._id} className="tasks-comment-card">
+                    <div className="tasks-avatar" title={c.user_id?.name || 'User'}>
+                      {userInitials(c.user_id)}
                     </div>
-                    <div className="mt-1">{c.body}</div>
-                    {String(c.user_id?._id || c.user_id) === String(currentUser?._id) ? (
-                      <button
-                        type="button"
-                        className="btn btn-link btn-sm text-danger p-0 mt-1"
-                        onClick={() => removeOwnComment(c._id, c.user_id?._id || c.user_id)}
-                      >
-                        Delete
-                      </button>
-                    ) : null}
+                    <div className="tasks-comment-body">
+                      <div className="tasks-comment-meta">
+                        <strong>{c.user_id?.name || 'User'}</strong>
+                        <span>
+                          {c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}
+                          {c.is_edited ? ' · edited' : ''}
+                        </span>
+                      </div>
+                      <p>{c.body}</p>
+                      {String(c.user_id?._id || c.user_id) === String(currentUser?._id) ? (
+                        <button
+                          type="button"
+                          className="tasks-comment-delete"
+                          onClick={() => removeOwnComment(c._id, c.user_id?._id || c.user_id)}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
+                {!task.comments?.length ? (
+                  <div className="tasks-detail-empty">No comments yet. Start the conversation.</div>
+                ) : null}
               </div>
-              <form onSubmit={submitComment}>
+              <form className="tasks-comment-compose" onSubmit={submitComment}>
                 <textarea
-                  className="form-control mb-2"
+                  className="tasks-detail-input tasks-detail-textarea"
                   rows={2}
                   placeholder="Add a comment… use @Name to mention"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
-                <button type="submit" className="btn btn-sm btn-primary">
+                <button type="submit" className="tasks-detail-btn tasks-detail-btn-primary" disabled={!comment.trim()}>
                   Comment
                 </button>
               </form>
             </div>
 
-            <div className="tasks-detail-section">
-              <h6>Activity</h6>
+            <div className="tasks-detail-panel">
+              <SectionTitle>Activity</SectionTitle>
               {(task.activity || []).map((a) => (
                 <div key={a._id} className="tasks-activity-item">
                   <div>
@@ -341,15 +420,15 @@ export default function TaskDetailDrawer({
                   </div>
                 </div>
               ))}
-              {!task.activity?.length ? <div className="text-muted">No activity yet.</div> : null}
+              {!task.activity?.length ? <div className="tasks-detail-empty">No activity yet.</div> : null}
             </div>
           </div>
 
-          <div className="col-lg-4">
-            <div className="tasks-detail-section">
-              <h6>Status / Column</h6>
+          <aside className="tasks-detail-aside">
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle>Status</SectionTitle>
               <select
-                className="form-select form-select-sm"
+                className="tasks-detail-input"
                 value={task.column_id?._id || task.column_id || ''}
                 disabled={!canEdit}
                 onChange={(e) => saveField({ column_id: e.target.value })}
@@ -361,10 +440,11 @@ export default function TaskDetailDrawer({
                 ))}
               </select>
             </div>
-            <div className="tasks-detail-section">
-              <h6>Priority</h6>
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle icon={FaFlag}>Priority</SectionTitle>
               <select
-                className="form-select form-select-sm"
+                className="tasks-detail-input"
                 value={task.priority || 'medium'}
                 disabled={!canEdit}
                 onChange={(e) => saveField({ priority: e.target.value })}
@@ -376,10 +456,11 @@ export default function TaskDetailDrawer({
                 ))}
               </select>
             </div>
-            <div className="tasks-detail-section">
-              <h6>Assignees</h6>
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle icon={FaUserGroup}>Assignees</SectionTitle>
               <select
-                className="form-select form-select-sm"
+                className="tasks-detail-input tasks-detail-multi"
                 multiple
                 size={Math.min(6, Math.max(3, members.length || 3))}
                 value={(task.assignee_ids || []).map((a) => String(a._id || a))}
@@ -396,74 +477,113 @@ export default function TaskDetailDrawer({
                 ))}
               </select>
             </div>
-            <div className="tasks-detail-section">
-              <h6>Labels</h6>
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle>Labels</SectionTitle>
+              {labels.length ? (
+                <div className="tasks-card-labels mb-2">
+                  {labels.map((label) => {
+                    const tone = getLabelStyle(label);
+                    return (
+                      <span
+                        key={label}
+                        className="tasks-label-chip"
+                        style={{ background: tone.bg, color: tone.color }}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : null}
               <input
-                className="form-control form-control-sm"
-                defaultValue={(task.labels || []).join(', ')}
+                className="tasks-detail-input"
+                defaultValue={labels.join(', ')}
                 disabled={!canEdit}
-                placeholder="comma,separated"
+                placeholder="comma, separated"
                 onBlur={(e) => {
-                  const labels = e.target.value
+                  const next = e.target.value
                     .split(',')
                     .map((s) => s.trim())
                     .filter(Boolean);
-                  saveField({ labels });
+                  saveField({ labels: next });
                 }}
               />
             </div>
-            <div className="tasks-detail-section">
-              <h6>Dates</h6>
-              <label className="form-label small mb-0">Start</label>
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle icon={FaCalendarDays}>Dates</SectionTitle>
+              <label className="tasks-detail-field-label">Start</label>
               <input
                 type="date"
-                className="form-control form-control-sm mb-2"
+                className="tasks-detail-input mb-2"
                 defaultValue={toInputDate(task.start_date)}
                 disabled={!canEdit}
                 onChange={(e) => saveField({ start_date: e.target.value || null })}
               />
-              <label className="form-label small mb-0">Due</label>
+              <label className="tasks-detail-field-label">Due</label>
               <input
                 type="date"
-                className="form-control form-control-sm"
+                className="tasks-detail-input"
                 defaultValue={toInputDate(task.due_date)}
                 disabled={!canEdit}
                 onChange={(e) => saveField({ due_date: e.target.value || null })}
               />
             </div>
-            <div className="tasks-detail-section">
-              <h6>Completed</h6>
-              <div className="form-check">
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <label className={`tasks-completed-toggle ${task.is_completed ? 'is-on' : ''}`}>
                 <input
-                  className="form-check-input"
                   type="checkbox"
                   checked={!!task.is_completed}
                   disabled={!canEdit}
                   onChange={(e) => saveField({ is_completed: e.target.checked })}
-                  id="task-completed"
                 />
-                <label className="form-check-label" htmlFor="task-completed">
-                  Mark completed
-                </label>
-              </div>
+                <span className="tasks-completed-toggle-box" aria-hidden>
+                  <FaCheck size={12} />
+                </span>
+                <span>
+                  <strong>{task.is_completed ? 'Completed' : 'Mark completed'}</strong>
+                  <small>{task.is_completed ? 'Task is done' : 'Toggle when finished'}</small>
+                </span>
+              </label>
             </div>
-            <div className="tasks-detail-section">
-              <h6>Attachments</h6>
-              {(task.attachments || []).map((att) => (
-                <div key={att._id} className="small border rounded p-2 mb-1">
-                  <a href={att.url} target="_blank" rel="noreferrer">
-                    {att.name}
+
+            <div className="tasks-detail-panel tasks-detail-meta-panel">
+              <SectionTitle icon={FaPaperclip}>Attachments</SectionTitle>
+              <div className="tasks-attachment-list">
+                {(task.attachments || []).map((att) => (
+                  <a
+                    key={att._id}
+                    href={att.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tasks-attachment-card"
+                  >
+                    <span className="tasks-attachment-icon">
+                      <FaPaperclip size={12} aria-hidden />
+                    </span>
+                    <span>
+                      <strong>{att.name}</strong>
+                      <small>
+                        {(att.size / 1024).toFixed(1)} KB · {att.mime_type || 'file'}
+                      </small>
+                    </span>
                   </a>
-                  <div className="text-muted">
-                    {(att.size / 1024).toFixed(1)} KB · {att.mime_type || 'file'}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
               {canEdit ? (
-                <input type="file" className="form-control form-control-sm" accept={ATTACHMENT_ACCEPT} onChange={onUpload} />
+                <label className="tasks-upload-dropzone">
+                  <input type="file" accept={ATTACHMENT_ACCEPT} onChange={onUpload} />
+                  <FaPaperclip aria-hidden />
+                  <span>
+                    <strong>Upload a file</strong>
+                    <small>PDF, images, docs, zip</small>
+                  </span>
+                </label>
               ) : null}
             </div>
-          </div>
+          </aside>
         </div>
       )}
     </AppModal>

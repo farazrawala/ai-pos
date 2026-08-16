@@ -113,11 +113,6 @@ export const NAV_ITEMS = [
       { to: '/accounts', label: 'Accounts', icon: FaCircleUser },
       { to: '/amount-transfers', label: 'Amount transfers', icon: FaMoneyBillTransfer },
       // { to: '/balance-sheet', label: 'Balance sheet', icon: FaChartBar },
-      { to: '/advance-balance-sheet', label: 'Balance sheet', icon: FaScaleBalanced },
-      { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
-      { to: '/profit-report', label: 'Profit report', icon: FaChartBar },
-      { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
-      { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
       { to: '/payments', label: 'Payments', icon: FaBasketShopping },
       // { to: '/payment-receipts', label: 'Payment receipts', icon: FaReceipt },
       { to: '/expenses', label: 'Expenses', icon: FaCoins },
@@ -125,8 +120,27 @@ export const NAV_ITEMS = [
     ],
   },
   {
+    id: 'ledger',
+    label: 'Ledger',
+    icon: FaFileInvoice,
+    children: [
+      { to: '/ledger', label: 'User ledgers', icon: FaFileInvoice },
+    ],
+  },
+  {
+    id: 'pl-accounts',
+    label: 'P/L Accounts',
+    icon: FaChartLine,
+    children: [
+      { to: '/advance-balance-sheet', label: 'Balance sheet', icon: FaScaleBalanced },
+      { to: '/income-statement', label: 'Income statement', icon: FaChartPie },
+      { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
+      { to: '/profit-report', label: 'Profit report', icon: FaChartBar },
+    ],
+  },
+  {
     id: 'barcode',
-    label: 'Barcode',
+    label: 'Printing settings',
     icon: FaQrcode,
     children: [
       { to: '/products/duplicate-barcodes', label: 'Duplicate barcodes', icon: FaClone },
@@ -145,9 +159,9 @@ export const NAV_ITEMS = [
       { to: '/stock', label: 'Stock movements', icon: FaBoxArchive },
       { to: '/stock-recounts', label: 'Stock recounts', icon: FaClipboardCheck },
       { to: '/adjustments', label: 'Adjustments', icon: FaSliders },
-      { to: '/processes', label: 'Processes', icon: FaArrowsRotate },
     ],
   },
+  { to: '/processes', label: 'Processes', icon: FaArrowsRotate },
   {
     id: 'settings',
     label: 'Settings',
@@ -185,16 +199,6 @@ export const NAV_ITEMS = [
     ],
   },
   {
-    id: 'support',
-    label: 'Support',
-    icon: FaHeadset,
-    children: [
-      { to: '/support', label: 'My tickets', icon: FaClipboardList },
-      { to: '/support/new', label: 'Create ticket', icon: FaTicket },
-      { to: '/admin/support', label: 'Ticket management', icon: FaClipboardList, adminOnly: true },
-    ],
-  },
-  {
     id: 'tasks',
     label: 'Task Management',
     icon: FaClipboardCheck,
@@ -204,6 +208,16 @@ export const NAV_ITEMS = [
       { to: '/tasks/assigned', label: 'Assigned to Me', icon: FaUserCheck },
       { to: '/tasks/created', label: 'Created by Me', icon: FaUserPen },
       { to: '/tasks/completed', label: 'Completed Tasks', icon: FaCircleCheck },
+    ],
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    icon: FaHeadset,
+    children: [
+      { to: '/support', label: 'My tickets', icon: FaClipboardList },
+      { to: '/support/new', label: 'Create ticket', icon: FaTicket },
+      { to: '/admin/support', label: 'Ticket management', icon: FaClipboardList, adminOnly: true },
     ],
   },
   {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { FaBoxArchive, FaCheck, FaTrashCan } from 'react-icons/fa6';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { loadTaskList } from '../../features/tasks/tasksSlice.js';
@@ -66,7 +67,10 @@ export default function TasksScopedPage({ scopeKey = 'my_tasks' }) {
 
   const runBulk = async (action, extra = {}) => {
     if (!selectedIds.length) return;
-    if ((action === 'delete' || action === 'archive') && !window.confirm('Confirm bulk action?')) return;
+    const count = selectedIds.length;
+    const noun = count === 1 ? 'task' : 'tasks';
+    if (action === 'delete' && !window.confirm(`Permanently delete ${count} ${noun}?`)) return;
+    if (action === 'archive' && !window.confirm(`Archive ${count} ${noun}?`)) return;
     try {
       await api.bulkTasks({ task_ids: selectedIds, action, ...extra });
       toast.success('Updated');
@@ -77,8 +81,32 @@ export default function TasksScopedPage({ scopeKey = 'my_tasks' }) {
     }
   };
 
+  const archiveOne = async (task) => {
+    if (!window.confirm(`Archive task #${task.task_number}?`)) return;
+    try {
+      await api.archiveTask(task._id);
+      toast.success('Task archived');
+      setSelectedIds((prev) => prev.filter((id) => id !== String(task._id)));
+      dispatch(loadTaskList(params));
+    } catch (e) {
+      toast.error(e.message || 'Archive failed');
+    }
+  };
+
+  const deleteOne = async (task) => {
+    if (!window.confirm(`Permanently delete task #${task.task_number} "${task.title}"?`)) return;
+    try {
+      await api.deleteTask(task._id);
+      toast.success('Task deleted');
+      setSelectedIds((prev) => prev.filter((id) => id !== String(task._id)));
+      dispatch(loadTaskList(params));
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
   return (
-    <div className="container-fluid py-3 tasks-module">
+    <div className="tasks-module tasks-workspace">
       <div className="tasks-page-header">
         <div>
           <h4 className="mb-0">{meta.title}</h4>
@@ -124,10 +152,12 @@ export default function TasksScopedPage({ scopeKey = 'my_tasks' }) {
       />
 
       {selectedIds.length && canEdit ? (
-        <div className="d-flex gap-2 mb-2 flex-wrap">
+        <div className="tasks-bulk-bar">
+          <span className="tasks-bulk-count">
+            {selectedIds.length} selected
+          </span>
           <select
-            className="form-select form-select-sm"
-            style={{ maxWidth: 140 }}
+            className="tasks-bulk-select"
             defaultValue=""
             onChange={(e) => {
               if (e.target.value) runBulk('priority', { priority: e.target.value });
@@ -141,35 +171,46 @@ export default function TasksScopedPage({ scopeKey = 'my_tasks' }) {
               </option>
             ))}
           </select>
-          <button type="button" className="btn btn-sm btn-outline-success" onClick={() => runBulk('complete')}>
+          <button type="button" className="tasks-bulk-btn tasks-bulk-btn-success" onClick={() => runBulk('complete')}>
+            <FaCheck size={11} aria-hidden />
             Mark completed
           </button>
           {canDelete ? (
             <>
-              <button type="button" className="btn btn-sm btn-outline-warning" onClick={() => runBulk('archive')}>
+              <button type="button" className="tasks-bulk-btn tasks-bulk-btn-warning" onClick={() => runBulk('archive')}>
+                <FaBoxArchive size={11} aria-hidden />
                 Archive
               </button>
-              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => runBulk('delete')}>
+              <button type="button" className="tasks-bulk-btn tasks-bulk-btn-danger" onClick={() => runBulk('delete')}>
+                <FaTrashCan size={11} aria-hidden />
                 Delete
               </button>
             </>
           ) : null}
+          <button type="button" className="tasks-bulk-clear" onClick={() => setSelectedIds([])}>
+            Clear
+          </button>
         </div>
       ) : null}
 
-      <TaskListTable
-        tasks={taskList}
-        loading={taskListLoading}
-        selectedIds={selectedIds}
-        onToggleSelect={(id) =>
-          setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-        }
-        onToggleSelectAll={() => {
-          const ids = taskList.map((t) => String(t._id));
-          setSelectedIds((prev) => (prev.length === ids.length ? [] : ids));
-        }}
-        onOpenTask={(t) => setDetailTaskId(t._id)}
-      />
+      <div className="tasks-list-panel">
+        <TaskListTable
+          tasks={taskList}
+          loading={taskListLoading}
+          selectedIds={selectedIds}
+          onToggleSelect={(id) =>
+            setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+          }
+          onToggleSelectAll={() => {
+            const ids = taskList.map((t) => String(t._id));
+            setSelectedIds((prev) => (prev.length === ids.length ? [] : ids));
+          }}
+          onOpenTask={(t) => setDetailTaskId(t._id)}
+          onArchiveTask={canDelete ? archiveOne : undefined}
+          onDeleteTask={deleteOne}
+          canDelete={canDelete}
+        />
+      </div>
 
       <div className="mt-3">
         <TablePagination

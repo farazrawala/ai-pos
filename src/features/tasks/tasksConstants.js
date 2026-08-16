@@ -1,11 +1,58 @@
 /** Task management display constants. */
 
 export const TASK_PRIORITIES = [
-  { value: 'low', label: 'Low', badgeClass: 'bg-secondary', dot: '#6c757d' },
-  { value: 'medium', label: 'Medium', badgeClass: 'bg-info', dot: '#0dcaf0' },
-  { value: 'high', label: 'High', badgeClass: 'bg-warning text-dark', dot: '#ffc107' },
-  { value: 'urgent', label: 'Urgent', badgeClass: 'bg-danger', dot: '#dc3545' },
+  {
+    value: 'low',
+    label: 'Low',
+    badgeClass: 'bg-secondary',
+    dot: '#6c757d',
+    chipBg: '#e2e8f0',
+    chipColor: '#475569',
+  },
+  {
+    value: 'medium',
+    label: 'Medium',
+    badgeClass: 'bg-info',
+    dot: '#0dcaf0',
+    chipBg: '#e0f2fe',
+    chipColor: '#0369a1',
+  },
+  {
+    value: 'high',
+    label: 'High',
+    badgeClass: 'bg-warning text-dark',
+    dot: '#ffc107',
+    chipBg: '#ffedd5',
+    chipColor: '#c2410c',
+  },
+  {
+    value: 'urgent',
+    label: 'Urgent',
+    badgeClass: 'bg-danger',
+    dot: '#dc3545',
+    chipBg: '#fee2e2',
+    chipColor: '#b91c1c',
+  },
 ];
+
+/** Soft pastel chips for free-form labels (Trello-style). */
+export const LABEL_PALETTE = [
+  { bg: '#dcfce7', color: '#15803d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#fce7f3', color: '#be185d' },
+  { bg: '#fef3c7', color: '#b45309' },
+  { bg: '#ede9fe', color: '#6d28d9' },
+  { bg: '#ccfbf1', color: '#0f766e' },
+  { bg: '#ffe4e6', color: '#e11d48' },
+  { bg: '#e2e8f0', color: '#475569' },
+];
+
+export function getLabelStyle(label) {
+  const key = String(label || '').toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash + key.charCodeAt(i) * (i + 1)) % 997;
+  return LABEL_PALETTE[hash % LABEL_PALETTE.length];
+}
 
 export const QUICK_FILTERS = [
   { id: 'all', label: 'All' },
@@ -38,6 +85,8 @@ export function getPriorityMeta(priority) {
       label: priority || 'Medium',
       badgeClass: 'bg-secondary',
       dot: '#6c757d',
+      chipBg: '#e2e8f0',
+      chipColor: '#475569',
     }
   );
 }

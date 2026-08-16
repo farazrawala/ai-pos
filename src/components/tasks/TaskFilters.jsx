@@ -1,3 +1,7 @@
+import {
+  FaListUl,
+  FaTableCellsLarge,
+} from 'react-icons/fa6';
 import { QUICK_FILTERS, TASK_PRIORITIES } from '../../features/tasks/tasksConstants.js';
 
 export default function TaskFilters({
@@ -21,8 +25,8 @@ export default function TaskFilters({
       <input
         type="search"
         className="form-control form-control-sm"
-        style={{ maxWidth: 220 }}
-        placeholder="Search title or #…"
+        style={{ maxWidth: 200 }}
+        placeholder="Search tasks…"
         value={search || ''}
         onChange={(e) => onSearchChange?.(e.target.value)}
       />
@@ -40,11 +44,11 @@ export default function TaskFilters({
       </div>
       <select
         className="form-select form-select-sm"
-        style={{ maxWidth: 140 }}
+        style={{ maxWidth: 130 }}
         value={priority || ''}
         onChange={(e) => onPriorityChange?.(e.target.value)}
       >
-        <option value="">All priorities</option>
+        <option value="">Priority</option>
         {TASK_PRIORITIES.map((p) => (
           <option key={p.value} value={p.value}>
             {p.label}
@@ -54,11 +58,11 @@ export default function TaskFilters({
       {onAssigneeChange ? (
         <select
           className="form-select form-select-sm"
-          style={{ maxWidth: 160 }}
+          style={{ maxWidth: 150 }}
           value={assigneeId || ''}
           onChange={(e) => onAssigneeChange(e.target.value)}
         >
-          <option value="">All assignees</option>
+          <option value="">Assignee</option>
           {members.map((m) => (
             <option key={m._id} value={m._id}>
               {m.name || m.email}
@@ -69,7 +73,7 @@ export default function TaskFilters({
       {onSortChange ? (
         <select
           className="form-select form-select-sm"
-          style={{ maxWidth: 150 }}
+          style={{ maxWidth: 130 }}
           value={sortBy || 'position'}
           onChange={(e) => onSortChange(e.target.value)}
         >
@@ -81,84 +85,26 @@ export default function TaskFilters({
         </select>
       ) : null}
       {onViewModeChange ? (
-        <div className="btn-group btn-group-sm">
+        <div className="tasks-view-toggle ms-auto">
           <button
             type="button"
-            className={`btn ${viewMode === 'kanban' ? 'btn-primary' : 'btn-outline-primary'}`}
+            className={`tasks-icon-btn ${viewMode === 'kanban' ? 'active' : ''}`}
+            title="Board view"
             onClick={() => onViewModeChange('kanban')}
           >
-            Kanban
+            <FaTableCellsLarge size={14} />
           </button>
           <button
             type="button"
-            className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}`}
+            className={`tasks-icon-btn ${viewMode === 'list' ? 'active' : ''}`}
+            title="List view"
             onClick={() => onViewModeChange('list')}
           >
-            List
+            <FaListUl size={14} />
           </button>
         </div>
       ) : null}
       {extra}
     </div>
   );
-}
-
-export function applyClientTaskFilters(tasks, { search, quick, priority, assigneeId, currentUserId }) {
-  const q = String(search || '').trim().toLowerCase();
-  const now = new Date();
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-
-  return (tasks || []).filter((task) => {
-    if (priority && task.priority !== priority) return false;
-    if (assigneeId) {
-      const ids = (task.assignee_ids || []).map((a) => String(a._id || a));
-      if (!ids.includes(String(assigneeId))) return false;
-    }
-    if (q) {
-      const hay = `${task.title || ''} ${task.task_number || ''}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (quick === 'my' && currentUserId) {
-      const ids = (task.assignee_ids || []).map((a) => String(a._id || a));
-      if (!ids.includes(String(currentUserId)) && String(task.created_by?._id || task.created_by) !== String(currentUserId)) {
-        return false;
-      }
-    }
-    if (quick === 'due_today') {
-      if (!task.due_date) return false;
-      const d = new Date(task.due_date);
-      if (d < start || d > end) return false;
-    }
-    if (quick === 'overdue') {
-      if (!task.due_date || task.is_completed) return false;
-      if (new Date(task.due_date) >= now) return false;
-    }
-    if (quick === 'high') {
-      if (task.priority !== 'high' && task.priority !== 'urgent') return false;
-    }
-    if (quick === 'completed' && !task.is_completed) return false;
-    return true;
-  });
-}
-
-const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
-
-export function sortTasksClient(tasks, sortBy) {
-  const list = [...(tasks || [])];
-  if (!sortBy || sortBy === 'position') {
-    return list.sort((a, b) => (a.position || 0) - (b.position || 0));
-  }
-  if (sortBy === 'priority') {
-    return list.sort(
-      (a, b) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9),
-    );
-  }
-  return list.sort((a, b) => {
-    const av = a[sortBy] ? new Date(a[sortBy]).getTime() : 0;
-    const bv = b[sortBy] ? new Date(b[sortBy]).getTime() : 0;
-    return av - bv;
-  });
 }

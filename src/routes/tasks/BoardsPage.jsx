@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { FaBoxArchive, FaCopy, FaPen, FaPlus } from 'react-icons/fa6';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { loadBoards } from '../../features/tasks/tasksSlice.js';
 import * as api from '../../features/tasks/tasksAPI.js';
-import { BOARD_COLORS } from '../../features/tasks/tasksConstants.js';
+import { BOARD_COLORS, userInitials } from '../../features/tasks/tasksConstants.js';
 import AppModal from '../../components/AppModal.jsx';
 import { toast } from '../../utils/toast.js';
 import '../../styles/tasks-module.css';
@@ -101,21 +102,22 @@ export default function BoardsPage() {
   };
 
   return (
-    <div className="container-fluid py-3 tasks-module">
+    <div className="tasks-module tasks-workspace">
       <div className="tasks-page-header">
         <div>
           <h4 className="mb-0">Task Boards</h4>
           <p className="text-muted mb-0 small">Organize work across Kanban boards</p>
         </div>
-        <div className="d-flex gap-2 flex-wrap">
+        <div className="tasks-board-toolbar">
           {canCreate ? (
-            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onSeed}>
+            <button type="button" className="btn btn-sm btn-light" onClick={onSeed}>
               Seed demo board
             </button>
           ) : null}
           {canCreate ? (
-            <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
-              + Create board
+            <button type="button" className="tasks-create-btn" onClick={openCreate}>
+              <FaPlus size={12} />
+              Create board
             </button>
           ) : null}
         </div>
@@ -132,11 +134,12 @@ export default function BoardsPage() {
       ) : null}
 
       {!boardsLoading && !boards.length ? (
-        <div className="text-center py-5 border rounded bg-white">
+        <div className="tasks-empty-state">
           <h5>No boards yet</h5>
           <p className="text-muted">Create a board to start managing tasks.</p>
           {canCreate ? (
-            <button type="button" className="btn btn-primary" onClick={openCreate}>
+            <button type="button" className="tasks-create-btn" onClick={openCreate}>
+              <FaPlus size={12} />
               Create your first board
             </button>
           ) : null}
@@ -144,38 +147,60 @@ export default function BoardsPage() {
       ) : null}
 
       <div className="tasks-board-grid">
-        {boards.map((board) => (
-          <div key={board._id} className="position-relative">
-            <Link
-              to={`/tasks/boards/${board._id}`}
-              className="tasks-board-tile"
-              style={{ '--board-color': board.color || '#0d6efd' }}
-            >
-              <h5>{board.name}</h5>
-              <p>{board.description || 'No description'}</p>
-              <div className="small mt-2 opacity-75">
-                {(board.members || []).length} members
+        {boards.map((board) => {
+          const members = board.members || [];
+          return (
+            <div key={board._id} className="tasks-board-card">
+              <Link to={`/tasks/boards/${board._id}`} className="tasks-board-card__link">
+                <div
+                  className="tasks-board-card__banner"
+                  style={{ '--board-color': board.color || '#3b82f6' }}
+                >
+                  <h5>{board.name}</h5>
+                </div>
+                <div className="tasks-board-card__body">
+                  <p>{board.description || 'No description'}</p>
+                </div>
+              </Link>
+              <div className="tasks-board-card__footer">
+                <span className="tasks-board-card__meta">
+                  {members.length ? (
+                    <span className="tasks-avatar-stack">
+                      {members.slice(0, 3).map((m) => (
+                        <span key={m._id || m} className="tasks-avatar" title={m.name || m.email}>
+                          {userInitials(m)}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                  {members.length} {members.length === 1 ? 'member' : 'members'}
+                </span>
+                <div className="tasks-board-actions">
+                  {canEdit ? (
+                    <button type="button" title="Edit board" onClick={(e) => openEdit(board, e)}>
+                      <FaPen size={11} />
+                    </button>
+                  ) : null}
+                  {canCreate ? (
+                    <button type="button" title="Duplicate board" onClick={(e) => onDuplicate(board, e)}>
+                      <FaCopy size={11} />
+                    </button>
+                  ) : null}
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="is-danger"
+                      title="Archive board"
+                      onClick={(e) => onArchive(board, e)}
+                    >
+                      <FaBoxArchive size={11} />
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </Link>
-            <div className="tasks-board-actions position-absolute bottom-0 start-0 p-2 w-100">
-              {canEdit ? (
-                <button type="button" className="btn btn-sm btn-light" onClick={(e) => openEdit(board, e)}>
-                  Edit
-                </button>
-              ) : null}
-              {canCreate ? (
-                <button type="button" className="btn btn-sm btn-light" onClick={(e) => onDuplicate(board, e)}>
-                  Duplicate
-                </button>
-              ) : null}
-              {canDelete ? (
-                <button type="button" className="btn btn-sm btn-light" onClick={(e) => onArchive(board, e)}>
-                  Archive
-                </button>
-              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <AppModal

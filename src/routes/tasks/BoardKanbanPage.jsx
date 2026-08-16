@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { FaEllipsis, FaPlus, FaStar } from 'react-icons/fa6';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { selectAuthUser } from '../../features/user/userSlice.js';
@@ -29,14 +30,15 @@ import {
 } from '../../features/tasks/tasksSlice.js';
 import * as api from '../../features/tasks/tasksAPI.js';
 import TaskCard from '../../components/tasks/TaskCard.jsx';
-import TaskFilters, {
+import TaskFilters from '../../components/tasks/TaskFilters.jsx';
+import {
   applyClientTaskFilters,
   sortTasksClient,
-} from '../../components/tasks/TaskFilters.jsx';
+} from '../../features/tasks/taskFiltering.js';
 import TaskDetailDrawer from '../../components/tasks/TaskDetailDrawer.jsx';
 import TaskListTable from '../../components/tasks/TaskListTable.jsx';
 import AppModal from '../../components/AppModal.jsx';
-import { TASK_PRIORITIES } from '../../features/tasks/tasksConstants.js';
+import { TASK_PRIORITIES, userInitials } from '../../features/tasks/tasksConstants.js';
 import { toast } from '../../utils/toast.js';
 import '../../styles/tasks-module.css';
 
@@ -76,23 +78,22 @@ function SortableColumn({ column, tasks, onOpenTask, onAddTask, canEdit }) {
 
   return (
     <div ref={setNodeRef} style={style} className={`tasks-column ${isDragging ? 'is-dragging' : ''}`}>
-      <div className="tasks-column-header" {...attributes} {...listeners}>
-        <h6 className="tasks-column-title">
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: column.color || '#6c757d',
-              display: 'inline-block',
-            }}
-          />
+      <div className="tasks-column-header">
+        <h6 className="tasks-column-title" {...attributes} {...listeners}>
           {column.name}
           <span className="tasks-column-count">{tasks.length}</span>
-          {column.wip_limit ? (
-            <span className="text-muted small">/ {column.wip_limit}</span>
-          ) : null}
+          {column.wip_limit ? <span className="text-muted small">/ {column.wip_limit}</span> : null}
         </h6>
+        <div className="tasks-column-actions">
+          <button type="button" title="Column options" {...attributes} {...listeners}>
+            <FaEllipsis size={14} />
+          </button>
+          {canEdit ? (
+            <button type="button" title="Add task" onClick={() => onAddTask(column._id)}>
+              <FaPlus size={12} />
+            </button>
+          ) : null}
+        </div>
       </div>
       <SortableContext items={tasks.map((t) => `task:${t._id}`)} strategy={verticalListSortingStrategy}>
         <div className="tasks-column-body" data-column-id={column._id}>
@@ -102,8 +103,8 @@ function SortableColumn({ column, tasks, onOpenTask, onAddTask, canEdit }) {
         </div>
       </SortableContext>
       {canEdit ? (
-        <button type="button" className="btn btn-sm btn-link text-start mt-1" onClick={() => onAddTask(column._id)}>
-          + Add Task
+        <button type="button" className="tasks-add-card-btn" onClick={() => onAddTask(column._id)}>
+          + Add a card
         </button>
       ) : null}
     </div>
@@ -360,7 +361,10 @@ export default function BoardKanbanPage() {
 
   const runBulk = async (action, extra = {}) => {
     if (!selectedIds.length) return;
-    if ((action === 'delete' || action === 'archive') && !window.confirm('Confirm bulk action?')) return;
+    const count = selectedIds.length;
+    const noun = count === 1 ? 'task' : 'tasks';
+    if (action === 'delete' && !window.confirm(`Permanently delete ${count} ${noun}?`)) return;
+    if (action === 'archive' && !window.confirm(`Archive ${count} ${noun}?`)) return;
     try {
       await api.bulkTasks({ task_ids: selectedIds, action, ...extra });
       toast.success('Bulk update applied');
@@ -371,34 +375,85 @@ export default function BoardKanbanPage() {
     }
   };
 
+  const archiveOne = async (task) => {
+    if (!window.confirm(`Archive task #${task.task_number}?`)) return;
+    try {
+      await api.archiveTask(task._id);
+      toast.success('Task archived');
+      setSelectedIds((prev) => prev.filter((id) => id !== String(task._id)));
+      refresh();
+    } catch (e) {
+      toast.error(e.message || 'Archive failed');
+    }
+  };
+
+  const deleteOne = async (task) => {
+    if (!window.confirm(`Permanently delete task #${task.task_number} "${task.title}"?`)) return;
+    try {
+      await api.deleteTask(task._id);
+      toast.success('Task deleted');
+      setSelectedIds((prev) => prev.filter((id) => id !== String(task._id)));
+      refresh();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed');
+    }
+  };
+
   return (
-    <div className="container-fluid py-3 tasks-module">
+    <div className="tasks-module tasks-workspace">
       <div className="tasks-page-header">
         <div>
-          <Link to="/tasks/boards" className="small text-muted">
-            ← Boards
+          <Link to="/tasks/boards" className="tasks-back-link">
+            ← All boards
           </Link>
-          <h4 className="mb-0">{kanbanBoard?.name || 'Board'}</h4>
-          <p className="text-muted mb-0 small">{kanbanBoard?.description}</p>
+          <div className="tasks-board-title-row">
+            <h4>{kanbanBoard?.name || 'Board'}</h4>
+            <span className="tasks-icon-btn" title="Favorite" style={{ width: '1.85rem', height: '1.85rem' }}>
+              <FaStar size={12} />
+            </span>
+          </div>
+          {kanbanBoard?.description ? (
+            <p className="text-muted mb-0 small mt-1">{kanbanBoard.description}</p>
+          ) : null}
         </div>
-        <div className="d-flex gap-2 flex-wrap align-items-center">
-          {movePending ? <span className="small text-muted">Saving…</span> : null}
+        <div className="tasks-board-toolbar">
+          {movePending ? <span className="tasks-saving-pill">Saving…</span> : null}
+          {members.length ? (
+            <div className="tasks-members-stack" title="Board members">
+              {members.slice(0, 5).map((m) => (
+                <span key={m._id} className="tasks-avatar" title={m.name || m.email}>
+                  {userInitials(m)}
+                </span>
+              ))}
+              {members.length > 5 ? (
+                <span className="tasks-avatar" title={`+${members.length - 5} more`}>
+                  +{members.length - 5}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {canEdit ? (
-            <div className="input-group input-group-sm" style={{ maxWidth: 220 }}>
+            <div className="tasks-column-composer">
               <input
-                className="form-control"
                 placeholder="New column"
                 value={columnName}
                 onChange={(e) => setColumnName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addColumn();
+                  }
+                }}
               />
-              <button type="button" className="btn btn-outline-secondary" onClick={addColumn}>
+              <button type="button" onClick={addColumn}>
                 Add
               </button>
             </div>
           ) : null}
           {canCreate ? (
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => openAdd()}>
-              + Add Task
+            <button type="button" className="tasks-create-btn" onClick={() => openAdd()}>
+              <FaPlus size={12} />
+              Create
             </button>
           ) : null}
         </div>
@@ -425,10 +480,10 @@ export default function BoardKanbanPage() {
       {viewMode === 'list' ? (
         <>
           {selectedIds.length ? (
-            <div className="d-flex gap-2 mb-2 flex-wrap">
+            <div className="tasks-bulk-bar">
+              <span className="tasks-bulk-count">{selectedIds.length} selected</span>
               <select
-                className="form-select form-select-sm"
-                style={{ maxWidth: 140 }}
+                className="tasks-bulk-select"
                 defaultValue=""
                 onChange={(e) => {
                   if (e.target.value) runBulk('priority', { priority: e.target.value });
@@ -443,8 +498,7 @@ export default function BoardKanbanPage() {
                 ))}
               </select>
               <select
-                className="form-select form-select-sm"
-                style={{ maxWidth: 160 }}
+                className="tasks-bulk-select"
                 defaultValue=""
                 onChange={(e) => {
                   if (e.target.value) runBulk('move', { column_id: e.target.value });
@@ -458,35 +512,43 @@ export default function BoardKanbanPage() {
                   </option>
                 ))}
               </select>
-              <button type="button" className="btn btn-sm btn-outline-success" onClick={() => runBulk('complete')}>
+              <button type="button" className="tasks-bulk-btn tasks-bulk-btn-success" onClick={() => runBulk('complete')}>
                 Complete
               </button>
               {canDelete ? (
                 <>
-                  <button type="button" className="btn btn-sm btn-outline-warning" onClick={() => runBulk('archive')}>
+                  <button type="button" className="tasks-bulk-btn tasks-bulk-btn-warning" onClick={() => runBulk('archive')}>
                     Archive
                   </button>
-                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => runBulk('delete')}>
+                  <button type="button" className="tasks-bulk-btn tasks-bulk-btn-danger" onClick={() => runBulk('delete')}>
                     Delete
                   </button>
                 </>
               ) : null}
+              <button type="button" className="tasks-bulk-clear" onClick={() => setSelectedIds([])}>
+                Clear
+              </button>
             </div>
           ) : null}
-          <TaskListTable
-            tasks={flatTasks}
-            loading={kanbanLoading}
-            showBoard={false}
-            selectedIds={selectedIds}
-            onToggleSelect={(id) =>
-              setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-            }
-            onToggleSelectAll={() => {
-              const ids = flatTasks.map((t) => String(t._id));
-              setSelectedIds((prev) => (prev.length === ids.length ? [] : ids));
-            }}
-            onOpenTask={(t) => setDetailTaskId(t._id)}
-          />
+          <div className="tasks-list-panel">
+            <TaskListTable
+              tasks={flatTasks}
+              loading={kanbanLoading}
+              showBoard={false}
+              selectedIds={selectedIds}
+              onToggleSelect={(id) =>
+                setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+              }
+              onToggleSelectAll={() => {
+                const ids = flatTasks.map((t) => String(t._id));
+                setSelectedIds((prev) => (prev.length === ids.length ? [] : ids));
+              }}
+              onOpenTask={(t) => setDetailTaskId(t._id)}
+              onArchiveTask={canDelete ? archiveOne : undefined}
+              onDeleteTask={deleteOne}
+              canDelete={canDelete}
+            />
+          </div>
         </>
       ) : (
         <div className="tasks-kanban-shell">
@@ -526,7 +588,9 @@ export default function BoardKanbanPage() {
               </SortableContext>
               <DragOverlay>
                 {activeDrag?.type === 'task' && activeDrag.task ? (
-                  <TaskCard task={activeDrag.task} className="is-dragging" />
+                  <div style={{ width: 280 }}>
+                    <TaskCard task={activeDrag.task} className="is-dragging" />
+                  </div>
                 ) : null}
               </DragOverlay>
             </DndContext>
@@ -549,79 +613,116 @@ export default function BoardKanbanPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="Add Task"
+        subtitle="Create a new card on this board"
         footer={
-          <>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAddOpen(false)}>
-              Cancel
-            </button>
-            <button type="submit" form="add-task-form" className="btn btn-primary btn-sm">
-              Create
-            </button>
-          </>
+          <div className="tasks-detail-footer justify-content-end">
+            <div className="d-flex gap-2">
+              <button
+                type="button"
+                className="tasks-detail-btn tasks-detail-btn-ghost"
+                onClick={() => setAddOpen(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" form="add-task-form" className="tasks-detail-btn tasks-detail-btn-primary">
+                <FaPlus size={11} aria-hidden />
+                Create Task
+              </button>
+            </div>
+          </div>
         }
       >
-        <form id="add-task-form" onSubmit={submitAdd}>
-          <div className="mb-2">
-            <label className="form-label">Title</label>
+        <form id="add-task-form" className="tasks-module tasks-form" onSubmit={submitAdd}>
+          <div className="tasks-form-field">
+            <label className="tasks-detail-field-label" htmlFor="add-task-title">
+              Title <span className="tasks-form-required">*</span>
+            </label>
             <input
-              className="form-control"
+              id="add-task-title"
+              className="tasks-detail-input tasks-detail-title-input"
               required
+              placeholder="What needs to be done?"
               value={addForm.title}
               onChange={(e) => setAddForm((f) => ({ ...f, title: e.target.value }))}
             />
           </div>
-          <div className="mb-2">
-            <label className="form-label">Column</label>
-            <select
-              className="form-select"
-              value={addColumnId}
-              onChange={(e) => setAddColumnId(e.target.value)}
-            >
-              {kanbanColumns.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-2">
-            <label className="form-label">Description</label>
-            <textarea
-              className="form-control"
-              rows={3}
-              value={addForm.description}
-              onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))}
-            />
-          </div>
-          <div className="row g-2">
-            <div className="col-md-6">
-              <label className="form-label">Priority</label>
+
+          <div className="tasks-form-grid">
+            <div className="tasks-form-field">
+              <label className="tasks-detail-field-label" htmlFor="add-task-column">
+                Column
+              </label>
               <select
-                className="form-select"
-                value={addForm.priority}
-                onChange={(e) => setAddForm((f) => ({ ...f, priority: e.target.value }))}
+                id="add-task-column"
+                className="tasks-detail-input"
+                value={addColumnId}
+                onChange={(e) => setAddColumnId(e.target.value)}
               >
-                {TASK_PRIORITIES.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
+                {kanbanColumns.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
             </div>
-            <div className="col-md-6">
-              <label className="form-label">Due date</label>
+            <div className="tasks-form-field">
+              <label className="tasks-detail-field-label" htmlFor="add-task-due">
+                Due date
+              </label>
               <input
+                id="add-task-due"
                 type="date"
-                className="form-control"
+                className="tasks-detail-input"
                 value={addForm.due_date}
                 onChange={(e) => setAddForm((f) => ({ ...f, due_date: e.target.value }))}
               />
             </div>
           </div>
-          <div className="mb-2 mt-2">
-            <label className="form-label">Assignees</label>
+
+          <div className="tasks-form-field">
+            <label className="tasks-detail-field-label" htmlFor="add-task-desc">
+              Description
+            </label>
+            <textarea
+              id="add-task-desc"
+              className="tasks-detail-input tasks-detail-textarea"
+              rows={3}
+              placeholder="Add more detail, acceptance criteria, or links…"
+              value={addForm.description}
+              onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))}
+            />
+          </div>
+
+          <div className="tasks-form-field">
+            <span className="tasks-detail-field-label">Priority</span>
+            <div className="tasks-priority-picker" role="radiogroup" aria-label="Priority">
+              {TASK_PRIORITIES.map((p) => {
+                const active = addForm.priority === p.value;
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    className={`tasks-priority-option ${active ? 'is-active' : ''}`}
+                    style={active ? { background: p.chipBg, color: p.chipColor, borderColor: p.chipColor } : undefined}
+                    onClick={() => setAddForm((f) => ({ ...f, priority: p.value }))}
+                  >
+                    <span className="tasks-priority-dot" style={{ background: p.dot }} aria-hidden />
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="tasks-form-field">
+            <label className="tasks-detail-field-label" htmlFor="add-task-assignees">
+              Assignees
+            </label>
             <select
-              className="form-select"
+              id="add-task-assignees"
+              className="tasks-detail-input tasks-detail-multi"
               multiple
               value={addForm.assignee_ids}
               onChange={(e) =>
@@ -637,15 +738,21 @@ export default function BoardKanbanPage() {
                 </option>
               ))}
             </select>
+            <p className="tasks-form-hint">Hold Ctrl (Cmd on Mac) to select multiple people.</p>
           </div>
-          <div className="mb-2">
-            <label className="form-label">Labels</label>
+
+          <div className="tasks-form-field">
+            <label className="tasks-detail-field-label" htmlFor="add-task-labels">
+              Labels
+            </label>
             <input
-              className="form-control"
+              id="add-task-labels"
+              className="tasks-detail-input"
               placeholder="POS, Inventory"
               value={addForm.labels}
               onChange={(e) => setAddForm((f) => ({ ...f, labels: e.target.value }))}
             />
+            <p className="tasks-form-hint">Separate multiple labels with commas.</p>
           </div>
         </form>
       </AppModal>
