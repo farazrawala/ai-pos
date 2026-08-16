@@ -677,36 +677,51 @@
 
 /* ---------------- Hero ---------------- */
 
+/* Full-bleed: the hero is a direct child of `.shop`, so it is never boxed in
+   by `.shop-container` like the rest of the page. */
 .shop-hero {
-  padding-top: 18px;
+  width: 100%;
+  background: var(--shop-navy);
 }
 
+/*
+ * `--shop-hero-ratio` is the banner's real ratio, measured on load.
+ * `--shop-hero-ratio-capped` is that ratio clamped to 2–5 so unusually tall
+ * uploads (square/portrait) cannot swallow the viewport. Both fall back to
+ * 16/5 before the image loads, which reserves space and avoids layout shift.
+ */
 .shop-hero-media {
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--shop-line);
-  border-radius: 16px;
-  background: linear-gradient(135deg, #f5f7fc, #eaeefa);
-  box-shadow: 0 18px 42px -32px rgba(15, 23, 42, 0.6);
-}
+  --shop-hero-ratio: 16 / 5;
+  --shop-hero-ratio-capped: 16 / 5;
 
-/* ShopImage renders nothing when the banner URL fails to load. */
-.shop-hero-media:empty {
-  display: none;
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--shop-hero-ratio-capped);
+  /* Only bites past ~1985px wide for a 16/5 banner, so 1366/1920 render
+     the artwork complete; beyond that it trims rather than dominate the fold. */
+  max-height: min(620px, 68vh);
+  overflow: hidden;
 }
 
 .shop-hero-media img {
+  display: block;
   width: 100%;
-  height: auto;
-  max-height: 340px;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+}
+
+.shop-hero-media.is-ready img {
   animation: shop-hero-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes shop-hero-in {
   from {
     opacity: 0;
-    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -2785,6 +2800,13 @@
     box-shadow: 0 20px 50px rgba(28, 35, 49, 0.25);
   }
 
+  /* Tablet and below use the banner's own ratio so promotional artwork and
+     text are never cropped on narrow viewports. */
+  .shop-hero-media {
+    aspect-ratio: var(--shop-hero-ratio);
+    max-height: 62vh;
+  }
+
   .shop-filters-titlebar {
     display: flex;
   }
@@ -2832,18 +2854,6 @@
 
   .shop-category-picker {
     display: none;
-  }
-
-  .shop-hero {
-    padding-top: 12px;
-  }
-
-  .shop-hero-media {
-    border-radius: 12px;
-  }
-
-  .shop-hero-media img {
-    max-height: 190px;
   }
 
   .shop-results-bar {

@@ -323,6 +323,8 @@ export default function PublicShop() {
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [activeSearchBox, setActiveSearchBox] = useState('');
+  const [bannerRatio, setBannerRatio] = useState(0);
+  const [bannerFailed, setBannerFailed] = useState(false);
 
   const requestSeq = useRef(0);
   const suggestSeq = useRef(0);
@@ -499,6 +501,12 @@ export default function PublicShop() {
       });
     };
   }, [store]);
+
+  // The hero reserves space from the banner's own ratio, so re-measure per store.
+  useEffect(() => {
+    setBannerRatio(0);
+    setBannerFailed(false);
+  }, [store?.company_banner]);
 
   // Cart is scoped per store so two storefronts never share items.
   useEffect(() => {
@@ -1205,12 +1213,32 @@ export default function PublicShop() {
         </div>
       </nav>
 
-      {banner ? (
+      {banner && !bannerFailed ? (
         <section className="shop-hero">
-          <div className="shop-container">
-            <div className="shop-hero-media">
-              <ShopImage src={banner} alt={`${store.company_name} banner`} loading="eager" />
-            </div>
+          <div
+            className={`shop-hero-media ${bannerRatio ? 'is-ready' : ''}`}
+            style={
+              bannerRatio
+                ? {
+                    '--shop-hero-ratio': String(bannerRatio),
+                    '--shop-hero-ratio-capped': String(Math.min(Math.max(bannerRatio, 2), 5)),
+                  }
+                : undefined
+            }
+          >
+            <img
+              src={banner}
+              alt={`${store.company_name} promotion`}
+              loading="eager"
+              decoding="async"
+              onLoad={(event) => {
+                const { naturalWidth, naturalHeight } = event.currentTarget;
+                if (naturalWidth > 0 && naturalHeight > 0) {
+                  setBannerRatio(naturalWidth / naturalHeight);
+                }
+              }}
+              onError={() => setBannerFailed(true)}
+            />
           </div>
         </section>
       ) : null}
