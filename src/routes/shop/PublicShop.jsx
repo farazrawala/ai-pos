@@ -1299,39 +1299,6 @@ export default function PublicShop() {
               </span>
             </div>
 
-            <div
-              className="shop-results-search"
-              ref={activeSearchBox === 'results' ? searchBoxRef : null}
-            >
-              <FaMagnifyingGlass />
-              <input
-                type="search"
-                value={searchInput}
-                onChange={(event) => {
-                  setSearchInput(event.target.value);
-                  setActiveSearchBox('results');
-                }}
-                onFocus={() => setActiveSearchBox('results')}
-                placeholder="Search products…"
-                aria-label="Search products"
-              />
-              {suggestLoading && activeSearchBox === 'results' ? (
-                <span className="shop-results-spinner" aria-hidden="true" />
-              ) : searchInput ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchInput('');
-                    setActiveSearchBox('');
-                  }}
-                  aria-label="Clear search"
-                >
-                  <FaXmark />
-                </button>
-              ) : null}
-              {renderSuggestions('results')}
-            </div>
-
             <div className="shop-results-actions">
               <button
                 type="button"
