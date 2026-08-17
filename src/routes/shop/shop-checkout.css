@@ -3,12 +3,13 @@
   --checkout-body: #67748e;
   --checkout-muted: #8392ab;
   --checkout-line: #e9ecef;
-  --checkout-brand: #5e72e4;
-  --checkout-brand-dark: #4c63d2;
+  --checkout-brand: #344767;
+  --checkout-brand-dark: #2b3a55;
+  --checkout-header-bg: #344767;
   min-height: 100vh;
   background: #f8f9fe;
   color: var(--checkout-ink);
-  font-family: "Open Sans", system-ui, sans-serif;
+  font-family: 'Open Sans', system-ui, sans-serif;
 }
 
 .checkout-container {
@@ -18,7 +19,7 @@
 
 .checkout-header {
   border-bottom: 1px solid var(--checkout-line);
-  background: #344767;
+  background: var(--checkout-header-bg, #344767);
   color: #fff;
 }
 
@@ -152,7 +153,7 @@
   place-items: center;
   background: #f8f9fe;
   color: #67748e;
-  font-family: "Open Sans", sans-serif;
+  font-family: 'Open Sans', sans-serif;
 }
 
 /* Cart */

@@ -6,9 +6,9 @@
   --shop-surface: #ffffff;
   --shop-bg: #f8f9fe;
   --shop-navy: #344767;
-  --shop-brand: #5e72e4;
-  --shop-brand-dark: #4c63d2;
-  --shop-brand-rgb: 94, 114, 228;
+  --shop-brand: #344767;
+  --shop-brand-dark: #2b3a55;
+  --shop-brand-rgb: 52, 71, 103;
   --shop-price: #f5365c;
 
   min-height: 100vh;
@@ -1272,11 +1272,6 @@
   color: #fff;
 }
 
-.shop-badge.is-new {
-  background: var(--shop-ink);
-  color: #fff;
-}
-
 .shop-badge.is-featured {
   background: rgba(var(--shop-brand-rgb), 0.12);
   color: var(--shop-brand-dark);
@@ -1285,6 +1280,35 @@
 .shop-badge.is-muted {
   background: rgba(28, 35, 49, 0.78);
   color: #fff;
+}
+
+.shop-card-new {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--shop-brand);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(var(--shop-brand-rgb), 0.32);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .shop-card-new {
+    top: 8px;
+    right: 8px;
+    width: 38px;
+    height: 38px;
+    font-size: 0.66rem;
+  }
 }
 
 .shop-card-body {

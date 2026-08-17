@@ -9,6 +9,7 @@ import {
   FaTrash,
 } from 'react-icons/fa6';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { buildCheckoutThemeStyle } from '../../config/themes.js';
 import ShopImage from './ShopImage.jsx';
 import {
   cartLines,
@@ -82,8 +83,7 @@ export default function ShopCart() {
       });
       if (body?.data?.ok === false) {
         setError(
-          body.message ||
-            'Some products are currently unavailable. Please update your cart.'
+          body.message || 'Some products are currently unavailable. Please update your cart.'
         );
         return;
       }
@@ -100,10 +100,14 @@ export default function ShopCart() {
   }
 
   const logoUrl = resolveCategoryMediaUrl(store?.company_logo);
-  const brandInitial = String(store?.company_name || 'S').trim().charAt(0).toUpperCase();
+  const brandInitial = String(store?.company_name || 'S')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const checkoutThemeStyle = buildCheckoutThemeStyle(store?.theme_color);
 
   return (
-    <div className="checkout-page">
+    <div className="checkout-page" style={checkoutThemeStyle || undefined}>
       <header className="checkout-header">
         <div className="checkout-container checkout-header-inner">
           <button type="button" onClick={() => navigate(`/shop/${companySlug}`)}>
@@ -165,9 +169,7 @@ export default function ShopCart() {
                     <div className="cart-line-info">
                       <h2>{line.name}</h2>
                       {line.sku ? <span className="cart-line-sku">SKU {line.sku}</span> : null}
-                      <span className="cart-line-unit">
-                        {formatShopPrice(line.price)} each
-                      </span>
+                      <span className="cart-line-unit">{formatShopPrice(line.price)} each</span>
                     </div>
                     <div className="cart-qty">
                       <button

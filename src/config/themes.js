@@ -154,9 +154,8 @@ export const DEFAULT_THEME = {
 
 export function normalizeHexColor(value, fallback = '') {
   const raw = String(value || '').trim();
-  const expanded =
-    /^#[0-9a-f]{3}$/i.test(raw) ?
-      `#${raw
+  const expanded = /^#[0-9a-f]{3}$/i.test(raw)
+    ? `#${raw
         .slice(1)
         .split('')
         .map((char) => char + char)
@@ -174,8 +173,42 @@ function mixWithWhite(rgb, amount = 0.28) {
   return rgb.map((channel) => Math.round(channel + (255 - channel) * amount));
 }
 
+function mixWithBlack(rgb, amount = 0.18) {
+  return rgb.map((channel) => Math.round(channel * (1 - amount)));
+}
+
 function rgbToHex(rgb) {
   return `#${rgb.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Build CSS custom properties for the public shop from a company theme_color hex.
+ * Returns null when the value is missing/invalid so callers keep CSS defaults.
+ */
+export function buildShopThemeStyle(themeColor) {
+  const color = normalizeHexColor(themeColor);
+  if (!color) return null;
+  const rgb = hexToRgb(color);
+  const dark = rgbToHex(mixWithBlack(rgb));
+  return {
+    '--shop-brand': color,
+    '--shop-brand-dark': dark,
+    '--shop-brand-rgb': rgb.join(', '),
+    '--shop-navy': color,
+  };
+}
+
+/** Cart/checkout pages use a separate token prefix. */
+export function buildCheckoutThemeStyle(themeColor) {
+  const color = normalizeHexColor(themeColor);
+  if (!color) return null;
+  const rgb = hexToRgb(color);
+  const dark = rgbToHex(mixWithBlack(rgb));
+  return {
+    '--checkout-brand': color,
+    '--checkout-brand-dark': dark,
+    '--checkout-header-bg': color,
+  };
 }
 
 export function getColorTheme(colorId, customColor = DEFAULT_CUSTOM_COLOR) {

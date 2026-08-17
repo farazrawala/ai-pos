@@ -8,6 +8,7 @@ import {
   FaTruck,
 } from 'react-icons/fa6';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { buildCheckoutThemeStyle } from '../../config/themes.js';
 import {
   cartLines,
   cartSubtotal,
@@ -163,9 +164,7 @@ export default function ShopCheckout() {
       saveShopCart(store._id, {});
       setCart({});
       navigate(
-        `/shop/${companySlug}/order-success/${encodeURIComponent(
-          order._id || order.order_no
-        )}`,
+        `/shop/${companySlug}/order-success/${encodeURIComponent(order._id || order.order_no)}`,
         { replace: true, state: { order } }
       );
     } catch (requestError) {
@@ -181,7 +180,10 @@ export default function ShopCheckout() {
 
   if (!lines.length) {
     return (
-      <div className="checkout-page">
+      <div
+        className="checkout-page"
+        style={buildCheckoutThemeStyle(store?.theme_color) || undefined}
+      >
         <main className="checkout-container cart-empty standalone">
           <h1>Your cart is empty</h1>
           <p>Add products before opening billing details.</p>
@@ -194,10 +196,14 @@ export default function ShopCheckout() {
   }
 
   const logoUrl = resolveCategoryMediaUrl(store?.company_logo);
-  const brandInitial = String(store?.company_name || 'S').trim().charAt(0).toUpperCase();
+  const brandInitial = String(store?.company_name || 'S')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const checkoutThemeStyle = buildCheckoutThemeStyle(store?.theme_color);
 
   return (
-    <div className="checkout-page">
+    <div className="checkout-page" style={checkoutThemeStyle || undefined}>
       <header className="checkout-header">
         <div className="checkout-container checkout-header-inner">
           <button type="button" onClick={() => navigate(`/shop/${companySlug}/cart`)}>
@@ -330,9 +336,7 @@ export default function ShopCheckout() {
                   <textarea
                     rows="3"
                     value={form.delivery_instructions}
-                    onChange={(event) =>
-                      updateField('delivery_instructions', event.target.value)
-                    }
+                    onChange={(event) => updateField('delivery_instructions', event.target.value)}
                     placeholder="Landmark, floor, gate instructions, etc."
                   />
                 </label>
@@ -350,7 +354,10 @@ export default function ShopCheckout() {
                 </div>
                 <div className="checkout-options">
                   {store.delivery_methods.map((method) => (
-                    <label key={method.id} className={deliveryMethod === String(method.id) ? 'selected' : ''}>
+                    <label
+                      key={method.id}
+                      className={deliveryMethod === String(method.id) ? 'selected' : ''}
+                    >
                       <input
                         type="radio"
                         name="delivery_method"
@@ -377,7 +384,10 @@ export default function ShopCheckout() {
                 </div>
                 <div className="checkout-options">
                   {store.payment_methods.map((method) => (
-                    <label key={method.id} className={paymentMethod === String(method.id) ? 'selected' : ''}>
+                    <label
+                      key={method.id}
+                      className={paymentMethod === String(method.id) ? 'selected' : ''}
+                    >
                       <input
                         type="radio"
                         name="payment_method"
@@ -422,9 +432,7 @@ export default function ShopCheckout() {
             <button type="submit" disabled={submitting}>
               {submitting ? 'Placing order…' : `Place order · ${formatShopPrice(total)}`}
             </button>
-            <p>
-              By placing the order, you confirm the details entered above are correct.
-            </p>
+            <p>By placing the order, you confirm the details entered above are correct.</p>
           </aside>
         </form>
       </main>

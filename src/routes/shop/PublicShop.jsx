@@ -19,6 +19,7 @@ import {
 } from 'react-icons/fa6';
 import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { APP_NAME } from '../../config/env.js';
+import { buildShopThemeStyle } from '../../config/themes.js';
 import ShopImage from './ShopImage.jsx';
 import {
   buildShopWhatsAppUrl,
@@ -748,6 +749,7 @@ export default function PublicShop() {
 
   const logo = resolveCategoryMediaUrl(store.company_logo);
   const banner = resolveCategoryMediaUrl(store.company_banner);
+  const shopThemeStyle = buildShopThemeStyle(store.theme_color);
   const initials = String(store.company_name || '?')
     .trim()
     .charAt(0)
@@ -1010,7 +1012,7 @@ export default function PublicShop() {
   );
 
   return (
-    <div className="shop">
+    <div className="shop" style={shopThemeStyle || undefined}>
       <div className="shop-topbar">
         <div className="shop-container shop-topbar-inner">
           <span className="shop-topbar-welcome">Welcome to {store.company_name}</span>
@@ -1394,6 +1396,8 @@ export default function PublicShop() {
                     onSale,
                     discountPercent: cardDiscount,
                   });
+                  const isNew = badges.some((badge) => badge.key === 'new');
+                  const cornerBadges = badges.filter((badge) => badge.key !== 'new');
 
                   return (
                     <article
@@ -1412,15 +1416,16 @@ export default function PublicShop() {
                             </span>
                           }
                         />
-                        {badges.length ? (
+                        {cornerBadges.length ? (
                           <div className="shop-card-badges">
-                            {badges.map((badge) => (
+                            {cornerBadges.map((badge) => (
                               <span key={badge.key} className={`shop-badge is-${badge.tone}`}>
                                 {badge.label}
                               </span>
                             ))}
                           </div>
                         ) : null}
+                        {isNew ? <span className="shop-card-new">New</span> : null}
                         <div className="shop-card-actions">
                           <button
                             type="button"
