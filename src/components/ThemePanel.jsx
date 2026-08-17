@@ -2,11 +2,7 @@ import { useEffect, useState } from 'react';
 import { FaMoon, FaSun, FaXmark } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import {
-  CUSTOM_THEME_ID,
-  DEFAULT_CUSTOM_COLOR,
-  normalizeHexColor,
-} from '../config/themes.js';
+import { CUSTOM_THEME_ID, DEFAULT_CUSTOM_COLOR, normalizeHexColor } from '../config/themes.js';
 
 const ThemePanel = () => {
   const {
@@ -19,6 +15,7 @@ const ThemePanel = () => {
     mode,
     setMode,
     colorThemes,
+    colorSaveStatus,
   } = useTheme();
   const [customColorInput, setCustomColorInput] = useState(customColor);
 
@@ -139,7 +136,11 @@ const ThemePanel = () => {
           </div>
 
           <p className="theme-panel-hint">
-            Choice is saved on this device and applies across the whole app.
+            {colorSaveStatus === 'saving' || colorSaveStatus === 'pending'
+              ? 'Saving color to your company…'
+              : colorSaveStatus === 'error'
+                ? 'Color applied locally, but could not be saved to your company.'
+                : 'Color is saved to your company and applies across the whole app.'}
           </p>
         </div>
       </aside>

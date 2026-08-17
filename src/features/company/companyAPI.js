@@ -1276,6 +1276,13 @@ export async function patchCompanyDisplayStoreOnBigcommerce(companyId, enabled) 
   });
 }
 
+/** App-wide brand color saved as a normalized hex string on the company. */
+export async function patchCompanyThemeColor(companyId, themeColor) {
+  return patchCompanyFormFields(companyId, {
+    theme_color: String(themeColor || '').trim(),
+  });
+}
+
 export function defaultBigCommerceSettings() {
   const out = {
     logo: '',
@@ -1398,20 +1405,21 @@ export function buildBigCommerceSettingsPayload(values = {}) {
 /** Resolve logo URL from `bigcommerce_settings` JSON (preferred) or legacy root fields. */
 export function pickBigCommerceLogoUrl(company) {
   if (!company || typeof company !== 'object') return '';
-  const fromSettings = mergeBigCommerceSettings(extractBigCommerceSettingsFromCompanyBody({ data: company }));
+  const fromSettings = mergeBigCommerceSettings(
+    extractBigCommerceSettingsFromCompanyBody({ data: company })
+  );
   if (fromSettings.logo) return resolveCategoryMediaUrl(fromSettings.logo);
   const raw =
-    company.bigcommerce_logo ??
-    company.bigcommerceLogo ??
-    company.big_commerce_logo ??
-    '';
+    company.bigcommerce_logo ?? company.bigcommerceLogo ?? company.big_commerce_logo ?? '';
   return resolveCategoryMediaUrl(raw);
 }
 
 /** Resolve banner URL from `bigcommerce_settings` JSON (preferred) or legacy root fields. */
 export function pickBigCommerceBannerUrl(company) {
   if (!company || typeof company !== 'object') return '';
-  const fromSettings = mergeBigCommerceSettings(extractBigCommerceSettingsFromCompanyBody({ data: company }));
+  const fromSettings = mergeBigCommerceSettings(
+    extractBigCommerceSettingsFromCompanyBody({ data: company })
+  );
   if (fromSettings.banner) return resolveCategoryMediaUrl(fromSettings.banner);
   const raw =
     company.bigcommerce_banner ??
@@ -1525,10 +1533,7 @@ export function defaultLocalSmsSettings() {
 function readLocalSmsSettingsRaw(company) {
   if (!company || typeof company !== 'object') return null;
   let raw =
-    company.local_sms ??
-    company.localSms ??
-    company.local_sms_settings ??
-    company.localSmsSettings;
+    company.local_sms ?? company.localSms ?? company.local_sms_settings ?? company.localSmsSettings;
   if (raw != null) return raw;
 
   const allFields = company.all_fields ?? company.allFields;
@@ -1540,10 +1545,7 @@ function readLocalSmsSettingsRaw(company) {
     if (parsed?.localSms != null) return parsed.localSms;
     if (parsed?.local_sms_settings != null) return parsed.local_sms_settings;
     if (parsed?.localSmsSettings != null) return parsed.localSmsSettings;
-    if (
-      parsed?.send_sms_on_order !== undefined ||
-      parsed?.send_sms_greater_than !== undefined
-    ) {
+    if (parsed?.send_sms_on_order !== undefined || parsed?.send_sms_greater_than !== undefined) {
       return parsed;
     }
     return null;
@@ -1622,10 +1624,7 @@ export function buildLocalSmsSettingsPayload(values) {
       normalized.send_sms_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
     ),
     send_sms_greater_than: Boolean(normalized.send_sms_greater_than),
-    send_sms_greater_than_amount: Math.max(
-      0,
-      Number(normalized.send_sms_greater_than_amount) || 0
-    ),
+    send_sms_greater_than_amount: Math.max(0, Number(normalized.send_sms_greater_than_amount) || 0),
   };
 }
 
@@ -1750,9 +1749,7 @@ export function normalizeIncomingLocalWhatsappSettings(parsed) {
         defaults.send_whatsapp_greater_than
     ),
     send_whatsapp_greater_than_amount:
-      Number.isFinite(amount) && amount >= 0
-        ? amount
-        : defaults.send_whatsapp_greater_than_amount,
+      Number.isFinite(amount) && amount >= 0 ? amount : defaults.send_whatsapp_greater_than_amount,
   };
 }
 
@@ -1896,10 +1893,7 @@ export function buildApiSmsSettingsPayload(values) {
       normalized.send_sms_on_order_message || DEFAULT_SEND_SMS_ON_ORDER_TEMPLATE
     ),
     send_sms_greater_than: Boolean(normalized.send_sms_greater_than),
-    send_sms_greater_than_amount: Math.max(
-      0,
-      Number(normalized.send_sms_greater_than_amount) || 0
-    ),
+    send_sms_greater_than_amount: Math.max(0, Number(normalized.send_sms_greater_than_amount) || 0),
     api_url: String(normalized.api_url || '').trim(),
     api_key: String(normalized.api_key || '').trim(),
     api_secret: String(normalized.api_secret || '').trim(),
@@ -2090,7 +2084,8 @@ export function normalizeIncomingDefaultPrinterSettings(parsed) {
     port: Number(get('port')) || defaults.port,
     printer_type: get('printer_type', 'printerType') ?? defaults.printer_type,
     paper_width: get('paper_width', 'paperWidth') ?? defaults.paper_width,
-    character_encoding: get('character_encoding', 'characterEncoding') ?? defaults.character_encoding,
+    character_encoding:
+      get('character_encoding', 'characterEncoding') ?? defaults.character_encoding,
     copies: Math.max(1, Number(get('copies')) || defaults.copies),
     auto_cut: get('auto_cut', 'autoCut') !== false,
     open_cash_drawer: Boolean(get('open_cash_drawer', 'openCashDrawer')),
@@ -2103,7 +2098,8 @@ export function mergeDefaultPrinterSettings(parsed) {
 }
 
 export function buildDefaultPrinterSettingsPayload(values) {
-  const normalized = normalizeIncomingDefaultPrinterSettings(values) || defaultDefaultPrinterSettings();
+  const normalized =
+    normalizeIncomingDefaultPrinterSettings(values) || defaultDefaultPrinterSettings();
   return {
     name: String(normalized.name || '').trim(),
     ip_address: String(normalized.ip_address || '').trim(),

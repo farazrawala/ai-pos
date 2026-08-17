@@ -1285,6 +1285,13 @@
   background: #f8f9fa;
 }
 
+.pos-page .pos-product-img--logo {
+  object-fit: contain;
+  padding: 6px;
+  background: #fff;
+  opacity: 0.45;
+}
+
 .pos-page .pos-product-name {
   display: -webkit-box;
   -webkit-line-clamp: 2;

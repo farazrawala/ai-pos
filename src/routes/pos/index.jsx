@@ -3116,6 +3116,7 @@ const Pos = () => {
           categoriesStatus={categoriesStatus}
           categoriesError={categoriesError}
           warehouseId={defaultWarehouseId}
+          companyLogoUrl={companyBrand.logoUrl}
           onAddToCart={addToCart}
           onPaymentClick={handlePaymentClick}
           onSaveDraft={handleSaveDraft}

@@ -161,6 +161,7 @@ const PosProducts = ({
   categoriesError,
   onAddToCart,
   warehouseId = '',
+  companyLogoUrl = '',
   onPaymentClick,
   onSaveDraft,
   cartLineCount = 0,
@@ -845,7 +846,9 @@ const PosProducts = ({
                   const displayName = formatProductNameWithStock(name, stock);
                   const parentId = getParentProductId(p);
                   const parentProduct = parentId ? productsById.get(parentId) || null : null;
-                  const imgUrl = getProductImageUrl(p, parentProduct);
+                  const productImgUrl = getProductImageUrl(p, parentProduct);
+                  const imgUrl = productImgUrl || companyLogoUrl || '';
+                  const usingCompanyLogo = !productImgUrl && Boolean(companyLogoUrl);
                   const editProductId = parentId || productId;
                   return (
                     <div className="pos-product-grid__item" key={id}>
@@ -866,10 +869,21 @@ const PosProducts = ({
                             <img
                               src={imgUrl}
                               alt=""
-                              className="pos-product-img w-100 d-block"
+                              data-using-logo={usingCompanyLogo ? '1' : '0'}
+                              className={`pos-product-img w-100 d-block${
+                                usingCompanyLogo ? ' pos-product-img--logo' : ''
+                              }`}
                               onError={(e) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = withBase('/assets/img/default.jpg');
+                                const img = e.currentTarget;
+                                img.onerror = null;
+                                if (companyLogoUrl && img.dataset.usingLogo !== '1') {
+                                  img.dataset.usingLogo = '1';
+                                  img.src = companyLogoUrl;
+                                  img.classList.add('pos-product-img--logo');
+                                  return;
+                                }
+                                img.src = withBase('/assets/img/default.jpg');
+                                img.classList.remove('pos-product-img--logo');
                               }}
                             />
                           ) : (
