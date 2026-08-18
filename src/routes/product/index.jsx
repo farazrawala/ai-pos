@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaArrowsRotate, FaCloudArrowUp, FaFilter } from 'react-icons/fa6';
+import { FaArrowsRotate, FaCloudArrowUp, FaFileImport, FaFilter } from 'react-icons/fa6';
 import {
   fetchProducts,
   deleteProduct,
@@ -29,6 +29,7 @@ import ProductWarehouseStockModal from '../../components/product/ProductWarehous
 import FetchProductsModal from '../../components/product/FetchProductsModal.jsx';
 import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
+import ImportProductsModal from '../../components/product/ImportProductsModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { productEditIdFromRecord, productIdFromRecord, parentProductIdFromRecord } from '../../components/product/productVariationUtils.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
@@ -322,6 +323,7 @@ const Product = () => {
   const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
   const [fetchProductsModalOpen, setFetchProductsModalOpen] = useState(false);
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
+  const [importProductsModalOpen, setImportProductsModalOpen] = useState(false);
   const [viewSyncProduct, setViewSyncProduct] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -1015,6 +1017,14 @@ const Product = () => {
                           <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
                           Sync
                         </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary mb-0"
+                          onClick={() => setImportProductsModalOpen(true)}
+                        >
+                          <NavIcon icon={FaFileImport} className="me-1" size={14} />
+                          Import Products
+                        </button>
                         <AddNewButton to="/products/add" label="Add product" size="sm" />
                       </>
                     ) : null}
@@ -1599,6 +1609,12 @@ const Product = () => {
         open={syncProductsModalOpen}
         onClose={() => setSyncProductsModalOpen(false)}
         onSaved={handleSyncProductsSaved}
+      />
+
+      <ImportProductsModal
+        open={importProductsModalOpen}
+        onClose={() => setImportProductsModalOpen(false)}
+        onImported={refreshProductList}
       />
 
       <ViewProductSyncModal

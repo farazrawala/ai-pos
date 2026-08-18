@@ -10,6 +10,7 @@ const SIZE_CLASS = {
   md: '',
   lg: 'app-modal-dialog--lg',
   xl: 'app-modal-dialog--xl',
+  full: 'app-modal-dialog--full',
 };
 
 /**

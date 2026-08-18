@@ -5,8 +5,10 @@ import {
   createCourierShipmentRequest,
   courierTypeToProvider,
   extractCourierShipmentErrorMessage,
+  fetchCourierBookingOptionsRequest,
   fetchCouriersRequest,
   isPostexMerchantPortalUrl,
+  normalizeBookingOptions,
   pickCourierId,
   updateCourierRequest,
 } from '../../features/courier/courierAPI.js';
@@ -45,6 +47,25 @@ const isPostexAuthFailure = (message) =>
     String(message || '')
   );
 
+const isFlagshipCourier = (item) => {
+  const key = String(item?.type || item?.provider || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+  return key === 'flagship';
+};
+
+const pickupAddressId = (item) =>
+  item?.id != null ? String(item.id) : item?._id != null ? String(item._id) : '';
+
+const pickupAddressLabel = (item) => {
+  const address = String(item?.address || item?.label || '').trim();
+  const id = pickupAddressId(item);
+  if (address && item?.is_default) return `${address} (default)`;
+  if (address) return address;
+  return id || 'Pickup address';
+};
+
 /**
  * Select a saved courier integration and create a shipment for an order.
  */
@@ -56,6 +77,12 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   const [saveStatus, setSaveStatus] = useState('idle');
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(null);
+  const [bookingOptions, setBookingOptions] = useState(null);
+  const [bookingOptionsStatus, setBookingOptionsStatus] = useState('idle');
+  const [bookingOptionsError, setBookingOptionsError] = useState(null);
+  const [courierCompany, setCourierCompany] = useState('');
+  const [courierOption, setCourierOption] = useState('');
+  const [pickupLocation, setPickupLocation] = useState('');
 
   useEffect(() => {
     if (!open) return undefined;
@@ -68,6 +95,12 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     setSaveStatus('idle');
     setSelectedCourierId('');
     setCouriers([]);
+    setBookingOptions(null);
+    setBookingOptionsStatus('idle');
+    setBookingOptionsError(null);
+    setCourierCompany('');
+    setCourierOption('');
+    setPickupLocation('');
 
     fetchCouriersRequest({ limit: 500 })
       .then((result) => {
@@ -100,6 +133,86 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   const selectedHasBadPostexUrl =
     String(selectedCourier?.type || '').toLowerCase() === 'postex' &&
     isPostexMerchantPortalUrl(selectedCourier?.url);
+  const isFlagship = isFlagshipCourier(selectedCourier);
+  const requiresCompany = Boolean(isFlagship && bookingOptions?.requires_company);
+  const companies = Array.isArray(bookingOptions?.companies) ? bookingOptions.companies : [];
+  const rateCards =
+    bookingOptions?.rate_cards && typeof bookingOptions.rate_cards === 'object'
+      ? bookingOptions.rate_cards
+      : {};
+  const companyRateCards = courierCompany
+    ? (Array.isArray(rateCards[courierCompany]) ? rateCards[courierCompany] : [])
+    : [];
+  const pickupAddresses = Array.isArray(bookingOptions?.pickup_addresses)
+    ? bookingOptions.pickup_addresses
+    : [];
+
+  useEffect(() => {
+    if (!open || !selectedCourierId || !isFlagshipCourier(selectedCourier)) {
+      setBookingOptions(null);
+      setBookingOptionsStatus('idle');
+      setBookingOptionsError(null);
+      setCourierCompany('');
+      setCourierOption('');
+      setPickupLocation('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    setBookingOptionsStatus('loading');
+    setBookingOptionsError(null);
+    setBookingOptions(null);
+    setCourierCompany('');
+    setCourierOption('');
+    setPickupLocation('');
+
+    fetchCourierBookingOptionsRequest(selectedCourierId)
+      .then((result) => {
+        if (cancelled) return;
+        setBookingOptions(result);
+        setBookingOptionsStatus('succeeded');
+        if (!result.requires_company) return;
+        const firstCompany = result.companies[0] || '';
+        if (firstCompany) setCourierCompany(firstCompany);
+        const defaultPickup =
+          result.pickup_addresses.find((item) => item?.is_default) || result.pickup_addresses[0];
+        if (defaultPickup) setPickupLocation(pickupAddressId(defaultPickup));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setBookingOptionsStatus('failed');
+        setBookingOptionsError(err?.message || 'Failed to load booking companies');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedCourierId, selectedCourier]);
+
+  useEffect(() => {
+    if (!courierCompany) {
+      setCourierOption('');
+      return;
+    }
+    const options = Array.isArray(rateCards[courierCompany]) ? rateCards[courierCompany] : [];
+    setCourierOption((prev) => (options.includes(prev) ? prev : options[0] || ''));
+  }, [courierCompany, bookingOptions]);
+
+  const applyCompanyRequiredPayload = (payload) => {
+    const normalized = normalizeBookingOptions(payload);
+    setBookingOptions((prev) => ({
+      ...normalized,
+      pickup_addresses:
+        normalized.pickup_addresses.length > 0
+          ? normalized.pickup_addresses
+          : prev?.pickup_addresses || [],
+      requires_company: true,
+    }));
+    setBookingOptionsStatus('succeeded');
+    if (normalized.companies[0] && !courierCompany) {
+      setCourierCompany(normalized.companies[0]);
+    }
+  };
 
   const handleSave = async () => {
     if (!orderId) {
@@ -127,13 +240,24 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
       return;
     }
 
-    // Temporary: PostEx staging pickup/store address code is always 001.
+    if (
+      isFlagshipCourier(selected) &&
+      (bookingOptions?.requires_company || companies.length > 0) &&
+      !courierCompany
+    ) {
+      setSaveError('Please select a courier company.');
+      setSaveStatus('failed');
+      return;
+    }
     const isPostex = String(selected.type || '').toLowerCase() === 'postex';
+    const isFlagshipSelected = isFlagshipCourier(selected);
     const pickupCode = isPostex
       ? '001'
-      : String(
-          selected.account_no || selected.accountNo || selected.pickupAddressCode || ''
-        ).trim();
+      : isFlagshipSelected
+        ? ''
+        : String(
+            selected.account_no || selected.accountNo || selected.pickupAddressCode || ''
+          ).trim();
     const courierId = pickCourierId(selected);
 
     setSaveStatus('loading');
@@ -164,6 +288,13 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
               account_no: pickupCode,
               pickupAddressCode: pickupCode,
               storeAddressCode: isPostex ? pickupCode : undefined,
+            }
+          : {}),
+        ...(isFlagshipSelected
+          ? {
+              courier_company: courierCompany,
+              courier_option: courierOption,
+              pickuplocation: pickupLocation,
             }
           : {}),
       });
@@ -204,8 +335,23 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
       });
       window.setTimeout(() => onClose?.(), 900);
     } catch (err) {
+      const payload = err?.payload || err?.data || err?.response || null;
+      if (
+        err?.code === 'COURIER_COMPANY_REQUIRED' ||
+        payload?.code === 'COURIER_COMPANY_REQUIRED'
+      ) {
+        applyCompanyRequiredPayload(payload || {});
+        setSaveStatus('idle');
+        setSaveError(
+          payload?.message ||
+            err?.message ||
+            'Select a courier company to book with.'
+        );
+        return;
+      }
+
       let msg =
-        extractCourierShipmentErrorMessage(err?.payload || err?.data || err?.response || null, '') ||
+        extractCourierShipmentErrorMessage(payload, '') ||
         err?.message ||
         'Failed to create shipment';
 
@@ -227,6 +373,13 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
           `${msg} Frontend sent pickup/store code 001 and saved account_no=001 on the courier. ` +
           'If this persists, the backend courier/create handler is not mapping account_no → ' +
           'PostEx pickupAddressCode/storeAddressCode.';
+      } else if (
+        /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo/i.test(msg) &&
+        isFlagshipCourier(selected)
+      ) {
+        msg =
+          'Flagship host could not be reached (DNS). Set the courier API URL to ' +
+          'https://partners.flaship.pk, put the Flaship API key in Token, save, then retry.';
       }
 
       // Provider sometimes returns "SUCCESS" as the only message — show green, not red.
@@ -317,6 +470,88 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 )}
               </div>
 
+              {isFlagship && bookingOptionsStatus === 'loading' ? (
+                <p className="text-xs text-muted mb-0 mt-3">
+                  <span className="spinner-border spinner-border-sm me-2" role="status" />
+                  Loading booking companies…
+                </p>
+              ) : null}
+
+              {bookingOptionsError ? (
+                <div className="alert alert-danger py-2 mt-3 mb-0">{bookingOptionsError}</div>
+              ) : null}
+
+              {requiresCompany && companies.length > 0 ? (
+                <div className="mt-3">
+                  <label htmlFor="createShipmentCompany" className="form-label">
+                    {bookingOptions.prompt || 'Which company would you like to book?'}{' '}
+                    <span className="text-danger">*</span>
+                  </label>
+                  <select
+                    id="createShipmentCompany"
+                    className="form-select"
+                    value={courierCompany}
+                    onChange={(e) => {
+                      setCourierCompany(e.target.value);
+                      if (saveError) setSaveError(null);
+                    }}
+                    disabled={isSaving}
+                  >
+                    <option value="">Select company…</option>
+                    {companies.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {requiresCompany && courierCompany && companyRateCards.length > 0 ? (
+                <div className="mt-3">
+                  <label htmlFor="createShipmentOption" className="form-label">
+                    Service / rate card
+                  </label>
+                  <select
+                    id="createShipmentOption"
+                    className="form-select"
+                    value={courierOption}
+                    onChange={(e) => setCourierOption(e.target.value)}
+                    disabled={isSaving}
+                  >
+                    {companyRateCards.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {isFlagship && pickupAddresses.length > 0 ? (
+                <div className="mt-3">
+                  <label htmlFor="createShipmentPickup" className="form-label">
+                    Pickup address
+                  </label>
+                  <select
+                    id="createShipmentPickup"
+                    className="form-select"
+                    value={pickupLocation}
+                    onChange={(e) => setPickupLocation(e.target.value)}
+                    disabled={isSaving}
+                  >
+                    {pickupAddresses.map((item) => {
+                      const id = pickupAddressId(item);
+                      return (
+                        <option key={id} value={id}>
+                          {pickupAddressLabel(item)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              ) : null}
+
               {selectedHasBadPostexUrl ? (
                 <div className="alert alert-warning py-2 mt-3 mb-0">
                   <div className="mb-2">
@@ -379,7 +614,9 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                   isLoadingCouriers ||
                   !selectedCourierId ||
                   Boolean(saveSuccess) ||
-                  selectedHasBadPostexUrl
+                  selectedHasBadPostexUrl ||
+                  (isFlagship && bookingOptionsStatus === 'loading') ||
+                  (requiresCompany && !courierCompany)
                 }
               >
                 {isSaving ? (

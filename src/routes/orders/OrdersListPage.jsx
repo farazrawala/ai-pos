@@ -361,6 +361,7 @@ const ORDER_TYPE_FILTER_OPTIONS = [
   { value: 'online', label: 'Online' },
   { value: 'bigcommerce', label: 'BigCommerce' },
   { value: 'website', label: 'Website' },
+  { value: 'shop', label: 'Shop' },
 ];
 
 /** Known order `tags` values for OMS filter / confirmation. */
@@ -435,6 +436,15 @@ function isOnlineOrder(row) {
 
 const channelBadgeClass = (online) =>
   online ? 'bg-gradient-info' : 'bg-gradient-secondary';
+
+const orderTypeBadgeClass = (value) => {
+  const type = String(value || '').trim().toLowerCase();
+  if (type === 'shop') return 'bg-gradient-success';
+  if (type === 'offline') return 'bg-gradient-secondary';
+  if (type === 'bigcommerce') return 'bg-gradient-primary';
+  if (type === 'website' || type === 'online') return 'bg-gradient-info';
+  return type ? 'bg-gradient-info' : 'bg-gradient-secondary';
+};
 
 const getOrderType = (row) => {
   const raw = row?.order_type ?? row?.orderType ?? '';
@@ -2471,9 +2481,7 @@ export default function OrdersListPage({ config }) {
                               <td className="text-sm">
                                 {orderType ? (
                                   <span
-                                    className={`badge text-xxs ${channelBadgeClass(
-                                      orderType.toLowerCase() !== 'offline'
-                                    )}`}
+                                    className={`badge text-xxs ${orderTypeBadgeClass(orderType)}`}
                                     title={orderType}
                                   >
                                     {formatOrderTypeLabel(orderType)}

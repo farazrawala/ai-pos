@@ -971,21 +971,144 @@ export const generateUniqueProductBarcodeRequest = async (productId) => {
 };
 
 /** Fetch every page matching filters (for CSV / Excel / PDF export). */
-export async function fetchAllProductsForExportRequest(params = {}) {
+export async function fetchAllProductsForExportRequest(params = {}, onProgress) {
   const limit = 500;
   let page = 1;
   let allData = [];
   let totalPages = 1;
-  const { page: _p, limit: _l, ...baseParams } = params;
+  const { page: _p, limit: _l, onProgress: nestedProgress, ...baseParams } = params;
+  const report = typeof onProgress === 'function' ? onProgress : nestedProgress;
 
   while (page <= totalPages) {
     const result = await fetchProductsRequest({ ...baseParams, page, limit });
     const batch = Array.isArray(result.data) ? result.data : [];
     allData = allData.concat(batch);
     totalPages = Math.max(result.totalPages || 1, 1);
+    report?.({
+      page,
+      totalPages,
+      loaded: allData.length,
+      total: result.total || allData.length,
+    });
     if (batch.length === 0) break;
     page += 1;
   }
 
   return allData;
 }
+
+const PRODUCT_IMPORT_BATCH_SIZE = 100;
+let productBulkImportUnavailable = false;
+
+const mapProductPayloadForApi = (data) => {
+  const mapped = { ...data };
+  if (mapped.name !== undefined) {
+    mapped.product_name = mapped.name;
+    delete mapped.name;
+  }
+  if (mapped.price !== undefined) {
+    mapped.product_price = String(mapped.price);
+    delete mapped.price;
+  }
+  if (mapped.slug !== undefined) {
+    mapped.product_slug = mapped.slug;
+    delete mapped.slug;
+  }
+  if (mapped.description !== undefined) {
+    mapped.product_description = mapped.description;
+    delete mapped.description;
+  }
+  if (mapped.categoryId !== undefined) {
+    mapped.category_id = Array.isArray(mapped.categoryId) ? mapped.categoryId : [mapped.categoryId];
+    delete mapped.categoryId;
+  }
+  if (mapped.image !== undefined) {
+    mapped.product_image = mapped.image;
+    delete mapped.image;
+  }
+  delete mapped.company_id;
+  delete mapped.companyId;
+  delete mapped._id;
+  delete mapped.id;
+  delete mapped.created_by;
+  delete mapped.updated_by;
+  delete mapped.fetch_from_company_id;
+  delete mapped.fetch_from_product_id;
+  return mapped;
+};
+
+/** GET /product/import-form — optional column schema from the backend. */
+export const fetchProductImportFormRequest = async () => {
+  const token = getAuthToken();
+  const headers = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const url = `${BASE_URL}product/import-form`;
+  const response = await fetch(url, { method: 'GET', headers });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(buildApiErrorMessage(errorData, response.status));
+  }
+  return response.json();
+};
+
+/**
+ * POST /product/import with a JSON batch of already-mapped products.
+ * Returns null when the endpoint is not a JSON bulk API so callers can fall back.
+ */
+export const importProductsBulkRequest = async (products, options = {}) => {
+  if (productBulkImportUnavailable) return null;
+
+  const token = getAuthToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const payload = {
+    products: (products || []).map((item) => mapProductPayloadForApi(item?.productData || item)),
+    options: {
+      existing: options.existingMode || 'skip',
+      match_by: options.matchBy || 'sku_then_barcode',
+    },
+  };
+
+  const url = `${BASE_URL}product/import`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 404 || response.status === 405) {
+    productBulkImportUnavailable = true;
+    return null;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    productBulkImportUnavailable = true;
+    return null;
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = buildApiErrorMessage(result, response.status);
+    if (/multipart|file|csv|tsv|form-data/i.test(message)) {
+      productBulkImportUnavailable = true;
+      return null;
+    }
+    throw new Error(message);
+  }
+
+  return result;
+};
+
+export const importSingleProductRequest = async (item) => {
+  const productData = item?.productData || {};
+  const images = Array.isArray(item?.images) ? item.images : [];
+  if (item?.action === 'update' && item?.existingId) {
+    return updateProductRequest(item.existingId, productData, images);
+  }
+  return createProductRequest(productData, images);
+};
+
+export { PRODUCT_IMPORT_BATCH_SIZE };

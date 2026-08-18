@@ -305,6 +305,7 @@ export const COURIER_TYPES = [
   { value: 'call_courier', label: 'Call Courier' },
   { value: 'trax', label: 'Trax' },
   { value: 'postex', label: 'PostEx' },
+  { value: 'flagship', label: 'Flagship' },
 ];
 
 /** Suggested API base URLs for the courier integration `url` field. */
@@ -315,6 +316,7 @@ export const COURIER_DEFAULT_API_URLS = {
   postex: 'https://api.postex.pk/services/integration/api',
   /** Staging Merchant API (stg-merchant.postex.pk tokens) */
   postex_staging: 'https://stg-api.postex.pk/services/integration/api',
+  flagship: 'https://partners.flaship.pk',
 };
 
 export const courierApiUrlPlaceholder = (type) => {
@@ -376,13 +378,67 @@ export const courierTypeToProvider = (type) => {
     return 'Call Courier';
   }
   if (key === 'trax') return 'Trax';
+  if (key === 'flagship' || key === 'flag ship' || key === 'flag-ship') return 'Flagship';
   return String(type).trim();
+};
+
+/**
+ * Flagship (and similar) booking options — companies, rate cards, pickup addresses.
+ * GET /courier/booking-options?courier_id=
+ */
+export const fetchCourierBookingOptionsRequest = async (courierId) => {
+  if (!courierId) throw new Error('Courier id is required');
+  const url = `${BASE_URL}courier/booking-options?courier_id=${encodeURIComponent(courierId)}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      payload.error || payload.message || `Failed to load booking options (HTTP ${response.status})`
+    );
+  }
+  return normalizeBookingOptions(payload);
+};
+
+export const normalizeBookingOptions = (payload = {}) => {
+  const details = payload.details && typeof payload.details === 'object' ? payload.details : {};
+  const companies = Array.isArray(payload.companies)
+    ? payload.companies
+    : Array.isArray(details.companies)
+      ? details.companies
+      : [];
+  const rateCards =
+    payload.rate_cards && typeof payload.rate_cards === 'object'
+      ? payload.rate_cards
+      : details.rate_cards && typeof details.rate_cards === 'object'
+        ? details.rate_cards
+        : {};
+  const pickupAddresses = Array.isArray(payload.pickup_addresses)
+    ? payload.pickup_addresses
+    : Array.isArray(details.pickup_addresses)
+      ? details.pickup_addresses
+      : [];
+
+  return {
+    success: payload.success !== false,
+    provider: payload.provider || '',
+    requires_company: Boolean(
+      payload.requires_company ?? details.requires_company ?? companies.length > 0
+    ),
+    prompt:
+      payload.prompt ||
+      details.prompt ||
+      'Which company would you like to book?',
+    companies: companies.map((item) => String(item).trim()).filter(Boolean),
+    rate_cards: rateCards,
+    pickup_addresses: pickupAddresses,
+    raw: payload,
+  };
 };
 
 /**
  * Create a courier shipment for an order.
  * POST /courier/create/:orderId
- * body: { provider?, courier_id?, account_no?, pickupAddressCode?, storeAddressCode? }
+ * body: { provider?, courier_id?, account_no?, pickupAddressCode?, storeAddressCode?, courier_company?, courier_option?, pickuplocation? }
  */
 export const createCourierShipmentRequest = async (orderId, options = {}) => {
   if (!orderId) throw new Error('Order id is required');
@@ -402,6 +458,18 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
   const storeAddressCode =
     typeof options === 'object'
       ? options?.storeAddressCode || options?.store_address_code || ''
+      : '';
+  const courierCompany =
+    typeof options === 'object'
+      ? options?.courier_company || options?.courierCompany || ''
+      : '';
+  const courierOption =
+    typeof options === 'object'
+      ? options?.courier_option || options?.courierOption || ''
+      : '';
+  const pickupLocation =
+    typeof options === 'object'
+      ? options?.pickuplocation || options?.pickup_location || options?.pickupLocation || ''
       : '';
 
   const body = {
@@ -436,6 +504,14 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
     body.store_address_code = code;
   }
 
+  if (courierCompany) body.courier_company = String(courierCompany).trim();
+  if (courierOption) body.courier_option = String(courierOption).trim();
+  if (pickupLocation) {
+    const loc = String(pickupLocation).trim();
+    body.pickuplocation = loc;
+    body.pickup_location = loc;
+  }
+
   const response = await fetch(`${BASE_URL}courier/create/${encodeURIComponent(orderId)}`, {
     method: 'POST',
     headers: getHeaders(),
@@ -456,6 +532,7 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
     const err = new Error(message);
     err.payload = payload;
     err.status = status;
+    err.code = payload.code || '';
     throw err;
   };
 
@@ -766,6 +843,9 @@ export const buildPublicTrackingUrl = (provider, trackingId) => {
   }
   if (key === 'trax') {
     return `https://sonic.pk/tracking?tracking_number=${encodeURIComponent(id)}`;
+  }
+  if (key === 'flagship' || key === 'flag-ship') {
+    return `https://partners.flaship.pk`;
   }
   return '';
 };

@@ -161,7 +161,10 @@ const CourierIntegrationAdd = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Add Courier Integration</h5>
-                  <p className="text-sm mb-0">Connect courier API credentials (TCS, Leopard, BlueEx, M&P, Call Courier, Trax, PostEx).</p>
+                  <p className="text-sm mb-0">
+                    Connect courier API credentials (
+                    {COURIER_TYPES.map((opt) => opt.label).join(', ')}).
+                  </p>
                 </div>
                 <button
                   type="button"

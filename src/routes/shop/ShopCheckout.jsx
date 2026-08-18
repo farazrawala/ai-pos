@@ -147,6 +147,7 @@ export default function ShopCheckout() {
         method: 'POST',
         body: JSON.stringify({
           client_order_id: clientOrderId,
+          order_type: 'shop',
           customer: form,
           delivery_method: deliveryMethod,
           payment_method_id: paymentMethod || undefined,
