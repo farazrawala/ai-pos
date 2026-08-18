@@ -1034,8 +1034,18 @@ function buildOrderListQueryParams(listParams = {}) {
   if (orderStatus) queryParams.append('order_status', String(orderStatus));
   const tag = listParams.tag || listParams.tags;
   if (tag) queryParams.append('tag', String(tag));
-  if (listParams.sortBy) queryParams.append('sortBy', String(listParams.sortBy));
-  if (listParams.sortOrder) queryParams.append('sortOrder', String(listParams.sortOrder));
+  queryParams.append(
+    'sortBy',
+    String(listParams.sortBy != null && String(listParams.sortBy).trim() !== ''
+      ? listParams.sortBy
+      : 'createdAt')
+  );
+  queryParams.append(
+    'sortOrder',
+    String(listParams.sortOrder != null && String(listParams.sortOrder).trim() !== ''
+      ? listParams.sortOrder
+      : 'desc')
+  );
   const populate =
     listParams.populate != null && String(listParams.populate).trim() !== ''
       ? String(listParams.populate).trim()

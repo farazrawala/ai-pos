@@ -54,7 +54,7 @@ const initialState = {
     orderStatus: '',
     tag: '',
   },
-  sort: { sortBy: null, sortOrder: 'asc' },
+  sort: { sortBy: 'createdAt', sortOrder: 'desc' },
   deleteStatus: 'idle',
   deleteError: null,
 };
@@ -107,13 +107,14 @@ const ordersSlice = createSlice({
     setSort: (state, action) => {
       const { sortBy, sortOrder } = action.payload;
       if (sortBy === null) {
-        state.sort.sortBy = null;
-        state.sort.sortOrder = 'asc';
+        state.sort.sortBy = 'createdAt';
+        state.sort.sortOrder = 'desc';
       } else if (state.sort.sortBy === sortBy) {
         state.sort.sortOrder = state.sort.sortOrder === 'asc' ? 'desc' : 'asc';
       } else {
         state.sort.sortBy = sortBy;
-        state.sort.sortOrder = sortOrder || 'asc';
+        const isDateColumn = sortBy === 'createdAt' || sortBy === 'updatedAt';
+        state.sort.sortOrder = sortOrder || (isDateColumn ? 'desc' : 'asc');
       }
       state.pagination.page = 1;
     },
