@@ -62,7 +62,7 @@ export default function TrackingStatusModal({
   const loadStatus = () => {
     setStatus('loading');
     setError('');
-    return fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId })
+    return fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId, provider })
       .then((result) => {
         setDetail(result);
         setStatus('succeeded');
@@ -87,7 +87,7 @@ export default function TrackingStatusModal({
     setError('');
     setDetail(null);
 
-    fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId })
+    fetchCourierTrackingStatusRequest(orderId, { consignee: trackingId, provider })
       .then((result) => {
         if (cancelled) return;
         setDetail(result);
@@ -108,7 +108,7 @@ export default function TrackingStatusModal({
     return () => {
       cancelled = true;
     };
-  }, [open, orderId, trackingId]);
+  }, [open, orderId, trackingId, provider]);
 
   if (!open) return null;
 
@@ -170,13 +170,12 @@ export default function TrackingStatusModal({
                 <div className="card-body py-3">
                   <h6 className="text-xs text-uppercase text-muted mb-2">Tracking URLs</h6>
                   <UrlRow
-                    label="Status API (TCS GetDynamicTrackDetail)"
-                    url={statusApiUrl}
-                    hint={
-                      showProxyHint && requestApiUrl && requestApiUrl !== statusApiUrl
-                        ? `Browser request (dev proxy): ${requestApiUrl}`
-                        : 'Sandbox tracking API — live events for production CNs may be empty here.'
+                    label={
+                      detail?.viaBackend
+                        ? `Status API (${provider || 'Courier'} tracking via backend)`
+                        : 'Status API (TCS GetDynamicTrackDetail)'
                     }
+                    url={statusApiUrl}
                   />
                   <UrlRow
                     label="Public tracking page"

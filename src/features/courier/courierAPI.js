@@ -862,20 +862,116 @@ export const resolveTcsTrackingBearerToken = (options = {}) => {
   return DEFAULT_TCS_SANDBOX_BEARER;
 };
 
+/**
+ * Fetch tracking status via backend (works for all couriers — PostEx, TCS, Leopard, etc.).
+ * Backend routes:
+ *   GET /courier/tracking/:trackingNo
+ *   GET /courier/order/:orderId/tracking
+ */
 export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) => {
   const consignee = String(
     options.consignee ||
       options.trackingId ||
       options.tracking_id ||
       options.cn ||
-      orderId ||
       ''
   ).trim();
 
-  if (!consignee) {
+  if (!consignee && !orderId) {
     throw new Error('Consignment / tracking number is required');
   }
 
+  // Try tracking by tracking number first (more reliable), then by orderId
+  const attempts = [];
+  if (consignee) {
+    attempts.push({
+      url: `${BASE_URL}courier/tracking/${encodeURIComponent(consignee)}`,
+      label: 'by tracking number',
+    });
+  }
+  if (orderId) {
+    attempts.push({
+      url: `${BASE_URL}courier/order/${encodeURIComponent(orderId)}/tracking`,
+      label: 'by order ID',
+    });
+  }
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const response = await fetch(attempt.url, { method: 'GET', headers: getHeaders() });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        lastError = new Error(
+          payload.error || payload.message || `Tracking failed (HTTP ${response.status})`
+        );
+        continue;
+      }
+
+      const normalized = normalizeBackendTrackingResponse(payload, consignee);
+      return {
+        ...normalized,
+        requestUrl: attempt.url,
+        upstreamUrl: '',
+        viaProxy: false,
+        viaBackend: true,
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // All backend attempts failed — fall back to direct TCS for TCS CNs
+  if (consignee) {
+    try {
+      return await fetchTcsTrackingStatusDirect(consignee, options);
+    } catch {
+      // ignore, throw original backend error
+    }
+  }
+
+  throw lastError || new Error('Failed to fetch tracking status');
+};
+
+/** Normalize the backend tracking response into the UI shape. */
+const normalizeBackendTrackingResponse = (payload = {}, fallbackCn = '') => {
+  const history = Array.isArray(payload.history) ? payload.history : [];
+  const latestEvent = history[0] || {};
+
+  const status = firstNonEmpty(
+    payload.status,
+    latestEvent.status,
+    payload.shipment_status
+  );
+
+  const deliveryInfo = history.map((e) => ({
+    status: e.status || '',
+    datetime: e.event_time || e.eventTime || e.created_at || '',
+    station: e.location || '',
+    code: e.status_code || '',
+    recievedby: '',
+  }));
+
+  return {
+    success: Boolean(payload.success),
+    consignee: payload.tracking_number || fallbackCn,
+    status,
+    statusCode: payload.status_code || '',
+    summary: '',
+    message: status ? `Current status: ${status}` : 'No tracking events found.',
+    receivedBy: '',
+    station: latestEvent.location || '',
+    datetime: latestEvent.event_time || latestEvent.eventTime || '',
+    shipmentInfo: [],
+    deliveryInfo,
+    checkpoints: [],
+    raw: payload,
+  };
+};
+
+/** Direct TCS GetDynamicTrackDetail call (sandbox/production). */
+const fetchTcsTrackingStatusDirect = async (consignee, options = {}) => {
   const urlInfo = resolveTcsTrackingStatusApiUrl(consignee);
   const useDevProxy = Boolean(import.meta.env.DEV);
   const baseUrl = useDevProxy ? TCS_TRACKING_DEV_PROXY_PATH : TCS_TRACKING_DETAIL_URL;
@@ -887,11 +983,7 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
     Authorization: `Bearer ${bearer}`,
   };
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers,
-  });
-
+  const response = await fetch(url, { method: 'GET', headers });
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -984,7 +1076,13 @@ export const normalizeCourierTrackingStatus = (payload = {}, fallbackCn = '') =>
     root.status,
     root.current_status,
     root.currentStatus,
-    payload.status
+    root.transactionStatus,
+    root.transaction_status,
+    root.orderStatus,
+    root.order_status,
+    payload.status,
+    payload.transactionStatus,
+    payload.orderStatus
   );
 
   const statusCode = firstNonEmpty(

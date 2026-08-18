@@ -10,6 +10,7 @@ import LedgerDetailFilters from '../../components/ledger/filters/LedgerDetailFil
 import LedgerTransactionsTable from '../../components/ledger/tables/LedgerTransactionsTable.jsx';
 import LedgerTAccountView from '../../components/ledger/tables/LedgerTAccountView.jsx';
 import LedgerTransactionDrawer from '../../components/ledger/drawers/LedgerTransactionDrawer.jsx';
+import LedgerPaymentReceiptModal from '../../components/ledger/LedgerPaymentReceiptModal.jsx';
 import LedgerActivityTimeline from '../../components/ledger/timeline/LedgerActivityTimeline.jsx';
 import { fetchUserByIdRequest } from '../../features/users/usersAPI.js';
 import { mapApiUserToLedgerRow } from '../../components/ledger/ledgerUserMapper.js';
@@ -106,6 +107,7 @@ export default function UserLedgerDetailPage() {
 
   const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +129,22 @@ export default function UserLedgerDetailPage() {
     };
   }, [userId]);
 
+  useEffect(() => {
+    if (reloadKey === 0 || !userId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const apiUser = await fetchUserByIdRequest(userId);
+        if (!cancelled) setUser(mapApiUserToLedgerRow(apiUser));
+      } catch {
+        /* keep the current profile if refresh fails */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey, userId]);
+
   const [loading, setLoading] = useState(true);
   const [rawTx, setRawTx] = useState([]);
   const [draftFilters, setDraftFilters] = useState(initialDetailFilters);
@@ -139,6 +157,7 @@ export default function UserLedgerDetailPage() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [timelineLimit, setTimelineLimit] = useState(TIMELINE_INITIAL);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -170,7 +189,7 @@ export default function UserLedgerDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, reloadKey]);
 
   const filteredRaw = useMemo(
     () => filterDetailTransactions(rawTx, appliedFilters),
@@ -328,6 +347,12 @@ export default function UserLedgerDetailPage() {
 
   const clearSelectedTxn = useCallback(() => setSelectedTxn(null), []);
 
+  const openPaymentReceipts = useCallback(() => setPaymentModalOpen(true), []);
+  const closePaymentReceipts = useCallback(() => setPaymentModalOpen(false), []);
+  const handlePaymentSaved = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+
   if (!userLoading && !user) {
     return <Navigate to="/ledger" replace />;
   }
@@ -348,6 +373,7 @@ export default function UserLedgerDetailPage() {
         user={user}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        onPaymentReceipts={openPaymentReceipts}
       />
 
       {viewMode === 'table' ? (
@@ -400,6 +426,13 @@ export default function UserLedgerDetailPage() {
           onShare={(r) => toast.info(`Share ${r.referenceNo}`, { delay: 3000 })}
         />
       ) : null}
+
+      <LedgerPaymentReceiptModal
+        open={paymentModalOpen}
+        onClose={closePaymentReceipts}
+        user={user}
+        onSaved={handlePaymentSaved}
+      />
     </div>
   );
 }

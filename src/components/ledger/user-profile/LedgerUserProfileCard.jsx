@@ -1,7 +1,12 @@
 import moment from 'moment';
 import { fmtMoney, balanceTextClass } from '../ledgerUtils.js';
 
-export default function LedgerUserProfileCard({ user, viewMode, onViewModeChange }) {
+export default function LedgerUserProfileCard({
+  user,
+  viewMode,
+  onViewModeChange,
+  onPaymentReceipts,
+}) {
   if (!user) return null;
 
   const initials = user.fullName
@@ -73,25 +78,35 @@ export default function LedgerUserProfileCard({ user, viewMode, onViewModeChange
               <p className="text-xs text-muted mb-2">
                 Switch between table and classic T-account layout
               </p>
-              <div
-                className="btn-group btn-group-sm d-inline-flex"
-                role="group"
-                aria-label="Ledger view mode"
-              >
+              <div className="d-inline-flex flex-wrap align-items-center justify-content-lg-end gap-2">
                 <button
                   type="button"
-                  className={`btn mb-0 ${viewMode === 'table' ? 'btn-primary' : 'btn-outline-primary'}`}
-                  onClick={() => onViewModeChange?.('table')}
+                  className="btn btn-sm btn-outline-primary mb-0 px-3 text-nowrap"
+                  onClick={() => onPaymentReceipts?.()}
                 >
-                  Table view
+                  <i className="fas fa-receipt me-2" />
+                  Payment receipts
                 </button>
-                <button
-                  type="button"
-                  className={`btn mb-0 ${viewMode === 'taccount' ? 'btn-primary' : 'btn-outline-primary'}`}
-                  onClick={() => onViewModeChange?.('taccount')}
+                <div
+                  className="btn-group btn-group-sm d-inline-flex"
+                  role="group"
+                  aria-label="Ledger view mode"
                 >
-                  T-account
-                </button>
+                  <button
+                    type="button"
+                    className={`btn mb-0 ${viewMode === 'table' ? 'btn-primary' : 'btn-outline-primary'}`}
+                    onClick={() => onViewModeChange?.('table')}
+                  >
+                    Table view
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn mb-0 ${viewMode === 'taccount' ? 'btn-primary' : 'btn-outline-primary'}`}
+                    onClick={() => onViewModeChange?.('taccount')}
+                  >
+                    T-account
+                  </button>
+                </div>
               </div>
             </div>
           </div>
