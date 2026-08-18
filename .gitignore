@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-orders-hub
 .vite
 .DS_Store
 *.log
@@ -15,6 +16,7 @@ coverage
 node_modules
 .DS_Store
 dist
+dist-orders-hub
 .vite
 *.log
 package-lock.json

@@ -489,6 +489,46 @@ export async function updateExpenseRequest(expenseId, expenseData = {}) {
   }
 }
 
+/** DELETE /expense/delete/:id — soft-deletes the expense and related transactions. */
+export async function deleteExpenseRequest(expenseId) {
+  const token = getAuthToken();
+  const id = String(expenseId ?? '').trim();
+  if (!id) throw new Error('Missing expense id');
+
+  const url = `${BASE_URL}expense/delete/${encodeURIComponent(id)}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'DELETE', headers });
+  } catch (err) {
+    logExpenseModuleError('deleteExpenseRequest network error', {
+      expenseId: id,
+      url,
+      errorMessage: err?.message || String(err),
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const details = await readResponseErrorDetails(response);
+    logExpenseModuleError('deleteExpenseRequest failed', { expenseId: id, ...details });
+    throw new Error(details.message);
+  }
+
+  try {
+    return await response.json();
+  } catch (parseErr) {
+    logExpenseModuleError('deleteExpenseRequest invalid JSON body', {
+      expenseId: id,
+      errorMessage: parseErr?.message || String(parseErr),
+    });
+    return { success: true, data: { _id: id } };
+  }
+}
+
 export async function createExpenseRequest(expenseData = {}) {
   const token = getAuthToken();
   const url = `${BASE_URL}expense/create`;

@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   createExpenseRequest,
+  deleteExpenseRequest,
   fetchExpenseByIdRequest,
   fetchExpensesRequest,
   saveExpenseRequest,
@@ -80,6 +81,20 @@ export const updateExpense = createAsyncThunk(
   }
 );
 
+export const deleteExpense = createAsyncThunk(
+  'expenses/deleteExpense',
+  async (expenseId, { rejectWithValue }) => {
+    try {
+      const response = await deleteExpenseRequest(expenseId);
+      return { expenseId, response };
+    } catch (error) {
+      const message = error?.message || String(error) || 'Failed to delete expense';
+      console.error('[Expense module] deleteExpense thunk error', { message, expenseId, error });
+      return rejectWithValue(message);
+    }
+  }
+);
+
 const initialState = {
   listStatus: 'idle',
   list: [],
@@ -103,6 +118,8 @@ const initialState = {
   lastCreated: null,
   updateStatus: 'idle',
   updateError: null,
+  deleteStatus: 'idle',
+  deleteError: null,
 };
 
 const expensesSlice = createSlice({
@@ -124,6 +141,10 @@ const expensesSlice = createSlice({
     clearUpdateStatus: (state) => {
       state.updateStatus = 'idle';
       state.updateError = null;
+    },
+    clearDeleteStatus: (state) => {
+      state.deleteStatus = 'idle';
+      state.deleteError = null;
     },
     setSearch: (state, action) => {
       state.search = action.payload;
@@ -232,6 +253,23 @@ const expensesSlice = createSlice({
       .addCase(updateExpense.rejected, (state, action) => {
         state.updateStatus = 'failed';
         state.updateError = action.payload || action.error.message || 'Failed to update expense';
+      })
+      .addCase(deleteExpense.pending, (state) => {
+        state.deleteStatus = 'loading';
+        state.deleteError = null;
+      })
+      .addCase(deleteExpense.fulfilled, (state, action) => {
+        state.deleteStatus = 'succeeded';
+        state.deleteError = null;
+        const expenseId = String(action.payload.expenseId);
+        state.list = state.list.filter(
+          (item) => String(item._id || item.id) !== expenseId
+        );
+        if (state.pagination.total > 0) state.pagination.total -= 1;
+      })
+      .addCase(deleteExpense.rejected, (state, action) => {
+        state.deleteStatus = 'failed';
+        state.deleteError = action.payload || action.error.message || 'Failed to delete expense';
       });
   },
 });
@@ -241,6 +279,7 @@ export const {
   clearLastCreated,
   clearCurrentExpense,
   clearUpdateStatus,
+  clearDeleteStatus,
   setSearch,
   setPage,
   setLimit,

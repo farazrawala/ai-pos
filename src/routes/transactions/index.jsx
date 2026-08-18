@@ -31,7 +31,9 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import TablePagination from '../../components/TablePagination.jsx';
+import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
 import { renderTransactionDescriptionLinks } from '../../components/transactions/TransactionDescriptionLinks.jsx';
+import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
 import { DEBUG } from '../../config/env.js';
 
 const encodeDocumentFilterValue = (kind, id) => `${kind}:${id}`;
@@ -113,7 +115,7 @@ const Transactions = () => {
 
   const journals = useMemo(() => groupTransactionsIntoJournals(data), [data]);
 
-  useEffect(() => {
+  const buildListParams = useCallback(() => {
     const params = { page: pagination.page, limit: pagination.limit };
     if (searchTerm) params.search = searchTerm;
     if (sort.sortBy) {
@@ -127,13 +129,8 @@ const Transactions = () => {
       if (filters.documentKind === 'order') params.orderId = filters.refId;
       if (filters.documentKind === 'purchase_order') params.purchaseOrderId = filters.refId;
     }
-    if (isDeletedView) {
-      dispatch(fetchDeletedTransactions(params));
-    } else {
-      dispatch(fetchTransactions(params));
-    }
+    return params;
   }, [
-    dispatch,
     pagination.page,
     pagination.limit,
     searchTerm,
@@ -143,8 +140,30 @@ const Transactions = () => {
     filters.endDate,
     filters.refId,
     filters.documentKind,
-    isDeletedView,
   ]);
+
+  const fetchList = useCallback(() => {
+    if (isDeletedView) {
+      dispatch(fetchDeletedTransactions(buildListParams()));
+    } else {
+      dispatch(fetchTransactions(buildListParams()));
+    }
+  }, [dispatch, buildListParams, isDeletedView]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  const handleRetryFetch = useCallback(() => {
+    fetchList();
+  }, [fetchList]);
+
+  const { countdown: retryCountdown, isRetrying } = useFetchRetryCountdown({
+    isFailed: Boolean(error),
+    onRetry: handleRetryFetch,
+    seconds: 5,
+    enabled: Boolean(error),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -542,9 +561,21 @@ const Transactions = () => {
                   </p>
                 </div>
               )}
-              {error && (
+              {!loading && isRetrying && (
+                <FetchRetryStatus countdown={retryCountdown} />
+              )}
+              {error && !isRetrying && (
                 <div className="alert alert-danger m-3" role="alert">
                   {error}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger mb-0"
+                      onClick={handleRetryFetch}
+                    >
+                      Retry now
+                    </button>
+                  </div>
                 </div>
               )}
               {!loading && !error && isJournalView && (

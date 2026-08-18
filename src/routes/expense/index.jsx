@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchExpenses,
+  deleteExpense,
   setSearch,
   setPage,
   setLimit,
   setSort,
+  clearDeleteStatus,
 } from '../../features/expenses/expensesSlice.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
@@ -15,6 +17,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import { DEBUG } from '../../config/env.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 
 const EXPENSE_COLUMNS = [
@@ -26,8 +29,7 @@ const EXPENSE_COLUMNS = [
   { key: 'payment_account', label: 'Payment account' },
   { key: 'note', label: 'Note' },
   { key: 'status', label: 'Status' },
-  { key: 'created', label: 'Created' },
-  { key: 'updated', label: 'Last Updated At' },
+  { key: 'dates', label: 'Created / Updated' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
@@ -59,6 +61,7 @@ const expenseAccountDisplayName = (accountRef) => {
 
 const ExpenseIndex = () => {
   useRequireModuleAccess('expenses');
+  const { canDelete } = usePermissions('expenses');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const {
@@ -68,10 +71,13 @@ const ExpenseIndex = () => {
     pagination,
     search: searchTerm,
     sort,
+    deleteStatus,
+    deleteError,
   } = useSelector((state) => state.expenses);
   const loading = listStatus === 'loading';
   const error = listError;
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [deletingExpenseId, setDeletingExpenseId] = useState(null);
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
 
@@ -101,6 +107,27 @@ const ExpenseIndex = () => {
   const handleRetryFetch = useCallback(() => {
     dispatch(fetchExpenses(buildListParams()));
   }, [dispatch, buildListParams]);
+
+  const handleDelete = async (expenseId, expenseName) => {
+    if (!expenseId || !canDelete || deletingExpenseId) return;
+    const label = expenseName || 'this expense';
+    if (
+      !window.confirm(
+        `Delete "${label}"? This cannot be undone and related transactions will also be removed.`
+      )
+    ) {
+      return;
+    }
+    setDeletingExpenseId(expenseId);
+    try {
+      await dispatch(deleteExpense(expenseId)).unwrap();
+      dispatch(fetchExpenses(buildListParams()));
+    } catch (err) {
+      console.error('[Expense module] Delete expense error', err);
+    } finally {
+      setDeletingExpenseId(null);
+    }
+  };
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -160,6 +187,20 @@ const ExpenseIndex = () => {
       console.error('[Expense module] Failed to fetch expense list', error);
     }
   }, [error]);
+
+  useEffect(() => {
+    if (deleteStatus === 'succeeded') {
+      const timeoutId = setTimeout(() => dispatch(clearDeleteStatus()), 3000);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [deleteStatus, dispatch]);
+
+  useEffect(() => {
+    if (deleteError) {
+      console.error('[Expense module] Delete expense error (Redux)', deleteError);
+    }
+  }, [deleteError]);
 
   useEffect(() => {
     return () => {
@@ -263,24 +304,15 @@ const ExpenseIndex = () => {
                           {renderSortIcon('status')}
                         </th>
                       ) : null}
-                      {isVisible('created') ? (
+                      {isVisible('dates') ? (
                         <th
+                          className="list-col-date"
                           style={{ cursor: 'pointer', userSelect: 'none' }}
                           onClick={() => handleSort('createdAt')}
                           onDoubleClick={() => handleSort('createdAt', true)}
                         >
-                          Created
+                          Created / Updated
                           {renderSortIcon('createdAt')}
-                        </th>
-                      ) : null}
-                      {isVisible('updated') ? (
-                        <th
-                          style={{ cursor: 'pointer', userSelect: 'none' }}
-                          onClick={() => handleSort('updatedAt')}
-                          onDoubleClick={() => handleSort('updatedAt', true)}
-                        >
-                          Last Updated At
-                          {renderSortIcon('updatedAt')}
                         </th>
                       ) : null}
                       {isVisible('actions') ? <th>Actions</th> : null}
@@ -353,38 +385,67 @@ const ExpenseIndex = () => {
                                 </span>
                               </td>
                             ) : null}
-                            {isVisible('created') ? (
-                              <td className="text-sm text-muted text-nowrap">
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('YYYY-MM-DD HH:mm')
-                                  : '—'}
-                              </td>
-                            ) : null}
-                            {isVisible('updated') ? (
-                              <td
-                                className="text-sm text-muted text-nowrap"
-                                title={
-                                  item.updatedAt || item.updated_at
-                                    ? moment(item.updatedAt || item.updated_at).format(
-                                        'MM-DD-YYYY h:mm a'
-                                      )
-                                    : undefined
-                                }
-                              >
-                                {item.updatedAt || item.updated_at
-                                  ? moment(item.updatedAt || item.updated_at).fromNow()
-                                  : '—'}
+                            {isVisible('dates') ? (
+                              <td className="text-sm list-col-date">
+                                {item.createdAt || item.updatedAt || item.updated_at ? (
+                                  <div className="oms-dates-cell">
+                                    <div
+                                      className="oms-dates-cell__created text-nowrap"
+                                      title={
+                                        item.createdAt
+                                          ? moment(item.createdAt).format('DD MMM YYYY h:mm a')
+                                          : undefined
+                                      }
+                                    >
+                                      {item.createdAt
+                                        ? moment(item.createdAt).format('DD MMM YYYY h:mm a')
+                                        : '—'}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__updated text-nowrap"
+                                      title={
+                                        item.updatedAt || item.updated_at
+                                          ? moment(item.updatedAt || item.updated_at).format(
+                                              'DD MMM YYYY h:mm a'
+                                            )
+                                          : undefined
+                                      }
+                                    >
+                                      {item.updatedAt || item.updated_at
+                                        ? `Updated ${moment(item.updatedAt || item.updated_at).fromNow()}`
+                                        : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             {isVisible('actions') ? (
                               <td className="text-sm font-weight-normal">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => navigate(`/expenses/edit/${item._id || item.id}`)}
-                                >
-                                  Edit
-                                </button>
+                                <div className="d-flex gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary mb-0"
+                                    onClick={() => navigate(`/expenses/edit/${item._id || item.id}`)}
+                                  >
+                                    Edit
+                                  </button>
+                                  {canDelete ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-danger mb-0"
+                                      onClick={() =>
+                                        handleDelete(item._id || item.id, item.name || item.note)
+                                      }
+                                      disabled={Boolean(deletingExpenseId)}
+                                    >
+                                      {deletingExpenseId === (item._id || item.id)
+                                        ? 'Deleting…'
+                                        : 'Delete'}
+                                    </button>
+                                  ) : null}
+                                </div>
                               </td>
                             ) : null}
                           </tr>
@@ -394,6 +455,11 @@ const ExpenseIndex = () => {
                   </tbody>
                 </table>
               </ListDataTable>
+              {deleteError ? (
+                <div className="alert alert-danger mx-3 mb-3" role="alert">
+                  {deleteError}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
