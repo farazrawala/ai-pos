@@ -490,6 +490,31 @@ const statusBadgeClass = (status) => {
   return 'bg-gradient-secondary';
 };
 
+const trackingStatusBadgeClass = (status) => {
+  const s = String(status || '')
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (s === 'delivered' || s === 'completed' || s === 'shipped') {
+    return 'bg-gradient-success';
+  }
+  if (s.includes('return') || s === 'cancelled' || s === 'canceled' || s === 'failed') {
+    return 'bg-gradient-danger';
+  }
+  if (
+    s === 'in transit' ||
+    s === 'dispatched' ||
+    s === 'booked' ||
+    s === 'assigned' ||
+    s === 'out for delivery' ||
+    s.startsWith('arrived')
+  ) {
+    return 'bg-gradient-info';
+  }
+  return 'bg-gradient-secondary';
+};
+
 const formatWebsiteStatusLabel = (value) => {
   const raw = String(value ?? '').trim();
   if (!raw) return '—';
@@ -2520,6 +2545,16 @@ export default function OrdersListPage({ config }) {
                                           <NavIcon icon={FaBarcode} size={14} />
                                         </button>
                                       </div>
+                                    ) : null}
+                                    {trackingInfo.trackingStatus ? (
+                                      <span
+                                        className={`badge text-xxs oms-tracking-status ${trackingStatusBadgeClass(
+                                          trackingInfo.trackingStatus
+                                        )}`}
+                                        title={trackingInfo.trackingStatus}
+                                      >
+                                        {formatWebsiteStatusLabel(trackingInfo.trackingStatus)}
+                                      </span>
                                     ) : null}
                                   </div>
                                 ) : hasOrderItems ? (

@@ -203,3 +203,10 @@
   color: #5e72e4;
 }
 
+.oms-tracking-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

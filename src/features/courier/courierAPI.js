@@ -722,6 +722,18 @@ export const pickOrderCourierProvider = (row) => {
   );
 };
 
+/** Saved courier tracking_status from an order list row. */
+export const pickOrderTrackingStatus = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const shipment = shipmentFromRow(row);
+  return firstNonEmpty(
+    row.tracking_status,
+    row.trackingStatus,
+    shipment?.tracking_status,
+    shipment?.trackingStatus
+  );
+};
+
 /**
  * Public courier tracking page URL for a provider + tracking id.
  * Used when the API does not return tracking_url.
@@ -807,10 +819,16 @@ export const resolveOrderTrackingInfo = (row, override = null) => {
     override?.trackingUrl,
     pickOrderTrackingUrl(source, trackingId, provider)
   );
+  const trackingStatus = firstNonEmpty(
+    override?.tracking_status,
+    override?.trackingStatus,
+    pickOrderTrackingStatus(source)
+  );
   return {
     trackingId,
     trackingUrl,
     provider,
+    trackingStatus,
     hasTracking: Boolean(trackingId || trackingUrl),
   };
 };
@@ -906,14 +924,16 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
         lastError = new Error(
           payload.error || payload.message || `Tracking failed (HTTP ${response.status})`
         );
+        lastError.requestUrl = attempt.url;
         continue;
       }
 
+      // HTTP 200 with stale:true is still success — render last saved status.
       const normalized = normalizeBackendTrackingResponse(payload, consignee);
       return {
         ...normalized,
         requestUrl: attempt.url,
-        upstreamUrl: '',
+        upstreamUrl: attempt.url,
         viaProxy: false,
         viaBackend: true,
       };
@@ -934,38 +954,170 @@ export const fetchCourierTrackingStatusRequest = async (orderId, options = {}) =
   throw lastError || new Error('Failed to fetch tracking status');
 };
 
-/** Normalize the backend tracking response into the UI shape. */
+const asTrackingArray = (value) => (Array.isArray(value) ? value : []);
+
+const pickTrackingDetailsDist = (payload = {}) => {
+  const details = payload.tracking_details;
+  if (!details || typeof details !== 'object') return null;
+  if (details.dist && typeof details.dist === 'object') return details.dist;
+  if (details.data && typeof details.data === 'object' && !Array.isArray(details.data)) {
+    return details.data;
+  }
+  return details;
+};
+
+const flattenPrimitiveFields = (source, skipKeys = []) => {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
+  const skip = new Set(skipKeys);
+  const fields = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (skip.has(key) || value == null || value === '') continue;
+    if (typeof value === 'object') continue;
+    fields[key] = value;
+  }
+  return fields;
+};
+
+const mapTrackDetailRow = (event = {}) => ({
+  status: firstNonEmpty(event.status, event.transactionStatus, event.transaction_status),
+  datetime: firstNonEmpty(
+    event.dateTime,
+    event.date_time,
+    event.event_time,
+    event.eventTime,
+    event.createdAt,
+    event.created_at
+  ),
+  station: firstNonEmpty(event.station, event.location, event.city),
+  code: firstNonEmpty(event.statusId, event.status_code, event.statusCode, event.code),
+  recievedby: firstNonEmpty(event.receivedBy, event.received_by, event.recievedby),
+  description: firstNonEmpty(event.description, event.remarks, event.comment, event.message),
+});
+
+const mapHistoryRow = (event = {}) => {
+  const raw =
+    event.raw_response && typeof event.raw_response === 'object' ? event.raw_response : {};
+  return {
+    status: firstNonEmpty(event.status, raw.status, event.description),
+    datetime: firstNonEmpty(
+      raw.dateTime,
+      raw.date_time,
+      event.event_time,
+      event.eventTime,
+      event.created_at,
+      event.createdAt
+    ),
+    station: firstNonEmpty(event.location, raw.station, raw.location, event.station, raw.city),
+    code: firstNonEmpty(raw.statusId, event.status_code, event.statusCode, raw.statusCode, event.code),
+    recievedby: firstNonEmpty(raw.receivedBy, raw.received_by, event.receivedBy),
+    description: firstNonEmpty(event.description, raw.description, raw.remarks),
+  };
+};
+
+const mergeTimelineRows = (...lists) => {
+  const seen = new Set();
+  const unique = [];
+  for (const list of lists) {
+    for (const row of list) {
+      if (!row || (!row.status && !row.datetime && !row.station)) continue;
+      const key = `${row.status}|${row.datetime}|${row.station}|${row.code}|${row.description}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(row);
+    }
+  }
+  unique.sort((a, b) => {
+    const ta = Date.parse(a.datetime);
+    const tb = Date.parse(b.datetime);
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+    return tb - ta;
+  });
+  return unique;
+};
+
+const firstRowWithValue = (rows, key) => {
+  const match = (Array.isArray(rows) ? rows : []).find((row) => firstNonEmpty(row?.[key]));
+  return match ? firstNonEmpty(match[key]) : '';
+};
+
+/**
+ * Normalize GET /courier/tracking/:trackingNo (and order tracking) into the UI shape.
+ * Prefer tracking_status + tracking_details.dist.trackDetail; history is optional.
+ * stale:true is cached data, not an error.
+ */
 const normalizeBackendTrackingResponse = (payload = {}, fallbackCn = '') => {
-  const history = Array.isArray(payload.history) ? payload.history : [];
-  const latestEvent = history[0] || {};
+  const dist = pickTrackingDetailsDist(payload);
+  const trackDetail = asTrackingArray(dist?.trackDetail || dist?.track_detail).map(mapTrackDetailRow);
+  const history = asTrackingArray(payload.history).map(mapHistoryRow);
+  const deliveryInfo = mergeTimelineRows(trackDetail, history);
+  const latestEvent = deliveryInfo[0] || {};
+  const stale = Boolean(payload.stale);
+  const distFields = flattenPrimitiveFields(dist, [
+    'trackDetail',
+    'track_detail',
+    'events',
+    'history',
+  ]);
 
   const status = firstNonEmpty(
+    payload.tracking_status,
+    dist?.transactionStatus,
+    dist?.transaction_status,
     payload.status,
     latestEvent.status,
     payload.shipment_status
   );
 
-  const deliveryInfo = history.map((e) => ({
-    status: e.status || '',
-    datetime: e.event_time || e.eventTime || e.created_at || '',
-    station: e.location || '',
-    code: e.status_code || '',
-    recievedby: '',
-  }));
-
   return {
-    success: Boolean(payload.success),
-    consignee: payload.tracking_number || fallbackCn,
+    success: payload.success !== false,
+    stale,
+    warning: stale ? firstNonEmpty(payload.warning) : '',
+    lastTrackingSync: payload.last_tracking_sync || payload.lastTrackingSync || '',
+    courier: payload.courier || '',
+    orderId: payload.order_id || payload.orderId || '',
+    consignee: firstNonEmpty(
+      payload.tracking_number,
+      dist?.trackingNumber,
+      dist?.tracking_number,
+      fallbackCn
+    ),
     status,
-    statusCode: payload.status_code || '',
+    statusCode: firstNonEmpty(payload.status_code, dist?.transactionStatusId),
+    statusId: firstNonEmpty(dist?.transactionStatusId, payload.status_code),
     summary: '',
-    message: status ? `Current status: ${status}` : 'No tracking events found.',
-    receivedBy: '',
-    station: latestEvent.location || '',
-    datetime: latestEvent.event_time || latestEvent.eventTime || '',
+    message: stale
+      ? firstNonEmpty(payload.warning, status ? `Last saved status: ${status}` : '')
+      : status
+        ? `Current status: ${status}`
+        : 'No tracking events found.',
+    receivedBy: firstRowWithValue(deliveryInfo, 'recievedby'),
+    station: firstNonEmpty(
+      firstRowWithValue(deliveryInfo, 'station'),
+      dist?.destination,
+      dist?.origin
+    ),
+    datetime: firstNonEmpty(
+      firstRowWithValue(deliveryInfo, 'datetime'),
+      payload.last_tracking_sync
+    ),
+    origin: firstNonEmpty(dist?.origin, distFields.origin),
+    destination: firstNonEmpty(dist?.destination, distFields.destination),
+    orderRefNumber: firstNonEmpty(dist?.orderRefNumber, dist?.order_ref_number, distFields.orderRefNumber),
+    invoicePayment: dist?.invoicePayment ?? dist?.invoice_payment ?? distFields.invoicePayment ?? '',
+    weight: firstNonEmpty(dist?.weight, distFields.weight),
+    shippingCharges: dist?.shippingCharges ?? dist?.shipping_charges ?? distFields.shippingCharges ?? '',
+    bookingDate: firstNonEmpty(dist?.bookingDate, dist?.booking_date, distFields.bookingDate),
+    deliveryDate: firstNonEmpty(dist?.deliveryDate, dist?.delivery_date, distFields.deliveryDate),
+    returnDate: firstNonEmpty(dist?.returnDate, dist?.return_date, distFields.returnDate),
+    pickupDate: firstNonEmpty(dist?.pickupDate, dist?.pickup_date, dist?.orderPickupDate),
+    customerName: firstNonEmpty(dist?.customerName, dist?.customer_name, dist?.consigneeName),
+    customerPhone: firstNonEmpty(dist?.customerPhone, dist?.customer_phone, dist?.consigneePhone),
+    city: firstNonEmpty(dist?.city, dist?.pickupCity, dist?.destinationCity),
     shipmentInfo: [],
     deliveryInfo,
     checkpoints: [],
+    extraFields: distFields,
+    trackingDetails: payload.tracking_details || null,
     raw: payload,
   };
 };
