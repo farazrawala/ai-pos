@@ -4,19 +4,26 @@ import {
   fetchCourierTrackingStatusRequest,
   resolveTcsTrackingStatusApiUrl,
 } from '../../features/courier/courierAPI.js';
+import './tracking-status-modal.css';
 
 const formatLabel = (value) => {
   const raw = String(value ?? '').trim();
-  if (!raw) return '—';
+  if (!raw) return '';
   return raw;
 };
 
 const formatDateTime = (value) => {
   const raw = String(value ?? '').trim();
-  if (!raw) return '—';
+  if (!raw) return '';
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
-  return parsed.toLocaleString();
+  return parsed.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 const formatMoney = (value) => {
@@ -34,44 +41,56 @@ const humanizeKey = (key) =>
     .trim()
     .replace(/^\w/, (c) => c.toUpperCase());
 
-const InfoCell = ({ label, value, badge = false, date = false, money = false }) => {
-  const raw = value == null ? '' : String(value).trim();
-  if (!raw) return null;
-  const display = date ? formatDateTime(raw) : money ? formatMoney(raw) : raw;
+const statusTone = (status) => {
+  const key = String(status || '').toLowerCase();
+  if (/deliver/.test(key)) return 'delivered';
+  if (/return|rto|cancel/.test(key)) return 'returned';
+  if (/out for delivery|in transit|in-transit|dispatched/.test(key)) return 'transit';
+  if (/book|created|unbook/.test(key)) return 'booked';
+  return 'neutral';
+};
+
+const Field = ({ label, value }) => {
+  const display = formatLabel(value);
+  if (!display) return null;
   return (
-    <div className="col-6 col-md-4 col-lg-3">
-      <span className="text-xs text-muted d-block">{label}</span>
-      {badge ? (
-        <span className="badge bg-gradient-info text-xxs">{display}</span>
-      ) : (
-        <strong className="text-sm text-break">{display}</strong>
-      )}
+    <div className="tracking-status-field">
+      <span className="tracking-status-field__label">{label}</span>
+      <span className="tracking-status-field__value">{display}</span>
     </div>
   );
 };
 
-const UrlRow = ({ label, url, hint }) => {
-  if (!url) return null;
+const SectionCard = ({ title, children }) => {
+  const items = Array.isArray(children) ? children.filter(Boolean) : [children].filter(Boolean);
+  if (!items.length) return null;
   return (
-    <div className="mb-2">
-      <span className="text-xs text-muted d-block">{label}</span>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-break"
-        style={{ wordBreak: 'break-all' }}
-      >
-        {url}
-      </a>
-      {hint ? <div className="text-xs text-muted mt-1">{hint}</div> : null}
+    <div className="col-md-4">
+      <div className="card tracking-status-card">
+        <div className="card-body">
+          <h6 className="tracking-status-card__title">{title}</h6>
+          {items}
+        </div>
+      </div>
     </div>
   );
 };
+
+const TECHNICAL_KEYS = new Set([
+  'statusCode',
+  'statusMessage',
+  'transactionStatusId',
+  'transactionStatus',
+  'transaction_status',
+  'invoiceDivision',
+  'invoice_division',
+  'transactionNotes',
+  'transaction_notes',
+  'statusId',
+]);
 
 /**
  * Show live courier tracking status from GET /courier/tracking/:trackingNo.
- * Uses tracking_status + tracking_details.dist.trackDetail. stale:true is last-saved data, not an error.
  */
 export default function TrackingStatusModal({
   open,
@@ -159,73 +178,77 @@ export default function TrackingStatusModal({
   const statusApiUrl = detail?.viaBackend
     ? detail.requestUrl || detail.upstreamUrl || ''
     : detail?.upstreamUrl || previewApiUrls?.upstreamUrl || '';
-  const requestApiUrl = detail?.requestUrl || previewApiUrls?.requestUrl || '';
-  const showProxyHint = Boolean(detail?.viaProxy ?? previewApiUrls?.viaProxy) && !detail?.viaBackend;
   const extraFields =
     detail?.extraFields && typeof detail.extraFields === 'object' ? detail.extraFields : {};
-  const shownExtraKeys = new Set([
-    'trackingNumber',
-    'tracking_number',
-    'transactionStatus',
-    'transaction_status',
-    'transactionStatusId',
-    'orderRefNumber',
-    'order_ref_number',
-    'destination',
-    'origin',
-    'invoicePayment',
-    'invoice_payment',
-    'bookingDate',
-    'booking_date',
-    'deliveryDate',
-    'delivery_date',
-    'returnDate',
-    'return_date',
-    'weight',
-    'shippingCharges',
-    'shipping_charges',
-    'pickupDate',
-    'pickup_date',
-    'orderPickupDate',
-    'customerName',
-    'customer_name',
-    'consigneeName',
-    'customerPhone',
-    'customer_phone',
-    'consigneePhone',
-    'city',
-    'pickupCity',
-    'destinationCity',
-    'status',
-    'statusCode',
-    'statusMessage',
-  ]);
-  const leftoverFields = Object.entries(extraFields).filter(
-    ([key, value]) => !shownExtraKeys.has(key) && value != null && String(value).trim() !== ''
-  );
   const isStale = Boolean(detail?.stale);
   const currentStatus = formatLabel(detail?.status);
-  const hasDescription = deliveryInfo.some((row) => String(row.description || '').trim());
-  const hasReceivedBy = deliveryInfo.some(
-    (row) => String(row.recievedby || row.receivedby || row.received_by || '').trim()
+  const extra = (key) => extraFields[key];
+
+  const usedExtraKeys = new Set([
+    'customerName',
+    'customerPhone',
+    'deliveryAddress',
+    'delivery_address',
+    'cityName',
+    'destination',
+    'merchantName',
+    'pickupAddress',
+    'returnAddress',
+    'return_address',
+    'orderDetail',
+    'items',
+    'bookingWeight',
+    'actualWeight',
+    'pickupDate',
+    'orderDeliveryDate',
+    'reservePayment',
+    'transactionFee',
+    'transactionTax',
+    'upfrontPayment',
+    'balancePayment',
+    'transactionDate',
+    'origin',
+    'weight',
+    'invoicePayment',
+    'shippingCharges',
+    'bookingDate',
+    'deliveryDate',
+    'city',
+  ]);
+  const leftoverFields = Object.entries(extraFields).filter(([key, value]) => {
+    if (TECHNICAL_KEYS.has(key) || usedExtraKeys.has(key)) return false;
+    if (value == null || String(value).trim() === '') return false;
+    return true;
+  });
+
+  const moreDetails = leftoverFields.filter(([key]) =>
+    /note|id|code|division|woocommerce|refNumber/i.test(key)
+  );
+  const extraDisplay = leftoverFields.filter(
+    ([key]) => !/note|id|code|division|woocommerce|refNumber/i.test(key)
   );
 
   return (
     <>
       <div
-        className="modal fade show"
+        className="modal fade show tracking-status-modal"
         style={{ display: 'block' }}
         tabIndex={-1}
         role="dialog"
         aria-labelledby="trackingStatusModalLabel"
         aria-modal="true"
       >
-        <div className="modal-dialog modal-dialog-centered modal-xl">
+        <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title" id="trackingStatusModalLabel">
-                Tracking status
-              </h5>
+              <div>
+                <h5 className="modal-title mb-0" id="trackingStatusModalLabel">
+                  Tracking status
+                </h5>
+                <div className="text-xs text-muted mt-1">
+                  {[orderNo || extra('orderRefNumber'), cn, courierLabel].filter(Boolean).join(' · ')}
+                </div>
+              </div>
               <button
                 type="button"
                 className="btn-close"
@@ -235,55 +258,8 @@ export default function TrackingStatusModal({
               />
             </div>
             <div className="modal-body">
-              <div className="d-flex flex-wrap gap-3 mb-3 text-sm">
-                {orderNo ? (
-                  <div>
-                    <span className="text-xs text-muted d-block">Order</span>
-                    <strong>{orderNo}</strong>
-                  </div>
-                ) : null}
-                {cn ? (
-                  <div>
-                    <span className="text-xs text-muted d-block">CN / Tracking ID</span>
-                    <strong>{cn}</strong>
-                  </div>
-                ) : null}
-                {courierLabel !== '—' ? (
-                  <div>
-                    <span className="text-xs text-muted d-block">Courier</span>
-                    <strong>{courierLabel}</strong>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="card border shadow-none mb-3">
-                <div className="card-body py-3">
-                  <h6 className="text-xs text-uppercase text-muted mb-2">Tracking URLs</h6>
-                  <UrlRow
-                    label={
-                      detail?.viaBackend
-                        ? `Status API (${courierLabel !== '—' ? courierLabel : 'Courier'} tracking)`
-                        : 'Status API (TCS GetDynamicTrackDetail)'
-                    }
-                    url={statusApiUrl}
-                    hint={
-                      showProxyHint && requestApiUrl && requestApiUrl !== statusApiUrl
-                        ? `Browser request (dev proxy): ${requestApiUrl}`
-                        : detail?.viaBackend
-                          ? 'Live courier status via backend. stale:true still shows last saved records.'
-                          : null
-                    }
-                  />
-                  <UrlRow
-                    label="Public tracking page"
-                    url={publicUrl}
-                    hint="Customer-facing track page (opens in a new tab)."
-                  />
-                </div>
-              </div>
-
               {isLoading ? (
-                <div className="text-center py-4 text-muted">
+                <div className="text-center py-5 text-muted">
                   <span className="spinner-border spinner-border-sm me-2" role="status" />
                   Fetching live tracking status…
                 </div>
@@ -295,179 +271,249 @@ export default function TrackingStatusModal({
 
               {status === 'succeeded' && detail ? (
                 <>
-                  {isStale ? (
-                    <div className="alert alert-warning py-2 mb-3">
-                      {detail.warning ||
-                        'Showing last saved tracking records. Live courier lookup did not refresh this time.'}
-                    </div>
-                  ) : null}
-
-                  <div className="card border shadow-none mb-3">
-                    <div className="card-body py-3">
-                      <h6 className="text-xs text-uppercase text-muted mb-3">Shipment details</h6>
-                      <div className="row g-3">
-                        <InfoCell label="Current status" value={currentStatus !== '—' ? currentStatus : ''} badge />
-                        {isStale ? (
-                          <div className="col-6 col-md-4 col-lg-3">
-                            <span className="text-xs text-muted d-block">Data source</span>
-                            <span className="badge bg-warning text-dark text-xxs">Last saved</span>
-                          </div>
+                  <div className="tracking-status-hero">
+                    <div>
+                      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        {currentStatus ? (
+                          <span className={`tracking-status-badge tracking-status-badge--${statusTone(currentStatus)}`}>
+                            {currentStatus}
+                          </span>
                         ) : null}
-                        <InfoCell label="Status code" value={detail.statusCode} />
-                        <InfoCell label="Status ID" value={detail.statusId} />
-                        <InfoCell label="Station" value={detail.station} />
-                        <InfoCell label="Updated" value={detail.datetime || detail.lastTrackingSync} date />
-                        <InfoCell label="Last sync" value={detail.lastTrackingSync} date />
-                        <InfoCell label="Order reference" value={detail.orderRefNumber || orderNo} />
-                        <InfoCell label="Tracking number" value={detail.consignee || cn} />
-                        <InfoCell label="Courier" value={detail.courier || provider} />
-                        <InfoCell label="Origin" value={detail.origin} />
-                        <InfoCell label="Destination" value={detail.destination} />
-                        <InfoCell label="City" value={detail.city} />
-                        <InfoCell label="Customer" value={detail.customerName} />
-                        <InfoCell label="Customer phone" value={detail.customerPhone} />
-                        <InfoCell label="Weight (kg)" value={detail.weight} />
-                        <InfoCell label="Invoice / COD" value={detail.invoicePayment} money />
-                        <InfoCell label="Shipping charges" value={detail.shippingCharges} money />
-                        <InfoCell label="Booking date" value={detail.bookingDate} date />
-                        <InfoCell label="Pickup date" value={detail.pickupDate} date />
-                        <InfoCell label="Delivery date" value={detail.deliveryDate} date />
-                        <InfoCell label="Return date" value={detail.returnDate} date />
-                        <InfoCell label="Received by" value={detail.receivedBy} />
-                        {leftoverFields.map(([key, value]) => (
-                          <InfoCell
-                            key={key}
-                            label={humanizeKey(key)}
-                            value={value}
-                            date={/date|time|sync/i.test(key)}
-                          />
-                        ))}
-                        {detail.summary ? (
-                          <div className="col-12">
-                            <span className="text-xs text-muted d-block">Summary</span>
-                            <pre
-                              className="mb-0 mt-1 text-xs text-dark"
-                              style={{
-                                whiteSpace: 'pre-wrap',
-                                fontFamily: 'inherit',
-                                background: '#f8f9fc',
-                                borderRadius: '0.5rem',
-                                padding: '0.75rem',
-                              }}
-                            >
-                              {detail.summary}
-                            </pre>
-                          </div>
+                        {isStale ? (
+                          <span className="tracking-status-badge tracking-status-badge--neutral">Last saved</span>
+                        ) : (
+                          <span className="tracking-status-badge tracking-status-badge--booked">Live</span>
+                        )}
+                      </div>
+                      <div className="tracking-status-hero__status">{currentStatus || 'No status yet'}</div>
+                      <div className="tracking-status-hero__meta">
+                        {detail.station ? <span>{detail.station}</span> : null}
+                        {detail.datetime ? <span>Updated {formatDateTime(detail.datetime)}</span> : null}
+                        {detail.lastTrackingSync ? (
+                          <span>Synced {formatDateTime(detail.lastTrackingSync)}</span>
                         ) : null}
                       </div>
                     </div>
+                    {publicUrl ? (
+                      <a
+                        href={publicUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-sm btn-outline-primary mb-0"
+                      >
+                        Open courier page
+                      </a>
+                    ) : null}
                   </div>
 
+                  {isStale && detail.warning ? (
+                    <div className="alert alert-warning py-2 mb-3">{detail.warning}</div>
+                  ) : null}
+
+                  <div className="row g-3 mb-3">
+                    <SectionCard title="Customer">
+                      <Field label="Name" value={detail.customerName || extra('customerName')} />
+                      <Field label="Phone" value={detail.customerPhone || extra('customerPhone')} />
+                      <Field
+                        label="Delivery address"
+                        value={extra('deliveryAddress') || extra('delivery_address')}
+                      />
+                      <Field
+                        label="City"
+                        value={detail.city || extra('cityName') || extra('destination')}
+                      />
+                      <Field label="Merchant" value={extra('merchantName')} />
+                    </SectionCard>
+
+                    <SectionCard title="Shipment">
+                      <Field label="Origin" value={detail.origin || extra('pickupAddress')} />
+                      <Field label="Destination" value={detail.destination || extra('cityName')} />
+                      <Field
+                        label="Return address"
+                        value={extra('returnAddress') || extra('return_address')}
+                      />
+                      <Field label="Items" value={extra('orderDetail') || extra('items')} />
+                      <Field
+                        label="Booking weight"
+                        value={detail.weight || extra('bookingWeight')}
+                      />
+                      <Field label="Actual weight" value={extra('actualWeight')} />
+                      <Field label="Pickup" value={formatDateTime(detail.pickupDate || extra('pickupDate'))} />
+                      <Field
+                        label="Delivered"
+                        value={formatDateTime(detail.deliveryDate || extra('orderDeliveryDate'))}
+                      />
+                    </SectionCard>
+
+                    <SectionCard title="Payment">
+                      <Field
+                        label="COD / invoice"
+                        value={formatMoney(detail.invoicePayment || extra('reservePayment'))}
+                      />
+                      <Field
+                        label="Shipping charges"
+                        value={formatMoney(detail.shippingCharges || extra('transactionFee'))}
+                      />
+                      <Field label="Tax" value={formatMoney(extra('transactionTax'))} />
+                      <Field label="Upfront" value={formatMoney(extra('upfrontPayment'))} />
+                      <Field label="Balance" value={formatMoney(extra('balancePayment'))} />
+                      <Field
+                        label="Booking date"
+                        value={formatDateTime(detail.bookingDate || extra('transactionDate'))}
+                      />
+                    </SectionCard>
+                  </div>
+
+                  {extraDisplay.length > 0 ? (
+                    <div className="card tracking-status-card mb-3">
+                      <div className="card-body">
+                        <h6 className="tracking-status-card__title">Additional details</h6>
+                        <div className="row g-3">
+                          {extraDisplay.map(([key, value]) => (
+                            <div className="col-6 col-md-4" key={key}>
+                              <Field
+                                label={humanizeKey(key)}
+                                value={/date|time/i.test(key) ? formatDateTime(value) : value}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {deliveryInfo.length > 0 ? (
-                    <div className="mb-3">
-                      <h6 className="text-sm text-uppercase text-muted mb-2">Scan timeline</h6>
-                      <div className="table-responsive">
-                        <table className="table table-sm align-items-center mb-0">
-                          <thead>
-                            <tr>
-                              <th className="text-xs text-uppercase">Date / time</th>
-                              <th className="text-xs text-uppercase">Status</th>
-                              <th className="text-xs text-uppercase">Code</th>
-                              <th className="text-xs text-uppercase">Station</th>
-                              {hasDescription ? (
-                                <th className="text-xs text-uppercase">Description</th>
-                              ) : null}
-                              {hasReceivedBy ? (
-                                <th className="text-xs text-uppercase">Received by</th>
-                              ) : null}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {deliveryInfo.map((row, idx) => (
-                              <tr key={`delivery-${idx}`}>
-                                <td className="text-xs text-nowrap">
-                                  {formatDateTime(row.datetime || row.dateTime)}
-                                </td>
-                                <td className="text-xs">{formatLabel(row.status)}</td>
-                                <td className="text-xs">{formatLabel(row.code)}</td>
-                                <td className="text-xs">{formatLabel(row.station)}</td>
-                                {hasDescription ? (
-                                  <td className="text-xs">{formatLabel(row.description)}</td>
-                                ) : null}
-                                {hasReceivedBy ? (
-                                  <td className="text-xs">
-                                    {formatLabel(
-                                      row.recievedby || row.receivedby || row.received_by
-                                    )}
-                                  </td>
-                                ) : null}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    <div className="card tracking-status-card mb-3">
+                      <div className="card-body">
+                        <h6 className="tracking-status-card__title">Scan timeline</h6>
+                        <ol className="tracking-status-timeline">
+                          {deliveryInfo.map((row, idx) => (
+                            <li className="tracking-status-timeline__item" key={`scan-${idx}`}>
+                              <div className="tracking-status-timeline__rail">
+                                <div className="tracking-status-timeline__dot" />
+                              </div>
+                              <div>
+                                <p className="tracking-status-timeline__title">
+                                  {formatLabel(row.status) || 'Update'}
+                                </p>
+                                <div className="tracking-status-timeline__meta">
+                                  {row.datetime ? <span>{formatDateTime(row.datetime)}</span> : null}
+                                  {row.station ? <span>{row.station}</span> : null}
+                                  {row.description &&
+                                  String(row.description).toLowerCase() !==
+                                    String(row.status || '').toLowerCase() ? (
+                                    <span>{row.description}</span>
+                                  ) : null}
+                                  {row.recievedby ? <span>Received by {row.recievedby}</span> : null}
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
                       </div>
                     </div>
                   ) : null}
 
                   {checkpoints.length > 0 ? (
-                    <div>
-                      <h6 className="text-sm text-uppercase text-muted mb-2">Checkpoints</h6>
-                      <div className="table-responsive">
-                        <table className="table table-sm align-items-center mb-0">
-                          <thead>
-                            <tr>
-                              <th className="text-xs text-uppercase">Date / time</th>
-                              <th className="text-xs text-uppercase">Status</th>
-                              <th className="text-xs text-uppercase">Location</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {checkpoints.map((row, idx) => (
-                              <tr key={`cp-${idx}`}>
-                                <td className="text-xs text-nowrap">
-                                  {formatDateTime(row.datetime || row.dateTime)}
-                                </td>
-                                <td className="text-xs">{formatLabel(row.status)}</td>
-                                <td className="text-xs">
-                                  {formatLabel(
-                                    row.recievedby || row.receivedby || row.station || row.location
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    <div className="card tracking-status-card mb-3">
+                      <div className="card-body">
+                        <h6 className="tracking-status-card__title">Checkpoints</h6>
+                        <ol className="tracking-status-timeline">
+                          {checkpoints.map((row, idx) => (
+                            <li className="tracking-status-timeline__item" key={`cp-${idx}`}>
+                              <div className="tracking-status-timeline__rail">
+                                <div className="tracking-status-timeline__dot" />
+                              </div>
+                              <div>
+                                <p className="tracking-status-timeline__title">
+                                  {formatLabel(row.status) || 'Update'}
+                                </p>
+                                <div className="tracking-status-timeline__meta">
+                                  {row.datetime ? <span>{formatDateTime(row.datetime)}</span> : null}
+                                  <span>
+                                    {formatLabel(row.station || row.location || row.recievedby)}
+                                  </span>
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
                       </div>
                     </div>
                   ) : null}
 
                   {!detail.status && deliveryInfo.length === 0 && checkpoints.length === 0 ? (
-                    <div className="alert alert-warning py-2 mb-0">
-                      {detail.message ||
-                        'No tracking events returned for this consignment.'}
+                    <div className="alert alert-warning py-2 mb-3">
+                      {detail.message || 'No tracking events returned for this consignment.'}
                     </div>
                   ) : null}
+
+                  <div className="accordion tracking-status-collapse" id="trackingStatusMore">
+                    <div className="accordion-item">
+                      <h2 className="accordion-header">
+                        <button
+                          className="accordion-button collapsed"
+                          type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#trackingStatusMoreBody"
+                          aria-expanded="false"
+                          aria-controls="trackingStatusMoreBody"
+                        >
+                          Technical details
+                        </button>
+                      </h2>
+                      <div
+                        id="trackingStatusMoreBody"
+                        className="accordion-collapse collapse"
+                      >
+                        <div className="accordion-body">
+                          {statusApiUrl ? (
+                            <div className="mb-2">
+                              <span className="tracking-status-field__label">Status API</span>
+                              <div className="tracking-status-url">{statusApiUrl}</div>
+                            </div>
+                          ) : null}
+                          {publicUrl ? (
+                            <div className="mb-2">
+                              <span className="tracking-status-field__label">Public tracking page</span>
+                              <a
+                                className="tracking-status-url d-block"
+                                href={publicUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {publicUrl}
+                              </a>
+                            </div>
+                          ) : null}
+                          {moreDetails.map(([key, value]) => (
+                            <Field key={key} label={humanizeKey(key)} value={value} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </>
               ) : null}
             </div>
             <div className="modal-footer">
               <button
                 type="button"
-                className="btn btn-outline-primary btn-sm mb-0"
+                className="btn btn-outline-secondary btn-sm mb-0"
+                onClick={onClose}
+                disabled={isLoading}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm mb-0"
                 disabled={isLoading}
                 onClick={() => {
                   loadStatus();
                 }}
               >
-                Refresh
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm mb-0"
-                onClick={onClose}
-                disabled={isLoading}
-              >
-                Close
+                {isLoading ? 'Refreshing…' : 'Refresh'}
               </button>
             </div>
           </div>
