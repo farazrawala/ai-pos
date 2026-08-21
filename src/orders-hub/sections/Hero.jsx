@@ -3,8 +3,10 @@ import Button from '../components/Button/Button.jsx';
 import HeroDashboard from '../components/DashboardPreview/HeroDashboard.jsx';
 import { floatingCards } from '../data/mock.js';
 import { site } from '../config.js';
+import { useSignupModal } from '../context/SignupModalContext.jsx';
 
 export default function Hero() {
+  const { openSignup } = useSignupModal();
   return (
     <section className="oh-hero" id="top">
       <div className="oh-container oh-hero__grid">
@@ -18,7 +20,7 @@ export default function Hero() {
           </p>
           <p className="oh-hero__tag">{site.tagline}</p>
           <div className="oh-hero__cta">
-            <Button href={site.urls.signup} size="lg">
+            <Button size="lg" onClick={openSignup}>
               Start Free
             </Button>
             <Button href="#features" variant="ghost" size="lg">

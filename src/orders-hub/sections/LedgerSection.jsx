@@ -2,9 +2,10 @@ import SectionHeader from '../components/SectionHeader/SectionHeader.jsx';
 import Button from '../components/Button/Button.jsx';
 import Reveal from '../components/Reveal.jsx';
 import LedgerMockup from '../components/DashboardPreview/LedgerMockup.jsx';
-import { site } from '../config.js';
+import { useSignupModal } from '../context/SignupModalContext.jsx';
 
 export default function LedgerSection() {
+  const { openSignup } = useSignupModal();
   return (
     <section className="oh-section" id="ledger">
       <div className="oh-container">
@@ -17,7 +18,7 @@ export default function LedgerSection() {
           <LedgerMockup />
         </Reveal>
         <div className="oh-center oh-mt">
-          <Button href={site.urls.signup}>Manage Your Ledger</Button>
+          <Button onClick={openSignup}>Manage Your Ledger</Button>
         </div>
       </div>
     </section>

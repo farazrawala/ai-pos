@@ -3,9 +3,10 @@ import { ChevronDown, Menu, X } from 'lucide-react';
 import Logo from '../Logo.jsx';
 import Button from '../Button/Button.jsx';
 import { navLinks } from '../../data/nav.js';
-import { site } from '../../config.js';
+import { useSignupModal } from '../../context/SignupModalContext.jsx';
 
 export default function Navbar() {
+  const { openSignup } = useSignupModal();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(null);
@@ -94,10 +95,7 @@ export default function Navbar() {
         </nav>
 
         <div className="oh-nav__actions">
-          <a className="oh-nav__login" href={site.urls.login}>
-            Login
-          </a>
-          <Button href={site.urls.signup} size="sm">
+          <Button size="sm" onClick={openSignup}>
             Start Free
           </Button>
           <button
@@ -134,10 +132,14 @@ export default function Navbar() {
             </div>
           ))}
           <div className="oh-nav__drawer-cta">
-            <Button href={site.urls.login} variant="secondary">
-              Login
+            <Button
+              onClick={() => {
+                closeAll();
+                openSignup();
+              }}
+            >
+              Get Started
             </Button>
-            <Button href={site.urls.signup}>Get Started</Button>
           </div>
         </nav>
       </div>

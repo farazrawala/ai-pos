@@ -4,9 +4,10 @@ import Button from '../components/Button/Button.jsx';
 import Reveal from '../components/Reveal.jsx';
 import PosMockup from '../components/DashboardPreview/PosMockup.jsx';
 import { posHighlights } from '../data/features.js';
-import { site } from '../config.js';
+import { useSignupModal } from '../context/SignupModalContext.jsx';
 
 export default function POSShowcase() {
+  const { openSignup } = useSignupModal();
   return (
     <section className="oh-section" id="pos">
       <div className="oh-container">
@@ -25,7 +26,7 @@ export default function POSShowcase() {
                 </li>
               ))}
             </ul>
-            <Button href={site.urls.signup} className="oh-mt">
+            <Button className="oh-mt" onClick={openSignup}>
               Explore POS
             </Button>
           </Reveal>

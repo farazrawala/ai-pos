@@ -216,3 +216,72 @@
 .product-image-remove-btn svg {
   display: block;
 }
+
+/* Product image drag-and-drop zone */
+.product-image-dropzone {
+  border: 1.5px dashed #cdd5e3;
+  border-radius: 0.85rem;
+  background: #f9fbfe;
+  padding: 1.15rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+  user-select: none;
+}
+
+.product-image-dropzone:hover,
+.product-image-dropzone:focus,
+.product-image-dropzone.is-dragging {
+  border-color: #5b8def;
+  background: #f2f7ff;
+  outline: none;
+}
+
+.product-image-dropzone.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.product-image-dropzone-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #e8f0ff;
+  color: #3b6fd4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 0.45rem;
+}
+
+.product-image-dropzone-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #41506b;
+  margin: 0;
+}
+
+.product-image-dropzone-or {
+  font-size: 0.72rem;
+  color: #9aa4b6;
+  margin: 0.2rem 0;
+  text-transform: lowercase;
+}
+
+.product-image-dropzone-browse {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #3b6fd4;
+  margin-top: 0.1rem;
+}
+
+.product-image-dropzone-sub {
+  font-size: 0.72rem;
+  color: #9aa4b6;
+  margin: 0.45rem 0 0;
+}

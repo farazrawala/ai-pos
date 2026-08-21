@@ -1,7 +1,11 @@
 import Button from '../Button/Button.jsx';
 import { site } from '../../config.js';
+import { useSignupModal } from '../../context/SignupModalContext.jsx';
 
 export default function PricingCard({ plan }) {
+  const { openSignup } = useSignupModal();
+  const isEnterprise = plan.id === 'enterprise';
+
   return (
     <article className={`oh-price-card${plan.featured ? ' is-featured' : ''}`}>
       {plan.featured ? <p className="oh-price-card__badge">Most chosen</p> : null}
@@ -19,9 +23,15 @@ export default function PricingCard({ plan }) {
           </li>
         ))}
       </ul>
-      <Button href={plan.id === 'enterprise' ? site.urls.demo : site.urls.signup} variant={plan.featured ? 'primary' : 'secondary'}>
-        {plan.id === 'enterprise' ? 'Talk to sales' : 'Start Free'}
-      </Button>
+      {isEnterprise ? (
+        <Button href={site.urls.demo} variant={plan.featured ? 'primary' : 'secondary'}>
+          Talk to sales
+        </Button>
+      ) : (
+        <Button variant={plan.featured ? 'primary' : 'secondary'} onClick={openSignup}>
+          Start Free
+        </Button>
+      )}
     </article>
   );
 }

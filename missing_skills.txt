@@ -1,0 +1,45 @@
+1. TypeScript
+
+Convert your JS to TS in a real project (types, interfaces, generics)
+TS with React Native and Node/Express specifically
+
+2. React Native New Architecture
+
+JSI (JavaScript Interface)
+Turbo Modules
+Fabric renderer
+Codegen specs
+How this differs from the old bridge architecture
+
+3. Next.js
+
+App Router, Server Components
+SSR / SSG / ISR
+API routes
+Pairing it with your existing Node.js backend skills
+
+4. AI agent frameworks (beyond your current RAG work)
+
+Tool-calling / function-calling with LLMs
+Multi-step agent orchestration (LangGraph or similar)
+Multi-agent systems
+Evaluating and debugging agent behavior
+
+//need to learn this topics in js
+- Deep Agents
+- Guardrails
+- LLM Evaluation
+- LLM Gateways
+
+
+5. Cloud + DevOps
+
+AWS or GCP fundamentals (pick one — AWS has more job postings)
+Docker (containerizing a Node backend)
+CI/CD pipelines (GitHub Actions is a good easy entry point)
+Basic Kubernetes awareness (not mastery — just enough to speak to it)
+
+6. Testing depth
+
+Integration and E2E testing (you already have Jest/Detox — go deeper here)
+CI-integrated test suites

@@ -3,9 +3,10 @@ import SectionHeader from '../components/SectionHeader/SectionHeader.jsx';
 import Button from '../components/Button/Button.jsx';
 import Reveal from '../components/Reveal.jsx';
 import StoreMockup from '../components/DashboardPreview/StoreMockup.jsx';
-import { site } from '../config.js';
+import { useSignupModal } from '../context/SignupModalContext.jsx';
 
 export default function OnlineStoreSection() {
+  const { openSignup } = useSignupModal();
   return (
     <section className="oh-section" id="store">
       <div className="oh-container">
@@ -40,7 +41,7 @@ export default function OnlineStoreSection() {
                 Same products. Same stock.
               </li>
             </ol>
-            <Button href={site.urls.signup} className="oh-mt">
+            <Button className="oh-mt" onClick={openSignup}>
               Create Your Online Store
             </Button>
           </Reveal>

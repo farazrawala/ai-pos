@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const basePath = env.VITE_ORDERS_HUB_BASE_PATH || '/';
   const normalizedBase =
     basePath === '/' ? '/' : `/${String(basePath).replace(/^\/+|\/+$/g, '')}/`;
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8000';
 
   return {
     root: resolve(__dirname, 'src/orders-hub'),
@@ -31,6 +32,18 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       strictPort: true,
       open: true,
+      proxy: {
+        '/api/': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/uploads': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
     preview: {
       port: 4174,

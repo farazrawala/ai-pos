@@ -13,7 +13,7 @@ const InvoiceSection = lazy(() => import('../sections/InvoiceSection.jsx'));
 const ReportsSection = lazy(() => import('../sections/ReportsSection.jsx'));
 const OnlineStoreSection = lazy(() => import('../sections/OnlineStoreSection.jsx'));
 const CustomersSection = lazy(() => import('../sections/CustomersSection.jsx'));
-const WarehouseSection = lazy(() => import('../sections/WarehouseSection.jsx'));
+const OfflineSection = lazy(() => import('../sections/OfflineSection.jsx'));
 const DashboardSection = lazy(() => import('../sections/DashboardSection.jsx'));
 const HowItWorks = lazy(() => import('../sections/HowItWorks.jsx'));
 const Pricing = lazy(() => import('../sections/Pricing.jsx'));
@@ -44,7 +44,7 @@ export default function Home() {
           <ReportsSection />
           <OnlineStoreSection />
           <CustomersSection />
-          <WarehouseSection />
+          <OfflineSection />
           <DashboardSection />
           <HowItWorks />
           <Pricing />

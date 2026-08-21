@@ -24,6 +24,7 @@ import QuickAddCategoryModal from '../../components/category/QuickAddCategoryMod
 import QuickAddBrandModal from '../../components/brand/QuickAddBrandModal.jsx';
 import ConfirmDialog from '../../components/support/ConfirmDialog.jsx';
 import RichTextEditor from '../../components/common/RichTextEditor.jsx';
+import ProductImageDropzone from '../../components/product/ProductImageDropzone.jsx';
 import {
   variationProductIdFromRecord,
   generateBarcode,
@@ -1077,35 +1078,34 @@ const ProductEdit = () => {
     }
   };
 
-  // Handle single image upload
-  const handleSingleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const validationError = validateProductImageFile(file);
-      if (validationError) {
-        setErrors((prev) => ({
-          ...prev,
-          singleImage: validationError,
-        }));
-        if (singleImageInputRef.current) singleImageInputRef.current.value = '';
-        return;
-      }
-      setSingleImage(file);
-      setErrors((prev) => ({ ...prev, singleImage: '' }));
-      setExistingSingleImage(null); // Clear existing image when new one is selected
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSingleImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+  // Handle single image upload (browse or drag-and-drop)
+  const handleSingleImageFiles = (files) => {
+    const file = files?.[0];
+    if (!file) return;
+    const validationError = validateProductImageFile(file);
+    if (validationError) {
+      setErrors((prev) => ({
+        ...prev,
+        singleImage: validationError,
+      }));
+      if (singleImageInputRef.current) singleImageInputRef.current.value = '';
+      return;
     }
+    setSingleImage(file);
+    setErrors((prev) => ({ ...prev, singleImage: '' }));
+    setExistingSingleImage(null); // Clear existing image when new one is selected
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSingleImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
-  // Handle bulk images upload
-  const handleBulkImagesChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > PRODUCT_ADDITIONAL_IMAGES_MAX) {
+  // Handle bulk images upload (browse or drag-and-drop)
+  const handleBulkImageFiles = (files) => {
+    const list = Array.from(files || []);
+    if (list.length > PRODUCT_ADDITIONAL_IMAGES_MAX) {
       setErrors((prev) => ({
         ...prev,
         bulkImages: `Maximum ${PRODUCT_ADDITIONAL_IMAGES_MAX} images allowed`,
@@ -1116,7 +1116,7 @@ const ProductEdit = () => {
     const validFiles = [];
     const invalidFiles = [];
 
-    files.forEach((file) => {
+    list.forEach((file) => {
       const validationError = validateProductImageFile(file);
       if (validationError) {
         invalidFiles.push(`${file.name}: ${validationError}`);
@@ -2083,7 +2083,9 @@ const ProductEdit = () => {
 
                 {/* Single Image Upload */}
                 <div className="mb-4">
-                  <label className="form-label">Main Product Image</label>
+                  <label className="form-label" htmlFor="product-main-image">
+                    Main Product Image
+                  </label>
                   {existingSingleImage && !singleImagePreview && (
                     <div className="mb-2 position-relative" style={{ width: '200px' }}>
                       <img
@@ -2118,13 +2120,13 @@ const ProductEdit = () => {
                       <small className="text-muted d-block mt-1">Current image</small>
                     </div>
                   )}
-                  <input
-                    ref={singleImageInputRef}
-                    type="file"
-                    className="form-control"
+                  <ProductImageDropzone
+                    id="product-main-image"
+                    inputRef={singleImageInputRef}
                     accept={PRODUCT_IMAGE_ACCEPT}
-                    onChange={handleSingleImageChange}
                     disabled={isSubmitting}
+                    onFiles={handleSingleImageFiles}
+                    hint={`Upload a single main product image (${PRODUCT_IMAGE_HINT})`}
                   />
                   {errors.singleImage && (
                     <div className="text-danger text-sm mt-1">{errors.singleImage}</div>
@@ -2165,14 +2167,13 @@ const ProductEdit = () => {
                       </small>
                     </div>
                   )}
-                  <small className="text-muted">
-                    Upload a single main product image ({PRODUCT_IMAGE_HINT})
-                  </small>
                 </div>
 
                 {/* Bulk Images Upload */}
                 <div className="mb-4">
-                  <label className="form-label">Additional Product Images</label>
+                  <label className="form-label" htmlFor="product-additional-images">
+                    Additional Product Images
+                  </label>
                   {existingBulkImages.length > 0 && bulkImagePreviews.length === 0 && (
                     <div className="mb-3">
                       <div className="row g-2">
@@ -2213,14 +2214,14 @@ const ProductEdit = () => {
                       <small className="text-muted">Current additional images</small>
                     </div>
                   )}
-                  <input
-                    ref={bulkImagesInputRef}
-                    type="file"
-                    className="form-control"
+                  <ProductImageDropzone
+                    id="product-additional-images"
+                    inputRef={bulkImagesInputRef}
                     accept={PRODUCT_IMAGE_ACCEPT}
                     multiple
-                    onChange={handleBulkImagesChange}
                     disabled={isSubmitting}
+                    onFiles={handleBulkImageFiles}
+                    hint={`Upload multiple additional images (max ${PRODUCT_ADDITIONAL_IMAGES_MAX}, ${PRODUCT_IMAGE_HINT} each)`}
                   />
                   {errors.bulkImages && (
                     <div className="text-danger text-sm mt-1">{errors.bulkImages}</div>
@@ -2265,10 +2266,6 @@ const ProductEdit = () => {
                       <small className="text-muted">New images (will be added to existing)</small>
                     </div>
                   )}
-                  <small className="text-muted">
-                    Upload multiple additional images (max {PRODUCT_ADDITIONAL_IMAGES_MAX},{' '}
-                    {PRODUCT_IMAGE_HINT} each)
-                  </small>
                 </div>
 
                 {/* Product Type Field */}

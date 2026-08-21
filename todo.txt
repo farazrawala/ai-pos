@@ -94,14 +94,16 @@ order status sync to stores
 
 
 // 10 august.
-Postex :: tracking part
+Postex :: hooks
 Tcs :: live token testing
 Leopard :: not started.
-
+Flagship :: done.
 Bykea :: not open (connect to support) 
 Jazz cash :: connect to support
-Easy Pais :: connect to support
+Easy Paisa :: connect to support
 
+Shopify Store for Orders::not_started
+ import orders into it :
 
 
 Address incomplete :: initial done.
