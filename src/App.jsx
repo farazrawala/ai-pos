@@ -236,6 +236,7 @@ const App = () => {
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
           <Route path="/printer-settings" element={<PrinterSettings />} />
+          <Route path="/printer-settings/a4-layout" element={<Navigate to="/printer-settings" replace />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />
@@ -438,6 +439,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/barcode-print" element={<BarcodePrint />} />
           <Route path="/product-print" element={<ProductPrint />} />
           <Route path="/printer-settings" element={<PrinterSettings />} />
+          <Route path="/printer-settings/a4-layout" element={<Navigate to="/printer-settings" replace />} />
           <Route path="/attributes" element={<Attribute />} />
           <Route path="/attributes/add" element={<AttributeAdd />} />
           <Route path="/attributes/edit/:id" element={<AttributeEdit />} />

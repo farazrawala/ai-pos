@@ -12,8 +12,15 @@ import {
 } from '../../features/stockRecount/stockRecountSlice.js';
 import {
   fetchActiveWarehousesRequest,
+  fetchStockRecountsRequest,
   formatQty,
+  getProductLabel,
+  getProductSku,
+  getWarehouseLabel,
+  isCounted,
   shortSessionId,
+  STOCK_RECOUNT_SESSION_POPULATE,
+  varianceOf,
 } from '../../features/stockRecount/stockRecountAPI.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -23,9 +30,32 @@ import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { exportRowsToCsv } from '../../utils/listExport.js';
+import { toast } from '../../utils/toast.js';
 
 const warehouseOptionId = (w) => String(w?._id || w?.id || '').trim();
 const warehouseOptionName = (w) => w?.name || w?.warehouse_name || w?.code || 'Warehouse';
+
+const STOCK_RECOUNT_CSV_COLUMNS = [
+  { label: 'Product', value: (row) => getProductLabel(row) },
+  { label: 'SKU', value: (row) => getProductSku(row) || '' },
+  { label: 'Warehouse', value: (row) => getWarehouseLabel(row) },
+  {
+    label: 'System qty',
+    value: (row) => (row.system_qty == null || row.system_qty === '' ? '' : row.system_qty),
+  },
+  {
+    label: 'Counted qty',
+    value: (row) => (isCounted(row) ? row.counted_qty : ''),
+  },
+  {
+    label: 'Variance',
+    value: (row) => {
+      const v = varianceOf(row);
+      return v == null ? '' : v;
+    },
+  },
+];
 
 const StockRecountIndex = () => {
   useRequireModuleAccess('stock-recounts');
@@ -46,6 +76,7 @@ const StockRecountIndex = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [warehouses, setWarehouses] = useState([]);
   const [warehousesStatus, setWarehousesStatus] = useState('idle');
+  const [exportingId, setExportingId] = useState('');
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -140,7 +171,39 @@ const StockRecountIndex = () => {
     dispatch(fetchStockRecounts(params));
   };
 
-  const colCount = 8;
+  const handleDownloadCsv = useCallback(async (item, e) => {
+    e?.stopPropagation?.();
+    const id = String(item?.stockRecountId || '').trim();
+    if (!id || exportingId) return;
+
+    setExportingId(id);
+    try {
+      const res = await fetchStockRecountsRequest({
+        stock_recount_id: id,
+        populate: STOCK_RECOUNT_SESSION_POPULATE,
+        limit: 5000,
+        sortBy: 'createdAt',
+        sortOrder: 'asc',
+      });
+      const rows = Array.isArray(res.data) ? res.data : [];
+      if (rows.length === 0) {
+        toast.error('No lines found for this recount session');
+        return;
+      }
+      const shortId = shortSessionId(id);
+      exportRowsToCsv({
+        columns: STOCK_RECOUNT_CSV_COLUMNS,
+        rows,
+        filename: `stock-recount-${shortId}-${moment().format('YYYY-MM-DD-HHmm')}`,
+      });
+    } catch (err) {
+      toast.error(err?.message || 'Could not download CSV');
+    } finally {
+      setExportingId('');
+    }
+  }, [exportingId]);
+
+  const colCount = 9;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -216,6 +279,7 @@ const StockRecountIndex = () => {
                       <th className="text-end">Variance</th>
                       {sortableTh('status', 'Status')}
                       {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      <th className="text-center text-nowrap">CSV</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -228,7 +292,8 @@ const StockRecountIndex = () => {
                     ) : (
                       data.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
-                        const inProgress = item.status === 'in_progress';
+                        const completed = item.status === 'completed';
+                        const isExporting = exportingId === item.stockRecountId;
                         return (
                           <tr
                             key={item.stockRecountId}
@@ -261,10 +326,10 @@ const StockRecountIndex = () => {
                             <td className="text-sm">
                               <span
                                 className={`badge text-xxs ${
-                                  inProgress ? 'bg-gradient-info' : 'bg-gradient-success'
+                                  completed ? 'bg-gradient-success' : 'bg-gradient-info'
                                 }`}
                               >
-                                {inProgress ? 'In progress' : 'Counted'}
+                                {completed ? 'Completed' : 'In progress'}
                               </span>
                             </td>
                             <td
@@ -278,6 +343,22 @@ const StockRecountIndex = () => {
                               {item.createdAt
                                 ? moment(item.createdAt).format('DD MMM YYYY h:mm a')
                                 : '—'}
+                            </td>
+                            <td
+                              className="text-center text-nowrap"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                className="btn btn-outline-success btn-sm mb-0"
+                                disabled={Boolean(exportingId)}
+                                title="Download recount lines as CSV"
+                                aria-label={`Download CSV for session ${shortSessionId(item.stockRecountId)}`}
+                                onClick={(e) => handleDownloadCsv(item, e)}
+                              >
+                                <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                                {isExporting ? '…' : 'CSV'}
+                              </button>
                             </td>
                           </tr>
                         );

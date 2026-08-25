@@ -75,6 +75,7 @@ export const ROUTE_PERMISSION_MODULE = {
   '/barcode-print': 'barcode-print',
   '/product-print': 'products',
   '/printer-settings': 'printer-settings',
+  '/printer-settings/a4-layout': 'printer-settings',
   '/attributes': 'attributes',
   '/users': 'users',
   '/amount-transfers': 'amount-transfers',

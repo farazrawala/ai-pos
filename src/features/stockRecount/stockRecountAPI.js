@@ -109,6 +109,55 @@ export function shortSessionId(id) {
   return s.length > 8 ? s.slice(-8).toUpperCase() : s.toUpperCase();
 }
 
+/** Session workflow status (list badge). Persisted locally until API exposes it. */
+export const RECOUNT_SESSION_STATUS = {
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+};
+
+const SESSION_STATUS_STORAGE_KEY = 'ai-pos-stock-recount-session-status';
+
+function readSessionStatusMap() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SESSION_STATUS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSessionStatusMap(map) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SESSION_STATUS_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function getRecountSessionStatus(sessionId) {
+  const id = String(sessionId || '').trim();
+  if (!id) return RECOUNT_SESSION_STATUS.IN_PROGRESS;
+  const stored = readSessionStatusMap()[id];
+  if (stored === RECOUNT_SESSION_STATUS.COMPLETED) return RECOUNT_SESSION_STATUS.COMPLETED;
+  return RECOUNT_SESSION_STATUS.IN_PROGRESS;
+}
+
+export function setRecountSessionStatus(sessionId, status) {
+  const id = String(sessionId || '').trim();
+  if (!id) return;
+  const next =
+    status === RECOUNT_SESSION_STATUS.COMPLETED
+      ? RECOUNT_SESSION_STATUS.COMPLETED
+      : RECOUNT_SESSION_STATUS.IN_PROGRESS;
+  const map = readSessionStatusMap();
+  map[id] = next;
+  writeSessionStatusMap(map);
+}
+
 export const getProductLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';
   const p = row.product_id ?? row.product;
@@ -247,7 +296,7 @@ export function groupRecountsBySession(rows) {
 
   return Array.from(map.values()).map((g) => ({
     ...g,
-    status: g.pendingCount > 0 ? 'in_progress' : 'counted',
+    status: getRecountSessionStatus(g.stockRecountId),
   }));
 }
 

@@ -6,10 +6,13 @@ import {
   formatQty,
   getProductLabel,
   getProductSku,
+  getRecountSessionStatus,
   getWarehouseLabel,
   isCounted,
   postRecountSessionRequest,
+  RECOUNT_SESSION_STATUS,
   roundQty,
+  setRecountSessionStatus,
   shortSessionId,
   STOCK_RECOUNT_SESSION_POPULATE,
   updateStockRecountRequest,
@@ -84,6 +87,9 @@ const StockRecountSession = () => {
   const [savingAll, setSavingAll] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postedSummary, setPostedSummary] = useState(null);
+  const [sessionStatus, setSessionStatus] = useState(() =>
+    getRecountSessionStatus(sessionId)
+  );
 
   const loadSession = useCallback(async () => {
     const id = String(sessionId || '').trim();
@@ -111,12 +117,31 @@ const StockRecountSession = () => {
       });
       setDrafts(nextDrafts);
       setDirty({});
+      setSessionStatus(getRecountSessionStatus(id));
       setStatus('succeeded');
     } catch (err) {
       setLines([]);
       setError(err?.message || 'Failed to load recount session');
       setStatus('failed');
     }
+  }, [sessionId]);
+
+  useEffect(() => {
+    setSessionStatus(getRecountSessionStatus(sessionId));
+  }, [sessionId]);
+
+  const markInProgress = useCallback(() => {
+    const id = String(sessionId || '').trim();
+    if (!id) return;
+    setRecountSessionStatus(id, RECOUNT_SESSION_STATUS.IN_PROGRESS);
+    setSessionStatus(RECOUNT_SESSION_STATUS.IN_PROGRESS);
+  }, [sessionId]);
+
+  const markCompleted = useCallback(() => {
+    const id = String(sessionId || '').trim();
+    if (!id) return;
+    setRecountSessionStatus(id, RECOUNT_SESSION_STATUS.COMPLETED);
+    setSessionStatus(RECOUNT_SESSION_STATUS.COMPLETED);
   }, [sessionId]);
 
   useEffect(() => {
@@ -177,6 +202,7 @@ const StockRecountSession = () => {
     const next = sanitizeQtyInput(value);
     setDrafts((prev) => ({ ...prev, [rowId]: next }));
     setDirty((prev) => ({ ...prev, [rowId]: true }));
+    markInProgress();
   };
 
   const saveRow = async (row) => {
@@ -239,23 +265,27 @@ const StockRecountSession = () => {
       toast.warning('Save counted quantities before posting.');
       return;
     }
-    if (stats.variance === 0) {
-      toast.info('No variances to post.');
-      return;
-    }
     const ok = window.confirm(
-      `Post ${stats.variance} variance line${stats.variance === 1 ? '' : 's'} to warehouse inventory?`
+      stats.variance > 0
+        ? `Post ${stats.variance} variance line${stats.variance === 1 ? '' : 's'} to warehouse inventory and mark this recount completed?`
+        : 'No variances to post. Mark this recount as completed?'
     );
     if (!ok) return;
 
     setPosting(true);
     try {
-      const result = await postRecountSessionRequest(sessionId);
-      setPostedSummary(result);
+      let result = { posted: 0, skipped: 0 };
+      if (stats.variance > 0) {
+        result = await postRecountSessionRequest(sessionId);
+        setPostedSummary(result);
+      }
+      markCompleted();
       toast.success(
-        result.posted
-          ? `Posted ${result.posted} adjustment${result.posted === 1 ? '' : 's'}.`
-          : 'Post complete. No inventory changes were needed.'
+        stats.variance > 0
+          ? result.posted
+            ? `Posted ${result.posted} adjustment${result.posted === 1 ? '' : 's'}. Recount completed.`
+            : 'Post complete. Recount marked completed.'
+          : 'Recount marked completed.'
       );
       await loadSession();
     } catch (err) {
@@ -297,6 +327,17 @@ const StockRecountSession = () => {
                 </div>
                 <div className="col-lg-6">
                   <div className="d-flex flex-wrap justify-content-lg-end gap-2">
+                    <span
+                      className={`badge mb-0 ${
+                        sessionStatus === RECOUNT_SESSION_STATUS.COMPLETED
+                          ? 'bg-gradient-success'
+                          : 'bg-gradient-info'
+                      }`}
+                    >
+                      {sessionStatus === RECOUNT_SESSION_STATUS.COMPLETED
+                        ? 'Completed'
+                        : 'In progress'}
+                    </span>
                     <span className="badge bg-gradient-dark mb-0">
                       {stats.counted}/{stats.total} counted
                     </span>
@@ -344,10 +385,18 @@ const StockRecountSession = () => {
                     <button
                       type="button"
                       className="btn btn-sm btn-success mb-0"
-                      disabled={posting || dirtyIds.length > 0 || stats.variance === 0}
+                      disabled={
+                        posting ||
+                        dirtyIds.length > 0 ||
+                        sessionStatus === RECOUNT_SESSION_STATUS.COMPLETED
+                      }
                       onClick={handlePost}
                     >
-                      {posting ? 'Posting…' : 'Post adjustments'}
+                      {posting
+                        ? 'Posting…'
+                        : sessionStatus === RECOUNT_SESSION_STATUS.COMPLETED
+                          ? 'Completed'
+                          : 'Post adjustments'}
                     </button>
                   </div>
                 ) : null}

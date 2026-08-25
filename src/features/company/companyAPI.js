@@ -2,6 +2,10 @@ import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js
 import { isUserUploadFilePart } from '../users/usersAPI.js';
 import { DEFAULT_PRINTER } from '../printers/printerConstants.js';
 import { isValidPrinterIp, isValidPort } from '../printers/printerValidation.js';
+import {
+  parseCustomPrinterSettings,
+  readCustomPrinterSettingsRaw,
+} from '../printLayout/customPrinterSettings.js';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -1014,6 +1018,8 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
     readEmailAlertsSettingsRaw(fetched) ?? readEmailAlertsSettingsRaw(fallback) ?? null;
   const defaultPrinterRaw =
     readDefaultPrinterSettingsRaw(fetched) ?? readDefaultPrinterSettingsRaw(fallback) ?? null;
+  const customPrinterRaw =
+    readCustomPrinterSettingsRaw(fetched) ?? readCustomPrinterSettingsRaw(fallback) ?? null;
   return {
     ...fallback,
     ...fetched,
@@ -1032,6 +1038,12 @@ export function mergeCompanyRecordForSettings(fetched, fallback) {
       : {}),
     ...(defaultPrinterRaw != null
       ? { default_printer_settings: defaultPrinterRaw, defaultPrinterSettings: defaultPrinterRaw }
+      : {}),
+    ...(customPrinterRaw != null
+      ? {
+          custom_printer_settings: customPrinterRaw,
+          customPrinterSettings: customPrinterRaw,
+        }
       : {}),
   };
 }
@@ -2134,6 +2146,19 @@ export function validateDefaultPrinterSettingsPayload(data = {}) {
 export async function patchCompanyDefaultPrinterSettings(companyId, settingsObject) {
   return patchCompanyFormFields(companyId, {
     default_printer_settings: JSON.stringify(settingsObject),
+  });
+}
+
+/** A4/A5 print layout designer — stored as JSON string on company. */
+export function extractCustomPrinterSettingsFromCompanyBody(body) {
+  const company = extractCompanyRecord(body);
+  if (!company || typeof company !== 'object') return null;
+  return parseCustomPrinterSettings(readCustomPrinterSettingsRaw(company));
+}
+
+export async function patchCompanyCustomPrinterSettings(companyId, settingsObject) {
+  return patchCompanyFormFields(companyId, {
+    custom_printer_settings: JSON.stringify(settingsObject),
   });
 }
 
