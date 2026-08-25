@@ -6,6 +6,7 @@ import { saveExpense } from '../../features/expenses/expensesSlice.js';
 import {
   buildExpenseDefaultAccountFilterParams,
   isExpenseUploadFilePart,
+  normalizeExpenseDate,
 } from '../../features/expenses/expensesAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
@@ -14,6 +15,7 @@ import { DEBUG } from '../../config/env.js';
 
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
+const todayISO = () => moment().format('YYYY-MM-DD');
 
 /** GET `account/get-all-active` URL for expense accounts (help text). */
 const expenseAccountsListUrl = (accountType) => {
@@ -71,6 +73,7 @@ const ExpenseAdd = () => {
 
   const [form, setForm] = useState({
     name: '',
+    date: todayISO(),
     user_id: defaultUserId || '',
     account_id: '',
     amount: '0',
@@ -225,6 +228,9 @@ const ExpenseAdd = () => {
     if (!String(form.name || '').trim()) {
       newErrors.name = 'Name is required';
     }
+    if (!normalizeExpenseDate(form.date)) {
+      newErrors.date = 'Please select a date';
+    }
     if (!String(form.user_id || '').trim()) {
       newErrors.user_id = 'Please select a user';
     }
@@ -276,6 +282,7 @@ const ExpenseAdd = () => {
     try {
       const payload = {
         name: form.name.trim(),
+        date: normalizeExpenseDate(form.date) || todayISO(),
         user_id: form.user_id.trim(),
         amount: form.amount,
         note: form.note,
@@ -349,6 +356,21 @@ const ExpenseAdd = () => {
                     placeholder="e.g. salary"
                   />
                   {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="date" className="form-label">
+                    Date <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={`form-control ${errors.date ? 'is-invalid' : ''}`}
+                    id="date"
+                    name="date"
+                    value={form.date}
+                    onChange={handleChange}
+                  />
+                  {errors.date && <div className="invalid-feedback">{errors.date}</div>}
                 </div>
 
                 <div className="mb-3">

@@ -240,6 +240,19 @@ export const isExpenseUploadFilePart = (value) => {
   return typeof value.lastModified === 'number';
 };
 
+/** Normalize expense date to YYYY-MM-DD for API payloads. */
+export function normalizeExpenseDate(value) {
+  if (value == null || value === '') return '';
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /** Build payload fields for POST /expense/save (and legacy create). */
 export function buildExpenseCreateBody(raw = {}) {
   const body = {};
@@ -255,6 +268,8 @@ export function buildExpenseCreateBody(raw = {}) {
   if (raw.payment_method_accounts_id != null && String(raw.payment_method_accounts_id).trim() !== '') {
     body.payment_method_accounts_id = String(raw.payment_method_accounts_id).trim();
   }
+  const date = normalizeExpenseDate(raw.date ?? raw.expense_date);
+  if (date) body.date = date;
   if (raw.note != null) body.note = String(raw.note);
   return body;
 }

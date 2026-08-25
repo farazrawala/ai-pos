@@ -11,13 +11,20 @@ import {
 import {
   buildExpenseDefaultAccountFilterParams,
   isExpenseUploadFilePart,
+  normalizeExpenseDate,
 } from '../../features/expenses/expensesAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 
 const EXPENSE_ACCOUNT_TYPE = 'operating_expense';
 const PAYMENT_METHOD_ACCOUNT_TYPE = 'current_asset';
+const todayISO = () => moment().format('YYYY-MM-DD');
+
+const pickExpenseDate = (exp) =>
+  normalizeExpenseDate(exp?.date ?? exp?.expense_date ?? exp?.createdAt ?? exp?.created_at) ||
+  todayISO();
 
 const paymentAccountsListUrl = (filters) => {
   const q = new URLSearchParams();
@@ -76,6 +83,7 @@ const ExpenseEdit = () => {
 
   const [form, setForm] = useState({
     name: '',
+    date: todayISO(),
     user_id: '',
     account_id: '',
     amount: '',
@@ -172,6 +180,7 @@ const ExpenseEdit = () => {
     if (!currentExpense) return;
     setForm({
       name: currentExpense.name || '',
+      date: pickExpenseDate(currentExpense),
       user_id: refId(currentExpense.user_id),
       account_id: refId(currentExpense.account_id),
       amount: currentExpense.amount != null ? String(currentExpense.amount) : '',
@@ -229,6 +238,7 @@ const ExpenseEdit = () => {
   const validateForm = () => {
     const newErrors = {};
     if (!String(form.name || '').trim()) newErrors.name = 'Name is required';
+    if (!normalizeExpenseDate(form.date)) newErrors.date = 'Please select a date';
     if (!String(form.user_id || '').trim()) newErrors.user_id = 'Please select a user';
     const amt = Number(form.amount);
     if (form.amount === '' || form.amount == null || Number.isNaN(amt)) {
@@ -271,6 +281,7 @@ const ExpenseEdit = () => {
     try {
       const payload = {
         name: form.name.trim(),
+        date: normalizeExpenseDate(form.date) || todayISO(),
         user_id: form.user_id.trim(),
         amount: form.amount,
         note: form.note,
@@ -357,9 +368,11 @@ const ExpenseEdit = () => {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="mb-0">Edit expense</h5>
-                  <p className="text-sm mb-0 text-muted">
-                    Updates via <code className="text-xs">PATCH /expense/update/:id</code>
-                  </p>
+                  {DEBUG ? (
+                    <p className="text-sm mb-0 text-muted">
+                      Updates via <code className="text-xs">PATCH /expense/update/:id</code>
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -387,6 +400,22 @@ const ExpenseEdit = () => {
                     disabled={isSubmitting}
                   />
                   {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="date" className="form-label">
+                    Date <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={`form-control ${errors.date ? 'is-invalid' : ''}`}
+                    id="date"
+                    name="date"
+                    value={form.date}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                  />
+                  {errors.date && <div className="invalid-feedback">{errors.date}</div>}
                 </div>
 
                 <div className="mb-3">
