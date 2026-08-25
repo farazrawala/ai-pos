@@ -509,7 +509,7 @@ const ExpenseEdit = () => {
                       {errors.payment_method_accounts_id}
                     </div>
                   )}
-                  {paymentAccountFilterUrl && (
+                  {DEBUG && paymentAccountFilterUrl ? (
                     <small className="text-muted d-block mt-1">
                       Accounts:{' '}
                       <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
@@ -522,7 +522,7 @@ const ExpenseEdit = () => {
                         (exclude) from company settings.
                       </span>
                     </small>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="mb-3">
@@ -556,7 +556,13 @@ const ExpenseEdit = () => {
                     disabled={isSubmitting}
                   />
                   <small className="text-muted d-block">
-                    Optional. Replace attachment via field <code className="text-xs">image</code>.
+                    Optional.
+                    {DEBUG ? (
+                      <>
+                        {' '}
+                        Replace attachment via field <code className="text-xs">image</code>.
+                      </>
+                    ) : null}
                   </small>
                   {imagePreview && imageFile?.type?.startsWith('image/') && (
                     <div className="mt-3 d-flex align-items-start gap-2">

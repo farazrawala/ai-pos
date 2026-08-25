@@ -446,12 +446,14 @@ const ExpenseAdd = () => {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted d-block mt-1">
-                    Source:{' '}
-                    <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
-                      {expenseAccountsListUrl(EXPENSE_ACCOUNT_TYPE)}
-                    </code>
-                  </small>
+                  {DEBUG ? (
+                    <small className="text-muted d-block mt-1">
+                      Source:{' '}
+                      <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
+                        {expenseAccountsListUrl(EXPENSE_ACCOUNT_TYPE)}
+                      </code>
+                    </small>
+                  ) : null}
                   {expenseAccountsStatus === 'failed' && (
                     <small className="text-danger d-block mt-1">
                       Could not load expense accounts.
@@ -506,7 +508,7 @@ const ExpenseAdd = () => {
                       {errors.payment_method_accounts_id}
                     </div>
                   )}
-                  {paymentAccountFilterUrl && (
+                  {DEBUG && paymentAccountFilterUrl ? (
                     <small className="text-muted d-block mt-1">
                       Accounts:{' '}
                       <code className="text-xs user-select-all" style={{ wordBreak: 'break-all' }}>
@@ -519,7 +521,7 @@ const ExpenseAdd = () => {
                         (exclude) from company settings.
                       </span>
                     </small>
-                  )}
+                  ) : null}
                   {paymentMethodAccountsStatus === 'failed' && (
                     <small className="text-danger d-block mt-1">
                       Could not load payment method accounts.
@@ -542,8 +544,14 @@ const ExpenseAdd = () => {
                   />
                   {errors.image && <div className="invalid-feedback d-block">{errors.image}</div>}
                   <small className="text-muted d-block">
-                    Optional. Uploaded as field <code className="text-xs">image</code> on{' '}
-                    <code className="text-xs">POST /expense/save</code>.
+                    Optional.
+                    {DEBUG ? (
+                      <>
+                        {' '}
+                        Uploaded as field <code className="text-xs">image</code> on{' '}
+                        <code className="text-xs">POST /expense/save</code>.
+                      </>
+                    ) : null}
                   </small>
                   {imagePreview && imageFile?.type?.startsWith('image/') && (
                     <div className="mt-3 d-flex align-items-start gap-2">
