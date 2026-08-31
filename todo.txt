@@ -126,6 +126,3 @@ Out For Return
 Attempted  
 En-Route to {city} warehouse  
 
-
-// https://testv3.websitedemolynk.com/pos/warehouse-inventory
-add filter by price, category , unit stock.

@@ -6,6 +6,20 @@ const logProcessModuleError = (operation, details) => {
   console.error(`[Process module] ${operation}`, details);
 };
 
+const isValidMongoObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || '').trim());
+
+/** Prefer the first row-level failure from queue-create / bulk-create responses. */
+const parseProcessQueueErrorMessage = (errorData = {}) => {
+  const failed = Array.isArray(errorData.failed) ? errorData.failed : [];
+  const firstFailure = failed.find((row) => row?.error)?.error;
+  if (firstFailure) return String(firstFailure);
+
+  const message = errorData.message || errorData.error;
+  if (message) return String(message);
+
+  return '';
+};
+
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('authToken') || '';
@@ -290,6 +304,91 @@ export const createBulkSyncOrderProcessRequest = async (integrationId, orderIds 
     priority: 100,
     order_ids: orderIds,
   });
+
+/** POST /process/queue-create — create one process and enqueue immediately. */
+export const createQueueProcessRequest = async (processData = {}) => {
+  const url = `${BASE_URL}process/queue-create`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(processData),
+    });
+  } catch (err) {
+    logProcessModuleError('createQueueProcessRequest network error', { url, processData, error: err });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      parseProcessQueueErrorMessage(errorData) || `HTTP error! status: ${response.status}`;
+    logProcessModuleError('createQueueProcessRequest failed', {
+      status: response.status,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result?.success === false) {
+    const message = parseProcessQueueErrorMessage(result) || 'Failed to queue process.';
+    logProcessModuleError('createQueueProcessRequest rejected', {
+      processData,
+      result,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  return result;
+};
+
+/** Pull one order from store → POS. */
+export const createPullOrderProcessRequest = async (integrationId, orderId) => {
+  const integration = String(integrationId || '').trim();
+  const order = String(orderId || '').trim();
+  if (!integration) throw new Error('integration_id is required.');
+  if (!isValidMongoObjectId(integration)) {
+    throw new Error('Could not resolve a valid integration id for this order.');
+  }
+  if (!order) throw new Error('order_id is required.');
+  if (!isValidMongoObjectId(order)) {
+    throw new Error('Could not resolve a valid order id for queueing.');
+  }
+
+  return createQueueProcessRequest({
+    integration_id: integration,
+    action: 'pull_order',
+    order_id: order,
+    status: 'active',
+  });
+};
+
+/** Push one order from POS → store. */
+export const createPushOrderProcessRequest = async (integrationId, orderId, priority = 50) => {
+  const integration = String(integrationId || '').trim();
+  const order = String(orderId || '').trim();
+  if (!integration) throw new Error('integration_id is required.');
+  if (!isValidMongoObjectId(integration)) {
+    throw new Error('Could not resolve a valid integration id for this order.');
+  }
+  if (!order) throw new Error('order_id is required.');
+  if (!isValidMongoObjectId(order)) {
+    throw new Error('Could not resolve a valid order id for queueing.');
+  }
+
+  return createQueueProcessRequest({
+    integration_id: integration,
+    action: 'push_order',
+    order_id: order,
+    status: 'active',
+    priority,
+  });
+};
 
 /** PATCH process/update/:id — partial update (e.g. `{ status: 'inactive' }`). */
 export const updateProcessRequest = async (processId, processData = {}) => {

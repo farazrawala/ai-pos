@@ -3,8 +3,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
-  FaArrowsRotate,
   FaCloudArrowUp,
+  FaDownload,
+  FaUpload,
   FaFilter,
   FaClockRotateLeft,
   FaWhatsapp,
@@ -92,7 +93,10 @@ import ValidateOrderAddressModal from '../../components/order/ValidateOrderAddre
 import NavIcon from '../../components/NavIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
-import { createBulkSyncOrderProcessRequest } from '../../features/process/processAPI.js';
+import {
+  createPullOrderProcessRequest,
+  createPushOrderProcessRequest,
+} from '../../features/process/processAPI.js';
 import {
   resolveOrderTrackingInfo,
   TCS_TRACKING_DETAIL_URL,
@@ -202,6 +206,18 @@ const getOrderIntegrationRecord = (row) => {
     return null;
   }
   return integration;
+};
+
+const getOrderIntegrationId = (row) => {
+  const integration = row?.integration_id ?? row?.integrationId;
+  if (typeof integration === 'string' || typeof integration === 'number') {
+    const id = String(integration).trim();
+    return id || '';
+  }
+  if (integration && typeof integration === 'object' && !Array.isArray(integration)) {
+    return integrationIdFromRecord(integration);
+  }
+  return '';
 };
 
 const normalizeStoreBaseUrl = (url) => {
@@ -714,7 +730,7 @@ export default function OrdersListPage({ config }) {
     provider: '',
     trackingUrl: '',
   });
-  const [syncingOrderId, setSyncingOrderId] = useState('');
+  const [queueingOrderAction, setQueueingOrderAction] = useState('');
   const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState('');
   const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false);
@@ -1084,43 +1100,61 @@ export default function OrdersListPage({ config }) {
     dispatch(clearDeleteStatus());
   };
 
-  const handleQueueOrderSync = async (orderId, orderNo) => {
+  const resolveOrderQueueIntegrationId = async (orderItem) => {
+    const fromOrder = getOrderIntegrationId(orderItem);
+    if (fromOrder) return fromOrder;
+
+    const fromFilter = String(filters.integrationId || '').trim();
+    if (fromFilter) return fromFilter;
+
+    const result = await fetchIntegrationsRequest();
+    const integrations = Array.isArray(result?.data) ? result.data : [];
+
+    if (integrations.length === 0) {
+      throw new Error('No integrations found. Add one under Integrations first.');
+    }
+
+    if (integrations.length > 1) {
+      throw new Error(
+        'Multiple integrations found. Filter by integration or link this order to an integration.'
+      );
+    }
+
+    const integrationId = integrationIdFromRecord(integrations[0]);
+    if (!integrationId) {
+      throw new Error('Could not resolve integration id.');
+    }
+
+    return integrationId;
+  };
+
+  const handleQueueOrderAction = async (orderItem, orderId, orderNo, action) => {
+    const isPull = action === 'pull_order';
     if (!orderId) {
-      toast.error('Could not sync: missing order id.');
+      toast.error(`Could not ${isPull ? 'pull' : 'push'}: missing order id.`);
       return;
     }
 
     const rowKey = String(orderId);
-    setSyncingOrderId(rowKey);
+    const actionKey = isPull ? 'pull' : 'push';
+    setQueueingOrderAction(`${rowKey}:${actionKey}`);
 
     try {
-      const result = await fetchIntegrationsRequest();
-      const integrations = Array.isArray(result?.data) ? result.data : [];
+      const integrationId = await resolveOrderQueueIntegrationId(orderItem);
 
-      if (integrations.length === 0) {
-        toast.error('No integrations found. Add one under Integrations first.');
-        return;
+      if (isPull) {
+        await createPullOrderProcessRequest(integrationId, orderId);
+      } else {
+        await createPushOrderProcessRequest(integrationId, orderId);
       }
 
-      if (integrations.length > 1) {
-        toast.info('Multiple integrations found. Use Sync orders from the toolbar.');
-        return;
-      }
-
-      const integrationId = integrationIdFromRecord(integrations[0]);
-      if (!integrationId) {
-        toast.error('Could not resolve integration id.');
-        return;
-      }
-
-      await createBulkSyncOrderProcessRequest(integrationId, [orderId]);
       const label = orderNo && orderNo !== '—' ? orderNo : rowKey;
-      toast.success(`Order sync queued for ${label}.`);
+      toast.success(`${isPull ? 'Pull' : 'Push'} order queued for ${label}.`);
     } catch (err) {
-      console.error(`[${logLabel}] queue order sync failed`, err);
-      toast.error(err?.message || 'Failed to queue order sync.');
+      console.error(`[${logLabel}] queue ${action} failed`, err);
+      toast.error(err?.message || `Failed to queue ${isPull ? 'pull' : 'push'} order.`);
     } finally {
-      setSyncingOrderId('');
+      setQueueingOrderAction('');
     }
   };
 
@@ -1549,10 +1583,26 @@ export default function OrdersListPage({ config }) {
           error: null,
         },
         {
+          key: 'pull-order',
+          label: 'Pull order (queue)',
+          url: buildApiUrl('process/queue-create'),
+          status: queueingOrderAction.endsWith(':pull') ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'push-order',
+          label: 'Push order (queue)',
+          url: buildApiUrl('process/queue-create'),
+          status: queueingOrderAction.endsWith(':push') ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
           key: 'sync-orders',
           label: 'Sync orders (bulk queue)',
           url: buildApiUrl('process/bulk-create'),
-          status: syncOrdersModalOpen || syncingOrderId ? 'loading' : 'pending',
+          status: syncOrdersModalOpen ? 'loading' : 'pending',
           durationMs: null,
           error: null,
         }
@@ -1703,7 +1753,7 @@ export default function OrdersListPage({ config }) {
     showStatusChangeModal,
     fetchOrdersModalOpen,
     syncOrdersModalOpen,
-    syncingOrderId,
+    queueingOrderAction,
     statusModal.open,
     statusHistoryModal.open,
     orderHistoryModal.open,
@@ -2256,7 +2306,8 @@ export default function OrdersListPage({ config }) {
                             ? selectedOrderIds.has(selectionId)
                             : false;
                         const isRowLoading = editLoadingId === rowKey;
-                        const isSyncing = syncingOrderId === rowKey;
+                        const isPulling = queueingOrderAction === `${rowKey}:pull`;
+                        const isPushing = queueingOrderAction === `${rowKey}:push`;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
                         const createdByLabel = getCreatedByLabel(item);
@@ -2691,24 +2742,48 @@ export default function OrdersListPage({ config }) {
                                   </button>
                                 ) : null}
                                 {showRowSyncButton && !isDeletedView ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
-                                    title="Sync order"
-                                    aria-label="Sync order"
-                                    onClick={() => handleQueueOrderSync(orderId, orderNo)}
-                                    disabled={!orderId || isSyncing}
-                                  >
-                                    {isSyncing ? (
-                                      <span
-                                        className="spinner-border spinner-border-sm"
-                                        role="status"
-                                        aria-hidden="true"
-                                      />
-                                    ) : (
-                                      <NavIcon icon={FaArrowsRotate} size={14} />
-                                    )}
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-info mb-0 px-2"
+                                      title="Pull order (store → POS)"
+                                      aria-label="Pull order"
+                                      onClick={() =>
+                                        handleQueueOrderAction(item, orderId, orderNo, 'pull_order')
+                                      }
+                                      disabled={!orderId || isPulling || isPushing}
+                                    >
+                                      {isPulling ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-info"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <NavIcon icon={FaDownload} size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-warning mb-0 px-2"
+                                      title="Push order (POS → store)"
+                                      aria-label="Push order"
+                                      onClick={() =>
+                                        handleQueueOrderAction(item, orderId, orderNo, 'push_order')
+                                      }
+                                      disabled={!orderId || isPulling || isPushing}
+                                    >
+                                      {isPushing ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-warning"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <NavIcon icon={FaUpload} size={16} />
+                                      )}
+                                    </button>
+                                  </>
                                 ) : null}
                                 {canViewOrder ? (
                                   <button
