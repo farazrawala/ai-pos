@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   buildPublicTrackingUrl,
   fetchCourierTrackingStatusRequest,
+  resolveCourierDisplayLabel,
   resolveTcsTrackingStatusApiUrl,
 } from '../../features/courier/courierAPI.js';
 import './tracking-status-modal.css';
@@ -174,7 +175,14 @@ export default function TrackingStatusModal({
   const cn = String(trackingId || detail?.consignee || '').trim();
   const checkpoints = Array.isArray(detail?.checkpoints) ? detail.checkpoints : [];
   const deliveryInfo = Array.isArray(detail?.deliveryInfo) ? detail.deliveryInfo : [];
-  const courierLabel = formatLabel(detail?.courier || provider);
+  const courierLabel = formatLabel(
+    resolveCourierDisplayLabel({
+      provider,
+      carrier: detail?.courierCompany,
+      courierCompany: detail?.courierCompany,
+      apiCourier: detail?.courier,
+    })
+  );
   const statusApiUrl = detail?.viaBackend
     ? detail.requestUrl || detail.upstreamUrl || ''
     : detail?.upstreamUrl || previewApiUrls?.upstreamUrl || '';

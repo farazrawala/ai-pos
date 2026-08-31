@@ -113,6 +113,8 @@ import {
   storeTypeLabel,
 } from '../integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
+import { pickCompanyLogoUrl } from '../../features/company/companyAPI.js';
+import { selectCompany } from '../../features/user/userSlice.js';
 import './orders-list-page.css';
 import '../../components/common/devApiSources.css';
 
@@ -247,13 +249,70 @@ const buildWooCommerceOrderAdminUrl = (integration, integrationOrderId) => {
   return `${baseUrl}/wp-admin/admin.php?page=wc-orders&action=edit&id=${encodeURIComponent(orderId)}`;
 };
 
+function isShopOrder(orderType, integrationOrderId) {
+  if (
+    String(orderType || '')
+      .trim()
+      .toLowerCase() === 'shop'
+  ) {
+    return true;
+  }
+  return String(integrationOrderId || '')
+    .trim()
+    .toLowerCase()
+    .startsWith('shop:');
+}
+
+const getOrderCompanyRecord = (row) => {
+  const company = row?.company_id ?? row?.companyId;
+  if (!company || typeof company !== 'object' || Array.isArray(company)) {
+    return null;
+  }
+  return company;
+};
+
+const companyDisplayName = (company) => {
+  if (!company || typeof company !== 'object') return '';
+  return String(company.company_name ?? company.name ?? '').trim();
+};
+
 function OrderIntegrationMergedCell({
   integration,
   integrationOrderId,
   wooOrderAdminUrl,
+  orderType = '',
+  companyLogoUrl = '',
+  companyName = '',
 }) {
   const [logoFailed, setLogoFailed] = useState(false);
-  const hasOrderId = integrationOrderId && integrationOrderId !== '—';
+  const isShop = isShopOrder(orderType, integrationOrderId);
+
+  if (isShop) {
+    const shopTitle = companyName || 'Shop order';
+    return (
+      <div className="d-flex flex-column align-items-start gap-1 min-width-0 oms-integration-shop">
+        {companyLogoUrl && !logoFailed ? (
+          <img
+            src={companyLogoUrl}
+            alt={shopTitle}
+            title={shopTitle}
+            className="list-product-thumb flex-shrink-0 oms-integration-shop__logo"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : companyName ? (
+          <span className="list-cell-truncate-sm text-sm font-weight-bold" title={shopTitle}>
+            {companyName}
+          </span>
+        ) : null}
+        <span className="badge text-xxs bg-gradient-success mb-0">Shop</span>
+      </div>
+    );
+  }
+
+  const hasOrderId =
+    integrationOrderId &&
+    integrationOrderId !== '—' &&
+    !(isShop && String(integrationOrderId).trim().toLowerCase().startsWith('shop:'));
 
   if (!integration && !hasOrderId) {
     return <span className="text-muted">—</span>;
@@ -319,6 +378,57 @@ function OrderIntegrationMergedCell({
     <div className="d-flex flex-column align-items-start gap-1 min-width-0">
       {identityNode}
       {orderIdNode}
+    </div>
+  );
+}
+
+const STORE_CHANNEL_ORDER_TYPES = new Set([
+  'shop',
+  'website',
+  'online',
+  'woocommerce',
+  'shopify',
+  'bigcommerce',
+]);
+
+function isStoreChannelOrder(orderType, integration) {
+  const typeKey = String(orderType || '')
+    .trim()
+    .toLowerCase();
+  if (STORE_CHANNEL_ORDER_TYPES.has(typeKey)) return true;
+
+  const storeType = String(integration?.store_type || integration?.storeType || '')
+    .trim()
+    .toLowerCase();
+  return STORE_CHANNEL_ORDER_TYPES.has(storeType);
+}
+
+function OmsTrackingCourierBadge({ provider, integration, orderType }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  if (!provider) return null;
+
+  const fromShop = isStoreChannelOrder(orderType, integration);
+  const logoSrc = fromShop && integration ? pickIntegrationStoreLogoUrl(integration) : '';
+  const storeName = integration ? integrationNameFromRecord(integration) : '';
+  const label = formatCourierLabel(provider);
+
+  return (
+    <div className="oms-tracking-courier-row">
+      {logoSrc && !logoFailed ? (
+        <img
+          src={logoSrc}
+          alt={storeName || 'Store'}
+          title={storeName ? `${storeName} · ${label}` : label}
+          className="oms-tracking-store-logo"
+          onError={() => setLogoFailed(true)}
+        />
+      ) : null}
+      <span
+        className={`badge text-xxs oms-tracking-courier ${courierProviderBadgeClass(provider)}`}
+        title={`Courier: ${label}`}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -541,6 +651,21 @@ const trackingStatusBadgeClass = (status) => {
   return 'bg-gradient-secondary';
 };
 
+const courierProviderBadgeClass = (provider) => {
+  const key = String(provider || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+  if (key === 'leopard' || key === 'leopards' || key === 'lcs') return 'bg-gradient-info';
+  if (key === 'tcs') return 'bg-gradient-primary';
+  if (key === 'postex' || key === 'postexpk') return 'bg-gradient-warning';
+  if (key === 'blueex') return 'bg-gradient-success';
+  if (key === 'flagship' || key === 'flaship') return 'bg-gradient-dark';
+  return 'bg-gradient-secondary';
+};
+
+const formatCourierLabel = (value) => formatWebsiteStatusLabel(value);
+
 const formatWebsiteStatusLabel = (value) => {
   const raw = String(value ?? '').trim();
   if (!raw) return '—';
@@ -663,6 +788,7 @@ export default function OrdersListPage({ config }) {
     sort,
     deleteStatus,
   } = useSelector((state) => state.orders);
+  const authCompany = useSelector(selectCompany);
   const { canCreate, canEdit, canDelete } = usePermissions(permissionModule);
   useRequireModuleAccess(permissionModule);
   const loading = status === 'loading';
@@ -1457,10 +1583,11 @@ export default function OrdersListPage({ config }) {
     });
   };
 
-  const handleShipmentCreated = ({ orderId, provider, result } = {}) => {
+  const handleShipmentCreated = ({ orderId, provider, courierCompany, result } = {}) => {
     const trackingId = result?.tracking_id || result?.tracking_number || '';
     const trackingUrl = result?.tracking_url || '';
     const courier = result?.courier || provider || '';
+    const carrier = String(courierCompany || result?.courier_company || result?.courierCompany || '').trim();
     const apiSaysSuccess =
       result?.success === true ||
       String(result?.message || '')
@@ -1491,6 +1618,7 @@ export default function OrdersListPage({ config }) {
           tracking_url: trackingUrl,
           courier,
           provider: courier,
+          ...(carrier ? { courier_company: carrier, courierCompany: carrier } : {}),
         },
       }));
 
@@ -2328,6 +2456,9 @@ export default function OrdersListPage({ config }) {
                               orderId ? shipmentOverrides[String(orderId)] : null
                             )
                           : null;
+                        const orderCompany = getOrderCompanyRecord(item) || authCompany;
+                        const shopCompanyLogoUrl = pickCompanyLogoUrl(orderCompany);
+                        const shopCompanyName = companyDisplayName(orderCompany);
                         return (
                           <tr key={key} className={isRowSelected ? 'table-active' : undefined}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
@@ -2364,6 +2495,9 @@ export default function OrdersListPage({ config }) {
                                   integration={integrationRecord}
                                   integrationOrderId={integrationOrderId}
                                   wooOrderAdminUrl={wooOrderAdminUrl}
+                                  orderType={orderType}
+                                  companyLogoUrl={shopCompanyLogoUrl}
+                                  companyName={shopCompanyName}
                                 />
                               </td>
                             ) : null}
@@ -2547,62 +2681,74 @@ export default function OrdersListPage({ config }) {
                             {showTrackingColumn && isVisible('tracking') ? (
                               <td className="text-sm">
                                 {trackingInfo?.hasTracking ? (
-                                  <div className="d-flex flex-column align-items-start gap-1 min-width-0">
+                                  <div className="oms-tracking-cell">
+                                    {trackingInfo.provider ? (
+                                      <OmsTrackingCourierBadge
+                                        provider={trackingInfo.provider}
+                                        integration={integrationRecord}
+                                        orderType={orderType}
+                                      />
+                                    ) : null}
                                     {trackingInfo.trackingId ? (
-                                      <div className="oms-tracking-id">
-                                        <span
-                                          className="oms-tracking-id__value"
-                                          title={trackingInfo.trackingId}
-                                        >
-                                          {trackingInfo.trackingId}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="btn btn-link btn-sm p-0 mb-0 oms-tracking-id__copy"
-                                          title="Copy tracking number"
-                                          aria-label="Copy tracking number"
-                                          onClick={() =>
-                                            handleCopyTrackingId(trackingInfo.trackingId)
-                                          }
-                                        >
-                                          <FaCopy aria-hidden="true" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-outline-info mb-0 px-2"
-                                          title="Get live tracking status"
-                                          aria-label="Get live tracking status"
-                                          onClick={() =>
-                                            handleOpenTrackingStatus({
-                                              orderId,
-                                              trackingId: trackingInfo.trackingId,
-                                              orderNo,
-                                              provider: trackingInfo.provider,
-                                              trackingUrl: trackingInfo.trackingUrl,
-                                            })
-                                          }
-                                        >
-                                          <NavIcon icon={FaTruckFast} size={14} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-outline-dark mb-0 px-2"
-                                          title="Print barcode for parcel"
-                                          aria-label="Print barcode for parcel"
-                                          onClick={() =>
-                                            handleOpenParcelBarcode({
-                                              orderId,
-                                              trackingId: trackingInfo.trackingId,
-                                              orderNo,
-                                              provider: trackingInfo.provider,
-                                              customerName:
-                                                customerName !== '—' ? customerName : '',
-                                              city: item.city || '',
-                                            })
-                                          }
-                                        >
-                                          <NavIcon icon={FaBarcode} size={14} />
-                                        </button>
+                                      <div className="oms-tracking-cell__row">
+                                        <div className="oms-tracking-id">
+                                          <span className="oms-tracking-id__label">CN</span>
+                                          <span
+                                            className="oms-tracking-id__value"
+                                            title={trackingInfo.trackingId}
+                                          >
+                                            {trackingInfo.trackingId}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            className="btn btn-link btn-sm p-0 mb-0 oms-tracking-id__copy"
+                                            title="Copy tracking number"
+                                            aria-label="Copy tracking number"
+                                            onClick={() =>
+                                              handleCopyTrackingId(trackingInfo.trackingId)
+                                            }
+                                          >
+                                            <FaCopy aria-hidden="true" />
+                                          </button>
+                                        </div>
+                                        <div className="oms-tracking-actions">
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-outline-info mb-0"
+                                            title="Get live tracking status"
+                                            aria-label="Get live tracking status"
+                                            onClick={() =>
+                                              handleOpenTrackingStatus({
+                                                orderId,
+                                                trackingId: trackingInfo.trackingId,
+                                                orderNo,
+                                                provider: trackingInfo.provider,
+                                                trackingUrl: trackingInfo.trackingUrl,
+                                              })
+                                            }
+                                          >
+                                            <NavIcon icon={FaTruckFast} size={13} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-outline-secondary mb-0"
+                                            title="Print barcode for parcel"
+                                            aria-label="Print barcode for parcel"
+                                            onClick={() =>
+                                              handleOpenParcelBarcode({
+                                                orderId,
+                                                trackingId: trackingInfo.trackingId,
+                                                orderNo,
+                                                provider: trackingInfo.provider,
+                                                customerName:
+                                                  customerName !== '—' ? customerName : '',
+                                                city: item.city || '',
+                                              })
+                                            }
+                                          >
+                                            <NavIcon icon={FaBarcode} size={13} />
+                                          </button>
+                                        </div>
                                       </div>
                                     ) : null}
                                     {trackingInfo.trackingStatus ? (

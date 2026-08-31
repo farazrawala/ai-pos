@@ -745,6 +745,35 @@ const firstNonEmpty = (...candidates) => {
   return '';
 };
 
+/** Human-readable courier/carrier label (prefers Leopard over Flagship aggregator). */
+export const resolveCourierDisplayLabel = ({
+  provider = '',
+  carrier = '',
+  courierCompany = '',
+  apiCourier = '',
+} = {}) => {
+  const carrierName = firstNonEmpty(carrier, courierCompany);
+  if (carrierName) {
+    return courierTypeToProvider(carrierName) || carrierName;
+  }
+
+  const integrationType = courierTypeToProvider(provider);
+  const apiLabel = courierTypeToProvider(apiCourier) || String(apiCourier || '').trim();
+  const providerLabel = integrationType || String(provider || '').trim();
+
+  const isAggregator = (value) =>
+    /^(flagship|flaship|flag-ship)$/i.test(String(value || '').trim());
+
+  if (isAggregator(apiLabel) && providerLabel && !isAggregator(providerLabel)) {
+    return providerLabel;
+  }
+  if (isAggregator(providerLabel) && apiLabel && !isAggregator(apiLabel)) {
+    return apiLabel;
+  }
+
+  return firstNonEmpty(apiLabel, providerLabel);
+};
+
 const shipmentFromRow = (row) => {
   if (!row || typeof row !== 'object') return null;
   const nested =
@@ -787,7 +816,22 @@ export const pickOrderTrackingNumber = pickOrderTrackingId;
 export const pickOrderCourierProvider = (row) => {
   if (!row || typeof row !== 'object') return '';
   const shipment = shipmentFromRow(row);
+  const courierRef = row.courier_id ?? row.courierId;
+  const courierFromRef =
+    courierRef && typeof courierRef === 'object' && !Array.isArray(courierRef)
+      ? firstNonEmpty(
+          courierTypeToProvider(courierRef.type),
+          courierRef.name,
+          courierRef.store_name,
+          courierRef.storeName
+        )
+      : '';
   return firstNonEmpty(
+    row.courier_company,
+    row.courierCompany,
+    shipment?.courier_company,
+    shipment?.courierCompany,
+    courierFromRef,
     row.courier_provider,
     row.courierProvider,
     row.provider,
@@ -889,11 +933,27 @@ export const resolveOrderTrackingInfo = (row, override = null) => {
     pickOrderTrackingId(source)
   );
   const provider = firstNonEmpty(
+    override?.courier_company,
+    override?.courierCompany,
     override?.courier,
     override?.provider,
     override?.courier_provider,
     pickOrderCourierProvider(source)
   );
+  const carrier = firstNonEmpty(
+    override?.courier_company,
+    override?.courierCompany,
+    source?.courier_company,
+    source?.courierCompany,
+    shipmentFromRow(source)?.courier_company,
+    shipmentFromRow(source)?.courierCompany
+  );
+  const displayProvider = resolveCourierDisplayLabel({
+    provider: pickOrderCourierProvider(source),
+    carrier,
+    courierCompany: carrier,
+    apiCourier: provider,
+  });
   const trackingUrl = firstNonEmpty(
     override?.tracking_url,
     override?.trackingUrl,
@@ -907,7 +967,8 @@ export const resolveOrderTrackingInfo = (row, override = null) => {
   return {
     trackingId,
     trackingUrl,
-    provider,
+    provider: displayProvider || provider,
+    carrier,
     trackingStatus,
     hasTracking: Boolean(trackingId || trackingUrl),
   };
@@ -1153,7 +1214,13 @@ const normalizeBackendTrackingResponse = (payload = {}, fallbackCn = '') => {
     stale,
     warning: stale ? firstNonEmpty(payload.warning) : '',
     lastTrackingSync: payload.last_tracking_sync || payload.lastTrackingSync || '',
-    courier: payload.courier || '',
+    courier: resolveCourierDisplayLabel({
+      provider: payload.courier,
+      courierCompany: firstNonEmpty(payload.courier_company, payload.courierCompany),
+      apiCourier: payload.courier,
+    }),
+    courierProvider: payload.courier || '',
+    courierCompany: firstNonEmpty(payload.courier_company, payload.courierCompany),
     orderId: payload.order_id || payload.orderId || '',
     consignee: firstNonEmpty(
       payload.tracking_number,

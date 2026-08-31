@@ -331,6 +331,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
       onSaved?.({
         orderId,
         provider: result?.courier || provider,
+        courierCompany: isFlagshipSelected ? courierCompany : '',
         result,
       });
       window.setTimeout(() => onClose?.(), 900);
