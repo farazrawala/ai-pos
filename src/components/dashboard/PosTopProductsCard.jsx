@@ -1,11 +1,13 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { formatCurrency } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
 import { useTopSellingProducts } from '../../hooks/useTopSellingProducts.js';
 import { periodLabelFromPeakApi, truncateChartLabel } from './chartHelpers.js';
+import TopSellingProductsModal from './TopSellingProductsModal.jsx';
 
 export default function PosTopProductsCard() {
   const canvasRef = useRef(null);
+  const [showAllModal, setShowAllModal] = useState(false);
   const { loading, products, period, sortBy, error } = useTopSellingProducts({
     period: 'last_30_days',
     sortBy: 'qty',
@@ -127,11 +129,27 @@ export default function PosTopProductsCard() {
           )}
         </p>
       </div>
-      <div className="card-body p-3 pt-2">
+      <div className="card-body p-3 pt-2 position-relative">
         <div className="chart" style={{ minHeight: 280 }}>
           <canvas ref={canvasRef} className="chart-canvas" height="260" />
         </div>
+        {!loading && !error && products.length > 0 ? (
+          <div className="d-flex justify-content-end pt-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-primary mb-0"
+              onClick={() => setShowAllModal(true)}
+            >
+              View all
+            </button>
+          </div>
+        ) : null}
       </div>
+      <TopSellingProductsModal
+        open={showAllModal}
+        onClose={() => setShowAllModal(false)}
+        sortBy={sortBy}
+      />
     </div>
   );
 }

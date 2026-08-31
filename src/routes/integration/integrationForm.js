@@ -156,16 +156,11 @@ export const validateIntegrationForm = (form, { isEdit = false } = {}) => {
   }
 
   if (!fieldValue(form, 'name')) errors.name = 'Store name is required';
-  if (!fieldValue(form, 'address')) errors.address = 'Address is required';
-  if (!fieldValue(form, 'city')) errors.city = 'City is required';
-  if (!fieldValue(form, 'state')) errors.state = 'State is required';
   if (!fieldValue(form, 'url')) errors.url = 'URL is required';
   if (!fieldValue(form, 'integrationKey')) errors.integrationKey = 'Key is required';
   if (!isEdit && !fieldValue(form, 'integrationSecret')) {
     errors.integrationSecret = 'Secret is required';
   }
-  if (!fieldValue(form, 'description')) errors.description = 'Description is required';
-
   const email = fieldValue(form, 'email');
   if (email && !/^\S+@\S+\.\S+$/.test(email)) {
     errors.email = 'Enter a valid email';

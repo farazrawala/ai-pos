@@ -85,6 +85,9 @@ export function normalizeUnit(value) {
   if (['pcs', 'pc', 'piece', 'pieces'].includes(raw.toLowerCase())) return { value: 'Piece' };
   if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(raw.toLowerCase())) return { value: 'Kg' };
   if (['ltr', 'liter', 'litre', 'liters', 'litres'].includes(raw.toLowerCase())) return { value: 'Ltr' };
+  if (['doz', 'dozen', 'dz'].includes(raw.toLowerCase())) return { value: 'Dozen' };
+  if (['roll', 'rolls'].includes(raw.toLowerCase())) return { value: 'Roll' };
+  if (['box', 'boxes'].includes(raw.toLowerCase())) return { value: 'Box' };
   return { invalid: true, raw: value };
 }
 

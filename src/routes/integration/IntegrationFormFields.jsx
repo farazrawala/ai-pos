@@ -87,7 +87,7 @@ export default function IntegrationFormFields({
           </div>
           <div className="col-12">
             <label className="integration-form-label d-block" htmlFor="description">
-              Description <span className="req">*</span>
+              Description
             </label>
             <textarea
               className={`form-control integration-form-control ${errors.description ? 'is-invalid' : ''}`}
@@ -115,7 +115,7 @@ export default function IntegrationFormFields({
         <div className="row g-3">
           <div className="col-12">
             <label className="integration-form-label d-block" htmlFor="address">
-              Address <span className="req">*</span>
+              Address
             </label>
             <input
               type="text"
@@ -130,7 +130,7 @@ export default function IntegrationFormFields({
           </div>
           <div className="col-md-6">
             <label className="integration-form-label d-block" htmlFor="city">
-              City <span className="req">*</span>
+              City
             </label>
             <input
               type="text"
@@ -145,7 +145,7 @@ export default function IntegrationFormFields({
           </div>
           <div className="col-md-6">
             <label className="integration-form-label d-block" htmlFor="state">
-              State <span className="req">*</span>
+              State
             </label>
             <input
               type="text"

@@ -18,6 +18,7 @@ import {
   PRODUCT_IMAGE_HINT,
   validateProductImageFile,
 } from '../../utils/productImageUpload.js';
+import { PRODUCT_IMPORT_UNITS } from '../../features/products/productImportFields.js';
 
 const isUnsetBigCommercePrice = (value) => {
   const s = String(value ?? '').trim();
@@ -851,17 +852,11 @@ const ProductAdd = () => {
                     onChange={handleChange}
                     required
                   >
-                    <option value="Piece">Piece</option>
-                    <option value="Kg">Kg</option>
-                    <option value="Ltr">Ltr</option>
-                    <option value="Box">Box</option>
-                    <option value="Meter">Meter</option>
-                    <option value="Feet">Feet</option>
-                    <option value="Yard">Yard</option>
-                    <option value="Inch">Inch</option>
-                    <option value="Centimeter">Centimeter</option>
-                    <option value="Millimeter">Millimeter</option>
-                    <option value="Others">Others</option>
+                    {PRODUCT_IMPORT_UNITS.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unit}
+                      </option>
+                    ))}
                   </select>
                   {errors.unit && <div className="text-danger text-sm mt-1">{errors.unit}</div>}
                 </div>

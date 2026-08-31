@@ -59,6 +59,47 @@ export function getPaperDimensions(page = {}) {
   return { width: `${widthMm}mm`, height: `${heightMm}mm`, widthMm, heightMm };
 }
 
+const PAPER_SIZE_AT_PAGE_RULE = {
+  a3: 'A3 portrait',
+  a4: 'A4 portrait',
+  a5: 'A5 portrait',
+  a6: 'A6 portrait',
+  b4: 'B4 portrait',
+  b5: 'B5 portrait',
+  letter: 'letter portrait',
+  legal: 'legal portrait',
+  tabloid: 'tabloid portrait',
+  executive: 'executive portrait',
+};
+
+/** CSS @page size + mm dimensions for invoice print windows. */
+export function getInvoicePrintPageLayout(options = {}) {
+  const paperSize = options.paperSize || 'a4';
+  const halfPage = Boolean(options.halfPage);
+  const { widthMm, heightMm } = getPaperDimensions({
+    paperSize,
+    orientation: 'portrait',
+    customWidthMm: options.customWidthMm,
+    customHeightMm: options.customHeightMm,
+  });
+  const halfHeightMm = heightMm / 2;
+  const marginMm = halfPage ? 0 : 12;
+  const atPageSize =
+    paperSize === 'custom'
+      ? `${widthMm}mm ${heightMm}mm`
+      : PAPER_SIZE_AT_PAGE_RULE[paperSize] || PAPER_SIZE_AT_PAGE_RULE.a4;
+
+  return {
+    paperSize,
+    widthMm,
+    heightMm,
+    halfHeightMm,
+    marginMm,
+    atPageSize,
+    contentMaxWidthMm: Math.max(widthMm - marginMm * 2, 80),
+  };
+}
+
 export const SECTION_IDS = [
   'companyHeader',
   'invoiceInfo',

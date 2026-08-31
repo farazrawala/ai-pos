@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { escapeHtml, formatThermalMoney } from '../ThermalReceiptPrint/thermalReceiptPrint.js';
+import { getInvoicePrintPageLayout } from '../../features/printLayout/printLayoutDefaults.js';
 
 /**
  * @typedef {Object} NormalInvoicePrintLine
@@ -42,7 +43,10 @@ import { escapeHtml, formatThermalMoney } from '../ThermalReceiptPrint/thermalRe
  * @property {string} [documentHeading='INVOICE']
  * @property {string} [billToLabel='Bill To']
  * @property {string} [dateLabel='Invoice Date:']
- * @property {boolean} [halfPage=false] — A4 portrait, receipt in the top 148.5mm only
+ * @property {boolean} [halfPage=false] — top half of selected paper only
+ * @property {string} [paperSize='a4']
+ * @property {number} [customWidthMm]
+ * @property {number} [customHeightMm]
  */
 
 function fmtMoney(amount, options = {}) {
@@ -83,7 +87,18 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     billToLabel = 'Bill To',
     dateLabel = 'Invoice Date:',
     halfPage = false,
+    paperSize = 'a4',
+    customWidthMm,
+    customHeightMm,
   } = options;
+
+  const pageLayout = getInvoicePrintPageLayout({
+    paperSize,
+    halfPage,
+    customWidthMm,
+    customHeightMm,
+  });
+  const { widthMm, heightMm, halfHeightMm, atPageSize, contentMaxWidthMm, marginMm } = pageLayout;
 
   const fmtOpts = { currencyLabel, locale };
   const fmt = (n) => fmtMoney(n, fmtOpts);
@@ -256,19 +271,19 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
 
   const pageCss = halfPage
     ? `
-  @page { size: A4 portrait; margin: 0; }
+  @page { size: ${atPageSize}; margin: 0; }
   html, body {
-    width: 210mm;
-    height: 297mm;
+    width: ${widthMm}mm;
+    height: ${heightMm}mm;
     margin: 0;
     padding: 0;
     overflow: hidden;
   }
   body { font-size: 9pt; }
   .page--half {
-    width: 210mm;
-    height: 148.5mm;
-    max-height: 148.5mm;
+    width: ${widthMm}mm;
+    height: ${halfHeightMm}mm;
+    max-height: ${halfHeightMm}mm;
     box-sizing: border-box;
     overflow: hidden;
     padding: 8mm 10mm;
@@ -306,16 +321,16 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
   .terms-list { font-size: 8pt; }
   @media print {
     html, body {
-      width: 210mm;
-      height: 297mm;
+      width: ${widthMm}mm;
+      height: ${heightMm}mm;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden;
     }
     .page--half {
-      width: 210mm;
-      height: 148.5mm;
-      max-height: 148.5mm;
+      width: ${widthMm}mm;
+      height: ${halfHeightMm}mm;
+      max-height: ${halfHeightMm}mm;
       box-sizing: border-box;
       overflow: hidden;
       -webkit-print-color-adjust: exact;
@@ -323,9 +338,9 @@ export async function buildNormalInvoiceHtml(payload, options = {}) {
     }
   }`
     : `
-  @page { size: A4 portrait; margin: 12mm; }
+  @page { size: ${atPageSize}; margin: ${marginMm}mm; }
   body { font-size: 11pt; }
-  .page { max-width: 186mm; }`;
+  .page { max-width: ${contentMaxWidthMm}mm; }`;
 
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>${title}</title>

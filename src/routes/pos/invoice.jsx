@@ -53,16 +53,30 @@ import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
-import { FaTrash, FaWhatsapp } from 'react-icons/fa6';
+import { FaCopy, FaFloppyDisk, FaLink, FaPrint, FaReceipt, FaTrash, FaWhatsapp } from 'react-icons/fa6';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
+import { PAPER_SIZE_OPTIONS } from '../../features/printLayout/printLayoutDefaults.js';
+import { fetchPrintLayoutSettings } from '../../features/printLayout/fetchPrintLayoutSettings.js';
 import './pos-invoice-module.css';
 
 const POS_LINE_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
 const POS_LINE_ORDER_FIFO = 'fifo';
 const POS_LINE_ORDER_LIFO = 'lifo';
+const POS_INVOICE_PAPER_SIZE_KEY = 'pos-invoice-print-paper-size';
+
+function readStoredPrintPaperSize() {
+  if (typeof window === 'undefined') return 'a4';
+  try {
+    const value = window.localStorage.getItem(POS_INVOICE_PAPER_SIZE_KEY);
+    if (value && PAPER_SIZE_OPTIONS.some((size) => size.value === value)) return value;
+  } catch {
+    /* ignore */
+  }
+  return 'a4';
+}
 
 function readStoredInvoiceLineOrder() {
   if (typeof window === 'undefined') return POS_LINE_ORDER_FIFO;
@@ -350,6 +364,7 @@ const PosInvoice = () => {
   const authUser = useSelector(selectAuthUser);
   const authUserName = useSelector((state) => state.user?.name || '');
   const [invoiceCompany, setInvoiceCompany] = useState(null);
+  const [printPaperSize, setPrintPaperSize] = useState(readStoredPrintPaperSize);
 
   useEffect(() => {
     if (!companyId) {
@@ -1399,8 +1414,12 @@ const PosInvoice = () => {
 
   const runInvoicePrint = useCallback(
     async (printOptions = {}) => {
+      const { paperSize: paperSizeOverride, ...restPrintOptions } = printOptions;
+      const resolvedPaperSize = paperSizeOverride ?? printPaperSize;
       let settings = printerSettings;
       let brand = companyBrand;
+      let customWidthMm;
+      let customHeightMm;
 
       if (companyId) {
         try {
@@ -1411,6 +1430,15 @@ const PosInvoice = () => {
             setInvoiceCompany(merged);
             settings = mergePrinterSettings(extractPrinterSettingsFromCompanyBody({ data: merged }));
             brand = buildBrandFromCompany(merged);
+          }
+
+          const layout = await fetchPrintLayoutSettings(companyId, {
+            documentType: 'sales_invoice',
+            paperSize: resolvedPaperSize,
+          });
+          if (layout?.page) {
+            customWidthMm = layout.page.customWidthMm;
+            customHeightMm = layout.page.customHeightMm;
           }
         } catch {
           // print with last known settings
@@ -1436,7 +1464,13 @@ const PosInvoice = () => {
           changeGiven: sourceOrder?.change_given,
           currentUserName: billCurrentUserName,
         },
-        { documentTitlePrefix: 'Invoice POS', ...printOptions }
+        {
+          documentTitlePrefix: 'Invoice POS',
+          paperSize: resolvedPaperSize,
+          customWidthMm,
+          customHeightMm,
+          ...restPrintOptions,
+        }
       );
     },
     [
@@ -1454,17 +1488,24 @@ const PosInvoice = () => {
       sourceOrder,
       billCurrentUserName,
       sharePublicUrl,
+      printPaperSize,
     ]
   );
 
-  const handleNormalPrint = useCallback(() => runInvoicePrint(), [runInvoicePrint]);
+  const handlePrintPaperSizeChange = useCallback(
+    async (e) => {
+      const next = String(e.target.value || '').trim();
+      if (!PAPER_SIZE_OPTIONS.some((size) => size.value === next)) return;
 
-  const handleHalfPrint = useCallback(
-    () =>
-      runInvoicePrint({
-        halfPage: true,
-        windowFeatures: 'width=820,height=1180',
-      }),
+      setPrintPaperSize(next);
+      try {
+        window.localStorage.setItem(POS_INVOICE_PAPER_SIZE_KEY, next);
+      } catch {
+        /* ignore */
+      }
+
+      await runInvoicePrint({ paperSize: next });
+    },
     [runInvoicePrint]
   );
 
@@ -1499,6 +1540,21 @@ const PosInvoice = () => {
 
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [sharePublicUrl, data, billToDisplay, companyBrand, grossDisplay]);
+
+  const handleCopyPublicUrl = useCallback(async () => {
+    const publicUrl = String(sharePublicUrl || '').trim();
+    if (!publicUrl) {
+      toast.error('Public invoice link is not available yet.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success('Invoice link copied to clipboard');
+    } catch {
+      toast.error('Could not copy link');
+    }
+  }, [sharePublicUrl]);
 
   const handleThermalPrint = useCallback(async () => {
     if (!view) return;
@@ -1776,48 +1832,58 @@ const PosInvoice = () => {
                   </div>
                 </div>
                 <div className="col-lg-6">
-                  <div className="pos-inv-header-actions mt-2 mt-lg-0">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-success"
-                      onClick={handleHalfPrint}
-                      title="A4 half page print"
-                    >
-                      <i className="fas fa-print me-1" aria-hidden="true" />
-                      Half Print
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={handleThermalPrint}
-                      title="80mm thermal receipt"
-                    >
-                      <i className="fas fa-receipt me-1" aria-hidden="true" />
-                      Thermal
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-success"
-                      onClick={handleNormalPrint}
-                      title="A4 full page print"
-                    >
-                      <i className="fas fa-print me-1" aria-hidden="true" />
-                      Full Print
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-success"
-                      onClick={handleShareWhatsApp}
-                      disabled={!sharePublicUrl}
-                      title={
-                        sharePublicUrl
-                          ? 'Share invoice link on client WhatsApp'
-                          : 'Public invoice link unavailable'
-                      }
-                    >
-                      <NavIcon icon={FaWhatsapp} size={14} className="me-1" />
-                      WhatsApp
-                    </button>
+                  <div className="pos-inv-print-toolbar mt-2 mt-lg-0" role="group" aria-label="Print and share">
+                    <div className="pos-inv-print-toolbar__block">
+                      <span className="pos-inv-print-toolbar__title">
+                        <NavIcon icon={FaPrint} size={13} aria-hidden="true" />
+                        Print
+                      </span>
+                      <label className="pos-inv-paper-field mb-0" htmlFor="pos-inv-paper-size">
+                        <span className="pos-inv-paper-field__label">Paper size</span>
+                        <select
+                          id="pos-inv-paper-size"
+                          className="form-select form-select-sm pos-inv-paper-select"
+                          value={printPaperSize}
+                          onChange={handlePrintPaperSizeChange}
+                          aria-label="Paper size — prints on change"
+                        >
+                          {PAPER_SIZE_OPTIONS.map((size) => (
+                            <option key={size.value} value={size.value}>
+                              {size.value === 'custom'
+                                ? 'Custom size'
+                                : `${size.label} — ${size.description}`}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pos-inv-paper-field__hint">Print dialog opens when you change size</span>
+                      </label>
+                    </div>
+                    <div className="pos-inv-print-toolbar__divider" aria-hidden="true" />
+                    <div className="pos-inv-print-toolbar__actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm pos-inv-action-btn pos-inv-action-btn--thermal"
+                        onClick={handleThermalPrint}
+                        title="80mm thermal receipt"
+                      >
+                        <NavIcon icon={FaReceipt} size={14} aria-hidden="true" />
+                        <span>Thermal</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm pos-inv-action-btn pos-inv-action-btn--whatsapp"
+                        onClick={handleShareWhatsApp}
+                        disabled={!sharePublicUrl}
+                        title={
+                          sharePublicUrl
+                            ? 'Share invoice link on client WhatsApp'
+                            : 'Public invoice link unavailable'
+                        }
+                      >
+                        <NavIcon icon={FaWhatsapp} size={14} aria-hidden="true" />
+                        <span>WhatsApp</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2576,48 +2642,72 @@ const PosInvoice = () => {
 
               <div className="pos-inv-section pos-inv-footer-meta">
                 {printerSettings.show_qrcode ? (
-                  <div className="mb-4 d-flex flex-column align-items-center text-center">
+                  <div className="pos-inv-qr-card">
                     <InvoiceQrCode value={sharePublicUrl} size={96} />
-                    <small className="text-muted mt-2">Scan invoice QR code</small>
+                    <p className="pos-inv-qr-card__caption">Scan invoice QR code</p>
                   </div>
                 ) : null}
-                <div className="pos-inv-section-title">Terms &amp; conditions</div>
-                <ol className="pos-inv-terms-list">
-                  {data.termsBody.map((t, i) => (
-                    <li key={i} className="mb-1">
-                      {t}
-                    </li>
-                  ))}
-                </ol>
-                {sharePublicUrl ? (
-                  <>
-                    <div className="pos-inv-section-title mt-3">Public access</div>
-                    <div className="d-flex flex-wrap gap-2 align-items-center pos-inv-no-print">
-                      <input
-                        type="text"
-                        className="form-control form-control-sm pos-inv-public-url flex-grow-1"
-                        readOnly
-                        value={sharePublicUrl}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-success text-nowrap"
-                        onClick={handleShareWhatsApp}
-                        title="Share invoice link on client WhatsApp"
-                      >
-                        <NavIcon icon={FaWhatsapp} size={14} className="me-1" />
-                        Share on WhatsApp
-                      </button>
+                <div className="pos-inv-footer-meta__grid">
+                  <div className="pos-inv-footer-meta__terms">
+                    <div className="pos-inv-section-title">Terms &amp; conditions</div>
+                    <ol className="pos-inv-terms-list">
+                      {data.termsBody.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ol>
+                  </div>
+                  {sharePublicUrl ? (
+                    <div className="pos-inv-public-access pos-inv-no-print">
+                      <div className="pos-inv-section-title">Public access</div>
+                      <p className="pos-inv-public-access__hint">
+                        Share this secure link so your customer can view the invoice online.
+                      </p>
+                      <div className="pos-inv-public-access__field">
+                        <span className="pos-inv-public-access__icon" aria-hidden="true">
+                          <NavIcon icon={FaLink} size={14} />
+                        </span>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm pos-inv-public-url"
+                          readOnly
+                          value={sharePublicUrl}
+                          aria-label="Public invoice link"
+                          onFocus={(e) => e.target.select()}
+                        />
+                      </div>
+                      <div className="pos-inv-public-access__actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm pos-inv-public-btn pos-inv-public-btn--copy"
+                          onClick={handleCopyPublicUrl}
+                          title="Copy invoice link"
+                        >
+                          <NavIcon icon={FaCopy} size={14} aria-hidden="true" />
+                          <span>Copy link</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm pos-inv-public-btn pos-inv-public-btn--whatsapp"
+                          onClick={handleShareWhatsApp}
+                          title="Share invoice link on client WhatsApp"
+                        >
+                          <NavIcon icon={FaWhatsapp} size={14} aria-hidden="true" />
+                          <span>Share on WhatsApp</span>
+                        </button>
+                      </div>
                     </div>
-                  </>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
 
               {canUpdateInvoice ? (
-                <div className="pos-inv-footer pos-inv-no-print">
+                <div className="pos-inv-save-bar pos-inv-no-print">
+                  <p className="pos-inv-save-bar__hint mb-0">
+                    Review line items and totals before saving changes to this invoice.
+                  </p>
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-sm pos-inv-save-btn"
                     disabled={invoiceSaving || !invoiceHasSaveableLines}
                     onClick={handleUpdateInvoice}
                     title={
@@ -2637,8 +2727,8 @@ const PosInvoice = () => {
                       </>
                     ) : (
                       <>
-                        <i className="fas fa-save me-1" aria-hidden="true" />
-                        Update invoice
+                        <NavIcon icon={FaFloppyDisk} size={14} aria-hidden="true" />
+                        <span>Update invoice</span>
                       </>
                     )}
                   </button>

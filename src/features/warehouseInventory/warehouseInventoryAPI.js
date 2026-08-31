@@ -93,6 +93,29 @@ export const getProductUnit = (row) => {
   return '—';
 };
 
+/** Category id(s) from populated product `category_id` (single or array). */
+export const getProductCategoryIds = (product) => {
+  if (!isPopulatedRef(product)) return [];
+  const raw = product.category_id ?? product.categoryId ?? product.category;
+  if (raw == null || raw === '') return [];
+  const refs = Array.isArray(raw) ? raw : [raw];
+  return refs
+    .map((ref) => {
+      if (isPopulatedRef(ref)) return String(ref._id ?? ref.id ?? '').trim();
+      return String(ref ?? '').trim();
+    })
+    .filter(Boolean);
+};
+
+export const DEFAULT_WAREHOUSE_INVENTORY_FILTERS = {
+  categoryId: '',
+  minPrice: '',
+  maxPrice: '',
+  unit: '',
+  minStock: '',
+  maxStock: '',
+};
+
 /** Populated product retail / selling price. */
 export const getProductRetailPrice = (row) => {
   if (!row || typeof row !== 'object') return null;
@@ -164,6 +187,7 @@ export function groupInventoryByProduct(rows) {
         productName: getProductLabel(row),
         barcode: getProductBarcode(row),
         unit: getProductUnit(row),
+        categoryIds: isPopulatedRef(p) ? getProductCategoryIds(p) : [],
         retailPrice: getProductRetailPrice(row),
         wholesalePrice: getProductWholesalePrice(row),
         warehouseLines: [],
@@ -217,6 +241,86 @@ export function filterGroupedProducts(groups, searchTerm = '') {
       id.includes(q)
     );
   });
+}
+
+const parseOptionalNumber = (raw) =>
+  raw !== '' && raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
+
+/**
+ * Client-side filters for grouped warehouse inventory (price, category, unit, stock).
+ */
+export function filterGroupedProductsByFilters(
+  groups,
+  filters = DEFAULT_WAREHOUSE_INVENTORY_FILTERS
+) {
+  if (!Array.isArray(groups)) return [];
+
+  const categoryId = String(filters.categoryId ?? '').trim();
+  const unitFilter = String(filters.unit ?? '').trim().toLowerCase();
+  const minPrice = parseOptionalNumber(filters.minPrice);
+  const maxPrice = parseOptionalNumber(filters.maxPrice);
+  const minStock = parseOptionalNumber(filters.minStock);
+  const maxStock = parseOptionalNumber(filters.maxStock);
+
+  if (
+    !categoryId &&
+    !unitFilter &&
+    minPrice == null &&
+    maxPrice == null &&
+    minStock == null &&
+    maxStock == null
+  ) {
+    return groups;
+  }
+
+  return groups.filter((group) => {
+    if (categoryId) {
+      const ids = Array.isArray(group.categoryIds) ? group.categoryIds : [];
+      if (!ids.includes(categoryId)) return false;
+    }
+
+    if (unitFilter) {
+      const unit = String(group.unit ?? '').trim().toLowerCase();
+      if (unit !== unitFilter) return false;
+    }
+
+    const price = group.retailPrice;
+    if (minPrice != null) {
+      if (price == null || !Number.isFinite(Number(price)) || Number(price) < minPrice) {
+        return false;
+      }
+    }
+    if (maxPrice != null) {
+      if (price == null || !Number.isFinite(Number(price)) || Number(price) > maxPrice) {
+        return false;
+      }
+    }
+
+    const qty = Number(group.totalQuantity) || 0;
+    if (minStock != null && qty < minStock) return false;
+    if (maxStock != null && qty > maxStock) return false;
+
+    return true;
+  });
+}
+
+export function applyGroupedProductFilters(
+  groups,
+  { search = '', ...filters } = DEFAULT_WAREHOUSE_INVENTORY_FILTERS
+) {
+  const searched = filterGroupedProducts(groups, search);
+  return filterGroupedProductsByFilters(searched, filters);
+}
+
+/** Distinct unit labels for filter dropdown (sorted). */
+export function collectGroupedProductUnits(groups) {
+  if (!Array.isArray(groups)) return [];
+  const units = new Set();
+  for (const group of groups) {
+    const unit = String(group.unit ?? '').trim();
+    if (unit && unit !== '—') units.add(unit);
+  }
+  return Array.from(units).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
 
 export const sortGroupedProducts = (groups, sortBy, sortOrder) => {

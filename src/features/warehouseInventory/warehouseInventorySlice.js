@@ -1,7 +1,8 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
+  applyGroupedProductFilters,
+  DEFAULT_WAREHOUSE_INVENTORY_FILTERS,
   fetchWarehouseInventoryRequest,
-  filterGroupedProducts,
   groupInventoryByProduct,
   paginateGroupedProducts,
   sortGroupedProducts,
@@ -19,7 +20,10 @@ export const fetchWarehouseInventory = createAsyncThunk(
 );
 
 const applyGroupedView = (state) => {
-  const filtered = filterGroupedProducts(state.groupedAll, state.search);
+  const filtered = applyGroupedProductFilters(state.groupedAll, {
+    search: state.search,
+    ...state.filters,
+  });
   const sorted = sortGroupedProducts(
     filtered,
     state.sort.sortBy,
@@ -46,6 +50,7 @@ const initialState = {
   pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   search: '',
   productId: '',
+  filters: { ...DEFAULT_WAREHOUSE_INVENTORY_FILTERS },
   sort: { sortBy: 'product_name', sortOrder: 'asc' },
 };
 
@@ -61,6 +66,19 @@ const warehouseInventorySlice = createSlice({
     setProductId: (state, action) => {
       state.productId = String(action.payload || '').trim();
       state.pagination.page = 1;
+    },
+    setFilters: (state, action) => {
+      state.filters = {
+        ...state.filters,
+        ...(action.payload && typeof action.payload === 'object' ? action.payload : {}),
+      };
+      state.pagination.page = 1;
+      applyGroupedView(state);
+    },
+    clearFilters: (state) => {
+      state.filters = { ...DEFAULT_WAREHOUSE_INVENTORY_FILTERS };
+      state.pagination.page = 1;
+      applyGroupedView(state);
     },
     setPage: (state, action) => {
       state.pagination.page = action.payload;
@@ -109,6 +127,6 @@ const warehouseInventorySlice = createSlice({
   },
 });
 
-export const { setSearch, setProductId, setPage, setLimit, setSort } =
+export const { setSearch, setProductId, setPage, setLimit, setSort, setFilters, clearFilters } =
   warehouseInventorySlice.actions;
 export default warehouseInventorySlice.reducer;

@@ -8,6 +8,8 @@ export const PRODUCT_IMPORT_UNITS = [
   'Kg',
   'Ltr',
   'Box',
+  'Roll',
+  'Dozen',
   'Meter',
   'Feet',
   'Yard',

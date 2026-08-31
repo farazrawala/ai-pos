@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import { FaArrowsRotate, FaFilter } from 'react-icons/fa6';
 import {
   fetchWarehouseInventory,
   setSearch,
@@ -9,18 +10,29 @@ import {
   setPage,
   setLimit,
   setSort,
+  setFilters,
+  clearFilters,
 } from '../../features/warehouseInventory/warehouseInventorySlice.js';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
+import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
+import { collectGroupedProductUnits } from '../../features/warehouseInventory/warehouseInventoryAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
+import NavIcon from '../../components/NavIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 
 const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
 const productOptionName = (p) => p?.name || p?.product_name || 'Product';
+
+const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
+const categoryOptionLabel = (c) => {
+  const name = c?.name ?? c?.category_name ?? '';
+  return name ? String(name) : categoryOptionValue(c) || 'Category';
+};
 
 const formatQty = (n) => {
   if (n == null || !Number.isFinite(Number(n))) return '—';
@@ -37,11 +49,13 @@ const WarehouseInventoryListing = () => {
   const navigate = useNavigate();
   const {
     list: data,
+    groupedAll,
     status,
     error,
     pagination,
     search: searchTerm,
     productId,
+    filters,
     sort,
   } = useSelector((state) => state.warehouseInventory);
 
@@ -50,10 +64,22 @@ const WarehouseInventoryListing = () => {
 
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [showFilters, setShowFilters] = useState(false);
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
+  const [categories, setCategories] = useState([]);
+  const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
   const sortClickTimeoutRef = useRef(null);
+
+  const activeFilterCount =
+    (productId ? 1 : 0) +
+    (filters.categoryId ? 1 : 0) +
+    (filters.minPrice !== '' ? 1 : 0) +
+    (filters.maxPrice !== '' ? 1 : 0) +
+    (filters.unit ? 1 : 0) +
+    (filters.minStock !== '' ? 1 : 0) +
+    (filters.maxStock !== '' ? 1 : 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +108,33 @@ const WarehouseInventoryListing = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCategoriesStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchCategoriesRequest({ page: 1, limit: 2000 });
+        if (cancelled) return;
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        rows.sort((a, b) =>
+          String(categoryOptionLabel(a)).localeCompare(String(categoryOptionLabel(b)), undefined, {
+            sensitivity: 'base',
+          })
+        );
+        setCategories(rows);
+        setCategoriesStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Warehouse inventory] Failed to load categories for filter', err);
+        setCategories([]);
+        setCategoriesStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const productOptions = useMemo(() => {
     const rows = products
       .map((p) => {
@@ -97,6 +150,11 @@ const WarehouseInventoryListing = () => {
       .filter(Boolean);
     return [{ value: '', label: 'All products' }, ...rows];
   }, [products]);
+
+  const unitOptions = useMemo(() => {
+    const units = collectGroupedProductUnits(groupedAll);
+    return [{ value: '', label: 'All units' }, ...units.map((unit) => ({ value: unit, label: unit }))];
+  }, [groupedAll]);
 
   useEffect(() => {
     const params = {};
@@ -136,6 +194,18 @@ const WarehouseInventoryListing = () => {
     },
     [dispatch]
   );
+
+  const handleFilterChange = useCallback(
+    (key, value) => {
+      dispatch(setFilters({ [key]: value }));
+    },
+    [dispatch]
+  );
+
+  const handleClearFilters = useCallback(() => {
+    dispatch(clearFilters());
+    dispatch(setProductId(''));
+  }, [dispatch]);
 
   const handleSort = (sortBy, isDoubleClick = false) => {
     if (isDoubleClick) {
@@ -183,9 +253,66 @@ const WarehouseInventoryListing = () => {
                   ) : null}
                 </div>
                 <div className="col-md-7">
-                  <div className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
-                    <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
+                  <div className="d-flex justify-content-md-end align-items-center gap-2 overflow-visible">
+                    <div
+                      className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0"
+                      style={{ minWidth: 0, maxWidth: '420px' }}
+                    >
+                      <div className="input-group input-group-sm flex-grow-1">
+                        <span className="input-group-text text-body">
+                          <SearchInputIcon />
+                        </span>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Search name, barcode, or SKU…"
+                          value={localSearch}
+                          onChange={handleSearchChange}
+                          aria-label="Search warehouse inventory"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className={`btn btn-sm mb-0 flex-shrink-0 position-relative ${
+                          showFilters || activeFilterCount > 0
+                            ? 'btn-primary'
+                            : 'btn-outline-primary'
+                        }`}
+                        onClick={() => setShowFilters((prev) => !prev)}
+                        aria-expanded={showFilters}
+                        aria-controls="warehouse-inventory-filter-panel"
+                        aria-label="Filters"
+                        title="Filters"
+                      >
+                        <NavIcon icon={FaFilter} size={14} />
+                        {activeFilterCount > 0 ? (
+                          <span
+                            className="badge bg-gradient-danger text-white rounded-pill position-absolute"
+                            style={{ top: '-0.35rem', right: '-0.35rem', fontSize: '0.65rem' }}
+                          >
+                            {activeFilterCount}
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {showFilters ? (
+              <div className="card-body pt-0 px-3 pb-0">
+                <div className="orders-filter-panel" id="warehouse-inventory-filter-panel">
+                  <div className="row g-3 align-items-end">
+                    <div className="col-xl-3 col-md-6 col-sm-12">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-product-filter"
+                      >
+                        Product
+                      </label>
                       <SearchableSelect
+                        id="wi-product-filter"
                         options={productOptions}
                         value={productId}
                         placeholder="All products"
@@ -196,26 +323,143 @@ const WarehouseInventoryListing = () => {
                         <p className="text-xs text-muted mb-0 mt-1">Loading products…</p>
                       ) : null}
                     </div>
-                    <div
-                      className="input-group input-group-sm"
-                      style={{ maxWidth: '320px', flex: '1 1 200px' }}
-                    >
-                      <span className="input-group-text text-body">
-                        <SearchInputIcon />
-                      </span>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-category-filter"
+                      >
+                        Category
+                      </label>
+                      <select
+                        id="wi-category-filter"
+                        className="form-select form-select-sm"
+                        value={filters.categoryId}
+                        onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+                        disabled={categoriesStatus === 'loading'}
+                        aria-label="Filter by category"
+                      >
+                        <option value="">All categories</option>
+                        {categories.map((cat) => (
+                          <option key={categoryOptionValue(cat)} value={categoryOptionValue(cat)}>
+                            {categoryOptionLabel(cat)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-unit-filter"
+                      >
+                        Unit
+                      </label>
+                      <select
+                        id="wi-unit-filter"
+                        className="form-select form-select-sm"
+                        value={filters.unit}
+                        onChange={(e) => handleFilterChange('unit', e.target.value)}
+                        disabled={loading && unitOptions.length <= 1}
+                        aria-label="Filter by unit"
+                      >
+                        {unitOptions.map((opt) => (
+                          <option key={opt.value || 'all'} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-min-stock-filter"
+                      >
+                        Min stock
+                      </label>
                       <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Search name, barcode, or SKU…"
-                        value={localSearch}
-                        onChange={handleSearchChange}
-                        aria-label="Search warehouse inventory"
+                        id="wi-min-stock-filter"
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="form-control form-control-sm"
+                        placeholder="Min"
+                        value={filters.minStock}
+                        onChange={(e) => handleFilterChange('minStock', e.target.value)}
+                        aria-label="Minimum total stock"
                       />
+                    </div>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-max-stock-filter"
+                      >
+                        Max stock
+                      </label>
+                      <input
+                        id="wi-max-stock-filter"
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="form-control form-control-sm"
+                        placeholder="Max"
+                        value={filters.maxStock}
+                        onChange={(e) => handleFilterChange('maxStock', e.target.value)}
+                        aria-label="Maximum total stock"
+                      />
+                    </div>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-min-price-filter"
+                      >
+                        Min price
+                      </label>
+                      <input
+                        id="wi-min-price-filter"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control form-control-sm"
+                        placeholder="Min"
+                        value={filters.minPrice}
+                        onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                        aria-label="Minimum retail price"
+                      />
+                    </div>
+                    <div className="col-xl-2 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="wi-max-price-filter"
+                      >
+                        Max price
+                      </label>
+                      <input
+                        id="wi-max-price-filter"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control form-control-sm"
+                        placeholder="Max"
+                        value={filters.maxPrice}
+                        onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                        aria-label="Maximum retail price"
+                      />
+                    </div>
+                    <div className="col-xl-2 col-md-12 d-flex flex-wrap align-items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm mb-0"
+                        onClick={handleClearFilters}
+                        disabled={activeFilterCount === 0}
+                      >
+                        <NavIcon icon={FaArrowsRotate} className="me-1" size={14} />
+                        Clear
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : null}
+
             <div className="card-body pt-0 px-0 pb-0">
               <ListDataTable
                 loading={loading}
