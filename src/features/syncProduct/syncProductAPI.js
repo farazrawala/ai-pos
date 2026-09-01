@@ -23,6 +23,13 @@ const getHeaders = () => {
 export const fetchSyncProductsRequest = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.product_id) queryParams.append('product_id', params.product_id);
+  const productIds = params.product_ids ?? params.productIds;
+  if (productIds != null && String(productIds).trim() !== '') {
+    const normalized = Array.isArray(productIds)
+      ? productIds.map((id) => String(id || '').trim()).filter(Boolean).join(',')
+      : String(productIds).trim();
+    if (normalized) queryParams.append('product_ids', normalized);
+  }
   if (params.populate) queryParams.append('populate', params.populate);
   if (params.page && params.limit) {
     queryParams.append('skip', String((params.page - 1) * params.limit));
@@ -63,6 +70,48 @@ export const fetchSyncProductsRequest = async (params = {}) => {
     data,
     total: result.pagination?.total ?? data.length,
   };
+};
+
+export const productIdFromSyncRow = (row) => {
+  const product = row?.product_id ?? row?.productId;
+  if (product && typeof product === 'object' && !Array.isArray(product)) {
+    return String(product._id || product.id || '').trim();
+  }
+  if (product != null && product !== '') return String(product).trim();
+  return '';
+};
+
+/** Load sync rows for many products (batch API when supported, otherwise per-product fallback). */
+export const fetchSyncProductsForProductIdsRequest = async (productIds = [], options = {}) => {
+  const ids = [...new Set(productIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const populate = options.populate || 'integration_id';
+  const perProductLimit = Math.max(Number(options.limit) || 20, 1);
+
+  try {
+    const batch = await fetchSyncProductsRequest({
+      product_ids: ids.join(','),
+      populate,
+      limit: Math.max(ids.length * perProductLimit, 100),
+    });
+    const rows = Array.isArray(batch?.data) ? batch.data : [];
+    if (rows.length) return rows;
+  } catch (err) {
+    console.warn('[Sync product module] Batch fetch failed, falling back per product', err);
+  }
+
+  const results = await Promise.all(
+    ids.map((id) =>
+      fetchSyncProductsRequest({
+        product_id: id,
+        populate,
+        limit: perProductLimit,
+      }).catch(() => ({ data: [] }))
+    )
+  );
+
+  return results.flatMap((result) => (Array.isArray(result?.data) ? result.data : []));
 };
 
 export const createSyncProductRequest = async (syncProductData = {}) => {

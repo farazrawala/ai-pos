@@ -29,6 +29,7 @@ import ProductWarehouseStockModal from '../../components/product/ProductWarehous
 import FetchProductsModal from '../../components/product/FetchProductsModal.jsx';
 import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
+import ProductIntegrationsCell from '../../components/product/ProductIntegrationsCell.jsx';
 import ImportProductsModal from '../../components/product/ImportProductsModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import { productEditIdFromRecord, productIdFromRecord, parentProductIdFromRecord } from '../../components/product/productVariationUtils.js';
@@ -43,6 +44,11 @@ import {
   PRODUCTS_LIST_POPULATE,
   updateProductRequest,
 } from '../../features/products/productsAPI.js';
+import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
+import {
+  fetchSyncProductsForProductIdsRequest,
+  productIdFromSyncRow,
+} from '../../features/syncProduct/syncProductAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import {
   mapProductsToExportRows,
@@ -197,6 +203,7 @@ const PRODUCT_COLUMNS = [
   { key: 'type', label: 'Type' },
   { key: 'status', label: 'Status' },
   { key: 'dates', label: 'Created / Updated' },
+  { key: 'integration', label: 'Integration' },
   { key: 'actors', label: 'Created / Updated by' },
   { key: 'origin', label: 'Origin' },
   { key: 'origin_qty', label: 'Origin Quantity' },
@@ -302,6 +309,17 @@ const getProductCategoryNames = (item, categoriesLookup = []) => {
   return fallback ? [fallback] : [];
 };
 
+const groupSyncRowsByProductId = (rows = []) => {
+  const grouped = {};
+  for (const row of rows) {
+    const pid = productIdFromSyncRow(row);
+    if (!pid) continue;
+    if (!grouped[pid]) grouped[pid] = [];
+    grouped[pid].push(row);
+  }
+  return grouped;
+};
+
 const Product = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -325,6 +343,9 @@ const Product = () => {
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
   const [importProductsModalOpen, setImportProductsModalOpen] = useState(false);
   const [viewSyncProduct, setViewSyncProduct] = useState(null);
+  const [integrations, setIntegrations] = useState([]);
+  const [syncRowsByProductId, setSyncRowsByProductId] = useState({});
+  const [syncRowsStatus, setSyncRowsStatus] = useState('idle');
   const [exporting, setExporting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
@@ -403,6 +424,83 @@ const Product = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await fetchIntegrationsRequest({ limit: 500 });
+        if (cancelled) return;
+        setIntegrations(Array.isArray(result?.data) ? result.data : []);
+      } catch {
+        if (!cancelled) setIntegrations([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pageProductIds = useMemo(
+    () =>
+      (Array.isArray(data) ? data : [])
+        .map((item) => productIdFromRecord(item))
+        .filter(Boolean),
+    [data]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
+      if (!ids.length) {
+        if (!cancelled) {
+          setSyncRowsByProductId({});
+          setSyncRowsStatus('succeeded');
+        }
+        return;
+      }
+
+      if (!cancelled) setSyncRowsStatus('loading');
+      try {
+        const rows = await fetchSyncProductsForProductIdsRequest(ids, {
+          populate: 'integration_id',
+        });
+        if (cancelled) return;
+        setSyncRowsByProductId(groupSyncRowsByProductId(rows));
+        setSyncRowsStatus('succeeded');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Products] Failed to load sync rows for list', err);
+        setSyncRowsByProductId({});
+        setSyncRowsStatus('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pageProductIds]);
+
+  const reloadCurrentPageSyncRows = useCallback(() => {
+    const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
+    if (!ids.length) {
+      setSyncRowsByProductId({});
+      setSyncRowsStatus('succeeded');
+      return;
+    }
+
+    setSyncRowsStatus('loading');
+    fetchSyncProductsForProductIdsRequest(ids, { populate: 'integration_id' })
+      .then((rows) => {
+        setSyncRowsByProductId(groupSyncRowsByProductId(rows));
+        setSyncRowsStatus('succeeded');
+      })
+      .catch((err) => {
+        console.error('[Products] Failed to reload sync rows for list', err);
+        setSyncRowsByProductId({});
+        setSyncRowsStatus('failed');
+      });
+  }, [pageProductIds]);
 
   // Fetch data from API using Redux with pagination, search, category, and sort
   useEffect(() => {
@@ -803,6 +901,20 @@ const Product = () => {
 
   const refreshProductList = () => {
     dispatch(fetchProducts(buildListParams()));
+  };
+
+  const openViewSyncModal = (item) => {
+    const productId = productIdFromRecord(item);
+    setViewSyncProduct({
+      id: productId,
+      name: item.name || item.product_name || 'Product',
+      parentProductId: parentProductIdFromRecord(item),
+    });
+  };
+
+  const handleViewSyncModalClose = () => {
+    setViewSyncProduct(null);
+    reloadCurrentPageSyncRows();
   };
 
   const apiSources = useMemo(() => {
@@ -1219,6 +1331,9 @@ const Product = () => {
                       {isVisible('dates')
                         ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
                         : null}
+                      {isVisible('integration') ? (
+                        <th className="list-col-integrations">Integration</th>
+                      ) : null}
                       {isVisible('actors') ? (
                         <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                           Created / Updated by
@@ -1474,6 +1589,17 @@ const Product = () => {
                                 )}
                               </td>
                             ) : null}
+                            {isVisible('integration') ? (
+                              <td className="text-sm list-col-integrations">
+                                <ProductIntegrationsCell
+                                  syncRows={syncRowsByProductId[String(productId)] || []}
+                                  integrations={integrations}
+                                  totalIntegrations={integrations.length}
+                                  loading={syncRowsStatus === 'loading'}
+                                  onClick={() => openViewSyncModal(item)}
+                                />
+                              </td>
+                            ) : null}
                             {isVisible('actors') ? (
                               <td className="text-sm">
                                 {createdByLabel || updatedByLabel ? (
@@ -1549,13 +1675,7 @@ const Product = () => {
                                   className="btn btn-sm btn-outline-secondary mb-0 px-2"
                                   title="View sync"
                                   aria-label="View sync"
-                                  onClick={() =>
-                                    setViewSyncProduct({
-                                      id: productId,
-                                      name: productName,
-                                      parentProductId: parentProductIdFromRecord(item),
-                                    })
-                                  }
+                                  onClick={() => openViewSyncModal(item)}
                                 >
                                   <NavIcon icon={FaArrowsRotate} size={14} />
                                 </button>
@@ -1622,7 +1742,7 @@ const Product = () => {
         productId={viewSyncProduct?.id || ''}
         productName={viewSyncProduct?.name || ''}
         parentProductId={viewSyncProduct?.parentProductId || ''}
-        onClose={() => setViewSyncProduct(null)}
+        onClose={handleViewSyncModalClose}
       />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />
