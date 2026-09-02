@@ -332,6 +332,7 @@ export async function fetchSalesReturnsListRequest(params = {}) {
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
   if (params.startDate) queryParams.append('startDate', String(params.startDate));
   if (params.endDate) queryParams.append('endDate', String(params.endDate));
+  if (params.product_id) queryParams.append('product_id', String(params.product_id));
 
   const queryString = queryParams.toString();
   const url = `${BASE_URL}${LIST_ALL_ACTIVE_PATH}${queryString ? `?${queryString}` : ''}`;

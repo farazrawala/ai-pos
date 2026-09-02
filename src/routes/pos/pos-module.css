@@ -727,7 +727,7 @@
 
 .pos-page .pos-segment {
   display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, auto);
   align-items: stretch;
   height: 1.85rem;
   padding: 2px;
@@ -749,8 +749,10 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   line-height: 1;
-  padding: 0 0.7rem;
-  min-width: 3.1rem;
+  padding: 0 0.5rem;
+  min-width: 2.45rem;
+  white-space: nowrap;
+  user-select: none;
   cursor: pointer;
   transition:
     background-color 0.15s ease,

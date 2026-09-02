@@ -103,6 +103,20 @@ const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
 const POS_CART_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
 const POS_CART_ORDER_FIFO = 'fifo';
 const POS_CART_ORDER_LIFO = 'lifo';
+const POS_CART_ORDER_AMOUNT_ASC = 'amount_asc';
+const POS_CART_ORDER_AMOUNT_DESC = 'amount_desc';
+const POS_CART_ORDER_AMOUNT = 'amount';
+const POS_CART_ORDER_PRICE_ASC = 'price_asc';
+const POS_CART_ORDER_PRICE_DESC = 'price_desc';
+const POS_CART_ORDER_MODES = new Set([
+  POS_CART_ORDER_FIFO,
+  POS_CART_ORDER_LIFO,
+  POS_CART_ORDER_AMOUNT_ASC,
+  POS_CART_ORDER_AMOUNT_DESC,
+  POS_CART_ORDER_AMOUNT,
+  POS_CART_ORDER_PRICE_ASC,
+  POS_CART_ORDER_PRICE_DESC,
+]);
 const POS_LAYOUT_STORAGE_KEY = 'pos.layout';
 const POS_LAYOUT_META_KEY = 'pos_layout';
 /** Matches Bootstrap xl-5 (~41.67%) for the current-order column. */
@@ -118,22 +132,39 @@ const POS_LAYOUT_DEFAULT = {
   productCols: POS_LAYOUT_DEFAULT_PRODUCT_COLS,
 };
 
-/** Load cart FIFO/LIFO preference from localStorage cache. */
+function isPosCartAmountOrder(order) {
+  return (
+    order === POS_CART_ORDER_AMOUNT_ASC ||
+    order === POS_CART_ORDER_AMOUNT_DESC ||
+    order === POS_CART_ORDER_AMOUNT
+  );
+}
+
+function isPosCartPriceOrder(order) {
+  return order === POS_CART_ORDER_PRICE_ASC || order === POS_CART_ORDER_PRICE_DESC;
+}
+
+function isPosCartValueOrder(order) {
+  return isPosCartAmountOrder(order) || isPosCartPriceOrder(order);
+}
+
+/** Load cart display-order preference from localStorage cache. */
 function readStoredCartDisplayOrder() {
   if (typeof window === 'undefined') return POS_CART_ORDER_FIFO;
   try {
     const value = window.localStorage.getItem(POS_CART_ORDER_STORAGE_KEY);
-    if (value === POS_CART_ORDER_LIFO || value === POS_CART_ORDER_FIFO) return value;
+    if (value === POS_CART_ORDER_AMOUNT) return POS_CART_ORDER_AMOUNT_DESC;
+    if (POS_CART_ORDER_MODES.has(value)) return value;
   } catch {
     /* ignore */
   }
   return POS_CART_ORDER_FIFO;
 }
 
-/** Persist cart FIFO/LIFO preference to localStorage cache. */
+/** Persist cart display-order preference to localStorage cache. */
 function persistCartDisplayOrder(order) {
   if (typeof window === 'undefined') return;
-  if (order !== POS_CART_ORDER_FIFO && order !== POS_CART_ORDER_LIFO) return;
+  if (!POS_CART_ORDER_MODES.has(order)) return;
   try {
     window.localStorage.setItem(POS_CART_ORDER_STORAGE_KEY, order);
   } catch {
@@ -561,6 +592,63 @@ function parsePosQty(raw) {
       .trim()
   );
   return Number.isFinite(n) ? roundPosQty(n) : 0;
+}
+
+function cartLineAmount(line) {
+  return parsePosQty(line?.quantity) * (Number(line?.unitPrice) || 0);
+}
+
+function cartLinePrice(line) {
+  return Number(line?.unitPrice) || 0;
+}
+
+function nextCartLineSeq(lines) {
+  let max = -1;
+  for (const line of lines) {
+    const n = Number(line?.addedSeq);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max + 1;
+}
+
+/** Fill missing insertion order so FIFO/LIFO still work after amount sorts. */
+function ensureCartLineSeq(lines, currentOrder) {
+  if (!Array.isArray(lines) || lines.length === 0) return lines || [];
+  if (lines.every((line) => Number.isFinite(Number(line?.addedSeq)))) return lines;
+  const n = lines.length;
+  return lines.map((line, i) => {
+    if (Number.isFinite(Number(line?.addedSeq))) return line;
+    const addedSeq = currentOrder === POS_CART_ORDER_LIFO ? n - 1 - i : i;
+    return { ...line, addedSeq };
+  });
+}
+
+function sortCartLinesByOrder(lines, order) {
+  if (!Array.isArray(lines) || lines.length <= 1) return lines;
+  const copy = [...lines];
+  const seq = (line) => Number(line?.addedSeq) || 0;
+  if (order === POS_CART_ORDER_AMOUNT_ASC) {
+    copy.sort((a, b) => cartLineAmount(a) - cartLineAmount(b) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === POS_CART_ORDER_AMOUNT_DESC || order === POS_CART_ORDER_AMOUNT) {
+    copy.sort((a, b) => cartLineAmount(b) - cartLineAmount(a) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === POS_CART_ORDER_PRICE_ASC) {
+    copy.sort((a, b) => cartLinePrice(a) - cartLinePrice(b) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === POS_CART_ORDER_PRICE_DESC) {
+    copy.sort((a, b) => cartLinePrice(b) - cartLinePrice(a) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === POS_CART_ORDER_LIFO) {
+    copy.sort((a, b) => seq(b) - seq(a));
+    return copy;
+  }
+  copy.sort((a, b) => seq(a) - seq(b));
+  return copy;
 }
 
 /** While typing qty — digits with optional single decimal, max 2 fractional digits. */
@@ -1445,6 +1533,7 @@ const Pos = () => {
         }
 
         added = true;
+        const order = cartDisplayOrderRef.current;
         if (i >= 0) {
           const next = [...prev];
           next[i] = {
@@ -1452,7 +1541,7 @@ const Pos = () => {
             quantity: formatPosQtyLabel(nextQty),
             availableStock: stockInCart,
           };
-          return next;
+          return isPosCartAmountOrder(order) ? sortCartLinesByOrder(next, order) : next;
         }
         const newLine = {
           productId,
@@ -1460,6 +1549,7 @@ const Pos = () => {
           unitPrice,
           quantity: '1',
           availableStock,
+          addedSeq: nextCartLineSeq(prev),
           category_id:
             String(
               product.category_id ??
@@ -1469,8 +1559,11 @@ const Pos = () => {
                 ''
             ).trim() || undefined,
         };
+        if (isPosCartValueOrder(order)) {
+          return sortCartLinesByOrder([...prev, newLine], order);
+        }
         // FIFO: oldest first (append). LIFO: newest first (prepend).
-        return cartDisplayOrder === POS_CART_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine];
+        return order === POS_CART_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine];
       });
 
       if (blockMsg) {
@@ -1480,18 +1573,40 @@ const Pos = () => {
       }
       if (added) playPosScanBeep('success');
     },
-    [defaultWarehouseId, allowAddWhenStockInsufficient, cartDisplayOrder]
+    [defaultWarehouseId, allowAddWhenStockInsufficient]
   );
 
   const setCartOrderMode = useCallback((nextOrder) => {
-    if (nextOrder !== POS_CART_ORDER_FIFO && nextOrder !== POS_CART_ORDER_LIFO) return;
-    if (cartDisplayOrderRef.current === nextOrder) return;
+    if (!POS_CART_ORDER_MODES.has(nextOrder)) return;
+    const prevOrder = cartDisplayOrderRef.current;
+    if (prevOrder === nextOrder) {
+      if (isPosCartValueOrder(nextOrder)) {
+        setCartLines((lines) => sortCartLinesByOrder(lines, nextOrder));
+      }
+      return;
+    }
 
     cartDisplayOrderRef.current = nextOrder;
     setCartDisplayOrder(nextOrder);
-    setCartLines((lines) => (lines.length > 1 ? [...lines].reverse() : lines));
+    setCartLines((lines) => sortCartLinesByOrder(ensureCartLineSeq(lines, prevOrder), nextOrder));
     persistCartDisplayOrder(nextOrder);
   }, []);
+
+  const handleAmountOrderClick = useCallback(() => {
+    const current = cartDisplayOrderRef.current;
+    const next =
+      current === POS_CART_ORDER_AMOUNT_ASC
+        ? POS_CART_ORDER_AMOUNT_DESC
+        : POS_CART_ORDER_AMOUNT_ASC;
+    setCartOrderMode(next);
+  }, [setCartOrderMode]);
+
+  const handlePriceOrderClick = useCallback(() => {
+    const current = cartDisplayOrderRef.current;
+    const next =
+      current === POS_CART_ORDER_PRICE_ASC ? POS_CART_ORDER_PRICE_DESC : POS_CART_ORDER_PRICE_ASC;
+    setCartOrderMode(next);
+  }, [setCartOrderMode]);
 
   const updatePosLayout = useCallback((patch) => {
     setPosLayout((prev) => {
@@ -1546,8 +1661,8 @@ const Pos = () => {
 
   const bumpCartQty = useCallback(
     (productId, delta) => {
-      setCartLines((prev) =>
-        prev.flatMap((l) => {
+      setCartLines((prev) => {
+        const nextLines = prev.flatMap((l) => {
           if (l.productId !== productId) return [l];
           const next = roundPosQty(parsePosQty(l.quantity) + delta);
           if (next < POS_QTY_MIN) return [];
@@ -1566,8 +1681,10 @@ const Pos = () => {
           }
 
           return [{ ...l, quantity: formatPosQtyLabel(next) }];
-        })
-      );
+        });
+        const order = cartDisplayOrderRef.current;
+        return isPosCartAmountOrder(order) ? sortCartLinesByOrder(nextLines, order) : nextLines;
+      });
     },
     [allowAddWhenStockInsufficient]
   );
@@ -1585,8 +1702,8 @@ const Pos = () => {
 
   const commitCartQty = useCallback(
     (productId) => {
-      setCartLines((prev) =>
-        prev.flatMap((l) => {
+      setCartLines((prev) => {
+        const nextLines = prev.flatMap((l) => {
           if (l.productId !== productId) return [l];
           const q = parsePosQty(l.quantity);
           if (q < POS_QTY_MIN) return [];
@@ -1610,8 +1727,10 @@ const Pos = () => {
           }
 
           return [{ ...l, quantity: formatPosQtyLabel(q) }];
-        })
-      );
+        });
+        const order = cartDisplayOrderRef.current;
+        return isPosCartAmountOrder(order) ? sortCartLinesByOrder(nextLines, order) : nextLines;
+      });
     },
     [allowAddWhenStockInsufficient]
   );
@@ -1620,6 +1739,12 @@ const Pos = () => {
     const n = parseFloat(String(raw).replace(/,/g, ''));
     const unitPrice = Number.isFinite(n) && n >= 0 ? n : 0;
     setCartLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
+  }, []);
+
+  const commitCartUnitPrice = useCallback(() => {
+    const order = cartDisplayOrderRef.current;
+    if (!isPosCartValueOrder(order)) return;
+    setCartLines((lines) => sortCartLinesByOrder(lines, order));
   }, []);
 
   const cartSubtotal = useMemo(
@@ -2885,6 +3010,53 @@ const Pos = () => {
                       >
                         LIFO
                       </button>
+                      <button
+                        type="button"
+                        className={`pos-segment__btn${
+                          isPosCartPriceOrder(cartDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handlePriceOrderClick}
+                        title="Click to toggle sort by price: ascending, then descending, and so on."
+                        aria-pressed={isPosCartPriceOrder(cartDisplayOrder)}
+                        aria-label={
+                          cartDisplayOrder === POS_CART_ORDER_PRICE_DESC
+                            ? 'Sort by price descending. Click again for ascending.'
+                            : cartDisplayOrder === POS_CART_ORDER_PRICE_ASC
+                              ? 'Sort by price ascending. Click again for descending.'
+                              : 'Sort by price. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Price
+                        {cartDisplayOrder === POS_CART_ORDER_PRICE_ASC
+                          ? ' ↑'
+                          : cartDisplayOrder === POS_CART_ORDER_PRICE_DESC
+                            ? ' ↓'
+                            : ''}
+                      </button>
+                      <button
+                        type="button"
+                        className={`pos-segment__btn${
+                          isPosCartAmountOrder(cartDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handleAmountOrderClick}
+                        title="Click to toggle sort by amount: ascending, then descending, and so on."
+                        aria-pressed={isPosCartAmountOrder(cartDisplayOrder)}
+                        aria-label={
+                          cartDisplayOrder === POS_CART_ORDER_AMOUNT_DESC
+                            ? 'Sort by amount descending. Click again for ascending.'
+                            : cartDisplayOrder === POS_CART_ORDER_AMOUNT_ASC
+                              ? 'Sort by amount ascending. Click again for descending.'
+                              : 'Sort by amount. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Amount
+                        {cartDisplayOrder === POS_CART_ORDER_AMOUNT_ASC
+                          ? ' ↑'
+                          : cartDisplayOrder === POS_CART_ORDER_AMOUNT_DESC ||
+                              cartDisplayOrder === POS_CART_ORDER_AMOUNT
+                            ? ' ↓'
+                            : ''}
+                      </button>
                     </div>
                     <button
                       type="button"
@@ -2971,6 +3143,7 @@ const Pos = () => {
                               className="form-control form-control-sm pos-price-input"
                               value={line.unitPrice}
                               onChange={(e) => setCartUnitPrice(line.productId, e.target.value)}
+                              onBlur={commitCartUnitPrice}
                               aria-label={`Unit price for ${line.name}`}
                             />
                           </div>

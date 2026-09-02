@@ -102,6 +102,7 @@ import DuplicateBarcodes from './routes/duplicateBarcodes/index.jsx';
 import ProductPrint from './routes/productPrint/index.jsx';
 import PrinterSettings from './routes/printerSettings/index.jsx';
 import ProfitReportPage from './routes/profitReport/index.jsx';
+import ProductPulsePage from './routes/productPulse/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
 import ExpenseEdit from './routes/expense/edit.jsx';
@@ -308,6 +309,7 @@ const App = () => {
           <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
           <Route path="/profit-vs-gl-gap" element={<ProfitVsGlGapPage />} />
           <Route path="/profit-report" element={<ProfitReportPage />} />
+          <Route path="/product-pulse" element={<ProductPulsePage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
@@ -504,6 +506,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/advance-balance-sheet" element={<AdvanceBalanceSheetPage />} />
           <Route path="/profit-vs-gl-gap" element={<ProfitVsGlGapPage />} />
           <Route path="/profit-report" element={<ProfitReportPage />} />
+          <Route path="/product-pulse" element={<ProductPulsePage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />

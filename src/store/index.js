@@ -32,6 +32,7 @@ import integrationReducer from '../features/integration/integrationSlice.js';
 import processReducer from '../features/process/processSlice.js';
 import printersReducer from '../features/printers/printersSlice.js';
 import profitReportReducer from '../features/profitReport/profitReportSlice.js';
+import productPulseReducer from '../features/productPulse/productPulseSlice.js';
 import bigCommerceReducer from '../features/bigCommerce/bigCommerceSlice.js';
 import whatsappMessagesReducer from '../features/whatsappMessages/whatsappMessagesSlice.js';
 import whatsappChatReducer from '../features/whatsappChat/whatsappChatSlice.js';
@@ -74,6 +75,7 @@ const store = configureStore({
     process: processReducer,
     printers: printersReducer,
     profitReport: profitReportReducer,
+    productPulse: productPulseReducer,
     bigCommerce: bigCommerceReducer,
     whatsappMessages: whatsappMessagesReducer,
     whatsappChat: whatsappChatReducer,

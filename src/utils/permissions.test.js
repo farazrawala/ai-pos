@@ -56,8 +56,9 @@ describe('filterNavItems admin access', () => {
       debug: false,
     });
     expect(items).toHaveLength(NAV_ITEMS.length);
-    const accounts = items.find((i) => i.id === 'accounts');
-    expect(accounts?.children?.some((c) => c.to === '/profit-report')).toBe(true);
+    expect(items.find((i) => i.id === 'pl-accounts')?.children?.some((c) => c.to === '/product-pulse')).toBe(
+      true
+    );
   });
 
   it('hides permission-gated items for non-admin without view', () => {

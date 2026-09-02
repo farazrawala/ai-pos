@@ -67,6 +67,7 @@ function appendDateParams(query, params = {}) {
   }
   if (params.orderId) query.set('order_id', String(params.orderId));
   if (params.productId) query.set('product_id', String(params.productId));
+  if (params.warehouseId) query.set('warehouse_id', String(params.warehouseId));
 }
 
 function appendListParams(query, params = {}) {
@@ -465,7 +466,7 @@ async function parseApiError(response, fallback) {
 
 /**
  * GET `order_item/profit-by-order-item` — period totals (date + stock-out rules).
- * @param {{ startDate?: string; endDate?: string; orderId?: string; productId?: string }} [params]
+ * @param {{ startDate?: string; endDate?: string; orderId?: string; productId?: string; warehouseId?: string }} [params]
  */
 export async function fetchProfitByOrderItemRequest(params = {}) {
   const url = buildProfitByOrderItemUrl(params);
