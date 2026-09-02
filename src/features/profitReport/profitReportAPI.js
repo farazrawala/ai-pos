@@ -749,9 +749,14 @@ export async function fetchProfitQuickStatsRequest() {
     };
   });
 
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonth = months.find((row) => row.key === lastMonthKey) || months[months.length - 2] || null;
+
   return {
     today: todayReport,
     month: monthReport,
+    lastMonth,
     todayDate: today,
     monthStart,
     monthEnd: today,

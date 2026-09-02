@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
@@ -13,12 +13,14 @@ import {
   setLimit,
   setSort,
   setFilterPurchaseItemId,
+  setFilterProductId,
   clearDeleteStatus,
 } from '../../features/purchaseOrders/purchaseOrdersSlice.js';
 import {
   fetchPurchaseOrdersListRequest,
   fetchAllPurchaseOrdersForExportRequest,
 } from '../../features/purchaseOrders/purchaseOrdersAPI.js';
+import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
 import {
   PURCHASE_ORDER_EXPORT_COLUMNS,
   mapPurchaseOrdersToExportRows,
@@ -139,6 +141,9 @@ const poTransactionNumber = (row) => {
   return v !== '' && v != null ? String(v) : '—';
 };
 
+const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
+const productOptionName = (p) => p?.name || p?.product_name || 'Product';
+
 const PurchaseOrders = () => {
   useRequireModuleAccess('purchase-orders');
   const { canEdit, canDelete } = usePermissions('purchase-orders');
@@ -153,6 +158,7 @@ const PurchaseOrders = () => {
     filters,
     sort,
     filterPurchaseItemId,
+    filterProductId,
     deleteStatus,
   } = useSelector((state) => state.purchaseOrders);
 
@@ -166,6 +172,8 @@ const PurchaseOrders = () => {
   );
   const [poFilterOptions, setPoFilterOptions] = useState([]);
   const [poFilterOptionsStatus, setPoFilterOptionsStatus] = useState('idle');
+  const [products, setProducts] = useState([]);
+  const [productsStatus, setProductsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
@@ -190,6 +198,9 @@ const PurchaseOrders = () => {
     if (filterPurchaseItemId && String(filterPurchaseItemId).trim()) {
       params.filterPurchaseItemId = String(filterPurchaseItemId).trim();
     }
+    if (filterProductId && String(filterProductId).trim()) {
+      params.product_id = String(filterProductId).trim();
+    }
     return params;
   }, [
     pagination.page,
@@ -200,6 +211,7 @@ const PurchaseOrders = () => {
     sort.sortBy,
     sort.sortOrder,
     filterPurchaseItemId,
+    filterProductId,
   ]);
 
   useEffect(() => {
@@ -244,6 +256,54 @@ const PurchaseOrders = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setProductsStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchProductActiveRequest({
+          page: 1,
+          limit: 2000,
+          includeInactive: true,
+        });
+        if (cancelled) return;
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        rows.sort((a, b) =>
+          String(productOptionName(a)).localeCompare(String(productOptionName(b)), undefined, {
+            sensitivity: 'base',
+          })
+        );
+        setProducts(rows);
+        setProductsStatus('succeeded');
+      } catch (err) {
+        console.error('[Purchase orders] Failed to load products for filter', err);
+        if (!cancelled) {
+          setProducts([]);
+          setProductsStatus('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const productOptions = useMemo(() => {
+    const rows = products
+      .map((p) => {
+        const id = productOptionId(p);
+        if (!id) return null;
+        const sku = p.sku || p.product_code || '';
+        return {
+          value: id,
+          label: productOptionName(p),
+          subLabel: sku || undefined,
+        };
+      })
+      .filter(Boolean);
+    return [{ value: '', label: 'All products' }, ...rows];
+  }, [products]);
+
   const handleRetryFetch = useCallback(() => {
     dispatch(fetchPurchaseOrders(buildListParams()));
   }, [dispatch, buildListParams]);
@@ -263,6 +323,13 @@ const PurchaseOrders = () => {
   const handlePurchaseOrderFilterChange = useCallback(
     (next) => {
       dispatch(setFilterPurchaseItemId(next || ''));
+    },
+    [dispatch]
+  );
+
+  const handleProductFilterChange = useCallback(
+    (next) => {
+      dispatch(setFilterProductId(next || ''));
     },
     [dispatch]
   );
@@ -317,6 +384,9 @@ const PurchaseOrders = () => {
     }
     if (filterPurchaseItemId && String(filterPurchaseItemId).trim()) {
       params.filterPurchaseItemId = String(filterPurchaseItemId).trim();
+    }
+    if (filterProductId && String(filterProductId).trim()) {
+      params.product_id = String(filterProductId).trim();
     }
     return params;
   };
@@ -436,6 +506,17 @@ const PurchaseOrders = () => {
                     </div>
                     <div style={{ minWidth: '200px', maxWidth: '260px', flex: '1 1 200px' }}>
                       <SearchableSelect
+                        id="purchase-orders-product-filter"
+                        options={productOptions}
+                        value={filterProductId || ''}
+                        placeholder="All products"
+                        searchPlaceholder="Search products…"
+                        disabled={loading || productsStatus === 'loading'}
+                        onChange={handleProductFilterChange}
+                      />
+                    </div>
+                    <div style={{ minWidth: '200px', maxWidth: '260px', flex: '1 1 200px' }}>
+                      <SearchableSelect
                         options={poFilterOptions}
                         value={filterPurchaseItemId || ''}
                         placeholder="All purchase orders"
@@ -532,7 +613,7 @@ const PurchaseOrders = () => {
                         <tr>
                           <td colSpan={visibleCount} className="text-center py-5 text-muted">
                             <p className="mb-3">
-                              No purchase orders found. Try adjusting search, date range, or the optional item filter.
+                              No purchase orders found. Try adjusting search, product, date range, or the optional order filter.
                             </p>
                             <AddNewButton to="/purchase-orders/add" label="Create purchase order" />
                           </td>

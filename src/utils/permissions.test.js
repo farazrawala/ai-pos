@@ -59,6 +59,9 @@ describe('filterNavItems admin access', () => {
     expect(items.find((i) => i.id === 'pl-accounts')?.children?.some((c) => c.to === '/product-pulse')).toBe(
       true
     );
+    expect(items.find((i) => i.id === 'pl-accounts')?.children?.some((c) => c.to === '/order-pulse')).toBe(
+      true
+    );
   });
 
   it('hides permission-gated items for non-admin without view', () => {

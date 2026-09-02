@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
-import { FaBoxOpen, FaChartLine } from 'react-icons/fa6';
+import { FaBoxOpen, FaChartLine, FaXmark } from 'react-icons/fa6';
 import { fetchTopSellingProductsRequest } from '../../features/orders/ordersAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { withBase } from '../../config/appBase.js';
@@ -120,7 +120,14 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                   </h5>
                 </div>
               </div>
-              <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
+              <button
+                type="button"
+                className="tsp-modal__close"
+                aria-label="Close"
+                onClick={onClose}
+              >
+                <NavIcon icon={FaXmark} size={16} />
+              </button>
             </div>
 
             <div className="tsp-modal__toolbar">

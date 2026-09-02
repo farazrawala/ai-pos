@@ -1,0 +1,166 @@
+@keyframes order-pulse-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.order-pulse-page .spin-icon {
+  animation: order-pulse-spin 0.8s linear infinite;
+}
+
+.order-pulse-page .op-kpi,
+.order-pulse-page .op-panel {
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(50, 50, 93, 0.06);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.order-pulse-page .op-kpi__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #344767;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.order-pulse-page .op-kpi__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
+.order-pulse-page .op-kpi__delta {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.order-pulse-page .op-kpi__icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.order-pulse-page .op-filters {
+  background: #f8f9fe;
+}
+
+.order-pulse-page .op-chart {
+  height: 280px;
+}
+
+.order-pulse-page .op-chart--sm {
+  height: 240px;
+}
+
+.order-pulse-page .op-breakdown {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.order-pulse-page .op-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed #e9ecef;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-pulse-page .op-breakdown li:last-child {
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.order-pulse-page .op-insight {
+  border-radius: 0.7rem;
+  border: 1px solid #eef0f5;
+  background: #f8f9fe;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.85rem;
+  color: #344767;
+}
+
+.order-pulse-page .op-insight--success {
+  background: #e7f9f0;
+  border-color: #c4efd8;
+}
+
+.order-pulse-page .op-insight--warning {
+  background: #fff4de;
+  border-color: #ffe0a3;
+}
+
+.order-pulse-page .op-insight--danger {
+  background: #fde8ee;
+  border-color: #f8c1cd;
+}
+
+.order-pulse-page .op-insight--info {
+  background: #e8f1ff;
+  border-color: #cdd8f6;
+}
+
+.order-pulse-page .op-empty {
+  min-height: 240px;
+}
+
+.order-pulse-page .op-skel {
+  background: linear-gradient(90deg, #eef1f6 0%, #f8f9fe 50%, #eef1f6 100%);
+  background-size: 200% 100%;
+  animation: order-pulse-shimmer 1.2s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes order-pulse-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.order-pulse-page .op-metric-tabs .btn {
+  min-width: 5.5rem;
+}
+
+.order-pulse-page .op-status-paid {
+  color: #1aae6f;
+}
+
+.order-pulse-page .op-status-unpaid,
+.order-pulse-page .op-status-cancelled,
+.order-pulse-page .op-status-failed {
+  color: #f5365c;
+}
+
+.order-pulse-page .op-status-partial,
+.order-pulse-page .op-status-pending,
+.order-pulse-page .op-status-on_hold {
+  color: #fb8c00;
+}
+
+.order-pulse-page .table-responsive {
+  overflow-x: auto;
+}
+
+@media (max-width: 767.98px) {
+  .order-pulse-page .op-kpi__value {
+    font-size: 1.05rem;
+  }
+
+  .order-pulse-page .op-chart {
+    height: 220px;
+  }
+}

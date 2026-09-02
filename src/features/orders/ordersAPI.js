@@ -1032,6 +1032,17 @@ function buildOrderListQueryParams(listParams = {}) {
   if (orderType) queryParams.append('order_type', String(orderType));
   const orderStatus = listParams.orderStatus || listParams.order_status;
   if (orderStatus) queryParams.append('order_status', String(orderStatus));
+  const warehouseId = listParams.warehouseId || listParams.warehouse_id;
+  if (warehouseId) queryParams.append('warehouse_id', String(warehouseId));
+  const customerId = listParams.customerId || listParams.customer_id;
+  if (customerId) queryParams.append('customer_id', String(customerId));
+  const paymentMethodId =
+    listParams.paymentMethodId ||
+    listParams.payment_method_id ||
+    listParams.payment_method_accounts_id;
+  if (paymentMethodId) queryParams.append('payment_method_id', String(paymentMethodId));
+  const productId = listParams.productId || listParams.product_id;
+  if (productId) queryParams.append('product_id', String(productId));
   const tag = listParams.tag || listParams.tags;
   if (tag) queryParams.append('tag', String(tag));
   queryParams.append(

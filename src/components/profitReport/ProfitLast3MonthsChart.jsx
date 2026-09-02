@@ -177,18 +177,18 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
         {loading && !rows.length ? (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 200 }}
+            style={{ minHeight: 240 }}
           >
             Loading chart…
           </div>
         ) : hasData ? (
           <div className="profit-report-month-chart">
-            <canvas ref={canvasRef} height="200" />
+            <canvas ref={canvasRef} height="240" />
           </div>
         ) : (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 200 }}
+            style={{ minHeight: 240 }}
           >
             No profit data for the last 3 months
           </div>

@@ -137,6 +137,7 @@ export const NAV_ITEMS = [
       { to: '/profit-vs-gl-gap', label: 'Profit vs GL gap', icon: FaChartLine },
       { to: '/profit-report', label: 'Profit report', icon: FaChartBar },
       { to: '/product-pulse', label: 'Product Pulse', icon: FaChartLine },
+      { to: '/order-pulse', label: 'Order Pulse', icon: FaChartBar },
     ],
   },
   {

@@ -31,7 +31,14 @@ import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import ProfitLast3MonthsChart from './ProfitLast3MonthsChart.jsx';
 import '../common/devApiSources.css';
-import { FaArrowsRotate, FaCalendarDay, FaCalendarDays, FaChartLine, FaFilter } from 'react-icons/fa6';
+import {
+  FaArrowsRotate,
+  FaCalendar,
+  FaCalendarDay,
+  FaCalendarDays,
+  FaChartLine,
+  FaFilter,
+} from 'react-icons/fa6';
 
 /** Display dates as day-month-year, e.g. 10-7-2026 */
 function formatDisplayDate(d) {
@@ -47,6 +54,33 @@ function defaultRange() {
 
 const productRowId = (p) => p?._id || p?.id || p?.product_id || '';
 const productRowName = (p) => p?.name || p?.product_name || 'Product';
+
+function formatMarginBadge(marginPct) {
+  if (marginPct == null || !Number.isFinite(marginPct)) return null;
+  return `${marginPct.toFixed(1)}%`;
+}
+
+function GlanceKpi({ title, value, hint, badge, icon: Icon, iconClass, loading }) {
+  return (
+    <div className="card profit-report-kpi h-100 mb-0">
+      <div className="card-body p-3">
+        <div className="d-flex justify-content-between align-items-start gap-2">
+          <div className="min-w-0">
+            <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">{title}</p>
+            <p className="profit-report-kpi__value mb-1">{loading ? '…' : value}</p>
+            <p className="text-xxs text-muted mb-0">
+              {hint}
+              {badge ? <span className="profit-report-kpi__badge ms-1">{badge}</span> : null}
+            </p>
+          </div>
+          <div className={`profit-report-kpi__icon ${iconClass}`}>
+            <NavIcon icon={Icon} className="text-white" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** Link to POS invoice / order detail (opens in a new tab). */
 function OrderDetailLink({ orderId, orderNo, className = 'fw-semibold text-primary' }) {
@@ -266,18 +300,20 @@ export default function ProfitReportView() {
       ? `${pageLinesSummary.marginPct.toFixed(1)}%`
       : '—';
 
+  const glanceLoading = loading && quickStats == null;
   const todayProfit = quickStats?.today?.profit;
   const monthProfit = quickStats?.month?.profit;
-  const todayMargin =
-    quickStats?.today?.marginPct != null && Number.isFinite(quickStats.today.marginPct)
-      ? `${quickStats.today.marginPct.toFixed(1)}%`
-      : null;
-  const monthMargin =
-    quickStats?.month?.marginPct != null && Number.isFinite(quickStats.month.marginPct)
-      ? `${quickStats.month.marginPct.toFixed(1)}%`
-      : null;
+  const lastMonthProfit = quickStats?.lastMonth?.profit;
+  const todayMargin = formatMarginBadge(quickStats?.today?.marginPct);
+  const monthMargin = formatMarginBadge(quickStats?.month?.marginPct);
+  const lastMonthMargin = formatMarginBadge(quickStats?.lastMonth?.marginPct);
   const monthLabel = moment().format('MMMM YYYY');
+  const lastMonthLabel = moment().subtract(1, 'month').format('MMMM YYYY');
   const todayLabel = formatDisplayDate(quickStats?.todayDate || moment().format('YYYY-MM-DD'));
+  const fmtProfit = (value) => {
+    const n = Number(value);
+    return value != null && value !== '' && Number.isFinite(n) ? fmt(n) : '—';
+  };
 
   const apiParams = lastParams || params;
 
@@ -393,68 +429,47 @@ export default function ProfitReportView() {
               </div>
             </div>
             <div className="row g-3">
-              <div className="col-md-6 col-xl-3">
-                <div className="card profit-report-kpi h-100 mb-0">
-                  <div className="card-body p-3">
-                    <div className="d-flex justify-content-between align-items-start gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                          Today&apos;s profit
-                        </p>
-                        <p className="profit-report-kpi__value mb-1">
-                          {loading && quickStats == null
-                            ? '…'
-                            : todayProfit != null && Number.isFinite(todayProfit)
-                              ? fmt(todayProfit)
-                              : '—'}
-                        </p>
-                        <p className="text-xxs text-muted mb-0">
-                          {todayLabel}
-                          {todayMargin ? (
-                            <span className="profit-report-kpi__badge ms-1">{todayMargin}</span>
-                          ) : null}
-                        </p>
-                      </div>
-                      <div className="profit-report-kpi__icon bg-gradient-success shadow-success">
-                        <NavIcon icon={FaCalendarDay} className="text-white" />
-                      </div>
-                    </div>
+              <div className="col-xl-4">
+                <div className="row g-3">
+                  <div className="col-md-6 col-xl-12">
+                    <GlanceKpi
+                      title="Today's profit"
+                      value={fmtProfit(todayProfit)}
+                      hint={todayLabel}
+                      badge={todayMargin}
+                      icon={FaCalendarDay}
+                      iconClass="bg-gradient-success shadow-success"
+                      loading={glanceLoading}
+                    />
+                  </div>
+                  <div className="col-md-6 col-xl-12">
+                    <GlanceKpi
+                      title="This month profit"
+                      value={fmtProfit(monthProfit)}
+                      hint={monthLabel}
+                      badge={monthMargin}
+                      icon={FaCalendarDays}
+                      iconClass="bg-gradient-info shadow-info"
+                      loading={glanceLoading}
+                    />
+                  </div>
+                  <div className="col-12">
+                    <GlanceKpi
+                      title="Last month profit"
+                      value={fmtProfit(lastMonthProfit)}
+                      hint={lastMonthLabel}
+                      badge={lastMonthMargin}
+                      icon={FaCalendar}
+                      iconClass="bg-gradient-warning shadow-warning"
+                      loading={glanceLoading}
+                    />
                   </div>
                 </div>
               </div>
-              <div className="col-md-6 col-xl-3">
-                <div className="card profit-report-kpi h-100 mb-0">
-                  <div className="card-body p-3">
-                    <div className="d-flex justify-content-between align-items-start gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                          This month
-                        </p>
-                        <p className="profit-report-kpi__value mb-1">
-                          {loading && quickStats == null
-                            ? '…'
-                            : monthProfit != null && Number.isFinite(monthProfit)
-                              ? fmt(monthProfit)
-                              : '—'}
-                        </p>
-                        <p className="text-xxs text-muted mb-0">
-                          {monthLabel}
-                          {monthMargin ? (
-                            <span className="profit-report-kpi__badge ms-1">{monthMargin}</span>
-                          ) : null}
-                        </p>
-                      </div>
-                      <div className="profit-report-kpi__icon bg-gradient-info shadow-info">
-                        <NavIcon icon={FaCalendarDays} className="text-white" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-12 col-xl-6">
+              <div className="col-xl-8">
                 <ProfitLast3MonthsChart
                   months={quickStats?.last3Months}
-                  loading={loading && quickStats == null}
+                  loading={glanceLoading}
                 />
               </div>
             </div>
@@ -521,23 +536,34 @@ export default function ProfitReportView() {
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi profit-report-kpi--muted h-100 mb-0">
+                  <div className="card profit-report-kpi h-100 mb-0">
                     <div className="card-body p-3">
                       <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Orders on this page
+                        This month profit
                       </p>
-                      <p className="profit-report-kpi__value mb-0">{report.pageOrderCount ?? 0}</p>
+                      <p className="profit-report-kpi__value text-primary mb-1">
+                        {glanceLoading ? '…' : fmtProfit(monthProfit)}
+                      </p>
+                      <p className="text-xxs text-muted mb-0">
+                        {monthLabel}
+                        {monthMargin ? (
+                          <span className="profit-report-kpi__badge ms-1">{monthMargin}</span>
+                        ) : null}
+                      </p>
                     </div>
                   </div>
                 </div>
                 <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi profit-report-kpi--muted h-100 mb-0">
+                  <div className="card profit-report-kpi h-100 mb-0">
                     <div className="card-body p-3">
                       <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Page order profit
+                        Orders in selected dates
                       </p>
-                      <p className="profit-report-kpi__value mb-0">
-                        {fmt(report.pageOrderProfit ?? pageOrdersSummary.profit)}
+                      <p className="profit-report-kpi__value mb-1">
+                        {linesPagination.total ?? 0}
+                      </p>
+                      <p className="text-xxs text-muted mb-0">
+                        {formatDisplayDate(startDate)} – {formatDisplayDate(endDate)}
                       </p>
                     </div>
                   </div>

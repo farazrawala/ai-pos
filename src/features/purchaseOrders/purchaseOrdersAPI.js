@@ -17,6 +17,19 @@ const BASE_URL = `${API_BASE_URL}/`;
 
 const ENDPOINT_PATH = 'purchase_order/get-purchase-order-by-purchase-item';
 
+const PURCHASE_ORDER_ITEM_LIST_PATHS = [
+  'purchase_order_item/get-all-active',
+  'purchase_order_items/get-all-active',
+];
+
+const PO_LINE_KEYS = [
+  'purchase_order_items',
+  'purchaseOrderItems',
+  'items',
+  'lines',
+  'products',
+];
+
 /** Appended on GET list/detail so vendor and actor refs are populated (e.g. Mongoose). */
 const PURCHASE_ORDER_GET_POPULATE = 'vendor_id,created_by,updated_by';
 
@@ -268,9 +281,199 @@ export function normalizePurchaseOrdersListResponse(result, params = {}) {
   return { data, total, page, limit, totalPages };
 }
 
+/** Bare Mongo / string id from a populated ref or primitive. */
+export function poRefId(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.id ?? raw.$oid;
+    return id != null ? String(id).trim() : '';
+  }
+  return String(raw).trim();
+}
+
+function poLineArrays(order) {
+  if (!order || typeof order !== 'object') return [];
+  const out = [];
+  for (const key of PO_LINE_KEYS) {
+    const v = order[key];
+    if (Array.isArray(v)) out.push(v);
+  }
+  return out;
+}
+
+/**
+ * True when the purchase order has a line for `productId`.
+ * If the record has no line items, returns false (caller should not use this as the only signal).
+ */
+export function purchaseOrderContainsProduct(order, productId) {
+  const pid = String(productId ?? '').trim();
+  if (!pid || !order || typeof order !== 'object') return false;
+  if (poRefId(order.product_id ?? order.productId) === pid) return true;
+  for (const lines of poLineArrays(order)) {
+    for (const line of lines) {
+      if (!line || typeof line !== 'object') continue;
+      const linePid = poRefId(line.product_id ?? line.productId ?? line.product);
+      if (linePid === pid) return true;
+    }
+  }
+  return false;
+}
+
+function purchaseOrderIdFromItem(item) {
+  if (!item || typeof item !== 'object') return '';
+  return (
+    poRefId(item.purchase_order_id) ||
+    poRefId(item.purchaseOrderId) ||
+    poRefId(item.purchase_order) ||
+    poRefId(item.purchaseOrder) ||
+    poRefId(item.po_id) ||
+    poRefId(item.order_id) ||
+    ''
+  );
+}
+
+function itemHasProductId(item, productId) {
+  const pid = String(productId ?? '').trim();
+  if (!pid || !item || typeof item !== 'object') return false;
+  return poRefId(item.product_id ?? item.productId ?? item.product) === pid;
+}
+
+/**
+ * Collect unique purchase-order ids whose line items match `productId`
+ * (`GET purchase_order_item/get-all-active?product_id=`).
+ * @returns {Promise<string[]|null>} ids, or null if the item list endpoint is unavailable
+ */
+export async function fetchPurchaseOrderIdsByProductRequest(productId) {
+  const id = String(productId ?? '').trim();
+  if (!id) return [];
+
+  let lastErr = null;
+  for (const path of PURCHASE_ORDER_ITEM_LIST_PATHS) {
+    const ids = [];
+    const seen = new Set();
+    let skip = 0;
+    const pageLimit = 500;
+    let sawOk = false;
+    try {
+      while (skip < 5000) {
+        const query = new URLSearchParams();
+        query.set('product_id', id);
+        query.set('limit', String(pageLimit));
+        query.set('skip', String(skip));
+        query.set('populate', 'purchase_order_id,product_id');
+        const url = `${BASE_URL}${path}?${query.toString()}`;
+        const response = await fetch(url, { method: 'GET', headers: getJsonReadHeaders() });
+        if (!response.ok) {
+          const message = await getErrorMessageFromResponse(response);
+          const err = new Error(message);
+          err.status = response.status;
+          throw err;
+        }
+        sawOk = true;
+        const json = await response.json().catch(() => null);
+        const rawList = firstArrayDeep(json);
+        const rows = Array.isArray(rawList) ? rawList : [];
+        if (rows.length > 0) {
+          const withProductField = rows.filter(
+            (row) => poRefId(row?.product_id ?? row?.productId ?? row?.product) !== ''
+          );
+          if (withProductField.length > 0 && !withProductField.some((row) => itemHasProductId(row, id))) {
+            const ignored = new Error('product_id filter not applied');
+            ignored.status = 422;
+            throw ignored;
+          }
+        }
+        const beforeCount = seen.size;
+        for (const row of rows) {
+          if (poRefId(row?.product_id ?? row?.productId ?? row?.product) && !itemHasProductId(row, id)) {
+            continue;
+          }
+          const poId = purchaseOrderIdFromItem(row);
+          if (poId && !seen.has(poId)) {
+            seen.add(poId);
+            ids.push(poId);
+          }
+        }
+        if (rows.length === 0 || rows.length < pageLimit || seen.size === beforeCount) break;
+        skip += rows.length;
+      }
+      return ids;
+    } catch (err) {
+      lastErr = err;
+      if (sawOk && err?.status !== 404) {
+        return null;
+      }
+      if (err?.status && err.status !== 404 && err.status !== 400 && err.status !== 422) {
+        throw err;
+      }
+    }
+  }
+  if (lastErr?.status === 404 || lastErr?.status === 400 || lastErr?.status === 422) {
+    return null;
+  }
+  if (lastErr) throw lastErr;
+  return null;
+}
+
+function poMatchesListFilters(row, { search, startDate, endDate } = {}) {
+  if (!row || typeof row !== 'object') return false;
+  if (startDate || endDate) {
+    const created = row.createdAt ?? row.created_at ?? '';
+    const day = created ? String(created).slice(0, 10) : '';
+    if (startDate && day && day < String(startDate)) return false;
+    if (endDate && day && day > String(endDate)) return false;
+  }
+  const q = String(search ?? '').trim().toLowerCase();
+  if (!q) return true;
+  const vendor = row.vendor_id;
+  const vendorName = vendor && typeof vendor === 'object' ? String(vendor.name ?? '') : '';
+  const hay = [
+    row.purchase_order_no,
+    row.po_no,
+    row.reference,
+    row.ref_no,
+    row.order_no,
+    row.transaction_number,
+    row.supplier_name,
+    vendorName,
+  ]
+    .map((v) => (v == null ? '' : String(v)))
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+}
+
+async function fetchPurchaseOrdersByIdsPaged(ids, { page, limit }) {
+  const unique = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  const total = unique.length;
+  const lim = Math.max(1, Number(limit) || 10);
+  const pg = Math.max(1, Number(page) || 1);
+  const totalPages = lim > 0 ? Math.ceil(total / lim) : 0;
+  const start = (pg - 1) * lim;
+  const pageIds = unique.slice(start, start + lim);
+  const records = [];
+  const concurrency = 5;
+  for (let i = 0; i < pageIds.length; i += concurrency) {
+    const batch = pageIds.slice(i, i + concurrency);
+    const fetched = await Promise.all(
+      batch.map(async (id) => {
+        try {
+          const raw = await fetchPurchaseOrderByIdRequest(id);
+          return unwrapPurchaseOrderRecord(raw) ?? raw;
+        } catch {
+          return null;
+        }
+      })
+    );
+    records.push(...fetched.filter((row) => row && typeof row === 'object'));
+  }
+  return { data: records, total, page: pg, limit: lim, totalPages };
+}
+
 /**
  * Paginated list: `GET purchase_order/get-purchase-order-by-purchase-item`
- * with `populate=vendor_id,created_by,updated_by`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`, and optional purchase-item filter.
+ * with `populate=vendor_id,created_by,updated_by`, `skip`, `limit`, `search`, `sortBy`, `sortOrder`,
+ * optional purchase-order id (path) and optional `product_id` (only POs that include that product).
  */
 export async function fetchPurchaseOrdersListRequest(params = {}) {
   const queryParams = new URLSearchParams();
@@ -297,6 +500,46 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
       params.filterPurchaseItemId ??
       ''
   ).trim();
+  const productId = String(params.product_id ?? params.filterProductId ?? '').trim();
+
+  if (productId) {
+    queryParams.append('product_id', productId);
+    try {
+      const matchingIds = await fetchPurchaseOrderIdsByProductRequest(productId);
+      if (Array.isArray(matchingIds)) {
+        const ids = filterId ? matchingIds.filter((id) => id === filterId) : matchingIds;
+        const needsClientFilters = Boolean(
+          (params.search && String(params.search).trim()) || params.startDate || params.endDate
+        );
+        if (needsClientFilters && ids.length > 0 && ids.length <= 200) {
+          const all = await fetchPurchaseOrdersByIdsPaged(ids, { page: 1, limit: ids.length });
+          const filtered = (all.data || []).filter((row) =>
+            poMatchesListFilters(row, {
+              search: params.search,
+              startDate: params.startDate,
+              endDate: params.endDate,
+            })
+          );
+          const total = filtered.length;
+          const start = (page - 1) * limit;
+          return {
+            data: filtered.slice(start, start + limit),
+            total,
+            page,
+            limit,
+            totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+          };
+        }
+        return fetchPurchaseOrdersByIdsPaged(ids, { page, limit });
+      }
+    } catch (err) {
+      logPurchaseOrderModuleError('product filter via purchase_order_item failed; using list query', {
+        productId,
+        error: err?.message,
+      });
+    }
+  }
+
   const idPath = filterId ? `/${encodeURIComponent(filterId)}` : '';
 
   const queryString = queryParams.toString();
@@ -323,7 +566,16 @@ export async function fetchPurchaseOrdersListRequest(params = {}) {
   }
 
   const result = await response.json().catch(() => null);
-  return normalizePurchaseOrdersListResponse(result, { page, limit });
+  const normalized = normalizePurchaseOrdersListResponse(result, { page, limit });
+  if (
+    productId &&
+    Array.isArray(normalized.data) &&
+    normalized.data.some((row) => poLineArrays(row).length > 0)
+  ) {
+    const filtered = normalized.data.filter((row) => purchaseOrderContainsProduct(row, productId));
+    return { ...normalized, data: filtered };
+  }
+  return normalized;
 }
 
 /** Fetch every page matching filters (for CSV / Excel / PDF export). */

@@ -75,6 +75,10 @@
   background: linear-gradient(135deg, #11cdef 0%, #1171ef 100%);
 }
 
+.profit-report-page .bg-gradient-warning {
+  background: linear-gradient(135deg, #fb6340 0%, #f5365c 100%);
+}
+
 .profit-report-page .shadow-primary {
   box-shadow: 0 4px 10px rgba(94, 114, 228, 0.28);
 }
@@ -85,6 +89,10 @@
 
 .profit-report-page .shadow-info {
   box-shadow: 0 4px 10px rgba(17, 205, 239, 0.28);
+}
+
+.profit-report-page .shadow-warning {
+  box-shadow: 0 4px 10px rgba(251, 99, 64, 0.28);
 }
 
 .profit-report-page .profit-report-lines-table th {
@@ -130,8 +138,8 @@
 .profit-report-page .profit-report-month-chart {
   position: relative;
   width: 100%;
-  height: 200px;
-  min-height: 200px;
+  height: 240px;
+  min-height: 240px;
 }
 
 .profit-report-page .profit-report-month-chart canvas {

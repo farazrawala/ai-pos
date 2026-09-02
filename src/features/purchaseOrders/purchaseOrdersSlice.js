@@ -101,6 +101,7 @@ const initialState = {
     sortOrder: 'asc',
   },
   filterPurchaseItemId: '',
+  filterProductId: '',
 
   currentPurchaseOrder: null,
   fetchStatus: 'idle',
@@ -159,6 +160,10 @@ const purchaseOrdersSlice = createSlice({
     },
     setFilterPurchaseItemId: (state, action) => {
       state.filterPurchaseItemId = action.payload != null ? String(action.payload) : '';
+      state.pagination.page = 1;
+    },
+    setFilterProductId: (state, action) => {
+      state.filterProductId = action.payload != null ? String(action.payload).trim() : '';
       state.pagination.page = 1;
     },
     clearPurchaseOrderByItem: (state) => {
@@ -293,6 +298,7 @@ export const {
   setLimit,
   setSort,
   setFilterPurchaseItemId,
+  setFilterProductId,
   clearPurchaseOrderByItem,
   clearCurrentPurchaseOrder,
   clearUpdateStatus,
