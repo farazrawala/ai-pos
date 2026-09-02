@@ -96,6 +96,7 @@ import { fetchIntegrationsRequest } from '../../features/integration/integration
 import {
   createPullOrderProcessRequest,
   createPushOrderProcessRequest,
+  createPushOrderTrackingProcessRequest,
 } from '../../features/process/processAPI.js';
 import {
   resolveOrderTrackingInfo,
@@ -114,6 +115,7 @@ import {
 } from '../integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
 import { pickCompanyLogoUrl } from '../../features/company/companyAPI.js';
+import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
 import { selectCompany } from '../../features/user/userSlice.js';
 import './orders-list-page.css';
 import '../../components/common/devApiSources.css';
@@ -804,6 +806,7 @@ export default function OrdersListPage({ config }) {
     orderId: '',
     orderNo: '',
     currentStatus: '',
+    orderRow: null,
   });
   const [statusHistoryModal, setStatusHistoryModal] = useState({
     open: false,
@@ -1256,13 +1259,15 @@ export default function OrdersListPage({ config }) {
 
   const handleQueueOrderAction = async (orderItem, orderId, orderNo, action) => {
     const isPull = action === 'pull_order';
+    const isPushTracking = action === 'push_order_tracking';
+    const verb = isPull ? 'pull' : isPushTracking ? 'push tracking' : 'push';
     if (!orderId) {
-      toast.error(`Could not ${isPull ? 'pull' : 'push'}: missing order id.`);
+      toast.error(`Could not ${verb}: missing order id.`);
       return;
     }
 
     const rowKey = String(orderId);
-    const actionKey = isPull ? 'pull' : 'push';
+    const actionKey = isPull ? 'pull' : isPushTracking ? 'push-tracking' : 'push';
     setQueueingOrderAction(`${rowKey}:${actionKey}`);
 
     try {
@@ -1270,15 +1275,21 @@ export default function OrdersListPage({ config }) {
 
       if (isPull) {
         await createPullOrderProcessRequest(integrationId, orderId);
+      } else if (isPushTracking) {
+        await createPushOrderTrackingProcessRequest(integrationId, orderId);
       } else {
         await createPushOrderProcessRequest(integrationId, orderId);
       }
 
       const label = orderNo && orderNo !== '—' ? orderNo : rowKey;
-      toast.success(`${isPull ? 'Pull' : 'Push'} order queued for ${label}.`);
+      toast.success(
+        isPushTracking
+          ? `Push order tracking queued for ${label}.`
+          : `${isPull ? 'Pull' : 'Push'} order queued for ${label}.`
+      );
     } catch (err) {
       console.error(`[${logLabel}] queue ${action} failed`, err);
-      toast.error(err?.message || `Failed to queue ${isPull ? 'pull' : 'push'} order.`);
+      toast.error(err?.message || `Failed to queue ${verb} order.`);
     } finally {
       setQueueingOrderAction('');
     }
@@ -1330,7 +1341,7 @@ export default function OrdersListPage({ config }) {
       toast.error('Could not change status: missing order id.');
       return;
     }
-    const orderNo = row?.order_no || row?.orderNo || '';
+    const orderNo = row?.order_no || row?.orderNo || String(orderId).slice(-8) || '';
     const override = statusOverrides[String(orderId)];
     const currentStatus = override || orderDisplayStatus(row);
     setStatusModal({
@@ -1338,17 +1349,29 @@ export default function OrdersListPage({ config }) {
       orderId: String(orderId),
       orderNo: orderNo || '',
       currentStatus: currentStatus === '—' ? '' : String(currentStatus),
+      orderRow: row,
     });
   };
 
-  const handleStatusUpdated = ({ orderId, orderStatus } = {}) => {
+  const handleStatusUpdated = ({
+    orderId,
+    orderStatus,
+    storeSyncQueued = false,
+    storeSyncError = null,
+  } = {}) => {
     if (orderId && orderStatus) {
       setStatusOverrides((prev) => ({
         ...prev,
         [String(orderId)]: orderStatus,
       }));
     }
-    toast.success('Order status updated.');
+    if (storeSyncError) {
+      toast.warning(`Order status updated, but store sync failed: ${storeSyncError}`);
+    } else if (storeSyncQueued) {
+      toast.success('Order status updated. Store sync queued.');
+    } else {
+      toast.success('Order status updated.');
+    }
     refreshOrderList();
   };
 
@@ -1439,6 +1462,8 @@ export default function OrdersListPage({ config }) {
 
       const succeeded = [];
       let failCount = 0;
+      let storeSyncQueued = 0;
+      let storeSyncFailed = 0;
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           const saved =
@@ -1461,12 +1486,43 @@ export default function OrdersListPage({ config }) {
           });
           return next;
         });
+
+        const rowsById = new Map(
+          (Array.isArray(data) ? data : [])
+            .map((row) => [String(pickOrderDocumentId(row) || ''), row])
+            .filter(([id]) => id)
+        );
+
+        await Promise.all(
+          succeeded.map(async ({ id }) => {
+            const row = rowsById.get(String(id));
+            if (!row) return;
+            try {
+              const pushResult = await queueOrderPushToStore(row, id, {
+                orderStatus: status,
+              });
+              if (pushResult?.queued) storeSyncQueued += 1;
+            } catch {
+              storeSyncFailed += 1;
+            }
+          })
+        );
       }
 
       if (failCount === 0) {
-        toast.success(
-          `Updated ${succeeded.length} order${succeeded.length === 1 ? '' : 's'} to ${formatOrderStatusOptionLabel(nextStatus)}.`
-        );
+        if (storeSyncFailed > 0) {
+          toast.warning(
+            `Updated ${succeeded.length} order${succeeded.length === 1 ? '' : 's'}. ${storeSyncFailed} store sync(s) failed.`
+          );
+        } else if (storeSyncQueued > 0) {
+          toast.success(
+            `Updated ${succeeded.length} order${succeeded.length === 1 ? '' : 's'}. Store sync queued for ${storeSyncQueued}.`
+          );
+        } else {
+          toast.success(
+            `Updated ${succeeded.length} order${succeeded.length === 1 ? '' : 's'} to ${formatOrderStatusOptionLabel(nextStatus)}.`
+          );
+        }
       } else if (succeeded.length === 0) {
         toast.error(`Failed to update ${failCount} order${failCount === 1 ? '' : 's'}.`);
       } else {
@@ -1723,6 +1779,14 @@ export default function OrdersListPage({ config }) {
           label: 'Push order (queue)',
           url: buildApiUrl('process/queue-create'),
           status: queueingOrderAction.endsWith(':push') ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'push-order-tracking',
+          label: 'Push order tracking (queue)',
+          url: buildApiUrl('process/queue-create'),
+          status: queueingOrderAction.endsWith(':push-tracking') ? 'loading' : 'pending',
           durationMs: null,
           error: null,
         },
@@ -2436,6 +2500,8 @@ export default function OrdersListPage({ config }) {
                         const isRowLoading = editLoadingId === rowKey;
                         const isPulling = queueingOrderAction === `${rowKey}:pull`;
                         const isPushing = queueingOrderAction === `${rowKey}:push`;
+                        const isPushingTracking = queueingOrderAction === `${rowKey}:push-tracking`;
+                        const isQueueingOrder = isPulling || isPushing || isPushingTracking;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
                         const createdByLabel = getCreatedByLabel(item);
@@ -2891,13 +2957,38 @@ export default function OrdersListPage({ config }) {
                                   <>
                                     <button
                                       type="button"
+                                      className="btn btn-sm btn-outline-success mb-0 px-2"
+                                      title="Push order tracking (POS → store)"
+                                      aria-label="Push order tracking"
+                                      onClick={() =>
+                                        handleQueueOrderAction(
+                                          item,
+                                          orderId,
+                                          orderNo,
+                                          'push_order_tracking'
+                                        )
+                                      }
+                                      disabled={!orderId || isQueueingOrder}
+                                    >
+                                      {isPushingTracking ? (
+                                        <span
+                                          className="spinner-border spinner-border-sm text-success"
+                                          role="status"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <NavIcon icon={FaTruckFast} size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-info mb-0 px-2"
                                       title="Pull order (store → POS)"
                                       aria-label="Pull order"
                                       onClick={() =>
                                         handleQueueOrderAction(item, orderId, orderNo, 'pull_order')
                                       }
-                                      disabled={!orderId || isPulling || isPushing}
+                                      disabled={!orderId || isQueueingOrder}
                                     >
                                       {isPulling ? (
                                         <span
@@ -2917,7 +3008,7 @@ export default function OrdersListPage({ config }) {
                                       onClick={() =>
                                         handleQueueOrderAction(item, orderId, orderNo, 'push_order')
                                       }
-                                      disabled={!orderId || isPulling || isPushing}
+                                      disabled={!orderId || isQueueingOrder}
                                     >
                                       {isPushing ? (
                                         <span
@@ -2987,9 +3078,16 @@ export default function OrdersListPage({ config }) {
             open={statusModal.open}
             orderId={statusModal.orderId}
             orderNo={statusModal.orderNo}
+            orderRow={statusModal.orderRow}
             currentStatus={statusModal.currentStatus}
             onClose={() =>
-              setStatusModal({ open: false, orderId: '', orderNo: '', currentStatus: '' })
+              setStatusModal({
+                open: false,
+                orderId: '',
+                orderNo: '',
+                currentStatus: '',
+                orderRow: null,
+              })
             }
             onSaved={handleStatusUpdated}
           />

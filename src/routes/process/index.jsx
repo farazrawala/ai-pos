@@ -585,7 +585,7 @@ const ProcessIndex = () => {
               {workerStatus?.current_remarks ? (
                 <div className="border border-radius-md p-2 mb-3">
                   <p className="text-xs text-muted mb-1">Current remarks</p>
-                  <p className="text-sm mb-0">{workerStatus.current_remarks}</p>
+                  <p className="text-sm mb-0 text-break">{workerStatus.current_remarks}</p>
                 </div>
               ) : null}
 
@@ -802,7 +802,7 @@ const ProcessIndex = () => {
                       {isVisible('page') ? <th>Page</th> : null}
                       {isVisible('hits') ? <th>Hits</th> : null}
                       {isVisible('progress') ? sortableTh('progress', 'Progress') : null}
-                      {isVisible('remarks') ? <th>Remarks</th> : null}
+                      {isVisible('remarks') ? <th className="list-col-remarks">Remarks</th> : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
                       {isVisible('createdAt') ? sortableTh('createdAt', 'Created At') : null}
                       {isVisible('updatedAt') ? sortableTh('updatedAt', 'Updated At') : null}
@@ -864,7 +864,11 @@ const ProcessIndex = () => {
                                 </span>
                               </td>
                             ) : null}
-                            {isVisible('remarks') ? <td>{item.remarks || '-'}</td> : null}
+                            {isVisible('remarks') ? (
+                              <td className="list-col-remarks" title={item.remarks || undefined}>
+                                {item.remarks || '-'}
+                              </td>
+                            ) : null}
                             {isVisible('status') ? (
                               <td>
                                 <span

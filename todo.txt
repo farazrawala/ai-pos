@@ -126,3 +126,7 @@ Out For Return
 Attempted  
 En-Route to {city} warehouse  
 
+
+// Testing id for ai - POS 
+- Ek shopify connect hoga
+- fetch product from bbg fashion

@@ -1,4 +1,4 @@
-import { fetchAccountsRequest } from '../features/accounts/accountsAPI.js';
+import { fetchAccountsRequest, buildPosPaymentAccountFilterParams } from '../features/accounts/accountsAPI.js';
 import { fetchCategoriesRequest } from '../features/categories/categoriesAPI.js';
 import {
   extractCompanyFromUser,
@@ -154,15 +154,14 @@ async function fetchAllCustomers(onProgress) {
   return all;
 }
 
-async function fetchAllPaymentMethods(onProgress) {
+async function fetchAllPaymentMethods(onProgress, companyRecord = null) {
+  const accountFilters = await buildPosPaymentAccountFilterParams(null, companyRecord);
   return fetchAllPaginatedRecords(
     (page, limit) =>
       fetchAccountsRequest({
         page,
         limit,
-        account_type: 'current_asset',
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
+        ...accountFilters,
       }),
     {
       pageSize: MASTER_SYNC_PAGE_SIZE,
@@ -256,7 +255,7 @@ async function performMasterSync(options = {}) {
   const customers = await fetchAllCustomers(onProgress);
   await replaceAllCustomers(customers);
 
-  const paymentMethods = await fetchAllPaymentMethods(onProgress);
+  const paymentMethods = await fetchAllPaymentMethods(onProgress, options.companyRecord);
   await replaceAllPaymentMethods(paymentMethods);
 
   const company = await downloadCompanySettings(companyId, options.companyRecord, onProgress);

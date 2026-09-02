@@ -1,4 +1,9 @@
 import { API_BASE_URL } from '../../config/apiConfig.js';
+import {
+  ensureCompanyFromCache,
+  extractCompanyFromUser,
+  pickAccountRefId,
+} from '../company/companyAPI.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 const ACCOUNT_LIST_PATH = 'account/get-all-active';
@@ -31,6 +36,53 @@ const normalizeAccountsPayload = (result) => {
   if (Array.isArray(result)) return result;
   return [];
 };
+
+export const POS_PAYMENT_ACCOUNT_TYPE = 'current_asset';
+
+/** Company default A/R account id — excluded from POS payment method dropdowns. */
+export function resolvePosPaymentReceivableExcludeId(user = null, company = null) {
+  const sources = [
+    company,
+    extractCompanyFromUser(user),
+    user,
+    user?.company && typeof user.company === 'object' ? user.company : null,
+  ].filter(Boolean);
+
+  for (const src of sources) {
+    const excludeId = pickAccountRefId(
+      src.default_account_receivable_account ??
+        src.defaultAccountReceivableAccount ??
+        src.default_receivable_account
+    );
+    if (excludeId) return excludeId;
+  }
+  return '';
+}
+
+/** Query params for POS payment accounts (`exclude_id` = default accounts receivable). */
+export async function buildPosPaymentAccountFilterParams(user = null, companyFromStore = null) {
+  const company = await ensureCompanyFromCache(user, companyFromStore, {
+    requiredKeys: ['default_account_receivable_account'],
+  });
+  const excludeId = resolvePosPaymentReceivableExcludeId(user, company);
+  const params = {
+    account_type: POS_PAYMENT_ACCOUNT_TYPE,
+    sortBy: 'createdAt',
+    sortOrder: 'asc',
+  };
+  if (excludeId) params.exclude_id = excludeId;
+  return params;
+}
+
+export function filterPosPaymentAccounts(accounts = [], excludeId = '') {
+  const exclude = String(excludeId || '').trim();
+  const list = Array.isArray(accounts) ? accounts : [];
+  if (!exclude) return list;
+  return list.filter((account) => {
+    const id = String(account?._id ?? account?.id ?? '').trim();
+    return id && id !== exclude;
+  });
+}
 
 export async function fetchAccountsRequest(params = {}) {
   const query = new URLSearchParams();

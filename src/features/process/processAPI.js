@@ -369,7 +369,33 @@ export const createPullOrderProcessRequest = async (integrationId, orderId) => {
 };
 
 /** Push one order from POS → store. */
-export const createPushOrderProcessRequest = async (integrationId, orderId, priority = 50) => {
+export const createPushOrderProcessRequest = async (integrationId, orderId, options = {}) => {
+  const integration = String(integrationId || '').trim();
+  const order = String(orderId || '').trim();
+  if (!integration) throw new Error('integration_id is required.');
+  if (!isValidMongoObjectId(integration)) {
+    throw new Error('Could not resolve a valid integration id for this order.');
+  }
+  if (!order) throw new Error('order_id is required.');
+  if (!isValidMongoObjectId(order)) {
+    throw new Error('Could not resolve a valid order id for queueing.');
+  }
+
+  const orderStatus = String(options?.order_status ?? options?.orderStatus ?? '').trim();
+  const payload = {
+    integration_id: integration,
+    action: 'push_order',
+    order_id: order,
+    status: 'active',
+    priority: Number(options?.priority) || 50,
+  };
+  if (orderStatus) payload.order_status = orderStatus;
+
+  return createQueueProcessRequest(payload);
+};
+
+/** Push one order's tracking from POS → store. */
+export const createPushOrderTrackingProcessRequest = async (integrationId, orderId, options = {}) => {
   const integration = String(integrationId || '').trim();
   const order = String(orderId || '').trim();
   if (!integration) throw new Error('integration_id is required.');
@@ -383,10 +409,10 @@ export const createPushOrderProcessRequest = async (integrationId, orderId, prio
 
   return createQueueProcessRequest({
     integration_id: integration,
-    action: 'push_order',
+    action: 'push_order_tracking',
     order_id: order,
     status: 'active',
-    priority,
+    priority: Number(options?.priority) || 50,
   });
 };
 

@@ -525,6 +525,15 @@ body {
   width: 9rem;
 }
 
+.list-data-table .list-col-remarks {
+  min-width: 16rem;
+  max-width: 22rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
 .list-data-table .list-cell-truncate {
   max-width: 11rem;
   overflow: hidden;

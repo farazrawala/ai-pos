@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { updateOrderStatusRequest } from '../../features/orders/ordersAPI.js';
+import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
 
 /** Matches backend `order_status` enum. */
 export const OMS_ORDER_STATUS_OPTIONS = [
@@ -46,6 +47,7 @@ export default function ChangeOrderStatusModal({
   open,
   orderId,
   orderNo,
+  orderRow = null,
   currentStatus = '',
   onClose,
   onSaved,
@@ -84,12 +86,27 @@ export default function ChangeOrderStatusModal({
       const savedStatus =
         normalizeStatusValue(result?.data?.order?.order_status) || next;
       setSaveStatus('succeeded');
+
+      let storeSyncQueued = false;
+      let storeSyncError = null;
+      try {
+        const pushResult = await queueOrderPushToStore(orderRow, orderId, {
+          orderStatus: savedStatus,
+        });
+        storeSyncQueued = Boolean(pushResult?.queued);
+      } catch (err) {
+        storeSyncError = err?.message || 'Failed to queue store status sync.';
+        console.error('[ChangeOrderStatusModal] store push failed', err);
+      }
+
       onSaved?.({
         orderId,
         orderNo,
         orderStatus: savedStatus,
         previousStatus: result?.data?.previous_status,
         stockAction: result?.data?.stock_action,
+        storeSyncQueued,
+        storeSyncError,
       });
       onClose?.();
     } catch (err) {
@@ -102,6 +119,12 @@ export default function ChangeOrderStatusModal({
 
   const isSaving = saveStatus === 'loading';
   const currentNormalized = normalizeStatusValue(currentStatus);
+  const displayOrderNo =
+    orderNo && String(orderNo).trim() !== '' && String(orderNo).trim() !== '—'
+      ? String(orderNo).trim()
+      : orderId
+        ? String(orderId).trim()
+        : '';
   const options = [...OMS_ORDER_STATUS_OPTIONS];
   if (currentNormalized && !options.includes(currentNormalized)) {
     options.unshift(currentNormalized);
@@ -120,9 +143,16 @@ export default function ChangeOrderStatusModal({
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title" id="changeOrderStatusModalLabel">
-                Change order status
-              </h5>
+              <div className="min-width-0">
+                <h5 className="modal-title mb-0" id="changeOrderStatusModalLabel">
+                  Change order status
+                </h5>
+                {displayOrderNo ? (
+                  <p className="text-sm text-primary fw-semibold mb-0 mt-1" title={displayOrderNo}>
+                    {displayOrderNo}
+                  </p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 className="btn-close"
@@ -133,13 +163,9 @@ export default function ChangeOrderStatusModal({
             </div>
             <div className="modal-body">
               <p className="text-sm text-muted mb-3">
-                {orderNo ? (
-                  <>
-                    Update status for order <strong>{orderNo}</strong>.
-                  </>
-                ) : (
-                  'Select a new status for this order.'
-                )}
+                {displayOrderNo
+                  ? `Update status for order ${displayOrderNo}.`
+                  : 'Select a new status for this order.'}
               </p>
 
               <div className="mb-0">

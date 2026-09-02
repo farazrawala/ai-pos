@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { createPortal } from 'react-dom';
-import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import {
+  buildPosPaymentAccountFilterParams,
+  fetchAccountsRequest,
+  filterPosPaymentAccounts,
+  resolvePosPaymentReceivableExcludeId,
+} from '../../features/accounts/accountsAPI.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import {
-  countPaymentMethods,
   getAllPaymentMethods,
 } from '../../offline/repositories/paymentMethodsRepo.js';
 import { OFFLINE_CATALOG_EMPTY_MESSAGE } from '../../offline/catalogRead.js';
@@ -35,6 +40,8 @@ const closePosPaymentModal = () => {
  */
 const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPrint }) => {
   const isOnline = useOnlineStatus();
+  const authUser = useSelector((state) => state.user.user);
+  const authCompany = useSelector((state) => state.user.company);
   const [amount, setAmount] = useState('0.00');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('sales-123456');
@@ -77,8 +84,10 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
       const tCache = performance.now();
       console.log('[POS] Payment methods → IndexedDB cache');
       const cached = await getAllPaymentMethods();
+      const excludeId = resolvePosPaymentReceivableExcludeId(authUser, authCompany);
+      const filtered = filterPosPaymentAccounts(cached, excludeId);
       const cacheMs = posElapsedMs(tCache);
-      if ((await countPaymentMethods()) === 0) {
+      if (filtered.length === 0) {
         setPaymentMethods([]);
         setPaymentMethodsError(OFFLINE_CATALOG_EMPTY_MESSAGE);
         setPaymentMethodsStatus('failed');
@@ -91,12 +100,12 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
         return false;
       }
       console.log('[POS] Payment methods from cache', {
-        count: cached.length,
+        count: filtered.length,
         sec: posMsToSec(cacheMs),
         ms: cacheMs,
       });
       timingSteps.push({ name: 'IndexedDB cache', ms: cacheMs });
-      applyPaymentMethodList(cached);
+      applyPaymentMethodList(filtered);
       return true;
     };
 
@@ -110,17 +119,23 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
     }
 
     try {
+      const accountFilters = await buildPosPaymentAccountFilterParams(authUser, authCompany);
       console.log(
         '[POS] API → GET account/get-all-active',
-        { limit: 2000, skip: 0, account_type: 'current_asset', sortBy: 'createdAt', sortOrder: 'asc' }
+        {
+          limit: 2000,
+          skip: 0,
+          account_type: accountFilters.account_type,
+          exclude_id: accountFilters.exclude_id,
+          sortBy: accountFilters.sortBy,
+          sortOrder: accountFilters.sortOrder,
+        }
       );
       const tApi = performance.now();
       const result = await fetchAccountsRequest({
         limit: 2000,
         skip: 0,
-        account_type: 'current_asset',
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
+        ...accountFilters,
       });
       const apiMs = posElapsedMs(tApi);
       const list = Array.isArray(result?.data) ? result.data : [];
@@ -148,7 +163,7 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
         setPaymentMethod('');
       }
     }
-  }, [isOnline, applyPaymentMethodList]);
+  }, [isOnline, applyPaymentMethodList, authUser, authCompany]);
 
   const syncAmountFromTotal = useCallback(() => {
     setAmount(total.toFixed(2));

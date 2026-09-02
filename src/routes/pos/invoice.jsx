@@ -33,7 +33,10 @@ import {
   resolvePosCustomerEmail,
   digitsOnlyFromPhone,
 } from '../../features/users/usersAPI.js';
-import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
+import {
+  buildPosPaymentAccountFilterParams,
+  fetchAccountsRequest,
+} from '../../features/accounts/accountsAPI.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
 import {
@@ -50,6 +53,7 @@ import InvoiceQrCode from '../../components/invoice/InvoiceQrCode.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { toast } from '../../utils/toast.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
+import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
@@ -555,12 +559,11 @@ const PosInvoice = () => {
     setPaymentMethodsError('');
     (async () => {
       try {
+        const accountFilters = await buildPosPaymentAccountFilterParams(authUser, authCompany);
         const result = await fetchAccountsRequest({
           limit: 2000,
           skip: 0,
-          account_type: 'current_asset',
-          sortBy: 'createdAt',
-          sortOrder: 'asc',
+          ...accountFilters,
         });
         if (cancelled) return;
         setPaymentMethods(Array.isArray(result?.data) ? result.data : []);
@@ -576,7 +579,7 @@ const PosInvoice = () => {
     return () => {
       cancelled = true;
     };
-  }, [invoiceId]);
+  }, [invoiceId, authUser, authCompany]);
 
   useEffect(() => {
     if (!invoiceId) {
@@ -904,7 +907,24 @@ const PosInvoice = () => {
         setSourceOrder((prev) =>
           prev && typeof prev === 'object' ? { ...prev, order_status: savedStatus } : prev
         );
-        toast.success('Order status updated.');
+
+        let storeSyncQueued = false;
+        try {
+          const pushResult = await queueOrderPushToStore(sourceOrder, String(oid), {
+            orderStatus: savedStatus,
+          });
+          storeSyncQueued = Boolean(pushResult?.queued);
+        } catch (err) {
+          console.error('[POS invoice] store push after status change failed', err);
+          toast.warning(
+            err?.message || 'Order status updated, but store sync could not be queued.'
+          );
+          return;
+        }
+
+        toast.success(
+          storeSyncQueued ? 'Order status updated. Store sync queued.' : 'Order status updated.'
+        );
       } catch (err) {
         setInvoiceOrderStatus(previous);
         toast.error(err?.message || 'Failed to update order status.');
