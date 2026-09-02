@@ -196,6 +196,9 @@ function TimelineChart({ points, metric, loading }) {
   );
 }
 
+/** Set true to restore the warehouse filter dropdown. */
+const WAREHOUSE_FILTER_ENABLED = false;
+
 function sortRows(rows, key, dir) {
   const list = [...(Array.isArray(rows) ? rows : [])];
   const factor = dir === 'asc' ? 1 : -1;
@@ -273,15 +276,17 @@ export default function ProductPulseView() {
   const skipNextSalesFetch = useRef(false);
 
   useEffect(() => {
-    fetchWarehousesForPulse().then((rows) => {
-      setWarehouseOptions([
-        { value: '', label: 'All warehouses' },
-        ...rows.map((w) => ({
-          value: String(w._id || w.id || ''),
-          label: String(w.name || w.warehouse_name || 'Warehouse'),
-        })),
-      ]);
-    });
+    if (WAREHOUSE_FILTER_ENABLED) {
+      fetchWarehousesForPulse().then((rows) => {
+        setWarehouseOptions([
+          { value: '', label: 'All warehouses' },
+          ...rows.map((w) => ({
+            value: String(w._id || w.id || ''),
+            label: String(w.name || w.warehouse_name || 'Warehouse'),
+          })),
+        ]);
+      });
+    }
     return () => dispatch(clearProductPulse());
   }, [dispatch]);
 
@@ -445,20 +450,22 @@ export default function ProductPulseView() {
                 </div>
               </>
             ) : null}
-            <div className="col-md-3 col-lg-2">
-              <label className="form-label text-xs text-uppercase font-weight-bold">Warehouse</label>
-              <select
-                className="form-select form-select-sm"
-                value={warehouseId}
-                onChange={(e) => setWarehouseId(e.target.value)}
-              >
-                {warehouseOptions.map((w) => (
-                  <option key={w.value || 'all'} value={w.value}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {WAREHOUSE_FILTER_ENABLED ? (
+              <div className="col-md-3 col-lg-2">
+                <label className="form-label text-xs text-uppercase font-weight-bold">Warehouse</label>
+                <select
+                  className="form-select form-select-sm"
+                  value={warehouseId}
+                  onChange={(e) => setWarehouseId(e.target.value)}
+                >
+                  {warehouseOptions.map((w) => (
+                    <option key={w.value || 'all'} value={w.value}>
+                      {w.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {hasVariantUi ? (
               <div className="col-md-3 col-lg-2">
                 <label className="form-label text-xs text-uppercase font-weight-bold">Variant</label>
