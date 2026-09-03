@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
 import { FaBoxOpen, FaChartLine, FaXmark } from 'react-icons/fa6';
@@ -9,6 +9,7 @@ import { formatCurrency } from '../balanceSheet/formatCurrency.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import { toast } from '../../utils/toast.js';
 import NavIcon from '../NavIcon.jsx';
+import SearchInputIcon from '../SearchInputIcon.jsx';
 import '../order/customerOrderHistoryModal.css';
 import './topSellingProductsModal.css';
 
@@ -142,6 +143,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   const [error, setError] = useState(null);
   const [loadElapsedMs, setLoadElapsedMs] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!open) return undefined;
@@ -193,6 +195,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
       setSelectedPeriod('1m');
       setCustomFrom('');
       setCustomTo('');
+      setSearchQuery('');
     }
   }, [open]);
 
@@ -208,6 +211,23 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     }, 200);
     return () => window.clearInterval(timer);
   }, [open, loading]);
+
+  const rankedProducts = useMemo(
+    () => products.map((row, index) => ({ ...row, rank: index + 1 })),
+    [products]
+  );
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rankedProducts;
+    return rankedProducts.filter((row) => {
+      const haystack = [row.name, row.code, row.sku, row.productId]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rankedProducts, searchQuery]);
 
   const handlePeriodChange = (value) => {
     setSelectedPeriod(value);
@@ -227,10 +247,14 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
       : PERIOD_OPTIONS.find((opt) => opt.value === selectedPeriod)?.label || '1 month';
   const range = getDateRangeForPeriod(selectedPeriod, { from: customFrom, to: customTo });
   const maxDate = todayYmd();
-  const canExport = !loading && !error && products.length > 0;
+  const searchActive = Boolean(searchQuery.trim());
+  const canExport = !loading && !error && filteredProducts.length > 0;
+  const countLabel = searchActive
+    ? `${filteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} products`
+    : `${(total || products.length).toLocaleString()} product${(total || products.length) === 1 ? '' : 's'}`;
 
   const handleExport = async (kind) => {
-    if (!products.length) {
+    if (!filteredProducts.length) {
       toast.error('No products to export.');
       return;
     }
@@ -243,8 +267,8 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
       { key: 'revenue', label: 'Revenue' },
       { key: 'profit', label: 'Profit' },
     ];
-    const rows = products.map((row, index) => ({
-      rank: index + 1,
+    const rows = filteredProducts.map((row) => ({
+      rank: row.rank,
       name: row.name,
       code: row.code || '',
       sku: row.sku || '',
@@ -359,14 +383,29 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                   ) : error ? null : (
                     <>
                       <span className="tsp-modal__summary-chip tsp-modal__summary-chip--count">
-                        {total.toLocaleString()} product{total === 1 ? '' : 's'}
+                        {countLabel}
                       </span>
                       <span className="tsp-modal__summary-chip">{sortLabel}</span>
                       <span className="tsp-modal__summary-chip">{selectedPeriodLabel}</span>
                     </>
                   )}
                 </div>
-                <div className="btn-group btn-group-sm tsp-modal__export" role="group" aria-label="Export">
+                <div className="tsp-modal__actions">
+                  <div className="input-group input-group-sm tsp-modal__search">
+                    <span className="input-group-text">
+                      <SearchInputIcon />
+                    </span>
+                    <input
+                      type="search"
+                      className="form-control"
+                      placeholder="Search product, code, SKU…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      disabled={loading}
+                      aria-label="Search trending products"
+                    />
+                  </div>
+                  <div className="btn-group btn-group-sm tsp-modal__export" role="group" aria-label="Export">
                   <button
                     type="button"
                     className="btn btn-outline-secondary mb-0"
@@ -398,6 +437,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                     PDF
                   </button>
                 </div>
+                </div>
               </div>
             </div>
 
@@ -409,6 +449,10 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
               ) : products.length === 0 ? (
                 <div className="alert alert-warning py-2 mb-0">
                   No trending products found for the selected period.
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="alert alert-warning py-2 mb-0">
+                  No products match “{searchQuery.trim()}”.
                 </div>
               ) : (
                 <div className="table-responsive tsp-modal__table-wrap">
@@ -430,17 +474,17 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map((row, index) => {
+                      {filteredProducts.map((row) => {
                         const imageUrl = row.image ? resolveCategoryMediaUrl(row.image) : '';
-                        const isTopThree = index < 3;
+                        const isTopThree = row.rank <= 3;
 
                         return (
                           <tr
-                            key={row.productId || `${row.code}-${index}`}
+                            key={row.productId || `${row.code}-${row.rank}`}
                             className={isTopThree ? 'tsp-modal__row--top' : undefined}
                           >
                             <td>
-                              <span className={rankClass(index)}>{index + 1}</span>
+                              <span className={rankClass(row.rank - 1)}>{row.rank}</span>
                             </td>
                             <td>
                               <div className="tsp-modal__product">
