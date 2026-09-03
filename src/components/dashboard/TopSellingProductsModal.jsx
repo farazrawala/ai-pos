@@ -65,6 +65,70 @@ function rankClass(index) {
   return 'tsp-modal__rank';
 }
 
+function formatSoldQty(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('en-PK', { maximumFractionDigits: 2 });
+}
+
+function timeProgressFloor(elapsedMs) {
+  if (elapsedMs < 1200) return 14 + (elapsedMs / 1200) * 26;
+  if (elapsedMs < 5000) return 40 + ((elapsedMs - 1200) / 3800) * 28;
+  return Math.min(88, 68 + ((elapsedMs - 5000) / 10000) * 20);
+}
+
+function TrendingLoadState({ elapsedMs }) {
+  const percent = Math.min(92, timeProgressFloor(elapsedMs));
+  return (
+    <div className="tsp-modal__load" role="status" aria-live="polite">
+      <div className="d-flex justify-content-between align-items-baseline gap-3 mb-2">
+        <div>
+          <div className="tsp-modal__load-label">Loading trending products</div>
+          <div className="text-xs text-muted">Ranking sales for the selected period…</div>
+        </div>
+        <div className="tsp-modal__load-pct">{Math.round(percent)}%</div>
+      </div>
+      <div
+        className="progress tsp-modal__load-bar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(percent)}
+        aria-label="Loading trending products"
+      >
+        <div
+          className="progress-bar progress-bar-striped progress-bar-animated"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className="tsp-modal__table-wrap mt-3">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className="tsp-modal__skel-row">
+            <div className="tsp-modal__skel tsp-modal__skel--rank" />
+            <div className="tsp-modal__skel tsp-modal__skel--thumb" />
+            <div className="tsp-modal__skel-copy">
+              <div className="tsp-modal__skel tsp-modal__skel--line" style={{ width: `${58 - (index % 3) * 8}%` }} />
+              <div className="tsp-modal__skel tsp-modal__skel--line tsp-modal__skel--line-sm" style={{ width: '34%' }} />
+            </div>
+            <div className="tsp-modal__skel tsp-modal__skel--metric" />
+            <div className="tsp-modal__skel tsp-modal__skel--metric" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FilterField({ id, label, children }) {
+  return (
+    <div className="tsp-modal__field">
+      <label className="tsp-modal__toolbar-label" htmlFor={id}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' }) {
   const [selectedPeriod, setSelectedPeriod] = useState('1m');
   const [customFrom, setCustomFrom] = useState('');
@@ -74,6 +138,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   const [activeSortBy, setActiveSortBy] = useState(sortBy);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState(null);
+  const [loadElapsedMs, setLoadElapsedMs] = useState(0);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -128,6 +193,19 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !loading) {
+      setLoadElapsedMs(0);
+      return undefined;
+    }
+    const started = Date.now();
+    setLoadElapsedMs(0);
+    const timer = window.setInterval(() => {
+      setLoadElapsedMs(Date.now() - started);
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [open, loading]);
+
   const handlePeriodChange = (value) => {
     setSelectedPeriod(value);
     if (value === 'custom' && (!customFrom || !customTo)) {
@@ -156,7 +234,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
         aria-labelledby="topSellingProductsModalLabel"
         aria-modal="true"
       >
-        <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable tsp-modal">
           <div className="modal-content coh-modal">
             <div className="modal-header coh-modal__header border-0 pb-0">
               <div className="d-flex align-items-start gap-3 min-width-0">
@@ -181,68 +259,65 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
             </div>
 
             <div className="tsp-modal__toolbar">
-              <div className="tsp-modal__toolbar-group">
-                <label className="tsp-modal__toolbar-label" htmlFor="trendingProductsPeriod">
-                  Period
-                </label>
-                <select
-                  id="trendingProductsPeriod"
-                  className="form-select form-select-sm tsp-modal__period-select"
-                  value={selectedPeriod}
-                  onChange={(e) => handlePeriodChange(e.target.value)}
-                  disabled={loading}
-                >
-                  {PERIOD_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+              <div className={`tsp-modal__filters${selectedPeriod === 'custom' ? '' : ' tsp-modal__filters--preset'}`}>
+                <FilterField id="trendingProductsPeriod" label="Period">
+                  <select
+                    id="trendingProductsPeriod"
+                    className="form-select form-select-sm tsp-modal__period-select"
+                    value={selectedPeriod}
+                    onChange={(e) => handlePeriodChange(e.target.value)}
+                  >
+                    {PERIOD_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </FilterField>
                 {selectedPeriod === 'custom' ? (
                   <>
-                    <label className="tsp-modal__toolbar-label" htmlFor="trendingProductsFrom">
-                      From
-                    </label>
-                    <input
-                      id="trendingProductsFrom"
-                      type="date"
-                      className="form-control form-control-sm tsp-modal__date-input"
-                      value={customFrom}
-                      max={customTo || maxDate}
-                      onChange={(e) => setCustomFrom(e.target.value)}
-                    />
-                    <label className="tsp-modal__toolbar-label" htmlFor="trendingProductsTo">
-                      To
-                    </label>
-                    <input
-                      id="trendingProductsTo"
-                      type="date"
-                      className="form-control form-control-sm tsp-modal__date-input"
-                      value={customTo}
-                      min={customFrom || undefined}
-                      max={maxDate}
-                      onChange={(e) => setCustomTo(e.target.value)}
-                    />
+                    <FilterField id="trendingProductsFrom" label="From">
+                      <input
+                        id="trendingProductsFrom"
+                        type="date"
+                        className="form-control form-control-sm tsp-modal__date-input"
+                        value={customFrom}
+                        max={customTo || maxDate}
+                        onChange={(e) => setCustomFrom(e.target.value)}
+                      />
+                    </FilterField>
+                    <FilterField id="trendingProductsTo" label="To">
+                      <input
+                        id="trendingProductsTo"
+                        type="date"
+                        className="form-control form-control-sm tsp-modal__date-input"
+                        value={customTo}
+                        min={customFrom || undefined}
+                        max={maxDate}
+                        onChange={(e) => setCustomTo(e.target.value)}
+                      />
+                    </FilterField>
                   </>
                 ) : null}
               </div>
-              {!loading && !error ? (
-                <div className="tsp-modal__summary">
-                  <span className="tsp-modal__summary-chip">
-                    {total.toLocaleString()} product{total === 1 ? '' : 's'}
-                  </span>
-                  <span className="tsp-modal__summary-chip">{sortLabel}</span>
-                  <span className="tsp-modal__summary-chip">{selectedPeriodLabel}</span>
-                </div>
-              ) : null}
+              <div className="tsp-modal__meta">
+                {loading ? (
+                  <span className="tsp-modal__summary-chip tsp-modal__summary-chip--live">Updating…</span>
+                ) : error ? null : (
+                  <>
+                    <span className="tsp-modal__summary-chip tsp-modal__summary-chip--count">
+                      {total.toLocaleString()} product{total === 1 ? '' : 's'}
+                    </span>
+                    <span className="tsp-modal__summary-chip">{sortLabel}</span>
+                    <span className="tsp-modal__summary-chip">{selectedPeriodLabel}</span>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="modal-body coh-modal__body pt-3">
               {loading ? (
-                <div className="coh-modal__state text-center text-muted">
-                  <span className="spinner-border spinner-border-sm me-2" role="status" />
-                  Loading trending products…
-                </div>
+                <TrendingLoadState elapsedMs={loadElapsedMs} />
               ) : error ? (
                 <div className="alert alert-danger py-2 mb-0">{error}</div>
               ) : products.length === 0 ? (
@@ -324,7 +399,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                               </div>
                             </td>
                             <td className="text-end">
-                              <div className="tsp-modal__metric">{row.totalQty.toLocaleString()}</div>
+                              <div className="tsp-modal__metric">{formatSoldQty(row.totalQty)}</div>
                             </td>
                             <td className="text-end">
                               <div className="tsp-modal__metric">{formatCurrency(row.totalRevenue)}</div>

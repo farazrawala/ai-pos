@@ -1,3 +1,7 @@
+.modal-dialog.tsp-modal {
+  max-width: 56rem;
+}
+
 .tsp-modal__close {
   flex-shrink: 0;
   width: 2rem;
@@ -28,37 +32,51 @@
 
 .tsp-modal__toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding: 0.65rem 1.35rem;
-  background: #f8f9fa;
-  border-top: 1px solid #e9ecef;
-  border-bottom: 1px solid #e9ecef;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 0.85rem 1.35rem 0.9rem;
+  background: #f8f9fe;
+  border-top: 1px solid #eef1f6;
+  border-bottom: 1px solid #eef1f6;
 }
 
-.tsp-modal__toolbar-group {
+.tsp-modal__filters {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, 12rem) minmax(10.5rem, 1fr) minmax(10.5rem, 1fr);
+  gap: 0.75rem 1rem;
+  width: 100%;
+  align-items: end;
+}
+
+.tsp-modal__filters--preset {
+  grid-template-columns: minmax(9.5rem, 12rem);
+}
+
+.tsp-modal__field {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 0;
 }
 
 .tsp-modal__toolbar-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #8392ab;
   margin: 0;
   white-space: nowrap;
 }
 
-.tsp-modal__period-select {
-  min-width: 8.5rem;
-  max-width: 10rem;
-  border-color: #dee2e6;
+.tsp-modal__period-select,
+.tsp-modal__date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 2.15rem;
+  border-color: #e2e8f0;
   font-size: 0.8rem;
   font-weight: 600;
   color: #344767;
@@ -72,28 +90,18 @@
   box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.15);
 }
 
-.tsp-modal__date-input {
-  min-width: 8.75rem;
-  max-width: 11rem;
-  border-color: #dee2e6;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #344767;
-  background-color: #fff;
-  box-shadow: none;
-}
-
-.tsp-modal__summary {
-  display: inline-flex;
+.tsp-modal__meta {
+  display: flex;
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
+  min-height: 1.45rem;
 }
 
 .tsp-modal__summary-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.22rem 0.6rem;
+  padding: 0.22rem 0.65rem;
   border-radius: 999px;
   background: #fff;
   border: 1px solid #e9ecef;
@@ -101,6 +109,105 @@
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.tsp-modal__summary-chip--count {
+  background: #eef2ff;
+  border-color: #dbe4ff;
+  color: #5e72e4;
+}
+
+.tsp-modal__summary-chip--live {
+  background: #e8f1ff;
+  border-color: #cdd8f6;
+  color: #5e72e4;
+}
+
+.tsp-modal__load-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #344767;
+}
+
+.tsp-modal__load-pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5e72e4;
+  font-variant-numeric: tabular-nums;
+}
+
+.tsp-modal__load-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #eef1f6;
+  overflow: hidden;
+}
+
+.tsp-modal__load-bar .progress-bar {
+  border-radius: 999px;
+}
+
+.tsp-modal__skel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 0.85rem;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.tsp-modal__skel-row:last-child {
+  border-bottom: 0;
+}
+
+.tsp-modal__skel-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tsp-modal__skel {
+  background: linear-gradient(90deg, #eef1f6 0%, #f8f9fe 50%, #eef1f6 100%);
+  background-size: 200% 100%;
+  animation: tsp-modal-shimmer 1.2s ease-in-out infinite;
+  border-radius: 0.45rem;
+}
+
+.tsp-modal__skel--rank {
+  width: 1.65rem;
+  height: 1.65rem;
+  flex-shrink: 0;
+}
+
+.tsp-modal__skel--thumb {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tsp-modal__skel--line {
+  height: 0.7rem;
+}
+
+.tsp-modal__skel--line-sm {
+  height: 0.5rem;
+}
+
+.tsp-modal__skel--metric {
+  width: 4.25rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
+@keyframes tsp-modal-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .tsp-modal__table-wrap {
@@ -192,7 +299,7 @@
 .tsp-modal__product-code {
   font-size: 0.68rem;
   color: #8392ab;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.01em;
 }
 
 .tsp-modal__metric {
@@ -200,6 +307,7 @@
   font-weight: 700;
   color: #344767;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .tsp-modal__metric-sub {
@@ -223,4 +331,11 @@
   justify-content: center;
   color: #adb5bd;
   background: #f8f9fa;
+}
+
+@media (max-width: 575.98px) {
+  .tsp-modal__filters,
+  .tsp-modal__filters--preset {
+    grid-template-columns: 1fr;
+  }
 }
