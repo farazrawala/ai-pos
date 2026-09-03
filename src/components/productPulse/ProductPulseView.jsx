@@ -103,33 +103,49 @@ function timeProgressFloor(elapsedMs) {
   return Math.min(88, 60 + ((elapsedMs - 7000) / 14000) * 28);
 }
 
+const PULSE_LOAD_SECTIONS = [
+  'Product details',
+  'Profitability',
+  'Sales timeline',
+  'Variant performance',
+  'Sales history',
+];
+
+function resolvePulseSection(progress) {
+  const fromProgress = String(progress?.section || progress?.label || '').trim();
+  if (PULSE_LOAD_SECTIONS.includes(fromProgress)) return fromProgress;
+  if (progress?.stage === 'initializing') return 'Sales timeline';
+  return 'Product details';
+}
+
 function PulseLoadProgress({ progress, elapsedMs }) {
   const apiPercent = Number(progress?.percent) || 0;
   const percent = Math.min(96, Math.max(apiPercent, timeProgressFloor(elapsedMs)));
-  const initializing = progress?.stage === 'initializing' || elapsedMs >= 1800;
-  const label = initializing ? 'This section is initializing' : 'This section is loading';
-  const detail = initializing
-    ? progress?.stage === 'initializing' && progress?.detail
-      ? progress.detail
-      : 'Building profit, variants, and warehouse views…'
-    : progress?.detail || 'Fetching product sales and cost data…';
+  const currentSection = resolvePulseSection(progress);
+  const currentIndex = Math.max(0, PULSE_LOAD_SECTIONS.indexOf(currentSection));
+  const detail = progress?.detail || 'Loading Product Pulse…';
 
   return (
     <div className="card pp-panel pp-load mb-4" role="status" aria-live="polite">
       <div className="card-body">
         <div className="pp-load__steps">
-          <div className={`pp-load__step ${initializing ? 'is-done' : 'is-active'}`}>
-            <span className="pp-load__step-index">{initializing ? '✓' : '1'}</span>
-            <span>This section is loading</span>
-          </div>
-          <div className={`pp-load__step ${initializing ? 'is-active' : ''}`}>
-            <span className="pp-load__step-index">2</span>
-            <span>This section is initializing</span>
-          </div>
+          {PULSE_LOAD_SECTIONS.map((name, index) => {
+            const done = index < currentIndex;
+            const active = index === currentIndex;
+            return (
+              <div
+                key={name}
+                className={`pp-load__step${done ? ' is-done' : ''}${active ? ' is-active' : ''}`}
+              >
+                <span className="pp-load__step-index">{done ? '✓' : index + 1}</span>
+                <span>{name}</span>
+              </div>
+            );
+          })}
         </div>
         <div className="d-flex justify-content-between align-items-baseline gap-3 mb-2">
           <div>
-            <div className="pp-load__label">{label}</div>
+            <div className="pp-load__label">{currentSection}</div>
             <div className="text-xs text-muted">{detail}</div>
           </div>
           <div className="pp-load__pct">{Math.round(percent)}%</div>
@@ -139,7 +155,7 @@ function PulseLoadProgress({ progress, elapsedMs }) {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(percent)}
-          aria-label={label}
+          aria-label={currentSection}
         >
           <div
             className="progress-bar progress-bar-striped progress-bar-animated"

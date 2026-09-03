@@ -51,6 +51,12 @@ const BREAKDOWN_PAGE_LIMIT = 100;
 const MAX_BREAKDOWN_PAGES = 15;
 const STATUS_CONCURRENCY = 6;
 
+function emitPulseProgress(onProgress, payload) {
+  if (typeof onProgress === 'function' && payload && typeof payload === 'object') {
+    onProgress(payload);
+  }
+}
+
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('authToken') || '';
@@ -800,23 +806,31 @@ export async function fetchOrderPulseOrders(params = {}) {
  * server-side; the order table is paginated; dimensional tables use a bounded scan.
  */
 export async function fetchOrderPulseBundle(params = {}) {
-  validateFilterIds(params);
-  const overview = await fetchOrderPulseOverview(params);
+  const { onProgress, ...rest } = params;
+  validateFilterIds(rest);
+  emitPulseProgress(onProgress, {
+    stage: 'loading',
+    section: 'Overview',
+    label: 'Overview',
+    detail: 'Loading order totals…',
+    percent: 10,
+  });
+  const overview = await fetchOrderPulseOverview(rest);
   const range = overview.range;
   const query = {
     startDate: range.startDate,
     endDate: range.endDate,
-    warehouseId: params.warehouseId,
-    orderStatus: params.orderStatus,
-    paymentStatus: params.paymentStatus,
-    paymentMethodId: params.paymentMethodId,
-    customerId: params.customerId,
-    orderType: params.orderType,
-    productId: params.productId,
-    granularity: params.granularity || 'daily',
-    page: params.page || 1,
-    limit: params.limit || 25,
-    search: params.search,
+    warehouseId: rest.warehouseId,
+    orderStatus: rest.orderStatus,
+    paymentStatus: rest.paymentStatus,
+    paymentMethodId: rest.paymentMethodId,
+    customerId: rest.customerId,
+    orderType: rest.orderType,
+    productId: rest.productId,
+    granularity: rest.granularity || 'daily',
+    page: rest.page || 1,
+    limit: rest.limit || 25,
+    search: rest.search,
     preset: range.preset,
   };
 
@@ -834,6 +848,13 @@ export async function fetchOrderPulseBundle(params = {}) {
     ? { ...overview.returns, source: overview.source, range }
     : null;
 
+  emitPulseProgress(onProgress, {
+    stage: 'loading',
+    section: 'Orders trend',
+    label: 'Orders trend',
+    detail: 'Loading timeline, status, and products…',
+    percent: 38,
+  });
   const [
     trend,
     status,
@@ -852,6 +873,13 @@ export async function fetchOrderPulseBundle(params = {}) {
     reusedReturns || fetchOrderPulseReturns(query),
   ]);
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    section: 'Profitability',
+    label: 'Profitability',
+    detail: 'Building profitability and payments…',
+    percent: 68,
+  });
   const dedicatedCustomerRows = unwrapDedicatedList(customersDedicated, ['customers', 'data', 'rows']);
   const dedicatedPaymentRows = unwrapDedicatedList(paymentsDedicated, ['payments', 'data', 'rows']);
   let customers;
@@ -906,6 +934,13 @@ export async function fetchOrderPulseBundle(params = {}) {
         : metrics.returnRate;
   }
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    section: 'Top products',
+    label: 'Top products',
+    detail: 'Preparing product and customer tables…',
+    percent: 84,
+  });
   const insights =
     overview.insights ||
     buildOrderInsights({
@@ -914,6 +949,13 @@ export async function fetchOrderPulseBundle(params = {}) {
       payments: payments.rows,
     });
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    section: 'Order history',
+    label: 'Order history',
+    detail: 'Finalizing Order Pulse…',
+    percent: 94,
+  });
   return {
     overview: {
       ...overview,

@@ -99,6 +99,76 @@ function SkeletonBlock({ height = 88 }) {
   return <div className="op-skel w-100" style={{ height }} />;
 }
 
+function timeProgressFloor(elapsedMs) {
+  if (elapsedMs < 1800) return 10 + (elapsedMs / 1800) * 22;
+  if (elapsedMs < 7000) return 32 + ((elapsedMs - 1800) / 5200) * 28;
+  return Math.min(88, 60 + ((elapsedMs - 7000) / 14000) * 28);
+}
+
+const PULSE_LOAD_SECTIONS = [
+  'Overview',
+  'Orders trend',
+  'Profitability',
+  'Top products',
+  'Order history',
+];
+
+function resolvePulseSection(progress) {
+  const fromProgress = String(progress?.section || progress?.label || '').trim();
+  if (PULSE_LOAD_SECTIONS.includes(fromProgress)) return fromProgress;
+  if (progress?.stage === 'initializing') return 'Profitability';
+  return 'Overview';
+}
+
+function PulseLoadProgress({ progress, elapsedMs }) {
+  const apiPercent = Number(progress?.percent) || 0;
+  const percent = Math.min(96, Math.max(apiPercent, timeProgressFloor(elapsedMs)));
+  const currentSection = resolvePulseSection(progress);
+  const currentIndex = Math.max(0, PULSE_LOAD_SECTIONS.indexOf(currentSection));
+  const detail = progress?.detail || 'Loading Order Pulse…';
+
+  return (
+    <div className="card op-panel op-load mb-4" role="status" aria-live="polite">
+      <div className="card-body">
+        <div className="op-load__steps">
+          {PULSE_LOAD_SECTIONS.map((name, index) => {
+            const done = index < currentIndex;
+            const active = index === currentIndex;
+            return (
+              <div
+                key={name}
+                className={`op-load__step${done ? ' is-done' : ''}${active ? ' is-active' : ''}`}
+              >
+                <span className="op-load__step-index">{done ? '✓' : index + 1}</span>
+                <span>{name}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="d-flex justify-content-between align-items-baseline gap-3 mb-2">
+          <div>
+            <div className="op-load__label">{currentSection}</div>
+            <div className="text-xs text-muted">{detail}</div>
+          </div>
+          <div className="op-load__pct">{Math.round(percent)}%</div>
+        </div>
+        <div
+          className="progress op-load__bar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(percent)}
+          aria-label={currentSection}
+        >
+          <div
+            className="progress-bar progress-bar-striped progress-bar-animated"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function KpiCard({ label, value, hint, delta, icon: Icon, gradient }) {
   return (
     <div className="card op-kpi h-100 mb-0">
@@ -347,6 +417,7 @@ export default function OrderPulseView() {
     ordersStatus,
     error,
     ordersError,
+    loadProgress,
   } = useSelector((s) => s.orderPulse);
 
   const [preset, setPreset] = useState(DEFAULT_DATE_PRESET);
@@ -371,6 +442,7 @@ export default function OrderPulseView() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [loadElapsedMs, setLoadElapsedMs] = useState(0);
   const searchTimer = useRef(null);
   const skipNextOrdersFetch = useRef(false);
 
@@ -477,6 +549,19 @@ export default function OrderPulseView() {
       })
     );
   }, [dispatch, filterParams, debouncedSearch, ordersPagination.page, ordersPagination.limit, loadStatus]);
+
+  useEffect(() => {
+    if (loadStatus !== 'loading') {
+      setLoadElapsedMs(0);
+      return undefined;
+    }
+    const started = Date.now();
+    setLoadElapsedMs(0);
+    const timer = window.setInterval(() => {
+      setLoadElapsedMs(Date.now() - started);
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [loadStatus]);
 
   const metrics = overview?.metrics;
   const loading = loadStatus === 'loading';
@@ -714,15 +799,7 @@ export default function OrderPulseView() {
         </div>
       ) : null}
 
-      {loading ? (
-        <div className="row g-3 mb-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="col-6 col-md-4 col-xl-3">
-              <SkeletonBlock height={96} />
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {loading ? <PulseLoadProgress progress={loadProgress} elapsedMs={loadElapsedMs} /> : null}
 
       {!loading && !error ? (
         <>

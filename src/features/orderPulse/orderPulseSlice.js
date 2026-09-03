@@ -10,15 +10,24 @@ const defaultOrdersPagination = {
   cursor: null,
 };
 
+const idleLoadProgress = {
+  percent: 0,
+  stage: 'idle',
+  section: '',
+  label: '',
+  detail: '',
+};
+
 export const loadOrderPulse = createAsyncThunk(
   'orderPulse/load',
-  async (params, { rejectWithValue }) => {
+  async (params, { dispatch, rejectWithValue }) => {
     try {
       return await fetchOrderPulseBundle({
         ...params,
         granularity: params.granularity || 'daily',
         page: params.page || 1,
         limit: params.limit || 25,
+        onProgress: (progress) => dispatch(setLoadProgress(progress)),
       });
     } catch (e) {
       return rejectWithValue({
@@ -81,8 +90,20 @@ const orderPulseSlice = createSlice({
     error: null,
     trendError: null,
     ordersError: null,
+    loadProgress: { ...idleLoadProgress },
   },
   reducers: {
+    setLoadProgress: (state, action) => {
+      const next = action.payload || {};
+      const percent = Number(next.percent);
+      if (Number.isFinite(percent)) {
+        state.loadProgress.percent = Math.max(state.loadProgress.percent || 0, Math.min(100, percent));
+      }
+      if (next.stage) state.loadProgress.stage = next.stage;
+      if (next.section) state.loadProgress.section = next.section;
+      if (next.label) state.loadProgress.label = next.label;
+      if (next.detail != null) state.loadProgress.detail = next.detail;
+    },
     setOrderPulseFilters: (state, action) => {
       const next = action.payload || {};
       const keys = [
@@ -119,6 +140,7 @@ const orderPulseSlice = createSlice({
       state.error = null;
       state.trendError = null;
       state.ordersError = null;
+      state.loadProgress = { ...idleLoadProgress };
     },
     setOrdersPage: (state, action) => {
       state.ordersPagination.page = action.payload;
@@ -143,11 +165,19 @@ const orderPulseSlice = createSlice({
         if (arg.preset) state.preset = arg.preset;
         if (arg.startDate) state.startDate = arg.startDate;
         if (arg.endDate) state.endDate = arg.endDate;
+        state.loadProgress = {
+          percent: 8,
+          stage: 'loading',
+          section: 'Overview',
+          label: 'Overview',
+          detail: 'Starting Order Pulse…',
+        };
       })
       .addCase(loadOrderPulse.fulfilled, (state, action) => {
         state.loadStatus = 'succeeded';
         state.trendStatus = 'succeeded';
         state.ordersStatus = 'succeeded';
+        state.loadProgress = { percent: 100, stage: 'ready', section: '', label: '', detail: '' };
         state.overview = action.payload.overview;
         state.trend = action.payload.trend;
         state.status = action.payload.status;
@@ -175,6 +205,7 @@ const orderPulseSlice = createSlice({
         state.returns = null;
         state.cancellations = null;
         state.orders = [];
+        state.loadProgress = { ...idleLoadProgress };
       })
       .addCase(loadOrderPulseTrend.pending, (state) => {
         state.trendStatus = 'loading';
@@ -205,6 +236,6 @@ const orderPulseSlice = createSlice({
   },
 });
 
-export const { setOrderPulseFilters, clearOrderPulse, setOrdersPage, setOrdersLimit } =
+export const { setLoadProgress, setOrderPulseFilters, clearOrderPulse, setOrdersPage, setOrdersLimit } =
   orderPulseSlice.actions;
 export default orderPulseSlice.reducer;

@@ -150,7 +150,8 @@ const productPulseSlice = createSlice({
         state.loadProgress = {
           percent: 8,
           stage: 'loading',
-          label: 'This section is loading',
+          section: 'Product details',
+          label: 'Product details',
           detail: 'Fetching product data…',
         };
       })

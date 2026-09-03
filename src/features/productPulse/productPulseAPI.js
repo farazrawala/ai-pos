@@ -982,7 +982,8 @@ export async function fetchProductPulseOverview(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'loading',
-    label: 'This section is loading',
+    section: 'Product details',
+    label: 'Product details',
     detail: 'Loading product details…',
     percent: 12,
   });
@@ -1000,7 +1001,8 @@ export async function fetchProductPulseOverview(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'loading',
-    label: 'This section is loading',
+    section: 'Sales history',
+    label: 'Sales history',
     detail: 'Loading sales and cost history…',
     percent: 28,
   });
@@ -1008,7 +1010,8 @@ export async function fetchProductPulseOverview(params = {}) {
   if (dedicatedOverviewLooksValid(dedicated)) {
     emitPulseProgress(onProgress, {
       stage: 'initializing',
-      label: 'This section is initializing',
+      section: 'Profitability',
+      label: 'Profitability',
       detail: 'Preparing product metrics…',
       percent: 48,
     });
@@ -1033,7 +1036,8 @@ export async function fetchProductPulseOverview(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'initializing',
-    label: 'This section is initializing',
+    section: 'Profitability',
+    label: 'Profitability',
     detail: 'Calculating profit and performance…',
     percent: 42,
   });
@@ -1384,7 +1388,8 @@ export async function fetchProductPulseBundle(params = {}) {
   const { onProgress, ...rest } = params;
   emitPulseProgress(onProgress, {
     stage: 'loading',
-    label: 'This section is loading',
+    section: 'Product details',
+    label: 'Product details',
     detail: 'Starting Product Pulse…',
     percent: 6,
   });
@@ -1403,7 +1408,8 @@ export async function fetchProductPulseBundle(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'initializing',
-    label: 'This section is initializing',
+    section: 'Sales timeline',
+    label: 'Sales timeline',
     detail: 'Loading timeline, variants, and sales…',
     percent: 58,
   });
@@ -1450,7 +1456,8 @@ export async function fetchProductPulseBundle(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'initializing',
-    label: 'This section is initializing',
+    section: 'Variant performance',
+    label: 'Variant performance',
     detail: 'Building charts and tables…',
     percent: 82,
   });
@@ -1507,7 +1514,8 @@ export async function fetchProductPulseBundle(params = {}) {
 
   emitPulseProgress(onProgress, {
     stage: 'initializing',
-    label: 'This section is initializing',
+    section: 'Sales history',
+    label: 'Sales history',
     detail: 'Finalizing Product Pulse…',
     percent: 94,
   });

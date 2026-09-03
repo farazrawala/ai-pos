@@ -115,6 +115,78 @@
   min-height: 240px;
 }
 
+.order-pulse-page .op-load__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1.1rem;
+}
+
+.order-pulse-page .op-load .card-body {
+  min-height: 168px;
+}
+
+.order-pulse-page .op-load__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #f6f9fc;
+  border: 1px solid #e9ecef;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8392ab;
+}
+
+.order-pulse-page .op-load__step.is-active {
+  background: #e8f1ff;
+  border-color: #cdd8f6;
+  color: #5e72e4;
+}
+
+.order-pulse-page .op-load__step.is-done {
+  background: #e7f9f0;
+  border-color: #c4efd8;
+  color: #1aae6f;
+}
+
+.order-pulse-page .op-load__step-index {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.order-pulse-page .op-load__label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #344767;
+}
+
+.order-pulse-page .op-load__pct {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #5e72e4;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-pulse-page .op-load__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #eef1f6;
+  overflow: hidden;
+}
+
+.order-pulse-page .op-load__bar .progress-bar {
+  border-radius: 999px;
+}
+
 .order-pulse-page .op-skel {
   background: linear-gradient(90deg, #eef1f6 0%, #f8f9fe 50%, #eef1f6 100%);
   background-size: 200% 100%;
