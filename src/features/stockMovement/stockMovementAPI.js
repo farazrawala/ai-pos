@@ -198,6 +198,18 @@ export const getReferenceType = (row) => {
   return String(row.reference_type ?? '').trim();
 };
 
+/** Mongo `_id` of the linked document (`order`, `purchase_order`, return, …). */
+export const getReferenceId = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const rid = row.reference_id ?? row.referenceId;
+  if (rid == null || rid === '') return '';
+  if (typeof rid === 'object' && !Array.isArray(rid)) {
+    const id = rid._id ?? rid.id ?? rid.$oid;
+    return id != null ? String(id).trim() : '';
+  }
+  return String(rid).trim();
+};
+
 /** Populated `created_by` display name. */
 export const getCreatedByLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';

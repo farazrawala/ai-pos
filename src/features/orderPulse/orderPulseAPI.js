@@ -50,7 +50,6 @@ const ORDER_LIST_POPULATE =
 const BREAKDOWN_PAGE_LIMIT = 100;
 const MAX_BREAKDOWN_PAGES = 15;
 const STATUS_CONCURRENCY = 6;
-const WAREHOUSE_CONCURRENCY = 4;
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
@@ -134,9 +133,6 @@ export function buildOrderPulseProductsUrl(params = {}) {
 }
 export function buildOrderPulseCustomersUrl(params = {}) {
   return pulseUrl('customers', params);
-}
-export function buildOrderPulseWarehousesUrl(params = {}) {
-  return pulseUrl('warehouses', params);
 }
 export function buildOrderPulsePaymentsUrl(params = {}) {
   return pulseUrl('payments', params);
@@ -701,56 +697,6 @@ export async function fetchOrderPulseCustomers(params = {}) {
   };
 }
 
-export async function fetchOrderPulseWarehouses(params = {}) {
-  const range = resolveDateRange(params.preset, {
-    startDate: params.startDate,
-    endDate: params.endDate,
-  });
-  const query = { startDate: range.startDate, endDate: range.endDate, ...listFilterParams(params) };
-  const dedicated = await fetchDedicatedOrNull(buildOrderPulseWarehousesUrl(query));
-  const dedicatedRows = unwrapDedicatedList(dedicated, ['warehouses', 'data', 'rows']);
-  if (dedicatedRows) return { rows: dedicatedRows, source: 'dedicated', range };
-
-  const warehouses = await fetchWarehousesForOrderPulse();
-  let scoped = warehouses;
-  if (query.warehouseId) {
-    scoped = warehouses.filter((w) => String(w._id || w.id) === String(query.warehouseId));
-    if (query.warehouseId && warehouses.length && !scoped.length) {
-      const err = new Error('You do not have access to that warehouse.');
-      err.status = 403;
-      throw err;
-    }
-  }
-
-  const rows = await mapWithConcurrency(scoped, WAREHOUSE_CONCURRENCY, async (warehouse) => {
-    const id = String(warehouse._id || warehouse.id);
-    const [profit, count] = await Promise.all([
-      fetchProfitSafe({ ...query, warehouseId: id }),
-      fetchOrderCount({ ...query, warehouseId: id }).catch(() => 0),
-    ]);
-    const revenue = roundMoney(profit.subtotal);
-    const profitAmt = roundMoney(profit.profit);
-    const cogs = roundMoney(revenue - profitAmt);
-    return {
-      warehouseId: id,
-      warehouseName: String(warehouse.name || warehouse.warehouse_name || 'Warehouse'),
-      orders: count,
-      units: 0,
-      revenue,
-      COGS: cogs,
-      profit: profitAmt,
-      margin: revenue !== 0 ? Math.round((profitAmt / revenue) * 10000) / 100 : null,
-      returns: 0,
-    };
-  });
-
-  return {
-    rows: rows.filter((row) => row.orders !== 0 || row.revenue !== 0),
-    source: 'composed',
-    range,
-  };
-}
-
 export async function fetchOrderPulsePayments(params = {}) {
   const range = resolveDateRange(params.preset, {
     startDate: params.startDate,
@@ -892,7 +838,6 @@ export async function fetchOrderPulseBundle(params = {}) {
     trend,
     status,
     products,
-    warehouses,
     orders,
     customersDedicated,
     paymentsDedicated,
@@ -901,7 +846,6 @@ export async function fetchOrderPulseBundle(params = {}) {
     fetchOrderPulseTrend(query),
     reusedStatus || fetchOrderPulseStatus(query),
     fetchOrderPulseProducts(query),
-    fetchOrderPulseWarehouses(query),
     fetchOrderPulseOrders(query),
     fetchDedicatedOrNull(buildOrderPulseCustomersUrl(query)),
     fetchDedicatedOrNull(buildOrderPulsePaymentsUrl(query)),
@@ -980,7 +924,6 @@ export async function fetchOrderPulseBundle(params = {}) {
     status,
     products,
     customers,
-    warehouses,
     payments,
     returns: returnsInfo,
     cancellations: {

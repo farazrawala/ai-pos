@@ -27,8 +27,10 @@ import {
 import {
   DATE_PRESETS,
   DEFAULT_DATE_PRESET,
+  pickTimelineMetric,
   resolveDateRange,
   roundPct,
+  timelineHasChartableData,
 } from '../../features/productPulse/productPulseEngine.js';
 import { formatMoney } from '../../utils/formatMoney.js';
 import { CURRENCY_CODE } from '../../config/env.js';
@@ -118,7 +120,7 @@ function KpiCard({ label, value, hint, delta, icon: Icon, gradient }) {
 function TimelineChart({ points, metric, loading }) {
   const canvasRef = useRef(null);
   const rows = Array.isArray(points) ? points : [];
-  const hasData = rows.some((row) => Number(row?.[metric] || 0) !== 0);
+  const hasData = timelineHasChartableData(rows);
 
   useChartJs(
     canvasRef,
@@ -339,6 +341,13 @@ export default function ProductPulseView() {
       })
     );
   }, [dispatch, filterParams, productId, salesPagination.page, salesPagination.limit, status]);
+
+  useEffect(() => {
+    const points = Array.isArray(timeline?.points) ? timeline.points : [];
+    if (!points.length) return;
+    const next = pickTimelineMetric(points, chartMetric);
+    if (next && next !== chartMetric) setChartMetric(next);
+  }, [timeline, chartMetric]);
 
   const handleGranularity = (next) => {
     setGranularity(next);

@@ -1,8 +1,6 @@
 import { useMemo, useRef } from 'react';
-import { FaChartColumn } from 'react-icons/fa6';
 import { formatCurrencyAccounting } from '../balanceSheet/formatCurrency.js';
 import { useChartJs } from '../../hooks/useChartJs.js';
-import NavIcon from '../NavIcon.jsx';
 
 /**
  * Bar + margin line chart for the last 3 calendar months of order profit.
@@ -157,14 +155,9 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
     <div className="card profit-report-panel h-100 mb-0">
       <div className="card-body p-3">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div className="d-flex align-items-center gap-2">
-            <div className="profit-report-kpi__icon bg-gradient-primary shadow-primary">
-              <NavIcon icon={FaChartColumn} className="text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-uppercase text-muted font-weight-bold mb-0">Trend</p>
-              <h6 className="mb-0 text-sm text-dark">Last 3 months</h6>
-            </div>
+          <div>
+            <p className="profit-report-kpi__label mb-0">Trend</p>
+            <h6 className="mb-0 text-sm text-dark">Last 3 months</h6>
           </div>
           <div className="profit-report-chart-total text-end">
             <p className="text-xxs text-uppercase text-muted mb-0">3-month total</p>
@@ -177,18 +170,18 @@ export default function ProfitLast3MonthsChart({ months = [], loading = false })
         {loading && !rows.length ? (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 240 }}
+            style={{ minHeight: 260 }}
           >
             Loading chart…
           </div>
         ) : hasData ? (
           <div className="profit-report-month-chart">
-            <canvas ref={canvasRef} height="240" />
+            <canvas ref={canvasRef} height="260" />
           </div>
         ) : (
           <div
             className="d-flex align-items-center justify-content-center text-muted text-sm"
-            style={{ minHeight: 240 }}
+            style={{ minHeight: 260 }}
           >
             No profit data for the last 3 months
           </div>

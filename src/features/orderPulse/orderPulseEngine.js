@@ -777,59 +777,6 @@ export function aggregateTopCustomers(orderRows, limit = 15) {
     .slice(0, limit);
 }
 
-export function aggregateWarehousePerformance(orderRows, warehouses = []) {
-  const map = new Map();
-  for (const warehouse of Array.isArray(warehouses) ? warehouses : []) {
-    const id = refId(warehouse._id ?? warehouse.id);
-    if (!id) continue;
-    map.set(id, {
-      warehouseId: id,
-      warehouseName: String(warehouse.name ?? warehouse.warehouse_name ?? 'Warehouse').trim(),
-      orders: 0,
-      units: 0,
-      revenue: 0,
-      COGS: 0,
-      profit: 0,
-      margin: null,
-      returns: 0,
-    });
-  }
-  for (const row of Array.isArray(orderRows) ? orderRows : []) {
-    if (!row || (row.cancelled && !row.returned)) continue;
-    const id = String(row.warehouseId || '').trim() || 'unknown';
-    if (!map.has(id)) {
-      map.set(id, {
-        warehouseId: id,
-        warehouseName: row.warehouseName || (id === 'unknown' ? 'Unassigned' : 'Warehouse'),
-        orders: 0,
-        units: 0,
-        revenue: 0,
-        COGS: 0,
-        profit: 0,
-        margin: null,
-        returns: 0,
-      });
-    }
-    const rec = map.get(id);
-    rec.orders += 1;
-    rec.units += row.unitsSold || 0;
-    rec.revenue += row.netRevenue || 0;
-    rec.COGS += row.totalCOGS || 0;
-    rec.profit += row.grossProfit || 0;
-    if (row.returned) rec.returns += 1;
-  }
-  return [...map.values()]
-    .map((row) => ({
-      ...row,
-      units: roundMoney(row.units),
-      revenue: roundMoney(row.revenue),
-      COGS: roundMoney(row.COGS),
-      profit: roundMoney(row.profit),
-      margin: marginPercent(row.profit, row.revenue),
-    }))
-    .filter((row) => row.orders !== 0 || row.revenue !== 0);
-}
-
 export function aggregatePaymentPerformance(orderRows) {
   const map = new Map();
   const ensure = (row) => {

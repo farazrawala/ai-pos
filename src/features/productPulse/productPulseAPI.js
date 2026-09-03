@@ -8,7 +8,7 @@ import {
   fetchProfitByOrderItemRequest,
   parseProfitNumber,
 } from '../profitReport/profitReportAPI.js';
-import { getOrderLineItems, pickOrderDocumentId, pickOrderInvoiceNo } from '../orders/ordersAPI.js';
+import { fetchOrdersRequest, getOrderLineItems, pickOrderDocumentId, pickOrderInvoiceNo } from '../orders/ordersAPI.js';
 import { fetchWarehousesRequest } from '../warehouse/warehouseAPI.js';
 import { fetchSalesReturnsListRequest } from '../salesReturns/salesReturnsAPI.js';
 import {
@@ -29,7 +29,9 @@ import {
   matchesProductScope,
   metricsFromProfitTotals,
   normalizeSaleLine,
+  normalizeTimelinePoints,
   parsePulseNumber,
+  timelineHasChartableData,
   previousEquivalentRange,
   refId,
   resolveDateRange,
@@ -351,8 +353,14 @@ async function fetchOrderItemPage(params = {}) {
     query.set('limit', String(limit));
     query.set('sortBy', String(params.sortBy || 'createdAt'));
     query.set('sortOrder', String(params.sortOrder || 'desc'));
-    if (params.startDate) query.set('startDate', String(params.startDate));
-    if (params.endDate) query.set('endDate', String(params.endDate));
+    if (params.startDate) {
+      query.set('from', String(params.startDate));
+      query.set('startDate', String(params.startDate));
+    }
+    if (params.endDate) {
+      query.set('to', addDaysYmd(String(params.endDate), 1));
+      query.set('endDate', addDaysYmd(String(params.endDate), 1));
+    }
     if (params.productId) query.set('product_id', String(params.productId));
     if (params.parentProductId) query.set('parent_product_id', String(params.parentProductId));
     if (params.warehouseId) query.set('warehouse_id', String(params.warehouseId));
@@ -413,8 +421,76 @@ function linesFromOrderItemRows(rows) {
   return out;
 }
 
+function scopeSaleLines(lines, { productIds, warehouseId, startDate, endDate }) {
+  return (Array.isArray(lines) ? lines : []).filter((line) => {
+    if (!matchesProductScope(line, { productIds, warehouseId })) return false;
+    if ((startDate || endDate) && line.soldOn) return isDateInRange(line.soldOn, startDate, endDate);
+    return true;
+  });
+}
+
+async function fetchSaleLinesFromOrderList(params = {}) {
+  const productIds = (Array.isArray(params.productIds) ? params.productIds : [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (!productIds.length) return { lines: [], truncated: false, source: 'none' };
+
+  const warehouseId = params.warehouseId ? String(params.warehouseId).trim() : '';
+  let truncated = false;
+
+  const fetchForProduct = async (productId) => {
+    let page = 1;
+    let totalPages = 1;
+    const pages = [];
+    while (page <= totalPages && page <= MAX_LINE_PAGES) {
+      let result = null;
+      try {
+        result = await fetchOrdersRequest({
+          page,
+          limit: LINE_PAGE_LIMIT,
+          productId,
+          warehouseId,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          sortBy: 'createdAt',
+          sortOrder: 'asc',
+          populate: SALE_LINE_POPULATE,
+        });
+      } catch {
+        break;
+      }
+      if (!result) break;
+      pages.push(...linesFromOrderItemRows(result.data));
+      totalPages = Math.max(result.totalPages || 1, 1);
+      if (page >= MAX_LINE_PAGES && totalPages > MAX_LINE_PAGES) truncated = true;
+      if (!result.data?.length) break;
+      page += 1;
+    }
+    return pages;
+  };
+
+  const collected = [];
+  if (productIds.length === 1) {
+    collected.push(...(await fetchForProduct(productIds[0])));
+  } else {
+    const batches = await mapWithConcurrency(productIds, VARIANT_CONCURRENCY, fetchForProduct);
+    for (const batch of batches) collected.push(...(batch || []));
+  }
+
+  return {
+    lines: scopeSaleLines(collected, {
+      productIds,
+      warehouseId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+    }),
+    truncated,
+    source: 'order_list',
+  };
+}
+
 /**
- * Product-scoped sale lines via paginated order_item APIs.
+ * Product-scoped sale lines via paginated order_item APIs, then the order list.
  * Stops at MAX_LINE_PAGES so the browser never holds an unbounded collection.
  */
 export async function fetchProductSaleLines(params = {}) {
@@ -466,12 +542,13 @@ export async function fetchProductSaleLines(params = {}) {
     for (const batch of batches) collected.push(...(batch || []));
   }
 
-  const scoped = collected.filter((line) => {
-    if (!matchesProductScope(line, { productIds, warehouseId })) return false;
-    if (startDate || endDate) return isDateInRange(line.soldOn, startDate, endDate);
-    return true;
-  });
+  const scoped = scopeSaleLines(collected, { productIds, warehouseId, startDate, endDate });
+  if (scoped.length) {
+    return { lines: scoped, truncated, source };
+  }
 
+  const fromOrders = await fetchSaleLinesFromOrderList(params);
+  if (fromOrders.lines.length) return fromOrders;
   return { lines: scoped, truncated, source };
 }
 
@@ -503,19 +580,29 @@ export async function fetchProductPulseProduct(productId) {
 
 async function sumProfitTotals(productIds, params) {
   const ids = (Array.isArray(productIds) ? productIds : []).filter(Boolean);
-  if (!ids.length) return { profit: 0, subtotal: 0, lineCount: 0 };
+  if (!ids.length) return { profit: 0, subtotal: 0, lineCount: 0, total_qty: 0, totalCOGS: 0 };
 
   const reports = await mapWithConcurrency(ids, VARIANT_CONCURRENCY, async (productId) => {
     try {
-      const { report } = await fetchProfitByOrderItemRequest({
+      const { report, raw } = await fetchProfitByOrderItemRequest({
         startDate: params.startDate,
         endDate: params.endDate,
         productId,
         warehouseId: params.warehouseId,
       });
-      return report;
+      return {
+        profit: report?.profit,
+        subtotal: report?.subtotal,
+        lineCount: report?.lineCount,
+        total_qty: parseProfitNumber(
+          raw?.total_qty ?? raw?.totalQty ?? raw?.qty ?? raw?.unitsSold ?? report?.total_qty
+        ),
+        totalCOGS: parseProfitNumber(
+          raw?.totalCOGS ?? raw?.cogs ?? raw?.cost_of_goods_sold ?? raw?.total_cogs
+        ),
+      };
     } catch {
-      return { profit: 0, subtotal: 0, lineCount: 0 };
+      return { profit: 0, subtotal: 0, lineCount: 0, total_qty: 0, totalCOGS: 0 };
     }
   });
 
@@ -524,8 +611,10 @@ async function sumProfitTotals(productIds, params) {
       profit: acc.profit + parseProfitNumber(report?.profit),
       subtotal: acc.subtotal + parseProfitNumber(report?.subtotal),
       lineCount: acc.lineCount + (Number(report?.lineCount) || 0),
+      total_qty: acc.total_qty + parseProfitNumber(report?.total_qty),
+      totalCOGS: acc.totalCOGS + parseProfitNumber(report?.totalCOGS),
     }),
-    { profit: 0, subtotal: 0, lineCount: 0 }
+    { profit: 0, subtotal: 0, lineCount: 0, total_qty: 0, totalCOGS: 0 }
   );
 }
 
@@ -746,7 +835,7 @@ async function composeOverview({ product, variations, params, productIds, select
   const moneyMetrics = metricsFromProfitTotals(currentTotals, {
     discount: lineMetrics.discount,
     refundAmount: returnsInfo.refundAmount,
-    unitsSold: lineMetrics.unitsSold,
+    unitsSold: lineMetrics.unitsSold || currentTotals.total_qty,
     returnedUnits: returnsInfo.returnedUnits || lineMetrics.returnedUnits,
     ordersCount: lineMetrics.ordersCount || currentTotals.lineCount,
     firstSoldAt: lineMetrics.firstSoldAt,
@@ -872,6 +961,76 @@ export async function fetchProductPulseOverview(params = {}) {
   };
 }
 
+export function pickDedicatedTimelinePoints(result) {
+  if (!result || typeof result !== 'object') return null;
+  const keys = ['points', 'data', 'timeline', 'days'];
+  for (const key of keys) {
+    if (Array.isArray(result[key]) && result[key].length) return result[key];
+  }
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+    for (const key of keys) {
+      if (Array.isArray(result.data[key]) && result.data[key].length) return result.data[key];
+    }
+  }
+  return null;
+}
+
+function bucketRange(bucket, granularity, range) {
+  let startDate = bucket.date;
+  let endDate = bucket.date;
+  if (granularity === 'monthly') {
+    const [y, m] = String(bucket.date).split('-');
+    startDate = `${y}-${m}-01`;
+    endDate = formatYmd(new Date(Number(y), Number(m), 0));
+    if (endDate > range.endDate) endDate = range.endDate;
+    if (startDate < range.startDate) startDate = range.startDate;
+  } else if (granularity === 'weekly') {
+    startDate = bucket.date;
+    endDate = addDaysYmd(startDate, 6);
+    if (endDate > range.endDate) endDate = range.endDate;
+    if (startDate < range.startDate) startDate = range.startDate;
+  }
+  return { startDate, endDate };
+}
+
+async function composeTimelinePoints({ productIds, warehouseId, range, granularity, salePack }) {
+  const buckets = buildTimelineBuckets(range.startDate, range.endDate, granularity);
+  const lines = Array.isArray(salePack?.lines) ? salePack.lines : [];
+  const datedLines = lines.filter((line) => line?.soldOn);
+  const fromLines = fillTimeline(buckets, datedLines);
+  if (datedLines.length && timelineHasChartableData(fromLines)) {
+    return { points: fromLines, source: 'composed', truncated: salePack?.truncated };
+  }
+
+  const points = await mapWithConcurrency(buckets, 6, async (bucket) => {
+    const { startDate, endDate } = bucketRange(bucket, granularity, range);
+    const totals = await sumProfitTotals(productIds, {
+      startDate,
+      endDate,
+      warehouseId,
+    });
+    const netRevenue = roundMoney(totals.subtotal);
+    const profit = roundMoney(totals.profit);
+    const explicitCogs = totals.totalCOGS;
+    const cogs =
+      explicitCogs > 0 ? roundMoney(explicitCogs) : roundMoney(netRevenue - profit);
+    return {
+      ...bucket,
+      orders: totals.lineCount,
+      unitsSold: roundMoney(totals.total_qty),
+      grossRevenue: netRevenue,
+      netRevenue,
+      COGS: cogs,
+      profit,
+      profitMargin: netRevenue !== 0 ? Math.round((profit / netRevenue) * 10000) / 100 : null,
+      returnedUnits: 0,
+      discount: 0,
+    };
+  });
+
+  return { points, source: 'profit-totals', truncated: salePack?.truncated };
+}
+
 export async function fetchProductPulseTimeline(params = {}) {
   const productId = String(params.productId || '').trim();
   const granularity = ['daily', 'weekly', 'monthly'].includes(params.granularity)
@@ -890,76 +1049,28 @@ export async function fetchProductPulseTimeline(params = {}) {
   };
 
   const dedicated = await fetchDedicatedOrNull(buildProductPulseTimelineUrl(productId, query));
-  const dedicatedPoints = Array.isArray(dedicated?.points)
-    ? dedicated.points
-    : Array.isArray(dedicated?.data)
-      ? dedicated.data
-      : Array.isArray(dedicated?.timeline)
-        ? dedicated.timeline
-        : null;
-  if (dedicatedPoints) {
+  const dedicatedPoints = normalizeTimelinePoints(pickDedicatedTimelinePoints(dedicated), granularity);
+  if (timelineHasChartableData(dedicatedPoints)) {
     return { granularity, points: dedicatedPoints, source: 'dedicated', range };
   }
 
   const { product, variations } = await fetchProductPulseProduct(productId);
   const productIds = sellableProductIds(product, variations, query.variantId);
-  const buckets = buildTimelineBuckets(range.startDate, range.endDate, granularity);
-
   const salePack = await fetchProductSaleLines({
     productIds,
     warehouseId: query.warehouseId,
     startDate: range.startDate,
     endDate: range.endDate,
   });
-
-  if (salePack.source !== 'none' && salePack.lines.length >= 0) {
-    return {
-      granularity,
-      points: fillTimeline(buckets, salePack.lines),
-      source: 'composed',
-      range,
-      truncated: salePack.truncated,
-    };
-  }
-
-  const points = await mapWithConcurrency(buckets, 6, async (bucket) => {
-    let startDate = bucket.date;
-    let endDate = bucket.date;
-    if (granularity === 'monthly') {
-      const [y, m] = bucket.date.split('-');
-      startDate = `${y}-${m}-01`;
-      endDate = formatYmd(new Date(Number(y), Number(m), 0));
-      if (endDate > range.endDate) endDate = range.endDate;
-      if (startDate < range.startDate) startDate = range.startDate;
-    } else if (granularity === 'weekly') {
-      startDate = bucket.date;
-      endDate = addDaysYmd(startDate, 6);
-      if (endDate > range.endDate) endDate = range.endDate;
-      if (startDate < range.startDate) startDate = range.startDate;
-    }
-    const totals = await sumProfitTotals(productIds, {
-      startDate,
-      endDate,
-      warehouseId: query.warehouseId,
-    });
-    const netRevenue = roundMoney(totals.subtotal);
-    const profit = roundMoney(totals.profit);
-    const cogs = roundMoney(netRevenue - profit);
-    return {
-      ...bucket,
-      orders: totals.lineCount,
-      unitsSold: 0,
-      grossRevenue: netRevenue,
-      netRevenue,
-      COGS: cogs,
-      profit,
-      profitMargin: netRevenue !== 0 ? Math.round((profit / netRevenue) * 10000) / 100 : null,
-      returnedUnits: 0,
-      discount: 0,
-    };
+  const composed = await composeTimelinePoints({
+    productIds,
+    warehouseId: query.warehouseId,
+    range,
+    granularity,
+    salePack,
   });
 
-  return { granularity, points, source: 'profit-totals', range };
+  return { granularity, points: composed.points, source: composed.source, range, truncated: composed.truncated };
 }
 
 export async function fetchProductPulseVariants(params = {}) {
@@ -1074,7 +1185,7 @@ export async function fetchProductPulseSales(params = {}) {
     : Array.isArray(dedicated?.sales)
       ? dedicated.sales
       : null;
-  if (dedicatedRows) {
+  if (dedicatedRows?.length) {
     const pagination = dedicated.pagination || parseListPagination(dedicated, query);
     return {
       rows: dedicatedRows,
@@ -1109,20 +1220,22 @@ export async function fetchProductPulseSales(params = {}) {
         matchesProductScope(line, {
           productIds,
           warehouseId: query.warehouseId,
-        }) && isDateInRange(line.soldOn, range.startDate, range.endDate)
+        }) && (!line.soldOn || isDateInRange(line.soldOn, range.startDate, range.endDate))
       );
-      return {
-        rows: lines.map(toSalesHistoryRow),
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-          cursor: result.cursor,
-        },
-        source: 'order_item',
-        range,
-      };
+      if (lines.length) {
+        return {
+          rows: lines.map(toSalesHistoryRow),
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+            cursor: result.cursor,
+          },
+          source: 'order_item',
+          range,
+        };
+      }
     }
   }
 
@@ -1190,25 +1303,45 @@ export async function fetchProductPulseBundle(params = {}) {
       }),
     ]);
 
-  const timelinePoints = Array.isArray(timelineDedicated?.points)
-    ? timelineDedicated.points
-    : Array.isArray(timelineDedicated?.data)
-      ? timelineDedicated.data
-      : Array.isArray(timelineDedicated?.timeline)
-        ? timelineDedicated.timeline
-        : null;
-  const timeline = timelinePoints
-    ? { granularity, points: timelinePoints, source: 'dedicated', range }
-    : {
-        granularity,
-        points: fillTimeline(
-          buildTimelineBuckets(range.startDate, range.endDate, granularity),
-          salePack.lines
-        ),
-        source: 'composed',
-        range,
-        truncated: salePack.truncated,
-      };
+  const dedicatedPoints = normalizeTimelinePoints(
+    pickDedicatedTimelinePoints(timelineDedicated),
+    granularity
+  );
+  let timeline = timelineHasChartableData(dedicatedPoints)
+    ? { granularity, points: dedicatedPoints, source: 'dedicated', range }
+    : null;
+  if (!timeline) {
+    const composed = await composeTimelinePoints({
+      productIds,
+      warehouseId: query.warehouseId,
+      range,
+      granularity,
+      salePack,
+    });
+    timeline = {
+      granularity,
+      points: composed.points,
+      source: composed.source,
+      range,
+      truncated: composed.truncated,
+    };
+  }
+
+  const lineMetrics = aggregateMetrics(salePack.lines, {
+    periodDays: inclusiveDayCount(range.startDate, range.endDate),
+  });
+  const overviewMetrics = overview.metrics || {};
+  const mergedMetrics =
+    (overviewMetrics.unitsSold || 0) === 0 && lineMetrics.unitsSold
+      ? {
+          ...overviewMetrics,
+          unitsSold: lineMetrics.unitsSold,
+          firstSoldAt: lineMetrics.firstSoldAt || overviewMetrics.firstSoldAt,
+          lastSoldAt: lineMetrics.lastSoldAt || overviewMetrics.lastSoldAt,
+          ordersCount: lineMetrics.ordersCount || overviewMetrics.ordersCount,
+          daysSinceLastSale: lineMetrics.daysSinceLastSale ?? overviewMetrics.daysSinceLastSale,
+        }
+      : overviewMetrics;
 
   const dedicatedVariantRows = Array.isArray(variantsDedicated?.variants)
     ? variantsDedicated.variants
@@ -1240,7 +1373,7 @@ export async function fetchProductPulseBundle(params = {}) {
   }
 
   const insights = buildInsights({
-    metrics: overview.metrics,
+    metrics: mergedMetrics,
     highlights: variants,
     productName: overview.product?.name,
   });
@@ -1248,8 +1381,9 @@ export async function fetchProductPulseBundle(params = {}) {
   return {
     overview: {
       ...overview,
+      metrics: mergedMetrics,
       insights,
-      health: overview.health || classifyProductHealth(overview.metrics),
+      health: overview.health || classifyProductHealth(mergedMetrics),
     },
     timeline,
     variants,

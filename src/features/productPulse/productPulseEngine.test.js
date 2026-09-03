@@ -17,12 +17,15 @@ import {
   marginPercent,
   metricsFromProfitTotals,
   normalizeSaleLine,
+  normalizeTimelinePoints,
   paginateRows,
   percentChange,
+  pickTimelineMetric,
   previousEquivalentRange,
   resolveDateRange,
   returnRatePercent,
   skipLimitFromPage,
+  timelineHasChartableData,
 } from './productPulseEngine.js';
 
 const line = (overrides = {}) =>
@@ -93,6 +96,15 @@ describe('ProductPulse comparison percentages', () => {
 });
 
 describe('ProductPulse historical COGS / profit', () => {
+  it('reads Shopify-style quantity and order_date fields', () => {
+    const row = normalizeSaleLine(
+      { product_id: 'prod-1', units: 3, price: 100, cost_price_at_sale: 40 },
+      { _id: 'ord-9', order_no: 'S-1', order_date: '2026-08-12' }
+    );
+    expect(row.quantity).toBe(3);
+    expect(row.soldOn).toBe('2026-08-12');
+  });
+
   it('uses cost_price_at_sale, never current product cost', () => {
     const economics = computeLineEconomics({
       qty: 2,
@@ -263,6 +275,32 @@ describe('ProductPulse warehouse / date / timeline / pagination', () => {
     expect(filled[0].unitsSold).toBe(0);
     expect(filled[1].unitsSold).toBe(2);
     expect(filled[1].profit).toBe(800);
+  });
+
+  it('normalizes dedicated timeline aliases and detects chartable revenue', () => {
+    const points = normalizeTimelinePoints(
+      [{ period: '2026-08', units: 0, revenue: 15945, profit: 3345, orders: 23 }],
+      'monthly'
+    );
+    expect(points[0]).toMatchObject({
+      date: '2026-08',
+      unitsSold: 0,
+      netRevenue: 15945,
+      profit: 3345,
+      orders: 23,
+    });
+    expect(timelineHasChartableData(points, 'unitsSold')).toBe(false);
+    expect(timelineHasChartableData(points)).toBe(true);
+    expect(pickTimelineMetric(points, 'unitsSold')).toBe('netRevenue');
+  });
+
+  it('still charts undated sale lines instead of dropping them', () => {
+    const buckets = buildTimelineBuckets('2026-08-01', '2026-08-03', 'daily');
+    const filled = fillTimeline(buckets, [
+      line({ item: { qty: 2 }, order: { createdAt: null, date: null } }),
+    ]);
+    expect(filled.reduce((sum, row) => sum + row.unitsSold, 0)).toBe(2);
+    expect(timelineHasChartableData(filled)).toBe(true);
   });
 
   it('paginates sales history with skip/limit', () => {

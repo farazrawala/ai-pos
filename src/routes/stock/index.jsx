@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import moment from 'moment';
 import {
   fetchStockMovements,
@@ -16,8 +17,10 @@ import {
   getMovementType,
   getReferenceName,
   getReferenceType,
+  getReferenceId,
   getCreatedByLabel,
 } from '../../features/stockMovement/stockMovementAPI.js';
+import { routeForReferenceType } from '../../components/transactions/TransactionDescriptionLinks.jsx';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -36,6 +39,11 @@ const movementBadgeClass = (type) => {
   if (type === 'out') return 'bg-gradient-warning';
   return 'bg-gradient-secondary';
 };
+
+const formatReferenceTypeLabel = (type) =>
+  String(type || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -295,11 +303,32 @@ const StockListing = () => {
                         const qty = getMovementQuantity(item);
                         const refName = getReferenceName(item);
                         const refType = getReferenceType(item);
+                        const refRoute = routeForReferenceType(refType, getReferenceId(item));
                         const productLabel = getProductLabel(item);
                         const warehouse = getWarehouseLabel(item);
                         const movedBy = getCreatedByLabel(item);
                         const created = item.createdAt || item.created_at;
                         const isActive = String(item.status || '').toLowerCase() === 'active';
+                        const refBody =
+                          refName || refType ? (
+                            <div className="d-flex flex-column gap-1">
+                              {refName ? (
+                                <span
+                                  className={`text-truncate${
+                                    refRoute ? ' text-primary text-decoration-underline' : ''
+                                  }`}
+                                  title={refRoute ? refRoute.title : refName}
+                                >
+                                  {refName}
+                                </span>
+                              ) : null}
+                              {refType ? (
+                                <span className="badge text-xxs bg-light text-dark border align-self-start">
+                                  {formatReferenceTypeLabel(refType)}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null;
                         return (
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
@@ -330,21 +359,20 @@ const StockListing = () => {
                               {qty != null ? qty : '—'}
                             </td>
                             <td className="text-sm list-cell-truncate">
-                              {refName || refType ? (
-                                <div className="d-flex flex-column gap-1">
-                                  {refName ? (
-                                    <span className="text-truncate" title={refName}>
-                                      {refName}
-                                    </span>
-                                  ) : null}
-                                  {refType ? (
-                                    <span className="badge text-xxs bg-light text-dark border align-self-start">
-                                      {refType
-                                        .replace(/_/g, ' ')
-                                        .replace(/\b\w/g, (c) => c.toUpperCase())}
-                                    </span>
-                                  ) : null}
-                                </div>
+                              {refBody ? (
+                                refRoute ? (
+                                  <Link
+                                    to={refRoute.to}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-decoration-none"
+                                    title={refRoute.title}
+                                  >
+                                    {refBody}
+                                  </Link>
+                                ) : (
+                                  refBody
+                                )
                               ) : (
                                 '—'
                               )}

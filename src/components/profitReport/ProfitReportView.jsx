@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
@@ -36,8 +36,6 @@ import {
   FaCalendar,
   FaCalendarDay,
   FaCalendarDays,
-  FaChartLine,
-  FaFilter,
 } from 'react-icons/fa6';
 
 /** Display dates as day-month-year, e.g. 10-7-2026 */
@@ -60,22 +58,26 @@ function formatMarginBadge(marginPct) {
   return `${marginPct.toFixed(1)}%`;
 }
 
-function GlanceKpi({ title, value, hint, badge, icon: Icon, iconClass, loading }) {
+function GlanceKpi({ title, value, hint, badge, icon: Icon, iconClass, loading, accent = false }) {
   return (
-    <div className="card profit-report-kpi h-100 mb-0">
+    <div className={`card profit-report-kpi h-100 mb-0${accent ? ' profit-report-kpi--accent' : ''}`}>
       <div className="card-body p-3">
         <div className="d-flex justify-content-between align-items-start gap-2">
           <div className="min-w-0">
-            <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">{title}</p>
-            <p className="profit-report-kpi__value mb-1">{loading ? '…' : value}</p>
-            <p className="text-xxs text-muted mb-0">
+            <p className="profit-report-kpi__label">{title}</p>
+            <p className={`profit-report-kpi__value${accent ? ' profit-report-kpi__value--primary' : ''}`}>
+              {loading ? '…' : value}
+            </p>
+            <p className="profit-report-kpi__hint">
               {hint}
               {badge ? <span className="profit-report-kpi__badge ms-1">{badge}</span> : null}
             </p>
           </div>
-          <div className={`profit-report-kpi__icon ${iconClass}`}>
-            <NavIcon icon={Icon} className="text-white" />
-          </div>
+          {Icon ? (
+            <div className={`profit-report-kpi__icon ${iconClass}`}>
+              <NavIcon icon={Icon} className="text-white" />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -127,6 +129,8 @@ export default function ProfitReportView() {
   const [productOptions, setProductOptions] = useState([{ value: '', label: 'All products' }]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [filterError, setFilterError] = useState('');
+  const loadRef = useRef(null);
 
   const loadOrderOptions = useCallback(async () => {
     setOrdersLoading(true);
@@ -225,11 +229,29 @@ export default function ProfitReportView() {
   );
 
   const runReport = useCallback(() => {
+    const fromRaw = String(startDate || '').trim();
+    const toRaw = String(endDate || '').trim();
+    if (!fromRaw || !toRaw) {
+      setFilterError('Select both From and To dates, then click Run report.');
+      return;
+    }
+
+    let from = fromRaw;
+    let to = toRaw;
+    if (moment(from).isAfter(moment(to))) {
+      from = toRaw;
+      to = fromRaw;
+      setStartDate(from);
+      setEndDate(to);
+    }
+
+    setFilterError('');
+    if (loadRef.current) loadRef.current.abort();
     dispatch(setLinesPage(1));
-    dispatch(
+    loadRef.current = dispatch(
       loadProfitReport({
-        startDate,
-        endDate,
+        startDate: from,
+        endDate: to,
         page: 1,
         limit: linesPagination.limit,
         ...(orderId.trim() ? { orderId: orderId.trim() } : {}),
@@ -239,20 +261,13 @@ export default function ProfitReportView() {
   }, [dispatch, startDate, endDate, orderId, productId, linesPagination.limit]);
 
   useEffect(() => {
-    dispatch(setLinesPage(1));
-    dispatch(
-      loadProfitReport({
-        startDate,
-        endDate,
-        page: 1,
-        limit: linesPagination.limit,
-        ...(orderId.trim() ? { orderId: orderId.trim() } : {}),
-        ...(productId.trim() ? { productId: productId.trim() } : {}),
-      })
-    );
-    // Reload when filter fields change; pagination uses loadProfitReportLines only.
+    runReport();
+    return () => {
+      if (loadRef.current) loadRef.current.abort();
+    };
+    // Load once on mount; later runs come from Run report / Refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, startDate, endDate, orderId, productId]);
+  }, []);
 
   const handleLinesPageChange = (newPage) => {
     if (newPage < 1 || newPage > linesPagination.totalPages) return;
@@ -319,161 +334,171 @@ export default function ProfitReportView() {
 
   return (
     <div className="container-fluid py-4 px-3 profit-report-page">
-      <div className="card shadow-sm">
-        <div className="card-header pb-0">
-          <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
-            <div>
-              <h5 className="mb-1 d-flex align-items-center gap-2">
-                <NavIcon icon={FaChartLine} />
-                Profit report
-              </h5>
-              <p className="text-sm text-muted mb-0">
-                Track order profitability by period, with monthly trends and line-level detail.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-primary mb-0"
-              onClick={runReport}
-              disabled={loading}
-            >
-              <FaArrowsRotate className={loading ? 'me-1 spin-icon' : 'me-1'} />
-              Refresh
-            </button>
-          </div>
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+          <p className="text-uppercase text-xs font-weight-bolder text-primary mb-1">Accounts</p>
+          <h4 className="mb-1">Profit report</h4>
+          <p className="text-sm text-muted mb-0">
+            Track order profitability by period, with monthly trends and line-level detail.
+          </p>
         </div>
+        <button type="button" className="btn btn-sm btn-outline-primary mb-0" onClick={runReport}>
+          <FaArrowsRotate className={loading ? 'me-1 spin-icon' : 'me-1'} />
+          Refresh
+        </button>
+      </div>
 
-        <div className="card-body">
-          <div className="profit-report-filters card bg-light border-0 mb-4">
-            <div className="card-body py-3">
-              <div className="d-flex align-items-center gap-2 mb-3 text-sm fw-semibold text-muted">
-                <FaFilter aria-hidden />
-                Filters
-              </div>
-              <div className="row g-3 align-items-end">
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label text-xs mb-1" htmlFor="profit-from">
-                    From
-                  </label>
-                  <input
-                    id="profit-from"
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label text-xs mb-1" htmlFor="profit-to">
-                    To
-                  </label>
-                  <input
-                    id="profit-to"
-                    type="date"
-                    className="form-control form-control-sm"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label text-xs mb-1" htmlFor="profit-order-id">
-                    Order <span className="text-muted">(optional)</span>
-                  </label>
-                  <SearchableSelect
-                    options={orderOptions}
-                    value={orderId}
-                    placeholder={ordersLoading ? 'Loading orders…' : 'All orders'}
-                    disabled={ordersLoading}
-                    onChange={setOrderId}
-                  />
-                </div>
-                <div className="col-md-3 col-sm-6">
-                  <label className="form-label text-xs mb-1" htmlFor="profit-product-id">
-                    Product <span className="text-muted">(optional)</span>
-                  </label>
-                  <SearchableSelect
-                    options={productOptions}
-                    value={productId}
-                    placeholder={productsLoading ? 'Loading products…' : 'All products'}
-                    disabled={productsLoading}
-                    onChange={setProductId}
-                  />
-                </div>
-                <div className="col-12 col-md-auto">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm mb-0"
-                    onClick={runReport}
-                    disabled={loading}
-                  >
-                    Run report
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {error ? (
-            <div className="alert alert-danger py-2 text-sm" role="alert">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="profit-report-glance mb-4">
-            <div className="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-              <div>
-                <h6 className="text-sm text-dark font-weight-bold mb-1">At a glance</h6>
-                <p className="text-xs text-muted mb-0">
-                  Live calendar totals — independent of the filters below.
-                </p>
-              </div>
-            </div>
-            <div className="row g-3">
-              <div className="col-xl-4">
-                <div className="row g-3">
-                  <div className="col-md-6 col-xl-12">
-                    <GlanceKpi
-                      title="Today's profit"
-                      value={fmtProfit(todayProfit)}
-                      hint={todayLabel}
-                      badge={todayMargin}
-                      icon={FaCalendarDay}
-                      iconClass="bg-gradient-success shadow-success"
-                      loading={glanceLoading}
-                    />
-                  </div>
-                  <div className="col-md-6 col-xl-12">
-                    <GlanceKpi
-                      title="This month profit"
-                      value={fmtProfit(monthProfit)}
-                      hint={monthLabel}
-                      badge={monthMargin}
-                      icon={FaCalendarDays}
-                      iconClass="bg-gradient-info shadow-info"
-                      loading={glanceLoading}
-                    />
-                  </div>
-                  <div className="col-12">
-                    <GlanceKpi
-                      title="Last month profit"
-                      value={fmtProfit(lastMonthProfit)}
-                      hint={lastMonthLabel}
-                      badge={lastMonthMargin}
-                      icon={FaCalendar}
-                      iconClass="bg-gradient-warning shadow-warning"
-                      loading={glanceLoading}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="col-xl-8">
-                <ProfitLast3MonthsChart
-                  months={quickStats?.last3Months}
-                  loading={glanceLoading}
+      <div className="card profit-report-filters border-0 mb-4">
+        <div className="card-body py-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              runReport();
+            }}
+          >
+            <div className="row g-3 align-items-end">
+              <div className="col-6 col-xl-2">
+                <label className="form-label mb-1" htmlFor="profit-from">
+                  From
+                </label>
+                <input
+                  id="profit-from"
+                  type="date"
+                  className="form-control form-control-sm"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
+              <div className="col-6 col-xl-2">
+                <label className="form-label mb-1" htmlFor="profit-to">
+                  To
+                </label>
+                <input
+                  id="profit-to"
+                  type="date"
+                  className="form-control form-control-sm"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <div className="col-sm-6 col-xl-3">
+                <label className="form-label mb-1" htmlFor="profit-order-id">
+                  Order <span className="fw-normal text-lowercase">(optional)</span>
+                </label>
+                <SearchableSelect
+                  options={orderOptions}
+                  value={orderId}
+                  placeholder={ordersLoading ? 'Loading orders…' : 'All orders'}
+                  disabled={ordersLoading}
+                  onChange={setOrderId}
+                />
+              </div>
+              <div className="col-sm-6 col-xl-3">
+                <label className="form-label mb-1" htmlFor="profit-product-id">
+                  Product <span className="fw-normal text-lowercase">(optional)</span>
+                </label>
+                <SearchableSelect
+                  options={productOptions}
+                  value={productId}
+                  placeholder={productsLoading ? 'Loading products…' : 'All products'}
+                  disabled={productsLoading}
+                  onChange={setProductId}
+                />
+              </div>
+              <div className="col-12 col-xl-2">
+                <button type="submit" className="btn btn-primary btn-sm w-100 mb-0 profit-report-run-btn">
+                  {loading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status" />
+                      Running…
+                    </>
+                  ) : (
+                    'Run report'
+                  )}
+                </button>
+              </div>
             </div>
+          </form>
+          {filterError ? (
+            <div className="text-xs text-danger mt-3">{filterError}</div>
+          ) : (
+            <div className="profit-report-status">
+              {loading ? (
+                <span className="profit-report-chip profit-report-chip--info">
+                  Loading {formatDisplayDate(startDate)} – {formatDisplayDate(endDate)}
+                </span>
+              ) : lastParams?.startDate && lastParams?.endDate ? (
+                <span className="profit-report-chip profit-report-chip--info">
+                  {formatDisplayDate(lastParams.startDate)} – {formatDisplayDate(lastParams.endDate)}
+                </span>
+              ) : null}
+              <span className="profit-report-chip">
+                {orderOptions.find((o) => o.value && String(o.value) === String(orderId))?.label ||
+                  'All orders'}
+              </span>
+              <span className="profit-report-chip">
+                {productOptions.find((o) => o.value && String(o.value) === String(productId))
+                  ?.label || 'All products'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error ? (
+        <div className="alert alert-danger py-2 text-sm" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="profit-report-glance mb-4">
+        <div className="mb-3">
+          <h6 className="profit-report-section-title">At a glance</h6>
+          <p className="text-xs text-muted mb-0">
+            Live calendar totals — independent of the date filters above.
+          </p>
+        </div>
+        <div className="row g-3 mb-3">
+          <div className="col-md-4">
+            <GlanceKpi
+              title="Today's profit"
+              value={fmtProfit(todayProfit)}
+              hint={todayLabel}
+              badge={todayMargin}
+              icon={FaCalendarDay}
+              iconClass="bg-gradient-success shadow-success"
+              loading={glanceLoading}
+            />
           </div>
+          <div className="col-md-4">
+            <GlanceKpi
+              title="This month profit"
+              value={fmtProfit(monthProfit)}
+              hint={monthLabel}
+              badge={monthMargin}
+              icon={FaCalendarDays}
+              iconClass="bg-gradient-info shadow-info"
+              loading={glanceLoading}
+              accent
+            />
+          </div>
+          <div className="col-md-4">
+            <GlanceKpi
+              title="Last month profit"
+              value={fmtProfit(lastMonthProfit)}
+              hint={lastMonthLabel}
+              badge={lastMonthMargin}
+              icon={FaCalendar}
+              iconClass="bg-gradient-warning shadow-warning"
+              loading={glanceLoading}
+            />
+          </div>
+        </div>
+        <ProfitLast3MonthsChart
+          months={quickStats?.last3Months}
+          loading={glanceLoading}
+        />
+      </div>
 
           {loading && !report ? (
             <div className="text-center py-5 text-muted">
@@ -486,10 +511,11 @@ export default function ProfitReportView() {
 
           {report ? (
             <>
-              <div className="mb-2">
-                <h6 className="text-sm text-dark font-weight-bold mb-1">Period summary</h6>
+              <div className="mb-3">
+                <h6 className="profit-report-section-title">Period summary</h6>
                 <p className="text-xs text-muted mb-0">
-                  Totals for the selected date range
+                  Totals for {formatDisplayDate(report.filters.from || lastParams?.startDate || startDate)}{' '}
+                  to {formatDisplayDate(report.filters.to || lastParams?.endDate || endDate)}
                   {report.orderPathProfit != null && !report.profitsMatch
                     ? ' (sources differ — see note below)'
                     : ''}
@@ -497,76 +523,29 @@ export default function ProfitReportView() {
                 </p>
               </div>
               <div className="row g-3 mb-4">
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Total order profit
-                      </p>
-                      <p className="profit-report-kpi__value text-primary mb-0">{fmt(report.profit)}</p>
-                    </div>
-                  </div>
+                <div className="col-md-6 col-xl-4">
+                  <GlanceKpi
+                    title="Selected period profit"
+                    value={fmt(report.profit)}
+                    hint="All orders in the From / To dates"
+                    accent
+                  />
                 </div>
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Subtotal (sales)
-                      </p>
-                      <p className="profit-report-kpi__value mb-0">{fmt(report.subtotal)}</p>
-                    </div>
-                  </div>
+                <div className="col-md-6 col-xl-2">
+                  <GlanceKpi title="Subtotal (sales)" value={fmt(report.subtotal)} />
                 </div>
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Line count
-                      </p>
-                      <p className="profit-report-kpi__value mb-0">{report.lineCount}</p>
-                    </div>
-                  </div>
+                <div className="col-md-6 col-xl-2">
+                  <GlanceKpi title="Line count" value={report.lineCount} />
                 </div>
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">Margin</p>
-                      <p className="profit-report-kpi__value mb-0">{marginText}</p>
-                    </div>
-                  </div>
+                <div className="col-md-6 col-xl-2">
+                  <GlanceKpi title="Margin" value={marginText} />
                 </div>
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        This month profit
-                      </p>
-                      <p className="profit-report-kpi__value text-primary mb-1">
-                        {glanceLoading ? '…' : fmtProfit(monthProfit)}
-                      </p>
-                      <p className="text-xxs text-muted mb-0">
-                        {monthLabel}
-                        {monthMargin ? (
-                          <span className="profit-report-kpi__badge ms-1">{monthMargin}</span>
-                        ) : null}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-6 col-xl-3">
-                  <div className="card profit-report-kpi h-100 mb-0">
-                    <div className="card-body p-3">
-                      <p className="text-xs text-uppercase text-muted font-weight-bold mb-1">
-                        Orders in selected dates
-                      </p>
-                      <p className="profit-report-kpi__value mb-1">
-                        {linesPagination.total ?? 0}
-                      </p>
-                      <p className="text-xxs text-muted mb-0">
-                        {formatDisplayDate(startDate)} – {formatDisplayDate(endDate)}
-                      </p>
-                    </div>
-                  </div>
+                <div className="col-md-6 col-xl-2">
+                  <GlanceKpi
+                    title="Orders in dates"
+                    value={linesPagination.total ?? 0}
+                    hint={`${formatDisplayDate(startDate)} – ${formatDisplayDate(endDate)}`}
+                  />
                 </div>
                 {report.orderPathProfit != null && !report.profitsMatch ? (
                   <div className="col-12">
@@ -577,46 +556,13 @@ export default function ProfitReportView() {
                   </div>
                 ) : null}
               </div>
-
-              <div className="card profit-report-panel mb-4">
-                <div className="card-header py-2 bg-transparent">
-                  <h6 className="mb-0 text-sm text-dark font-weight-bold">Applied filters</h6>
-                </div>
-                <div className="card-body py-2">
-                  <dl className="row mb-0 text-sm profit-report-meta">
-                    <dt className="col-sm-3 col-md-2 text-muted">From</dt>
-                    <dd className="col-sm-9 col-md-4">
-                      {formatDisplayDate(report.filters.from || startDate)}
-                    </dd>
-                    <dt className="col-sm-3 col-md-2 text-muted">To</dt>
-                    <dd className="col-sm-9 col-md-4">
-                      {formatDisplayDate(report.filters.to || endDate)}
-                    </dd>
-                    <dt className="col-sm-3 col-md-2 text-muted">Order</dt>
-                    <dd className="col-sm-9 col-md-4">
-                      {orderOptions.find((o) => o.value && String(o.value) === String(report.filters.orderId || orderId))
-                        ?.label ||
-                        report.filters.orderId ||
-                        '—'}
-                    </dd>
-                    <dt className="col-sm-3 col-md-2 text-muted">Product</dt>
-                    <dd className="col-sm-9 col-md-4">
-                      {productOptions.find(
-                        (o) => o.value && String(o.value) === String(report.filters.productId || productId)
-                      )?.label ||
-                        report.filters.productId ||
-                        '—'}
-                    </dd>
-                  </dl>
-                </div>
-              </div>
             </>
           ) : null}
 
           {orderProfitRows.length > 0 ? (
             <div className="card profit-report-panel mb-4">
-              <div className="card-header py-2 bg-transparent">
-                <h6 className="mb-0 text-sm text-dark font-weight-bold">Profit by order</h6>
+              <div className="card-header bg-transparent">
+                <h6 className="profit-report-section-title mb-0">Profit by order</h6>
                 <p className="text-xs text-muted mb-0">Current page — click an order to open details.</p>
               </div>
               <div className="card-body p-0">
@@ -712,9 +658,9 @@ export default function ProfitReportView() {
           ) : null}
 
           <div className="card profit-report-panel">
-            <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 bg-transparent">
+            <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 bg-transparent">
               <div>
-                <h6 className="mb-0 text-sm text-dark font-weight-bold">Profit lines by order</h6>
+                <h6 className="profit-report-section-title mb-0">Profit lines by order</h6>
                 <p className="text-xs text-muted mb-0">
                   Order headers show merged profit; rows below are line items.
                 </p>
@@ -899,8 +845,6 @@ export default function ProfitReportView() {
               ]}
             />
           ) : null}
-        </div>
-      </div>
     </div>
   );
 }

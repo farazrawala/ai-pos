@@ -9,31 +9,66 @@
 }
 
 .profit-report-page .profit-report-kpi,
-.profit-report-page .profit-report-panel {
+.profit-report-page .profit-report-panel,
+.profit-report-page .profit-report-filters {
   border: 1px solid #e9ecef;
   box-shadow: 0 1px 3px rgba(50, 50, 93, 0.06);
-  border-radius: 0.75rem;
+  border-radius: 0.85rem;
   background: #fff;
+}
+
+.profit-report-page .profit-report-kpi {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.profit-report-page .profit-report-kpi:hover {
+  box-shadow: 0 8px 20px rgba(50, 50, 93, 0.08);
+  transform: translateY(-1px);
+}
+
+.profit-report-page .profit-report-kpi--accent {
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 70%);
+  border-color: #dce4f5;
 }
 
 .profit-report-page .profit-report-kpi--muted {
   background: #f8f9fe;
 }
 
+.profit-report-page .profit-report-kpi__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8392ab;
+  margin: 0 0 0.35rem;
+}
+
 .profit-report-page .profit-report-kpi__value,
 .profit-report-page .profit-report-stat__value {
-  font-size: 1.25rem;
+  font-size: 1.28rem;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
   color: #344767;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.2rem;
+}
+
+.profit-report-page .profit-report-kpi__value--primary {
+  color: #5e72e4;
+}
+
+.profit-report-page .profit-report-kpi__hint {
+  font-size: 0.7rem;
+  color: #8392ab;
+  margin: 0;
 }
 
 .profit-report-page .profit-report-kpi__icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.65rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.7rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -43,18 +78,82 @@
 
 .profit-report-page .profit-report-kpi__badge {
   display: inline-block;
-  padding: 0.1rem 0.4rem;
+  padding: 0.12rem 0.45rem;
   border-radius: 999px;
-  background: #e9ecef;
-  color: #67748e;
-  font-weight: 600;
+  background: #eef2ff;
+  color: #5e72e4;
+  font-weight: 700;
   font-size: 0.65rem;
   vertical-align: middle;
 }
 
+.profit-report-page .profit-report-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #344767;
+  margin: 0 0 0.2rem;
+}
+
+.profit-report-page .profit-report-filters {
+  background: #f8f9fe;
+}
+
+.profit-report-page .profit-report-filters .form-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
+.profit-report-page .profit-report-filters .form-control,
+.profit-report-page .profit-report-filters .form-select {
+  border-color: #e2e8f0;
+  background: #fff;
+  min-height: 2.25rem;
+}
+
+.profit-report-page .profit-report-filters .form-control:focus,
+.profit-report-page .profit-report-filters .form-select:focus {
+  border-color: rgba(94, 114, 228, 0.55);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.profit-report-page .profit-report-run-btn {
+  min-height: 2.25rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.profit-report-page .profit-report-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+
+.profit-report-page .profit-report-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  color: #67748e;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.profit-report-page .profit-report-chip--info {
+  background: #eef2ff;
+  border-color: #dce4f5;
+  color: #5e72e4;
+}
+
 .profit-report-page .profit-report-chart-total {
-  padding: 0.35rem 0.65rem;
-  border-radius: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.65rem;
   background: #f8f9fe;
   border: 1px solid #eef0f5;
 }
@@ -80,26 +179,33 @@
 }
 
 .profit-report-page .shadow-primary {
-  box-shadow: 0 4px 10px rgba(94, 114, 228, 0.28);
+  box-shadow: 0 6px 14px rgba(94, 114, 228, 0.28);
 }
 
 .profit-report-page .shadow-success {
-  box-shadow: 0 4px 10px rgba(45, 206, 137, 0.28);
+  box-shadow: 0 6px 14px rgba(45, 206, 137, 0.28);
 }
 
 .profit-report-page .shadow-info {
-  box-shadow: 0 4px 10px rgba(17, 205, 239, 0.28);
+  box-shadow: 0 6px 14px rgba(17, 205, 239, 0.28);
 }
 
 .profit-report-page .shadow-warning {
-  box-shadow: 0 4px 10px rgba(251, 99, 64, 0.28);
+  box-shadow: 0 6px 14px rgba(251, 99, 64, 0.28);
+}
+
+.profit-report-page .profit-report-panel .card-header {
+  padding: 0.9rem 1.15rem;
+  border-bottom: 1px solid #eef0f5;
 }
 
 .profit-report-page .profit-report-lines-table th {
-  font-weight: 600;
-  color: #67748e;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #8392ab;
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  background: #f8f9fe;
 }
 
 .profit-report-page .profit-report-lines-table td {
@@ -138,8 +244,8 @@
 .profit-report-page .profit-report-month-chart {
   position: relative;
   width: 100%;
-  height: 240px;
-  min-height: 240px;
+  height: 260px;
+  min-height: 260px;
 }
 
 .profit-report-page .profit-report-month-chart canvas {

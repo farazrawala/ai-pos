@@ -6,10 +6,16 @@ import {
 
 export const loadProfitReport = createAsyncThunk(
   'profitReport/load',
-  async (params, { rejectWithValue }) => {
+  async (params, { rejectWithValue, signal }) => {
     try {
+      if (signal.aborted) {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        throw err;
+      }
       return await fetchProfitReportBundleRequest(params);
     } catch (e) {
+      if (e?.name === 'AbortError' || signal.aborted) throw e;
       return rejectWithValue(e.message || 'Failed to load profit report');
     }
   }
@@ -33,6 +39,10 @@ const defaultPagination = {
   totalPages: 0,
 };
 
+function isCurrentLoad(state, action) {
+  return state.loadRequestId === action.meta.requestId;
+}
+
 const profitReportSlice = createSlice({
   name: 'profitReport',
   initialState: {
@@ -49,6 +59,7 @@ const profitReportSlice = createSlice({
     error: null,
     linesError: null,
     lastParams: null,
+    loadRequestId: null,
   },
   reducers: {
     clearProfitReportError: (state) => {
@@ -71,8 +82,10 @@ const profitReportSlice = createSlice({
         state.error = null;
         state.linesError = null;
         state.lastParams = action.meta.arg ?? null;
+        state.loadRequestId = action.meta.requestId;
       })
       .addCase(loadProfitReport.fulfilled, (state, action) => {
+        if (!isCurrentLoad(state, action)) return;
         state.status = 'succeeded';
         state.linesStatus = 'succeeded';
         state.report = action.payload.report;
@@ -83,8 +96,11 @@ const profitReportSlice = createSlice({
         state.linesSummary = action.payload.linesSummary ?? null;
         state.ordersPageSummary = action.payload.ordersPageSummary ?? null;
         state.linesPagination = action.payload.linesPagination ?? { ...defaultPagination };
+        state.loadRequestId = null;
       })
       .addCase(loadProfitReport.rejected, (state, action) => {
+        if (!isCurrentLoad(state, action)) return;
+        if (action.meta.aborted) return;
         state.status = 'failed';
         state.linesStatus = 'failed';
         state.error = action.payload || action.error?.message || 'Failed to load profit report';
@@ -96,6 +112,7 @@ const profitReportSlice = createSlice({
         state.orderGroups = [];
         state.linesSummary = null;
         state.ordersPageSummary = null;
+        state.loadRequestId = null;
       })
       .addCase(loadProfitReportLines.pending, (state) => {
         state.linesStatus = 'loading';

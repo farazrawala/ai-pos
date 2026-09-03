@@ -70,7 +70,6 @@ const orderPulseSlice = createSlice({
     status: null,
     products: null,
     customers: null,
-    warehouses: null,
     payments: null,
     returns: null,
     cancellations: null,
@@ -109,7 +108,6 @@ const orderPulseSlice = createSlice({
       state.status = null;
       state.products = null;
       state.customers = null;
-      state.warehouses = null;
       state.payments = null;
       state.returns = null;
       state.cancellations = null;
@@ -155,7 +153,6 @@ const orderPulseSlice = createSlice({
         state.status = action.payload.status;
         state.products = action.payload.products;
         state.customers = action.payload.customers;
-        state.warehouses = action.payload.warehouses;
         state.payments = action.payload.payments;
         state.returns = action.payload.returns;
         state.cancellations = action.payload.cancellations;
@@ -174,7 +171,6 @@ const orderPulseSlice = createSlice({
         state.status = null;
         state.products = null;
         state.customers = null;
-        state.warehouses = null;
         state.payments = null;
         state.returns = null;
         state.cancellations = null;

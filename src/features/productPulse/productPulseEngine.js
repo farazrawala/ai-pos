@@ -237,7 +237,18 @@ export function historicalUnitCost(item) {
 }
 
 export function lineQuantity(item) {
-  return parsePulseNumber(item?.qty ?? item?.quantity ?? item?.qty_ordered, 0);
+  return parsePulseNumber(
+    item?.qty ??
+      item?.quantity ??
+      item?.qty_ordered ??
+      item?.qty_sold ??
+      item?.quantity_sold ??
+      item?.sold_qty ??
+      item?.units ??
+      item?.units_sold ??
+      item?.total_qty,
+    0
+  );
 }
 
 export function lineUnitPrice(item) {
@@ -328,7 +339,22 @@ export function normalizeSaleLine(item, order = {}) {
   const status = String(
     item.status ?? item.line_status ?? order.order_status ?? order.status ?? ''
   ).trim();
-  const soldAt = item.createdAt ?? item.created_at ?? order.createdAt ?? order.created_at ?? order.date;
+  const soldAt =
+    item.createdAt ??
+    item.created_at ??
+    item.sold_at ??
+    item.soldAt ??
+    item.order_date ??
+    item.invoice_date ??
+    item.processed_at ??
+    order.createdAt ??
+    order.created_at ??
+    order.order_date ??
+    order.invoice_date ??
+    order.date ??
+    order.processed_at ??
+    order.updatedAt ??
+    order.updated_at;
   const returned = isReturnedStatus(status) || parsePulseNumber(item.returned_qty ?? item.return_qty, 0) > 0;
   const cancelled = isCancelledStatus(status);
 
@@ -651,28 +677,102 @@ export function buildTimelineBuckets(startYmd, endYmd, granularity = 'daily') {
   }));
 }
 
+export const TIMELINE_METRIC_KEYS = ['unitsSold', 'netRevenue', 'profit'];
+
+export function normalizeTimelinePoint(row = {}, granularity = 'daily') {
+  if (!row || typeof row !== 'object') return null;
+  const dateRaw = row.date ?? row.day ?? row.period ?? row.bucket ?? row.label ?? '';
+  const dateStr = String(dateRaw);
+  const date =
+    granularity === 'monthly'
+      ? dateStr.slice(0, 7)
+      : /^\d{4}-\d{2}-\d{2}/.test(dateStr)
+        ? dateStr.slice(0, 10)
+        : dateStr;
+  const unitsSold = parsePulseNumber(
+    row.unitsSold ?? row.units ?? row.qty ?? row.quantity ?? row.total_qty ?? row.totalQty,
+    0
+  );
+  const grossRevenue = parsePulseNumber(
+    row.grossRevenue ?? row.subtotal ?? row.gross_revenue,
+    parsePulseNumber(row.netRevenue ?? row.revenue ?? row.sales ?? row.total_amount, 0)
+  );
+  const netRevenue = parsePulseNumber(
+    row.netRevenue ?? row.revenue ?? row.sales ?? row.total_amount ?? row.net_revenue,
+    grossRevenue
+  );
+  const profit = parsePulseNumber(row.profit ?? row.grossProfit ?? row.gross_profit, 0);
+  const orders = Number(row.orders ?? row.ordersCount ?? row.order_count ?? row.lineCount) || 0;
+  const COGS = parsePulseNumber(row.COGS ?? row.cogs ?? row.totalCOGS ?? row.cost_of_goods_sold, 0);
+  const label = row.label || timelineLabel(date, granularity) || date;
+  return {
+    date: date || String(row.label || ''),
+    label,
+    orders,
+    unitsSold: roundMoney(unitsSold),
+    grossRevenue: roundMoney(grossRevenue),
+    discount: roundMoney(row.discount),
+    netRevenue: roundMoney(netRevenue),
+    COGS: roundMoney(COGS),
+    profit: roundMoney(profit),
+    profitMargin: row.profitMargin ?? marginPercent(profit, netRevenue),
+    returnedUnits: roundMoney(row.returnedUnits ?? row.returned_units ?? 0),
+  };
+}
+
+export function normalizeTimelinePoints(rows, granularity = 'daily') {
+  return (Array.isArray(rows) ? rows : []).map((row) => normalizeTimelinePoint(row, granularity)).filter(Boolean);
+}
+
+export function timelinePointHasMetric(row, metric) {
+  return Number(row?.[metric] || 0) !== 0;
+}
+
+export function timelineHasChartableData(points, metric) {
+  const rows = Array.isArray(points) ? points : [];
+  if (metric) return rows.some((row) => timelinePointHasMetric(row, metric));
+  return rows.some((row) =>
+    TIMELINE_METRIC_KEYS.some((key) => timelinePointHasMetric(row, key)) || Number(row?.orders || 0) !== 0
+  );
+}
+
+export function pickTimelineMetric(points, preferred = 'unitsSold') {
+  const rows = Array.isArray(points) ? points : [];
+  if (preferred && timelineHasChartableData(rows, preferred)) return preferred;
+  return TIMELINE_METRIC_KEYS.find((key) => timelineHasChartableData(rows, key)) || preferred || 'unitsSold';
+}
+
 export function fillTimeline(buckets, lines) {
   const index = new Map((Array.isArray(buckets) ? buckets : []).map((b, i) => [b.date, i]));
   const rows = (Array.isArray(buckets) ? buckets : []).map((b) => ({ ...b, _orderIds: new Set() }));
+  const fallbackKey = rows.length ? rows[rows.length - 1].date : '';
 
   for (const line of Array.isArray(lines) ? lines : []) {
-    if (!line || line.cancelled || !line.soldOn) continue;
+    if (!line || line.cancelled) continue;
     let key = line.soldOn;
-    if (!index.has(key)) {
-      const monthly = key.slice(0, 7);
-      if (index.has(monthly)) key = monthly;
-      else {
-        const d = parseYmd(line.soldOn);
-        if (!d) continue;
-        const day = d.getDay();
-        const mondayOffset = day === 0 ? -6 : 1 - day;
-        const monday = new Date(d);
-        monday.setDate(d.getDate() + mondayOffset);
-        const weekKey = formatYmd(monday);
-        if (index.has(weekKey)) key = weekKey;
-        else continue;
+    if (!key || !index.has(key)) {
+      if (key) {
+        const monthly = key.slice(0, 7);
+        if (index.has(monthly)) key = monthly;
+        else {
+          const d = parseYmd(line.soldOn);
+          if (d) {
+            const day = d.getDay();
+            const mondayOffset = day === 0 ? -6 : 1 - day;
+            const monday = new Date(d);
+            monday.setDate(d.getDate() + mondayOffset);
+            const weekKey = formatYmd(monday);
+            if (index.has(weekKey)) key = weekKey;
+            else key = fallbackKey;
+          } else {
+            key = fallbackKey;
+          }
+        }
+      } else {
+        key = fallbackKey;
       }
     }
+    if (!key || !index.has(key)) continue;
     const row = rows[index.get(key)];
     if (!row) continue;
     row.unitsSold += line.quantity || 0;

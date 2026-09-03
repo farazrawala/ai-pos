@@ -12,7 +12,6 @@ import {
   FaRotateLeft,
   FaRotateRight,
   FaUser,
-  FaWarehouse,
 } from 'react-icons/fa6';
 import {
   clearOrderPulse,
@@ -339,7 +338,6 @@ export default function OrderPulseView() {
     status,
     products,
     customers,
-    warehouses,
     payments,
     returns,
     orders,
@@ -486,7 +484,6 @@ export default function OrderPulseView() {
   const statusRows = status?.rows || [];
   const productRows = sortDimensionRows(products?.rows || [], productSort.key, productSort.dir);
   const customerRows = customers?.rows || [];
-  const warehouseRows = warehouses?.rows || [];
   const paymentRows = payments?.rows || [];
   const channelRows = payments?.channels || [];
   const noOrders = !loading && (metrics?.totalOrders || 0) === 0;
@@ -1038,7 +1035,7 @@ export default function OrderPulseView() {
           </div>
 
           <div className="row g-3 mb-4">
-            <div className="col-12 col-xl-6">
+            <div className="col-12">
               <div className="card op-panel h-100 mb-0">
                 <div className="card-header pb-0 d-flex align-items-center gap-2">
                   <NavIcon icon={FaUser} size={14} />
@@ -1077,49 +1074,6 @@ export default function OrderPulseView() {
                               <td className="text-sm">{formatMoney(row.revenue)}</td>
                               <td className="text-sm">{formatMoney(row.profit)}</td>
                               <td className="text-sm">{formatMoney(row.averageOrderValue)}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-12 col-xl-6">
-              <div className="card op-panel h-100 mb-0">
-                <div className="card-header pb-0 d-flex align-items-center gap-2">
-                  <NavIcon icon={FaWarehouse} size={14} />
-                  <h6 className="mb-0">Warehouse performance</h6>
-                </div>
-                <div className="card-body p-0">
-                  <div className="table-responsive">
-                    <table className="table align-items-center mb-0">
-                      <thead>
-                        <tr>
-                          {['Warehouse', 'Orders', 'Revenue', 'COGS', 'Profit', 'Margin'].map((label) => (
-                            <th key={label} className="text-xs text-uppercase">
-                              {label}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {warehouseRows.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="text-center text-muted text-sm py-4">
-                              No warehouse sales in the selected period.
-                            </td>
-                          </tr>
-                        ) : (
-                          warehouseRows.map((row) => (
-                            <tr key={row.warehouseId}>
-                              <td className="text-sm">{row.warehouseName}</td>
-                              <td className="text-sm">{formatCount(row.orders)}</td>
-                              <td className="text-sm">{formatMoney(row.revenue)}</td>
-                              <td className="text-sm">{formatMoney(row.COGS)}</td>
-                              <td className="text-sm">{formatMoney(row.profit)}</td>
-                              <td className="text-sm">{formatPct(row.margin)}</td>
                             </tr>
                           ))
                         )}

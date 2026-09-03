@@ -5,6 +5,7 @@ import {
   buildPulseQuery,
   fetchProductPulseOverview,
   isMongoObjectId,
+  pickDedicatedTimelinePoints,
   sellableProductIds,
 } from './productPulseAPI.js';
 import { skipLimitFromPage } from './productPulseEngine.js';
@@ -64,5 +65,13 @@ describe('ProductPulse API contracts', () => {
     expect(sellableProductIds({ _id: 'parent' }, [{ id: 'a' }, { id: 'b' }], '')).toEqual(['a', 'b']);
     expect(sellableProductIds({ _id: 'parent' }, [{ id: 'a' }, { id: 'b' }], 'b')).toEqual(['b']);
     expect(sellableProductIds({ _id: 'single' }, [], '')).toEqual(['single']);
+  });
+
+  it('ignores empty dedicated timeline payloads so composition can run', () => {
+    expect(pickDedicatedTimelinePoints({ data: [] })).toBeNull();
+    expect(pickDedicatedTimelinePoints({ points: [] })).toBeNull();
+    expect(pickDedicatedTimelinePoints({ data: { points: [{ date: '2026-08', revenue: 100 }] } })).toEqual([
+      { date: '2026-08', revenue: 100 },
+    ]);
   });
 });
