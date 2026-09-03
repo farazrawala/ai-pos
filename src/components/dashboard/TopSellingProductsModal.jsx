@@ -6,6 +6,8 @@ import { fetchTopSellingProductsRequest } from '../../features/orders/ordersAPI.
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { withBase } from '../../config/appBase.js';
 import { formatCurrency } from '../balanceSheet/formatCurrency.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import { toast } from '../../utils/toast.js';
 import NavIcon from '../NavIcon.jsx';
 import '../order/customerOrderHistoryModal.css';
 import './topSellingProductsModal.css';
@@ -139,6 +141,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   const [total, setTotal] = useState(0);
   const [error, setError] = useState(null);
   const [loadElapsedMs, setLoadElapsedMs] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -222,7 +225,56 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     selectedPeriod === 'custom'
       ? formatCustomRangeLabel(customFrom, customTo)
       : PERIOD_OPTIONS.find((opt) => opt.value === selectedPeriod)?.label || '1 month';
+  const range = getDateRangeForPeriod(selectedPeriod, { from: customFrom, to: customTo });
   const maxDate = todayYmd();
+  const canExport = !loading && !error && products.length > 0;
+
+  const handleExport = async (kind) => {
+    if (!products.length) {
+      toast.error('No products to export.');
+      return;
+    }
+    const columns = [
+      { key: 'rank', label: '#' },
+      { key: 'name', label: 'Product' },
+      { key: 'code', label: 'Code' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'sold', label: 'Sold' },
+      { key: 'revenue', label: 'Revenue' },
+      { key: 'profit', label: 'Profit' },
+    ];
+    const rows = products.map((row, index) => ({
+      rank: index + 1,
+      name: row.name,
+      code: row.code || '',
+      sku: row.sku || '',
+      sold: row.totalQty,
+      revenue: row.totalRevenue,
+      profit: row.totalProfit,
+    }));
+    const from = range.from || 'start';
+    const to = range.to || 'end';
+    const filename = `trending-products-${from}-to-${to}`;
+    setExporting(true);
+    try {
+      if (kind === 'csv') exportRowsToCsv({ columns, rows, filename });
+      else if (kind === 'excel') {
+        exportRowsToExcel({ columns, rows, filename, sheetTitle: 'Trending products' });
+      } else {
+        await exportRowsToPdf({
+          columns,
+          rows,
+          filename,
+          title: `Trending products (${selectedPeriodLabel})`,
+        });
+      }
+      toast.success(`Exported ${rows.length} products.`);
+    } catch (err) {
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -301,17 +353,51 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                 ) : null}
               </div>
               <div className="tsp-modal__meta">
-                {loading ? (
-                  <span className="tsp-modal__summary-chip tsp-modal__summary-chip--live">Updating…</span>
-                ) : error ? null : (
-                  <>
-                    <span className="tsp-modal__summary-chip tsp-modal__summary-chip--count">
-                      {total.toLocaleString()} product{total === 1 ? '' : 's'}
-                    </span>
-                    <span className="tsp-modal__summary-chip">{sortLabel}</span>
-                    <span className="tsp-modal__summary-chip">{selectedPeriodLabel}</span>
-                  </>
-                )}
+                <div className="tsp-modal__meta-chips">
+                  {loading ? (
+                    <span className="tsp-modal__summary-chip tsp-modal__summary-chip--live">Updating…</span>
+                  ) : error ? null : (
+                    <>
+                      <span className="tsp-modal__summary-chip tsp-modal__summary-chip--count">
+                        {total.toLocaleString()} product{total === 1 ? '' : 's'}
+                      </span>
+                      <span className="tsp-modal__summary-chip">{sortLabel}</span>
+                      <span className="tsp-modal__summary-chip">{selectedPeriodLabel}</span>
+                    </>
+                  )}
+                </div>
+                <div className="btn-group btn-group-sm tsp-modal__export" role="group" aria-label="Export">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary mb-0"
+                    disabled={!canExport || exporting}
+                    onClick={() => handleExport('csv')}
+                    title="Download CSV"
+                  >
+                    <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary mb-0"
+                    disabled={!canExport || exporting}
+                    onClick={() => handleExport('excel')}
+                    title="Download Excel"
+                  >
+                    <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary mb-0"
+                    disabled={!canExport || exporting}
+                    onClick={() => handleExport('pdf')}
+                    title="Download PDF"
+                  >
+                    <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                    PDF
+                  </button>
+                </div>
               </div>
             </div>
 
