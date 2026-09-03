@@ -1,0 +1,173 @@
+.stock-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.stock-page .stock-page__card {
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(50, 50, 93, 0.06);
+  border-radius: 0.75rem;
+}
+
+.stock-page .stock-page__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #344767;
+  letter-spacing: -0.01em;
+}
+
+.list-data-table.list-data-table--stock .table {
+  min-width: 1080px;
+}
+
+.stock-page .list-data-table--stock .table > :not(caption) > * > * {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+  vertical-align: middle;
+}
+
+.stock-page .list-data-table--stock thead th {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: #8392ab;
+}
+
+.stock-page .list-data-table--stock .list-col-truncate {
+  min-width: 12rem;
+  max-width: 16rem;
+}
+
+.stock-page .sm-product__name {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #344767;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-page .sm-product__sku {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #8392ab;
+  letter-spacing: 0.01em;
+}
+
+.stock-page .list-data-table--stock .list-col-warehouse,
+.stock-page .list-data-table--stock .list-cell-warehouse {
+  min-width: 8.5rem;
+  max-width: 12rem;
+}
+
+.stock-page .list-cell-warehouse {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #67748e;
+}
+
+.stock-page .sm-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.stock-page .sm-pill--in {
+  background: rgba(45, 206, 137, 0.14);
+  color: #0f9f6e;
+}
+
+.stock-page .sm-pill--out {
+  background: rgba(251, 99, 64, 0.12);
+  color: #d9480f;
+}
+
+.stock-page .sm-pill--neutral {
+  background: #f6f9fc;
+  color: #67748e;
+  border: 1px solid #e9ecef;
+}
+
+.stock-page .sm-qty {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.stock-page .sm-qty--in {
+  color: #0f9f6e;
+}
+
+.stock-page .sm-qty--out {
+  color: #d9480f;
+}
+
+.stock-page .sm-ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stock-page .sm-ref__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: #5e72e4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.stock-page a.sm-ref__code:hover {
+  color: #324cdd;
+  text-decoration: underline;
+}
+
+.stock-page .sm-ref__code--plain {
+  color: #344767;
+}
+
+.stock-page .sm-ref__type {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #8392ab;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.stock-page .sm-user {
+  color: #67748e;
+}
+
+.stock-page .sm-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  line-height: 1.3;
+}
+
+.stock-page .sm-date__day {
+  font-size: 0.8rem;
+  color: #344767;
+  white-space: nowrap;
+}
+
+.stock-page .sm-date__rel {
+  font-size: 0.68rem;
+  color: #8392ab;
+  white-space: nowrap;
+}

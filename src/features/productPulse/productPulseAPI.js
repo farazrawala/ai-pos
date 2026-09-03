@@ -56,6 +56,12 @@ const LINE_PAGE_LIMIT = 100;
 const MAX_LINE_PAGES = 50;
 const VARIANT_CONCURRENCY = 8;
 
+function emitPulseProgress(onProgress, payload) {
+  if (typeof onProgress === 'function' && payload && typeof payload === 'object') {
+    onProgress(payload);
+  }
+}
+
 const getAuthToken = () => {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('authToken') || '';
@@ -868,34 +874,41 @@ async function composeOverview({ product, variations, params, productIds, select
 }
 
 export async function fetchProductPulseOverview(params = {}) {
-  const productId = String(params.productId || '').trim();
+  const { onProgress, ...queryParams } = params;
+  const productId = String(queryParams.productId || '').trim();
   if (!isMongoObjectId(productId)) {
     const err = new Error('A valid product id is required.');
     err.status = 400;
     throw err;
   }
-  if (params.variantId && !isMongoObjectId(params.variantId)) {
+  if (queryParams.variantId && !isMongoObjectId(queryParams.variantId)) {
     const err = new Error('A valid variant id is required.');
     err.status = 400;
     throw err;
   }
-  if (params.warehouseId && !isMongoObjectId(params.warehouseId)) {
+  if (queryParams.warehouseId && !isMongoObjectId(queryParams.warehouseId)) {
     const err = new Error('A valid warehouse id is required.');
     err.status = 400;
     throw err;
   }
 
-  const range = resolveDateRange(params.preset, {
-    startDate: params.startDate,
-    endDate: params.endDate,
+  const range = resolveDateRange(queryParams.preset, {
+    startDate: queryParams.startDate,
+    endDate: queryParams.endDate,
   });
   const query = {
     startDate: range.startDate,
     endDate: range.endDate,
-    variantId: params.variantId ? String(params.variantId).trim() : '',
-    warehouseId: params.warehouseId ? String(params.warehouseId).trim() : '',
+    variantId: queryParams.variantId ? String(queryParams.variantId).trim() : '',
+    warehouseId: queryParams.warehouseId ? String(queryParams.warehouseId).trim() : '',
   };
 
+  emitPulseProgress(onProgress, {
+    stage: 'loading',
+    label: 'This section is loading',
+    detail: 'Loading product details…',
+    percent: 12,
+  });
   const { product, variations } = await fetchProductPulseProduct(productId);
   const selectedVariant = query.variantId
     ? variations.find((v) => v.id === query.variantId) || null
@@ -908,8 +921,20 @@ export async function fetchProductPulseOverview(params = {}) {
   const productIds = sellableProductIds(product, variations, query.variantId);
   const card = normalizeProductCard(product, selectedVariant);
 
+  emitPulseProgress(onProgress, {
+    stage: 'loading',
+    label: 'This section is loading',
+    detail: 'Loading sales and cost history…',
+    percent: 28,
+  });
   const dedicated = await fetchDedicatedOrNull(buildProductPulseOverviewUrl(productId, query));
   if (dedicatedOverviewLooksValid(dedicated)) {
+    emitPulseProgress(onProgress, {
+      stage: 'initializing',
+      label: 'This section is initializing',
+      detail: 'Preparing product metrics…',
+      percent: 48,
+    });
     const normalized = normalizeDedicatedOverview(dedicated, card);
     const health = normalized.health || classifyProductHealth(normalized.metrics);
     const insights =
@@ -929,6 +954,12 @@ export async function fetchProductPulseOverview(params = {}) {
     };
   }
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    label: 'This section is initializing',
+    detail: 'Calculating profit and performance…',
+    percent: 42,
+  });
   const composed = await composeOverview({
     product,
     variations,
@@ -1273,27 +1304,40 @@ export function invoicePathForSale(row) {
  * Reuses one product-scoped sale-line fetch for composed sections.
  */
 export async function fetchProductPulseBundle(params = {}) {
-  const overview = await fetchProductPulseOverview(params);
-  const granularity = ['daily', 'weekly', 'monthly'].includes(params.granularity)
-    ? params.granularity
+  const { onProgress, ...rest } = params;
+  emitPulseProgress(onProgress, {
+    stage: 'loading',
+    label: 'This section is loading',
+    detail: 'Starting Product Pulse…',
+    percent: 6,
+  });
+  const overview = await fetchProductPulseOverview({ ...rest, onProgress });
+  const granularity = ['daily', 'weekly', 'monthly'].includes(rest.granularity)
+    ? rest.granularity
     : 'daily';
   const range = overview.range;
   const productIds = overview.productIds || [];
   const query = {
     startDate: range.startDate,
     endDate: range.endDate,
-    variantId: params.variantId,
-    warehouseId: params.warehouseId,
+    variantId: rest.variantId,
+    warehouseId: rest.warehouseId,
   };
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    label: 'This section is initializing',
+    detail: 'Loading timeline, variants, and sales…',
+    percent: 58,
+  });
   const [timelineDedicated, variantsDedicated, warehousesDedicated, sales, warehouses, salePack] =
     await Promise.all([
       fetchDedicatedOrNull(
-        buildProductPulseTimelineUrl(params.productId, { ...query, granularity })
+        buildProductPulseTimelineUrl(rest.productId, { ...query, granularity })
       ),
-      fetchDedicatedOrNull(buildProductPulseVariantsUrl(params.productId, query)),
-      fetchDedicatedOrNull(buildProductPulseWarehousesUrl(params.productId, query)),
-      fetchProductPulseSales({ ...params, page: params.page || 1, limit: params.limit || 25 }),
+      fetchDedicatedOrNull(buildProductPulseVariantsUrl(rest.productId, query)),
+      fetchDedicatedOrNull(buildProductPulseWarehousesUrl(rest.productId, query)),
+      fetchProductPulseSales({ ...rest, page: rest.page || 1, limit: rest.limit || 25 }),
       fetchWarehousesForPulse(),
       fetchProductSaleLines({
         productIds,
@@ -1327,6 +1371,12 @@ export async function fetchProductPulseBundle(params = {}) {
     };
   }
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    label: 'This section is initializing',
+    detail: 'Building charts and tables…',
+    percent: 82,
+  });
   const lineMetrics = aggregateMetrics(salePack.lines, {
     periodDays: inclusiveDayCount(range.startDate, range.endDate),
   });
@@ -1378,6 +1428,12 @@ export async function fetchProductPulseBundle(params = {}) {
     productName: overview.product?.name,
   });
 
+  emitPulseProgress(onProgress, {
+    stage: 'initializing',
+    label: 'This section is initializing',
+    detail: 'Finalizing Product Pulse…',
+    percent: 94,
+  });
   return {
     overview: {
       ...overview,

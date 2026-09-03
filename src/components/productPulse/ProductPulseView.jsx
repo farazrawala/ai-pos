@@ -97,6 +97,60 @@ function SkeletonBlock({ height = 88 }) {
   return <div className="pp-skel w-100" style={{ height }} />;
 }
 
+function timeProgressFloor(elapsedMs) {
+  if (elapsedMs < 1800) return 10 + (elapsedMs / 1800) * 22;
+  if (elapsedMs < 7000) return 32 + ((elapsedMs - 1800) / 5200) * 28;
+  return Math.min(88, 60 + ((elapsedMs - 7000) / 14000) * 28);
+}
+
+function PulseLoadProgress({ progress, elapsedMs }) {
+  const apiPercent = Number(progress?.percent) || 0;
+  const percent = Math.min(96, Math.max(apiPercent, timeProgressFloor(elapsedMs)));
+  const initializing = progress?.stage === 'initializing' || elapsedMs >= 1800;
+  const label = initializing ? 'This section is initializing' : 'This section is loading';
+  const detail = initializing
+    ? progress?.stage === 'initializing' && progress?.detail
+      ? progress.detail
+      : 'Building profit, variants, and warehouse views…'
+    : progress?.detail || 'Fetching product sales and cost data…';
+
+  return (
+    <div className="card pp-panel pp-load mb-4" role="status" aria-live="polite">
+      <div className="card-body">
+        <div className="pp-load__steps">
+          <div className={`pp-load__step ${initializing ? 'is-done' : 'is-active'}`}>
+            <span className="pp-load__step-index">{initializing ? '✓' : '1'}</span>
+            <span>This section is loading</span>
+          </div>
+          <div className={`pp-load__step ${initializing ? 'is-active' : ''}`}>
+            <span className="pp-load__step-index">2</span>
+            <span>This section is initializing</span>
+          </div>
+        </div>
+        <div className="d-flex justify-content-between align-items-baseline gap-3 mb-2">
+          <div>
+            <div className="pp-load__label">{label}</div>
+            <div className="text-xs text-muted">{detail}</div>
+          </div>
+          <div className="pp-load__pct">{Math.round(percent)}%</div>
+        </div>
+        <div
+          className="progress pp-load__bar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(percent)}
+          aria-label={label}
+        >
+          <div
+            className="progress-bar progress-bar-striped progress-bar-animated"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function KpiCard({ label, value, hint, delta, icon: Icon, gradient }) {
   return (
     <div className="card pp-kpi h-100 mb-0">
@@ -231,6 +285,7 @@ export default function ProductPulseView() {
     salesStatus,
     error,
     salesError,
+    loadProgress,
   } = useSelector((s) => s.productPulse);
 
   const [preset, setPreset] = useState(DEFAULT_DATE_PRESET);
@@ -248,6 +303,7 @@ export default function ProductPulseView() {
   const [variantSort, setVariantSort] = useState({ key: 'unitsSold', dir: 'desc' });
   const [warehouseSort, setWarehouseSort] = useState({ key: 'revenue', dir: 'desc' });
   const searchTimer = useRef(null);
+  const [loadElapsedMs, setLoadElapsedMs] = useState(0);
 
   const range = useMemo(
     () => resolveDateRange(preset, { startDate: customStart, endDate: customEnd }),
@@ -363,6 +419,19 @@ export default function ProductPulseView() {
       setVariantId('');
     }
   };
+
+  useEffect(() => {
+    if (status !== 'loading') {
+      setLoadElapsedMs(0);
+      return undefined;
+    }
+    const started = Date.now();
+    setLoadElapsedMs(0);
+    const timer = window.setInterval(() => {
+      setLoadElapsedMs(Date.now() - started);
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [status]);
 
   const product = overview?.product;
   const metrics = overview?.metrics;
@@ -529,15 +598,7 @@ export default function ProductPulseView() {
         </div>
       ) : null}
 
-      {productId && loading ? (
-        <div className="row g-3 mb-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="col-6 col-md-4 col-xl-3">
-              <SkeletonBlock />
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {productId && loading ? <PulseLoadProgress progress={loadProgress} elapsedMs={loadElapsedMs} /> : null}
 
       {product && !loading ? (
         <>

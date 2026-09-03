@@ -198,6 +198,52 @@ export const getReferenceType = (row) => {
   return String(row.reference_type ?? '').trim();
 };
 
+const DOCUMENT_CODE_RE = /\b((?:POR|ORD|PO|PR|SR)-[A-Z0-9-]+)\b/i;
+
+const REFERENCE_TYPE_SHORT = {
+  order: 'Order',
+  sale: 'Order',
+  sales: 'Order',
+  sale_order: 'Order',
+  sales_order: 'Order',
+  purchase_order: 'PO',
+  purchase: 'PO',
+  purchase_return: 'PR',
+  purchase_order_return: 'POR',
+  sales_return: 'SR',
+  sale_return: 'SR',
+  adjustment: 'Adj',
+  transfer: 'Transfer',
+  stock_transfer: 'Transfer',
+};
+
+export function formatReferenceTypeLabel(type) {
+  const raw = String(type || '').trim();
+  if (!raw) return '';
+  const key = raw.toLowerCase().replace(/[\s-]+/g, '_');
+  if (REFERENCE_TYPE_SHORT[key]) return REFERENCE_TYPE_SHORT[key];
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Compact document label for the stock list: prefer ORD-1362 / PO-0706 over
+ * "Order (ORD-1362)" plus a duplicate type badge.
+ */
+export function getReferenceDisplay(row) {
+  const name = getReferenceName(row);
+  const typeLabel = formatReferenceTypeLabel(getReferenceType(row));
+  const match = name.match(DOCUMENT_CODE_RE);
+  const code = match ? match[1].toUpperCase() : '';
+  if (code) {
+    return { primary: code, secondary: '', title: name || code };
+  }
+  if (name && typeLabel && name.toLowerCase() !== typeLabel.toLowerCase()) {
+    return { primary: name, secondary: typeLabel, title: name };
+  }
+  const primary = name || typeLabel;
+  return { primary, secondary: '', title: primary };
+}
+
 /** Mongo `_id` of the linked document (`order`, `purchase_order`, return, …). */
 export const getReferenceId = (row) => {
   if (!row || typeof row !== 'object') return '';

@@ -12,10 +12,11 @@ import {
 } from '../../features/stockMovement/stockMovementSlice.js';
 import {
   getProductLabel,
+  getProductSku,
   getWarehouseLabel,
   getMovementQuantity,
   getMovementType,
-  getReferenceName,
+  getReferenceDisplay,
   getReferenceType,
   getReferenceId,
   getCreatedByLabel,
@@ -30,20 +31,25 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+import './stock-module.css';
 
 const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
 const productOptionName = (p) => p?.name || p?.product_name || 'Product';
 
 const movementBadgeClass = (type) => {
-  if (type === 'in') return 'bg-gradient-success';
-  if (type === 'out') return 'bg-gradient-warning';
-  return 'bg-gradient-secondary';
+  if (type === 'in') return 'sm-pill sm-pill--in';
+  if (type === 'out') return 'sm-pill sm-pill--out';
+  return 'sm-pill sm-pill--neutral';
 };
 
-const formatReferenceTypeLabel = (type) =>
-  String(type || '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+const formatQty = (qty, movementType) => {
+  if (qty == null || qty === '') return '—';
+  const n = Number(qty);
+  if (!Number.isFinite(n)) return String(qty);
+  if (movementType === 'out') return n > 0 ? `−${n}` : String(n);
+  if (movementType === 'in') return n > 0 ? `+${n}` : String(n);
+  return String(n);
+};
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -198,15 +204,15 @@ const StockListing = () => {
   ]);
 
   return (
-    <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
+    <div className="container-fluid py-4 px-0 stock-page" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
         <div className="col-12" style={{ padding: '20px' }}>
-          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
+          <div className="card stock-page__card" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
                 <div className="col-lg-5 col-md-6">
                   <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <h5 className="mb-0">Stock movements</h5>
+                    <h5 className="stock-page__title mb-0">Stock movements</h5>
                     {canTransfer ? (
                       <button
                         type="button"
@@ -279,13 +285,13 @@ const StockListing = () => {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('product_id', 'Product', 'list-col-truncate')}
-                      <th className="list-col-truncate-sm">Warehouse</th>
-                      {sortableTh('movement_type', 'Movement')}
+                      <th className="list-col-warehouse">Warehouse</th>
+                      {sortableTh('movement_type', 'Type')}
                       {sortableTh('quantity', 'Qty', 'text-end')}
-                      {sortableTh('reference_type', 'Reference', 'list-col-truncate')}
+                      {sortableTh('reference_type', 'Reference')}
                       {sortableTh('status', 'Status')}
                       <th className="list-col-truncate-sm">Moved by</th>
-                      {sortableTh('createdAt', 'Created', 'list-col-date')}
+                      {sortableTh('createdAt', 'Date', 'list-col-date')}
                     </tr>
                   </thead>
                   <tbody>
@@ -301,108 +307,94 @@ const StockListing = () => {
                         const key = item._id || item.id || index;
                         const movementType = getMovementType(item);
                         const qty = getMovementQuantity(item);
-                        const refName = getReferenceName(item);
+                        const ref = getReferenceDisplay(item);
                         const refType = getReferenceType(item);
                         const refRoute = routeForReferenceType(refType, getReferenceId(item));
                         const productLabel = getProductLabel(item);
+                        const productSku = getProductSku(item);
                         const warehouse = getWarehouseLabel(item);
                         const movedBy = getCreatedByLabel(item);
                         const created = item.createdAt || item.created_at;
                         const isActive = String(item.status || '').toLowerCase() === 'active';
-                        const refBody =
-                          refName || refType ? (
-                            <div className="d-flex flex-column gap-1">
-                              {refName ? (
-                                <span
-                                  className={`text-truncate${
-                                    refRoute ? ' text-primary text-decoration-underline' : ''
-                                  }`}
-                                  title={refRoute ? refRoute.title : refName}
-                                >
-                                  {refName}
-                                </span>
-                              ) : null}
-                              {refType ? (
-                                <span className="badge text-xxs bg-light text-dark border align-self-start">
-                                  {formatReferenceTypeLabel(refType)}
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null;
+                        const qtyClass =
+                          movementType === 'in'
+                            ? 'sm-qty sm-qty--in'
+                            : movementType === 'out'
+                              ? 'sm-qty sm-qty--out'
+                              : 'sm-qty';
+                        const refEl = ref.primary ? (
+                          <span className="sm-ref">
+                            {refRoute ? (
+                              <Link
+                                to={refRoute.to}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="sm-ref__code"
+                                title={refRoute.title}
+                              >
+                                {ref.primary}
+                              </Link>
+                            ) : (
+                              <span className="sm-ref__code sm-ref__code--plain" title={ref.title}>
+                                {ref.primary}
+                              </span>
+                            )}
+                            {ref.secondary ? <span className="sm-ref__type">{ref.secondary}</span> : null}
+                          </span>
+                        ) : null;
                         return (
                           <tr key={key}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                            <td
-                              className="text-sm font-weight-bold text-dark list-cell-truncate"
-                              title={productLabel}
-                            >
-                              {productLabel || '—'}
+                            <td title={productLabel}>
+                              <span className="sm-product">
+                                <span className="sm-product__name">{productLabel || '—'}</span>
+                                {productSku && productSku !== '—' ? (
+                                  <span className="sm-product__sku">{productSku}</span>
+                                ) : null}
+                              </span>
                             </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm"
-                              title={warehouse || undefined}
-                            >
+                            <td className="text-sm list-cell-warehouse" title={warehouse || undefined}>
                               {warehouse || '—'}
                             </td>
                             <td className="text-sm">
                               {movementType ? (
-                                <span
-                                  className={`badge text-xxs ${movementBadgeClass(movementType)}`}
-                                >
-                                  {movementType.toUpperCase()}
+                                <span className={movementBadgeClass(movementType)}>
+                                  {movementType}
                                 </span>
                               ) : (
                                 '—'
                               )}
                             </td>
-                            <td className="text-sm text-end font-weight-bold">
-                              {qty != null ? qty : '—'}
+                            <td className={`text-sm text-end ${qtyClass}`}>
+                              {formatQty(qty, movementType)}
                             </td>
-                            <td className="text-sm list-cell-truncate">
-                              {refBody ? (
-                                refRoute ? (
-                                  <Link
-                                    to={refRoute.to}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-decoration-none"
-                                    title={refRoute.title}
-                                  >
-                                    {refBody}
-                                  </Link>
-                                ) : (
-                                  refBody
-                                )
-                              ) : (
-                                '—'
-                              )}
-                            </td>
+                            <td className="text-sm">{refEl || '—'}</td>
                             <td className="text-sm">
                               {item.status ? (
-                                <span
-                                  className={`badge text-xxs ${
-                                    isActive ? 'bg-gradient-success' : 'bg-gradient-secondary'
-                                  }`}
-                                >
+                                <span className={`sm-pill ${isActive ? 'sm-pill--neutral' : 'sm-pill--out'}`}>
                                   {item.status}
                                 </span>
                               ) : (
                                 '—'
                               )}
                             </td>
-                            <td
-                              className="text-sm list-cell-truncate-sm"
-                              title={movedBy || undefined}
-                            >
+                            <td className="text-sm list-cell-truncate-sm sm-user" title={movedBy || undefined}>
                               {movedBy || '—'}
                             </td>
                             <td
-                              className="text-sm text-nowrap list-col-date"
+                              className="text-sm list-col-date"
                               title={
                                 created ? moment(created).format('DD MMM YYYY h:mm a') : undefined
                               }
                             >
-                              {created ? moment(created).fromNow() : '—'}
+                              {created ? (
+                                <span className="sm-date">
+                                  <span className="sm-date__day">{moment(created).format('DD MMM YYYY')}</span>
+                                  <span className="sm-date__rel">{moment(created).fromNow()}</span>
+                                </span>
+                              ) : (
+                                '—'
+                              )}
                             </td>
                           </tr>
                         );

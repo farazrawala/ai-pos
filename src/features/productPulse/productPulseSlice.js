@@ -14,15 +14,23 @@ const defaultSalesPagination = {
   cursor: null,
 };
 
+const idleLoadProgress = {
+  percent: 0,
+  stage: 'idle',
+  label: '',
+  detail: '',
+};
+
 export const loadProductPulse = createAsyncThunk(
   'productPulse/load',
-  async (params, { rejectWithValue }) => {
+  async (params, { dispatch, rejectWithValue }) => {
     try {
       return await fetchProductPulseBundle({
         ...params,
         granularity: params.granularity || 'daily',
         page: params.page || 1,
         limit: params.limit || 25,
+        onProgress: (progress) => dispatch(setLoadProgress(progress)),
       });
     } catch (e) {
       return rejectWithValue({
@@ -77,8 +85,19 @@ const productPulseSlice = createSlice({
     error: null,
     timelineError: null,
     salesError: null,
+    loadProgress: { ...idleLoadProgress },
   },
   reducers: {
+    setLoadProgress: (state, action) => {
+      const next = action.payload || {};
+      const percent = Number(next.percent);
+      if (Number.isFinite(percent)) {
+        state.loadProgress.percent = Math.max(state.loadProgress.percent || 0, Math.min(100, percent));
+      }
+      if (next.stage) state.loadProgress.stage = next.stage;
+      if (next.label) state.loadProgress.label = next.label;
+      if (next.detail != null) state.loadProgress.detail = next.detail;
+    },
     setProductPulseFilters: (state, action) => {
       const next = action.payload || {};
       if (next.productId != null) state.productId = next.productId;
@@ -102,6 +121,7 @@ const productPulseSlice = createSlice({
       state.error = null;
       state.timelineError = null;
       state.salesError = null;
+      state.loadProgress = { ...idleLoadProgress };
     },
     setSalesPage: (state, action) => {
       state.salesPagination.page = action.payload;
@@ -127,11 +147,18 @@ const productPulseSlice = createSlice({
         if (arg.preset) state.preset = arg.preset;
         if (arg.startDate) state.startDate = arg.startDate;
         if (arg.endDate) state.endDate = arg.endDate;
+        state.loadProgress = {
+          percent: 8,
+          stage: 'loading',
+          label: 'This section is loading',
+          detail: 'Fetching product data…',
+        };
       })
       .addCase(loadProductPulse.fulfilled, (state, action) => {
         state.status = 'succeeded';
         state.timelineStatus = 'succeeded';
         state.salesStatus = 'succeeded';
+        state.loadProgress = { percent: 100, stage: 'ready', label: '', detail: '' };
         state.overview = action.payload.overview;
         state.timeline = action.payload.timeline;
         state.variants = action.payload.variants;
@@ -151,6 +178,7 @@ const productPulseSlice = createSlice({
         state.variants = null;
         state.warehouses = null;
         state.sales = [];
+        state.loadProgress = { ...idleLoadProgress };
       })
       .addCase(loadProductPulseTimeline.pending, (state) => {
         state.timelineStatus = 'loading';
@@ -181,6 +209,6 @@ const productPulseSlice = createSlice({
   },
 });
 
-export const { setProductPulseFilters, clearProductPulse, setSalesPage, setSalesLimit } =
+export const { setProductPulseFilters, setLoadProgress, clearProductPulse, setSalesPage, setSalesLimit } =
   productPulseSlice.actions;
 export default productPulseSlice.reducer;
