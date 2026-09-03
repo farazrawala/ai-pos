@@ -203,6 +203,107 @@
   border-bottom: 1px solid #eef0f5;
 }
 
+.profit-report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+}
+
+.profit-report-toolbar__meta {
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.profit-report-toolbar__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.profit-report-toolbar__heading .profit-report-section-title {
+  margin: 0;
+}
+
+.profit-report-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #5e72e4;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.profit-report-toolbar__hint {
+  margin: 0.28rem 0 0;
+  font-size: 0.72rem;
+  color: #8392ab;
+}
+
+.profit-report-toolbar__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.profit-report-toolbar__stats {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #67748e;
+  white-space: nowrap;
+}
+
+.profit-report-search {
+  width: 220px;
+  flex: 0 0 220px;
+}
+
+.profit-report-search .input-group-text {
+  background: #f8f9fe;
+  border-color: #e2e8f0;
+  color: #8392ab;
+}
+
+.profit-report-search .form-control {
+  border-color: #e2e8f0;
+}
+
+.profit-report-search .form-control:focus {
+  border-color: rgba(94, 114, 228, 0.55);
+  box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.12);
+}
+
+.profit-report-export {
+  flex: 0 0 auto;
+}
+
+.profit-report-export .btn {
+  min-width: 4.75rem;
+  font-weight: 650;
+}
+
+@media (max-width: 767.98px) {
+  .profit-report-toolbar__actions {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .profit-report-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
 .profit-report-page .profit-report-lines-table th {
   font-weight: 700;
   letter-spacing: 0.03em;

@@ -28,6 +28,7 @@ import NavIcon from '../NavIcon.jsx';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import ListDataTable from '../list/ListDataTable.jsx';
 import SearchableSelect from '../common/SearchableSelect.jsx';
+import SearchInputIcon from '../SearchInputIcon.jsx';
 import { DEBUG } from '../../config/env.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
 import ProfitLast3MonthsChart from './ProfitLast3MonthsChart.jsx';
@@ -158,6 +159,83 @@ function OrderDetailLink({ orderId, orderNo, className = 'fw-semibold text-prima
     >
       {label}
     </Link>
+  );
+}
+
+function PanelToolbar({
+  title,
+  countText,
+  hint,
+  searchValue,
+  searchPlaceholder,
+  searchAriaLabel,
+  onSearchChange,
+  extra = null,
+  showExport = false,
+  exportDisabled = false,
+  exporting = false,
+  onExport,
+}) {
+  return (
+    <div className="profit-report-toolbar">
+      <div className="profit-report-toolbar__meta">
+        <div className="profit-report-toolbar__heading">
+          <h6 className="profit-report-section-title mb-0">{title}</h6>
+          {countText ? <span className="profit-report-count">{countText}</span> : null}
+        </div>
+        {hint ? <p className="profit-report-toolbar__hint">{hint}</p> : null}
+      </div>
+      <div className="profit-report-toolbar__actions">
+        {extra}
+        <div className="input-group input-group-sm profit-report-search">
+          <span className="input-group-text">
+            <SearchInputIcon />
+          </span>
+          <input
+            type="search"
+            className="form-control"
+            placeholder={searchPlaceholder}
+            value={searchValue}
+            onChange={onSearchChange}
+            aria-label={searchAriaLabel}
+          />
+        </div>
+        {showExport ? (
+          <div className="btn-group btn-group-sm profit-report-export" role="group" aria-label="Export">
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              disabled={exportDisabled || exporting}
+              onClick={() => onExport('csv')}
+              title="Download CSV"
+            >
+              <i className="fas fa-file-csv me-1" aria-hidden="true" />
+              CSV
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              disabled={exportDisabled || exporting}
+              onClick={() => onExport('excel')}
+              title="Download Excel"
+            >
+              <i className="fas fa-file-excel me-1" aria-hidden="true" />
+              Excel
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary mb-0"
+              disabled={exportDisabled || exporting}
+              onClick={() => onExport('pdf')}
+              title="Download PDF"
+            >
+              <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+              PDF
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -767,67 +845,31 @@ export default function ProfitReportView() {
 
           {orderProfitRows.length > 0 || linesPagination.total > 0 ? (
             <div className="card profit-report-panel mb-4">
-              <div className="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-start gap-2">
-                <div>
-                  <h6 className="profit-report-section-title mb-0">Profit by order</h6>
-                  <p className="text-xs text-muted mb-0">
-                    {ordersListTotal > 0
-                      ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal}${
-                          orderSearchQuery ? ' matching' : ''
-                        } — click an order to open details.`
-                      : orderSearchQuery
-                        ? 'No orders match this search.'
-                        : 'Click an order to open details.'}
-                  </p>
-                </div>
-                <div className="d-flex flex-wrap align-items-center gap-2">
-                  <input
-                    type="search"
-                    className="form-control form-control-sm"
-                    style={{ minWidth: 180, maxWidth: 240 }}
-                    placeholder="Search orders…"
-                    value={orderTableSearch}
-                    onChange={(e) => {
-                      setOrderTableSearch(e.target.value);
-                      dispatch(setLinesPage(1));
-                    }}
-                    aria-label="Search profit by order"
-                  />
-                  <span className="text-xs text-uppercase fw-bold text-muted me-1">
-                    <i className="fas fa-download me-1" aria-hidden="true" />
-                    Export all
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success btn-sm mb-0"
-                    disabled={exporting || loading || orderProfitRows.length === 0}
-                    onClick={() => handleExportOrders('csv')}
-                    title="Download all orders as CSV"
-                  >
-                    <i className="fas fa-file-csv me-1" aria-hidden="true" />
-                    {exporting ? 'Exporting…' : 'CSV'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success btn-sm mb-0"
-                    disabled={exporting || loading || orderProfitRows.length === 0}
-                    onClick={() => handleExportOrders('excel')}
-                    title="Download all orders as Excel"
-                  >
-                    <i className="fas fa-file-excel me-1" aria-hidden="true" />
-                    Excel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger btn-sm mb-0"
-                    disabled={exporting || loading || orderProfitRows.length === 0}
-                    onClick={() => handleExportOrders('pdf')}
-                    title="Download all orders as PDF"
-                  >
-                    <i className="fas fa-file-pdf me-1" aria-hidden="true" />
-                    PDF
-                  </button>
-                </div>
+              <div className="card-header bg-transparent">
+                <PanelToolbar
+                  title="Profit by order"
+                  countText={
+                    ordersListTotal > 0
+                      ? `${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal}`
+                      : '0'
+                  }
+                  hint={
+                    orderSearchQuery
+                      ? 'Filtered results — click an order to open the invoice.'
+                      : 'Click an order to open the invoice.'
+                  }
+                  searchValue={orderTableSearch}
+                  searchPlaceholder="Search orders…"
+                  searchAriaLabel="Search profit by order"
+                  onSearchChange={(e) => {
+                    setOrderTableSearch(e.target.value);
+                    dispatch(setLinesPage(1));
+                  }}
+                  showExport
+                  exportDisabled={loading || orderProfitRows.length === 0}
+                  exporting={exporting}
+                  onExport={handleExportOrders}
+                />
               </div>
               <div className="card-body p-0">
                 <ListDataTable
@@ -967,39 +1009,35 @@ export default function ProfitReportView() {
           ) : null}
 
           <div className="card profit-report-panel">
-            <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 bg-transparent">
-              <div>
-                <h6 className="profit-report-section-title mb-0">Profit lines by order</h6>
-                <p className="text-xs text-muted mb-0">
-                  {lineTableTotal > 0
-                    ? `Showing ${lineRangeStart}–${lineRangeEnd} of ${lineTableTotal} orders${
-                        lineSearchQuery ? ' matching' : ''
-                      } — headers are order totals, rows below are line items.`
-                    : lineSearchQuery
-                      ? 'No orders or products match this search.'
-                      : 'Order headers show merged profit; rows below are line items.'}
-                </p>
-              </div>
-              <div className="d-flex flex-wrap align-items-center gap-2">
-                {pageLinesSummary ? (
-                  <div className="text-xs text-muted text-end me-1">
-                    Page: {fmt(pageLinesSummary.profit)} profit · {pageLinesSummary.lineCount} lines ·{' '}
-                    {pageMarginText} margin
-                  </div>
-                ) : null}
-                <input
-                  type="search"
-                  className="form-control form-control-sm"
-                  style={{ minWidth: 180, maxWidth: 240 }}
-                  placeholder="Search order or product…"
-                  value={lineTableSearch}
-                  onChange={(e) => {
-                    setLineTableSearch(e.target.value);
-                    setLineTablePage(1);
-                  }}
-                  aria-label="Search profit lines"
-                />
-              </div>
+            <div className="card-header bg-transparent">
+              <PanelToolbar
+                title="Profit lines by order"
+                countText={
+                  lineTableTotal > 0
+                    ? `${lineRangeStart}–${lineRangeEnd} of ${lineTableTotal}`
+                    : '0'
+                }
+                hint={
+                  lineSearchQuery
+                    ? 'Filtered by order or product.'
+                    : 'Order headers are totals; rows below are line items.'
+                }
+                searchValue={lineTableSearch}
+                searchPlaceholder="Search order or product…"
+                searchAriaLabel="Search profit lines"
+                onSearchChange={(e) => {
+                  setLineTableSearch(e.target.value);
+                  setLineTablePage(1);
+                }}
+                extra={
+                  pageLinesSummary ? (
+                    <span className="profit-report-toolbar__stats">
+                      {fmt(pageLinesSummary.profit)} · {pageLinesSummary.lineCount} lines ·{' '}
+                      {pageMarginText}
+                    </span>
+                  ) : null
+                }
+              />
             </div>
             <div className="card-body p-0">
               {linesError ? (
