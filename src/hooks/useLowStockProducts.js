@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchLowStockAlertsRequest } from '../features/alerts/alertsAPI.js';
 
-const DISPLAY_LIMIT = 50;
+const DISPLAY_LIMIT = 8;
 
 export function useLowStockProducts() {
   const [state, setState] = useState({

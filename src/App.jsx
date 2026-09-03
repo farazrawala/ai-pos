@@ -104,6 +104,7 @@ import PrinterSettings from './routes/printerSettings/index.jsx';
 import ProfitReportPage from './routes/profitReport/index.jsx';
 import ProductPulsePage from './routes/productPulse/index.jsx';
 import OrderPulsePage from './routes/orderPulse/index.jsx';
+import LowStockAlertsPage from './routes/lowStockAlerts/index.jsx';
 import ExpenseIndex from './routes/expense/index.jsx';
 import ExpenseAdd from './routes/expense/add.jsx';
 import ExpenseEdit from './routes/expense/edit.jsx';
@@ -312,6 +313,7 @@ const App = () => {
           <Route path="/profit-report" element={<ProfitReportPage />} />
           <Route path="/product-pulse" element={<ProductPulsePage />} />
           <Route path="/order-pulse" element={<OrderPulsePage />} />
+          <Route path="/low-stock-alerts" element={<LowStockAlertsPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />
@@ -510,6 +512,7 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/profit-report" element={<ProfitReportPage />} />
           <Route path="/product-pulse" element={<ProductPulsePage />} />
           <Route path="/order-pulse" element={<OrderPulsePage />} />
+          <Route path="/low-stock-alerts" element={<LowStockAlertsPage />} />
           <Route path="/income-statement" element={<IncomeStatementPage />} />
           <Route path="/payments" element={<PaymentManagementPage />} />
           <Route path="/payment-receipts" element={<PaymentReceiptsList />} />

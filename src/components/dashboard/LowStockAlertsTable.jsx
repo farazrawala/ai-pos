@@ -24,7 +24,11 @@ export default function LowStockAlertsTable() {
     <div className="card h-100">
       <div className="card-header pb-0 pt-3 bg-transparent d-flex align-items-start justify-content-between gap-3">
         <div>
-          <h6 className="text-capitalize mb-0">Low stock alerts</h6>
+          <h6 className="text-capitalize mb-0">
+            <Link to="/low-stock-alerts" className="text-dark">
+              Low stock alerts
+            </Link>
+          </h6>
           <p className="text-sm mb-0 text-secondary">
             Products at or below their alert quantity
           </p>
@@ -148,9 +152,9 @@ export default function LowStockAlertsTable() {
           </table>
         </div>
         {!loading && !error ? (
-          <div className="px-4 pt-2">
-            <Link to="/products" className="text-sm text-primary font-weight-bold">
-              View all products
+          <div className="px-4 pt-2 d-flex justify-content-between align-items-center gap-2">
+            <Link to="/low-stock-alerts" className="text-sm text-primary font-weight-bold">
+              {total > items.length ? `View all ${total} alerts` : 'View all alerts'}
             </Link>
           </div>
         ) : null}
