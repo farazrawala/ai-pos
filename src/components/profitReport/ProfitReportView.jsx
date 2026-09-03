@@ -10,8 +10,12 @@ import {
   buildLastNMonthRanges,
   groupProfitLinesByOrder,
   summarizeOrderProfitGroups,
+  buildProfitByOrderExportRows,
+  getProfitByOrderExportColumns,
   PROFIT_ORDERS_PAGE_SIZE,
 } from '../../features/profitReport/profitReportAPI.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import { toast } from '../../utils/toast.js';
 import {
   fetchOrdersRequest,
   pickOrderDocumentId,
@@ -60,6 +64,19 @@ function formatDiscountPercent(discount, subtotal) {
   const s = Number(subtotal);
   if (!Number.isFinite(d) || d <= 0 || !Number.isFinite(s) || s === 0) return '—';
   return `${((d / s) * 100).toFixed(1)}%`;
+}
+
+function orderNetProfit(order) {
+  if (order?.netProfit != null && Number.isFinite(Number(order.netProfit))) {
+    return Number(order.netProfit);
+  }
+  return (Number(order?.orderProfit) || 0) - (Number(order?.discount) || 0);
+}
+
+function profitValueClass(n) {
+  if (n > 0) return 'text-success';
+  if (n < 0) return 'text-danger';
+  return 'text-muted';
 }
 
 function GlanceKpi({
@@ -150,6 +167,7 @@ export default function ProfitReportView() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [filterError, setFilterError] = useState('');
+  const [exporting, setExporting] = useState(false);
   const loadRef = useRef(null);
 
   const loadOrderOptions = useCallback(async () => {
@@ -296,6 +314,37 @@ export default function ProfitReportView() {
 
   const handleLinesLimitChange = (limit) => {
     dispatch(setLinesLimit(limit));
+  };
+
+  const handleExportOrders = async (kind) => {
+    if (!orderProfitRows.length) {
+      toast.error('No orders to export.');
+      return;
+    }
+    const from = lastParams?.startDate || startDate;
+    const to = lastParams?.endDate || endDate;
+    const filename = `profit-by-order-${from}-to-${to}`;
+    const columns = getProfitByOrderExportColumns(formatDisplayDate);
+    const rows = buildProfitByOrderExportRows(orderProfitRows);
+    setExporting(true);
+    try {
+      if (kind === 'csv') exportRowsToCsv({ columns, rows, filename });
+      else if (kind === 'excel') {
+        exportRowsToExcel({ columns, rows, filename, sheetTitle: 'Profit by order' });
+      } else {
+        await exportRowsToPdf({
+          columns,
+          rows,
+          filename,
+          title: `Profit by order (${formatDisplayDate(from)} – ${formatDisplayDate(to)})`,
+        });
+      }
+      toast.success(`Exported ${orderProfitRows.length} orders.`);
+    } catch (err) {
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const fmt = formatCurrencyAccounting;
@@ -623,13 +672,51 @@ export default function ProfitReportView() {
 
           {orderProfitRows.length > 0 || linesPagination.total > 0 ? (
             <div className="card profit-report-panel mb-4">
-              <div className="card-header bg-transparent">
-                <h6 className="profit-report-section-title mb-0">Profit by order</h6>
-                <p className="text-xs text-muted mb-0">
-                  {ordersListTotal > 0
-                    ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal} — click an order to open details.`
-                    : 'Click an order to open details.'}
-                </p>
+              <div className="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                  <h6 className="profit-report-section-title mb-0">Profit by order</h6>
+                  <p className="text-xs text-muted mb-0">
+                    {ordersListTotal > 0
+                      ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal} — click an order to open details.`
+                      : 'Click an order to open details.'}
+                  </p>
+                </div>
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <span className="text-xs text-uppercase fw-bold text-muted me-1">
+                    <i className="fas fa-download me-1" aria-hidden="true" />
+                    Export all
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success btn-sm mb-0"
+                    disabled={exporting || loading || orderProfitRows.length === 0}
+                    onClick={() => handleExportOrders('csv')}
+                    title="Download all orders as CSV"
+                  >
+                    <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                    {exporting ? 'Exporting…' : 'CSV'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success btn-sm mb-0"
+                    disabled={exporting || loading || orderProfitRows.length === 0}
+                    onClick={() => handleExportOrders('excel')}
+                    title="Download all orders as Excel"
+                  >
+                    <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger btn-sm mb-0"
+                    disabled={exporting || loading || orderProfitRows.length === 0}
+                    onClick={() => handleExportOrders('pdf')}
+                    title="Download all orders as PDF"
+                  >
+                    <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                    PDF
+                  </button>
+                </div>
               </div>
               <div className="card-body p-0">
                 <ListDataTable
@@ -651,6 +738,7 @@ export default function ProfitReportView() {
                         <th className="text-end text-xxs text-uppercase">Discount %</th>
                         <th className="text-end text-xxs text-uppercase">Discount</th>
                         <th className="text-end text-xxs text-uppercase">Order profit</th>
+                        <th className="text-end text-xxs text-uppercase">Net profit</th>
                         <th className="text-end text-xxs text-uppercase">Margin</th>
                         <th className="text-xxs text-uppercase">Date</th>
                       </tr>
@@ -658,18 +746,15 @@ export default function ProfitReportView() {
                     <tbody>
                       {pagedOrderRows.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center py-5 text-muted text-sm">
+                          <td colSpan={9} className="text-center py-5 text-muted text-sm">
                             No orders on this page. Adjust filters or date range.
                           </td>
                         </tr>
                       ) : (
                         pagedOrderRows.map((order) => {
-                        const profitClass =
-                          order.orderProfit > 0
-                            ? 'text-success'
-                            : order.orderProfit < 0
-                              ? 'text-danger'
-                              : 'text-muted';
+                        const netProfit = orderNetProfit(order);
+                        const profitClass = profitValueClass(order.orderProfit);
+                        const netProfitClass = profitValueClass(netProfit);
                         const orderMargin =
                           order.marginPct != null && Number.isFinite(order.marginPct)
                             ? `${order.marginPct.toFixed(1)}%`
@@ -704,6 +789,9 @@ export default function ProfitReportView() {
                             </td>
                             <td className={`text-sm text-end fw-semibold ${profitClass}`}>
                               {fmt(order.orderProfit)}
+                            </td>
+                            <td className={`text-sm text-end fw-semibold ${netProfitClass}`}>
+                              {fmt(netProfit)}
                             </td>
                             <td className="text-sm text-end">{orderMargin}</td>
                             <td className="text-sm text-nowrap">
@@ -746,6 +834,9 @@ export default function ProfitReportView() {
                         </td>
                         <td className="text-sm text-end fw-semibold text-primary">
                           {fmt(pageOrdersSummary.profit)}
+                        </td>
+                        <td className="text-sm text-end fw-semibold text-primary">
+                          {fmt(pageOrdersSummary.netProfit)}
                         </td>
                         <td className="text-sm text-end fw-semibold">
                           {pageOrdersSummary.marginPct != null &&
@@ -819,12 +910,8 @@ export default function ProfitReportView() {
                       </tr>
                     ) : (
                       groupedLines.map((group, groupIndex) => {
-                        const orderProfitClass =
-                          group.orderProfit > 0
-                            ? 'text-success'
-                            : group.orderProfit < 0
-                              ? 'text-danger'
-                              : 'text-muted';
+                        const netProfit = orderNetProfit(group);
+                        const orderProfitClass = profitValueClass(netProfit);
                         let lineOffset = 0;
                         for (let i = 0; i < groupIndex; i += 1) {
                           lineOffset += groupedLines[i].lines.length + 1;
@@ -857,7 +944,7 @@ export default function ProfitReportView() {
                               <td
                                 className={`text-sm text-end fw-bold ${orderProfitClass}`}
                               >
-                                {fmt(group.orderProfit)}
+                                {fmt(netProfit)}
                                 {group.discount > 0 ? (
                                   <div className="text-xxs text-danger fw-normal">
                                     after −{fmt(group.discount)} discount

@@ -209,20 +209,21 @@ export async function fetchPeriodOrderDiscountTotal(params = {}) {
 }
 
 /**
- * Subtract order discounts from grouped line profits.
- * Gross line profit is (qty × price) − (qty × cost); net = gross − order discount.
+ * Keep gross line profit on `orderProfit`; net = gross − order discount.
  */
 export function applyDiscountsToOrderProfitGroups(groups, orders) {
   const lookup = buildOrderDiscountLookup(orders);
   return (Array.isArray(groups) ? groups : []).map((group) => {
     const discount = resolveOrderDiscount(lookup, group.orderId, group.orderNo);
-    const orderProfit = parseProfitNumber(group.orderProfit) - discount;
+    const orderProfit = parseProfitNumber(group.orderProfit);
+    const netProfit = orderProfit - discount;
     return {
       ...group,
       discount,
       orderProfit,
+      netProfit,
       marginPct:
-        group.orderSubtotal !== 0 ? (orderProfit / group.orderSubtotal) * 100 : null,
+        group.orderSubtotal !== 0 ? (netProfit / group.orderSubtotal) * 100 : null,
     };
   });
 }
@@ -413,6 +414,7 @@ export function groupProfitLinesByOrder(lines) {
         orderProfit: 0,
         orderSubtotal: 0,
         discount: 0,
+        netProfit: 0,
         itemCount: 0,
         marginPct: null,
       };
@@ -427,8 +429,9 @@ export function groupProfitLinesByOrder(lines) {
 
   for (const group of groups) {
     group.itemCount = group.lines.length;
+    group.netProfit = parseProfitNumber(group.orderProfit) - parseProfitNumber(group.discount);
     group.marginPct =
-      group.orderSubtotal !== 0 ? (group.orderProfit / group.orderSubtotal) * 100 : null;
+      group.orderSubtotal !== 0 ? (group.netProfit / group.orderSubtotal) * 100 : null;
   }
 
   return groups;
@@ -439,19 +442,115 @@ export function groupProfitLinesByOrder(lines) {
  */
 export function summarizeOrderProfitGroups(orderGroups) {
   const groups = Array.isArray(orderGroups) ? orderGroups : [];
-  const profit = groups.reduce((sum, row) => sum + row.orderProfit, 0);
-  const subtotal = groups.reduce((sum, row) => sum + row.orderSubtotal, 0);
+  const profit = groups.reduce((sum, row) => sum + parseProfitNumber(row.orderProfit), 0);
+  const netProfit = groups.reduce(
+    (sum, row) => sum + parseProfitNumber(row.netProfit ?? parseProfitNumber(row.orderProfit) - parseProfitNumber(row.discount)),
+    0
+  );
+  const subtotal = groups.reduce((sum, row) => sum + parseProfitNumber(row.orderSubtotal ?? row.itemsSubtotal), 0);
   const discount = groups.reduce((sum, row) => sum + parseProfitNumber(row.discount), 0);
-  const lineCount = groups.reduce((sum, row) => sum + row.itemCount, 0);
-  const marginPct = subtotal !== 0 ? (profit / subtotal) * 100 : null;
+  const lineCount = groups.reduce((sum, row) => sum + (Number(row.itemCount) || 0), 0);
+  const marginPct = subtotal !== 0 ? (netProfit / subtotal) * 100 : null;
   return {
     orderCount: groups.length,
     lineCount,
     profit,
+    netProfit,
     subtotal,
     discount,
     marginPct,
   };
+}
+
+function formatExportMoney(n) {
+  return parseProfitNumber(n).toFixed(2);
+}
+
+function formatExportPct(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  return Number(n).toFixed(1);
+}
+
+export function discountPctForExport(discount, subtotal) {
+  const d = parseProfitNumber(discount);
+  const s = parseProfitNumber(subtotal);
+  if (d <= 0 || s === 0) return '';
+  return ((d / s) * 100).toFixed(1);
+}
+
+/** Append a TOTAL row matching the profit-by-order table columns. */
+export function buildProfitByOrderExportRows(orders) {
+  const rows = Array.isArray(orders) ? orders : [];
+  const itemCount = rows.reduce((sum, row) => sum + (Number(row.itemCount) || 0), 0);
+  const itemsSubtotal = rows.reduce((sum, row) => sum + parseProfitNumber(row.itemsSubtotal), 0);
+  const discount = rows.reduce((sum, row) => sum + parseProfitNumber(row.discount), 0);
+  const orderProfit = rows.reduce((sum, row) => sum + parseProfitNumber(row.orderProfit), 0);
+  const netProfit = rows.reduce(
+    (sum, row) =>
+      sum + parseProfitNumber(row.netProfit ?? parseProfitNumber(row.orderProfit) - parseProfitNumber(row.discount)),
+    0
+  );
+  return [
+    ...rows,
+    {
+      orderNo: 'TOTAL',
+      orderId: '',
+      itemCount,
+      itemsSubtotal,
+      discount,
+      orderProfit,
+      netProfit,
+      marginPct: itemsSubtotal !== 0 ? (netProfit / itemsSubtotal) * 100 : null,
+      orderDate: null,
+    },
+  ];
+}
+
+/** @param {(d: unknown) => string} formatDate */
+export function getProfitByOrderExportColumns(formatDate) {
+  return [
+    { key: 'orderNo', label: 'Order', value: (row) => row.orderNo || '' },
+    { key: 'orderId', label: 'Order ID', value: (row) => row.orderId || '' },
+    { key: 'itemCount', label: 'Items' },
+    {
+      key: 'itemsSubtotal',
+      label: 'Items subtotal (PKR)',
+      value: (row) => formatExportMoney(row.itemsSubtotal),
+    },
+    {
+      key: 'discountPct',
+      label: 'Discount %',
+      value: (row) => discountPctForExport(row.discount, row.itemsSubtotal),
+    },
+    {
+      key: 'discount',
+      label: 'Discount (PKR)',
+      value: (row) => formatExportMoney(row.discount),
+    },
+    {
+      key: 'orderProfit',
+      label: 'Order profit (PKR)',
+      value: (row) => formatExportMoney(row.orderProfit),
+    },
+    {
+      key: 'netProfit',
+      label: 'Net profit (PKR)',
+      value: (row) =>
+        formatExportMoney(
+          row.netProfit ?? parseProfitNumber(row.orderProfit) - parseProfitNumber(row.discount)
+        ),
+    },
+    {
+      key: 'marginPct',
+      label: 'Margin %',
+      value: (row) => formatExportPct(row.marginPct),
+    },
+    {
+      key: 'orderDate',
+      label: 'Date',
+      value: (row) => (row.orderDate && typeof formatDate === 'function' ? formatDate(row.orderDate) : ''),
+    },
+  ];
 }
 
 /**
@@ -497,7 +596,7 @@ export function normalizeOrderProfitSummary(order) {
   const grossProfit = lines.length
     ? lineRollup.profit
     : parseProfitNumber(order.total_profit ?? order.totalProfit ?? order.profit);
-  const orderProfit = grossProfit - discount;
+  const netProfit = grossProfit - discount;
   const itemsSubtotal = parseProfitNumber(
     order.order_items_total ?? order.orderItemsTotal ?? order.items_total ?? lineRollup.subtotal
   );
@@ -511,9 +610,10 @@ export function normalizeOrderProfitSummary(order) {
     itemCount: Number.isFinite(itemCount) ? itemCount : lines.length,
     itemsSubtotal,
     discount,
-    orderProfit,
+    orderProfit: grossProfit,
+    netProfit,
     totalAmount,
-    marginPct: itemsSubtotal !== 0 ? (orderProfit / itemsSubtotal) * 100 : null,
+    marginPct: itemsSubtotal !== 0 ? (netProfit / itemsSubtotal) * 100 : null,
     lines,
   };
 }
@@ -678,6 +778,7 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
     return {
       ...row,
       orderProfit: group.orderProfit,
+      netProfit: group.netProfit,
       itemsSubtotal: group.orderSubtotal,
       discount: group.discount,
       itemCount: group.itemCount,
