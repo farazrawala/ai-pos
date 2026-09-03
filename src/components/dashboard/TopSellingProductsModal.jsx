@@ -10,6 +10,7 @@ import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils
 import { toast } from '../../utils/toast.js';
 import NavIcon from '../NavIcon.jsx';
 import SearchInputIcon from '../SearchInputIcon.jsx';
+import ListSortableTh from '../list/ListSortableTh.jsx';
 import '../order/customerOrderHistoryModal.css';
 import './topSellingProductsModal.css';
 
@@ -121,6 +122,43 @@ function TrendingLoadState({ elapsedMs }) {
   );
 }
 
+function defaultTableSort(sortBy) {
+  return {
+    key: sortBy === 'revenue' ? 'totalRevenue' : 'totalQty',
+    dir: 'desc',
+  };
+}
+
+const NUMERIC_SORT_KEYS = new Set(['rank', 'totalQty', 'totalRevenue', 'totalProfit']);
+
+const TABLE_SORT_LABELS = {
+  rank: 'By rank',
+  name: 'By name',
+  totalQty: 'By quantity',
+  totalRevenue: 'By revenue',
+  totalProfit: 'By profit',
+};
+
+function sortTrendingRows(rows, key, dir) {
+  const list = [...rows];
+  const factor = dir === 'asc' ? 1 : -1;
+  list.sort((a, b) => {
+    if (key === 'name') {
+      const cmp = String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+        sensitivity: 'base',
+      });
+      return cmp !== 0 ? cmp * factor : a.rank - b.rank;
+    }
+    const av = Number(a[key]);
+    const bv = Number(b[key]);
+    const aNum = Number.isFinite(av) ? av : 0;
+    const bNum = Number.isFinite(bv) ? bv : 0;
+    if (aNum === bNum) return a.rank - b.rank;
+    return (aNum - bNum) * factor;
+  });
+  return list;
+}
+
 function FilterField({ id, label, children }) {
   return (
     <div className="tsp-modal__field">
@@ -144,6 +182,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   const [loadElapsedMs, setLoadElapsedMs] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tableSort, setTableSort] = useState(() => defaultTableSort(sortBy));
 
   useEffect(() => {
     if (!open) return undefined;
@@ -196,8 +235,9 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
       setCustomFrom('');
       setCustomTo('');
       setSearchQuery('');
+      setTableSort(defaultTableSort(sortBy));
     }
-  }, [open]);
+  }, [open, sortBy]);
 
   useEffect(() => {
     if (!open || !loading) {
@@ -229,6 +269,11 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     });
   }, [rankedProducts, searchQuery]);
 
+  const displayedProducts = useMemo(
+    () => sortTrendingRows(filteredProducts, tableSort.key, tableSort.dir),
+    [filteredProducts, tableSort.key, tableSort.dir]
+  );
+
   const handlePeriodChange = (value) => {
     setSelectedPeriod(value);
     if (value === 'custom' && (!customFrom || !customTo)) {
@@ -238,9 +283,24 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     }
   };
 
+  const handleTableSort = (column, forceDesc = false) => {
+    if (forceDesc) {
+      setTableSort({ key: column, dir: 'desc' });
+      return;
+    }
+    if (tableSort.key === column) {
+      setTableSort({ key: column, dir: tableSort.dir === 'asc' ? 'desc' : 'asc' });
+      return;
+    }
+    setTableSort({
+      key: column,
+      dir: NUMERIC_SORT_KEYS.has(column) ? 'desc' : 'asc',
+    });
+  };
+
   if (!open) return null;
 
-  const sortLabel = activeSortBy === 'revenue' ? 'By revenue' : 'By quantity';
+  const sortLabel = TABLE_SORT_LABELS[tableSort.key] || (activeSortBy === 'revenue' ? 'By revenue' : 'By quantity');
   const selectedPeriodLabel =
     selectedPeriod === 'custom'
       ? formatCustomRangeLabel(customFrom, customTo)
@@ -248,13 +308,13 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   const range = getDateRangeForPeriod(selectedPeriod, { from: customFrom, to: customTo });
   const maxDate = todayYmd();
   const searchActive = Boolean(searchQuery.trim());
-  const canExport = !loading && !error && filteredProducts.length > 0;
+  const canExport = !loading && !error && displayedProducts.length > 0;
   const countLabel = searchActive
     ? `${filteredProducts.length.toLocaleString()} of ${products.length.toLocaleString()} products`
     : `${(total || products.length).toLocaleString()} product${(total || products.length) === 1 ? '' : 's'}`;
 
   const handleExport = async (kind) => {
-    if (!filteredProducts.length) {
+    if (!displayedProducts.length) {
       toast.error('No products to export.');
       return;
     }
@@ -267,7 +327,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
       { key: 'revenue', label: 'Revenue' },
       { key: 'profit', label: 'Profit' },
     ];
-    const rows = filteredProducts.map((row) => ({
+    const rows = displayedProducts.map((row) => ({
       rank: row.rank,
       name: row.name,
       code: row.code || '',
@@ -459,22 +519,39 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                   <table className="table align-items-center mb-0 tsp-modal__table">
                     <thead>
                       <tr>
-                        <th className="text-xxs text-uppercase font-weight-bolder opacity-7" style={{ width: 52 }}>
-                          #
-                        </th>
-                        <th className="text-xxs text-uppercase font-weight-bolder opacity-7">
-                          Product
-                        </th>
-                        <th className="text-xxs text-uppercase font-weight-bolder opacity-7 text-end">
-                          Sold
-                        </th>
-                        <th className="text-xxs text-uppercase font-weight-bolder opacity-7 text-end">
-                          Revenue
-                        </th>
+                        <ListSortableTh
+                          column="rank"
+                          label="#"
+                          sort={{ sortBy: tableSort.key, sortOrder: tableSort.dir }}
+                          onSort={handleTableSort}
+                          className="text-xxs text-uppercase font-weight-bolder opacity-7"
+                          style={{ width: 52 }}
+                        />
+                        <ListSortableTh
+                          column="name"
+                          label="Product"
+                          sort={{ sortBy: tableSort.key, sortOrder: tableSort.dir }}
+                          onSort={handleTableSort}
+                          className="text-xxs text-uppercase font-weight-bolder opacity-7"
+                        />
+                        <ListSortableTh
+                          column="totalQty"
+                          label="Sold"
+                          sort={{ sortBy: tableSort.key, sortOrder: tableSort.dir }}
+                          onSort={handleTableSort}
+                          className="text-xxs text-uppercase font-weight-bolder opacity-7 text-end"
+                        />
+                        <ListSortableTh
+                          column="totalRevenue"
+                          label="Revenue"
+                          sort={{ sortBy: tableSort.key, sortOrder: tableSort.dir }}
+                          onSort={handleTableSort}
+                          className="text-xxs text-uppercase font-weight-bolder opacity-7 text-end"
+                        />
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts.map((row) => {
+                      {displayedProducts.map((row) => {
                         const imageUrl = row.image ? resolveCategoryMediaUrl(row.image) : '';
                         const isTopThree = row.rank <= 3;
 
