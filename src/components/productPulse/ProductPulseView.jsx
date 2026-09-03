@@ -302,6 +302,7 @@ export default function ProductPulseView() {
   const [warehouseOptions, setWarehouseOptions] = useState([{ value: '', label: 'All warehouses' }]);
   const [variantSort, setVariantSort] = useState({ key: 'unitsSold', dir: 'desc' });
   const [warehouseSort, setWarehouseSort] = useState({ key: 'revenue', dir: 'desc' });
+  const [pickedOption, setPickedOption] = useState(null);
   const searchTimer = useRef(null);
   const [loadElapsedMs, setLoadElapsedMs] = useState(0);
 
@@ -411,6 +412,7 @@ export default function ProductPulseView() {
 
   const handleSelectProduct = (id) => {
     const option = productOptions.find((o) => String(o.value) === String(id));
+    setPickedOption(option || null);
     if (option?.isVariantChild && option.parentId) {
       setProductId(option.parentId);
       setVariantId(String(id));
@@ -437,15 +439,47 @@ export default function ProductPulseView() {
   const metrics = overview?.metrics;
   const health = overview?.health;
   const insights = overview?.insights || [];
+  const overviewVariations =
+    overview?.product?.id && String(overview.product.id) === String(productId)
+      ? overview?.variations || []
+      : [];
+  const searchVariations = productOptions
+    .filter((o) => o.isVariantChild && String(o.parentId) === String(productId))
+    .map((o) => ({
+      id: o.value,
+      name: o.label,
+      sku: o.subLabel || '',
+      barcode: '',
+    }));
+  const variationRows = overviewVariations.length ? overviewVariations : searchVariations;
   const variantRows = sortRows(variants?.rows, variantSort.key, variantSort.dir);
   const warehouseRows = sortRows(warehouses?.rows, warehouseSort.key, warehouseSort.dir);
-  const hasVariantUi = Boolean(product?.hasVariants);
+  const hasVariantUi = Boolean(product?.hasVariants) || variationRows.length > 0 || Boolean(pickedOption?.isVariantChild);
   const loading = status === 'loading';
   const noProduct = !productId;
   const noSales = Boolean(product && metrics && metrics.unitsSold === 0 && metrics.grossRevenue === 0);
+  const selectedVariant =
+    overview?.selectedVariant ||
+    variationRows.find((row) => String(row.id) === String(variantId)) ||
+    null;
 
-  const selectedProductLabel =
-    product?.name || productOptions.find((o) => o.value === productId)?.label || '';
+  const selectedProductLabel = (() => {
+    if (variantId) {
+      const variantName =
+        selectedVariant?.name ||
+        (pickedOption?.isVariantChild ? pickedOption.label : '');
+      const parentName = product?.name || (!pickedOption?.isVariantChild ? pickedOption?.label : '') || '';
+      if (variantName && variantName.includes('·')) return variantName;
+      if (parentName && variantName) return `${parentName} · ${variantName}`;
+      return variantName || parentName;
+    }
+    return (
+      product?.name ||
+      pickedOption?.label ||
+      productOptions.find((o) => o.value === productId)?.label ||
+      ''
+    );
+  })();
 
   const toggleSort = (current, setCurrent, key) => {
     setCurrent((prev) => ({
@@ -479,12 +513,12 @@ export default function ProductPulseView() {
         <div className="card-body py-3">
           <div className="row g-3 align-items-end">
             <div className="col-lg-4">
-              <label className="form-label text-xs text-uppercase font-weight-bold">Search product / SKU / barcode</label>
+              <label className="form-label text-xs text-uppercase font-weight-bold">Search product / variant / SKU</label>
               <SearchableSelect
                 options={productOptions}
-                value={productId}
-                placeholder="Search a product to analyse"
-                searchPlaceholder="Name, SKU, barcode…"
+                value={variantId || productId}
+                placeholder="Search a product or variant to analyse"
+                searchPlaceholder="Name, variant, SKU, barcode…"
                 loading={productsLoading}
                 filterLocally={false}
                 selectedLabel={selectedProductLabel}
@@ -545,21 +579,27 @@ export default function ProductPulseView() {
               </div>
             ) : null}
             {hasVariantUi ? (
-              <div className="col-md-3 col-lg-2">
+              <div className="col-md-3 col-lg-3">
                 <label className="form-label text-xs text-uppercase font-weight-bold">Variant</label>
-                <select
-                  className="form-select form-select-sm"
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'All variants' },
+                    ...variationRows.map((v) => ({
+                      value: v.id,
+                      label: v.name,
+                      subLabel: [v.sku, v.barcode].filter(Boolean).join(' · '),
+                    })),
+                  ]}
                   value={variantId}
-                  onChange={(e) => setVariantId(e.target.value)}
-                >
-                  <option value="">All variants</option>
-                  {(overview?.variations || []).map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                      {v.sku ? ` · ${v.sku}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="All variants"
+                  searchPlaceholder="Search variant / SKU…"
+                  selectedLabel={
+                    variantId
+                      ? selectedVariant?.name || pickedOption?.label || 'Variant'
+                      : 'All variants'
+                  }
+                  onChange={(id) => setVariantId(String(id || ''))}
+                />
               </div>
             ) : null}
           </div>
@@ -621,7 +661,11 @@ export default function ProductPulseView() {
                     SKU {product.sku || '—'}
                     {product.category ? ` · ${product.category}` : ''}
                     {product.brand ? ` · ${product.brand}` : ''}
-                    {overview?.selectedVariant ? ` · Variant ${overview.selectedVariant.name}` : hasVariantUi ? ' · All variants' : ''}
+                    {variantId
+                      ? ` · Variant ${selectedVariant?.name || pickedOption?.label || 'selected'}`
+                      : hasVariantUi
+                        ? ' · All variants'
+                        : ''}
                   </div>
                 </div>
               </div>

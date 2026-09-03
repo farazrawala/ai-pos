@@ -2,18 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'rea
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
-import {
-  loadProfitReport,
-  loadProfitReportLines,
-  setLinesPage,
-  setLinesLimit,
-} from '../../features/profitReport/profitReportSlice.js';
+import { loadProfitReport, setLinesPage, setLinesLimit } from '../../features/profitReport/profitReportSlice.js';
 import {
   buildProfitByOrderItemUrl,
   buildOrderProfitByOrderItemUrl,
   buildOrdersWithProfitLinesUrl,
   buildLastNMonthRanges,
   groupProfitLinesByOrder,
+  summarizeOrderProfitGroups,
+  PROFIT_ORDERS_PAGE_SIZE,
 } from '../../features/profitReport/profitReportAPI.js';
 import {
   fetchOrdersRequest,
@@ -58,14 +55,39 @@ function formatMarginBadge(marginPct) {
   return `${marginPct.toFixed(1)}%`;
 }
 
-function GlanceKpi({ title, value, hint, badge, icon: Icon, iconClass, loading, accent = false }) {
+function formatDiscountPercent(discount, subtotal) {
+  const d = Number(discount);
+  const s = Number(subtotal);
+  if (!Number.isFinite(d) || d <= 0 || !Number.isFinite(s) || s === 0) return '—';
+  return `${((d / s) * 100).toFixed(1)}%`;
+}
+
+function GlanceKpi({
+  title,
+  value,
+  hint,
+  badge,
+  icon: Icon,
+  iconClass,
+  loading,
+  accent = false,
+  valueClass = '',
+}) {
   return (
     <div className={`card profit-report-kpi h-100 mb-0${accent ? ' profit-report-kpi--accent' : ''}`}>
       <div className="card-body p-3">
         <div className="d-flex justify-content-between align-items-start gap-2">
           <div className="min-w-0">
             <p className="profit-report-kpi__label">{title}</p>
-            <p className={`profit-report-kpi__value${accent ? ' profit-report-kpi__value--primary' : ''}`}>
+            <p
+              className={[
+                'profit-report-kpi__value',
+                !valueClass && accent ? 'profit-report-kpi__value--primary' : '',
+                valueClass,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
               {loading ? '…' : value}
             </p>
             <p className="profit-report-kpi__hint">
@@ -111,8 +133,6 @@ export default function ProfitReportView() {
     lines,
     orderProfitRows,
     orderGroups,
-    linesSummary,
-    ordersPageSummary,
     linesPagination,
     status,
     linesStatus,
@@ -272,12 +292,10 @@ export default function ProfitReportView() {
   const handleLinesPageChange = (newPage) => {
     if (newPage < 1 || newPage > linesPagination.totalPages) return;
     dispatch(setLinesPage(newPage));
-    dispatch(loadProfitReportLines({ ...params, page: newPage }));
   };
 
   const handleLinesLimitChange = (limit) => {
     dispatch(setLinesLimit(limit));
-    dispatch(loadProfitReportLines({ ...params, page: 1, limit }));
   };
 
   const fmt = formatCurrencyAccounting;
@@ -287,28 +305,54 @@ export default function ProfitReportView() {
     report?.marginPct != null && Number.isFinite(report.marginPct)
       ? `${report.marginPct.toFixed(1)}%`
       : '—';
+  const netMarginText =
+    report?.netMarginPct != null && Number.isFinite(report.netMarginPct)
+      ? `${report.netMarginPct.toFixed(1)}%`
+      : '—';
+  const periodDiscount = Number(report?.discount) || 0;
+  const profitAfterDiscount =
+    report?.profitAfterDiscount != null && Number.isFinite(Number(report.profitAfterDiscount))
+      ? Number(report.profitAfterDiscount)
+      : (Number(report?.profit) || 0) - periodDiscount;
 
-  const pageLinesSummary = linesSummary;
-  const pageOrdersSummary = useMemo(() => {
-    if (ordersPageSummary) return ordersPageSummary;
-    const groups = orderGroups?.length ? orderGroups : groupProfitLinesByOrder(lines);
-    const profit = groups.reduce((sum, row) => sum + row.orderProfit, 0);
-    const subtotal = groups.reduce((sum, row) => sum + row.orderSubtotal, 0);
-    const lineCount = groups.reduce((sum, row) => sum + row.itemCount, 0);
-    return {
-      orderCount: groups.length,
-      lineCount,
-      profit,
-      subtotal,
-      discount: groups.reduce((sum, row) => sum + (Number(row.discount) || 0), 0),
-      marginPct: subtotal !== 0 ? (profit / subtotal) * 100 : null,
-    };
-  }, [ordersPageSummary, orderGroups, lines]);
+  const ordersPageLimit = Math.max(Number(linesPagination.limit) || PROFIT_ORDERS_PAGE_SIZE, 1);
+  const ordersPageIndex = Math.max(Number(linesPagination.page) || 1, 1);
+  const ordersPageStart = (ordersPageIndex - 1) * ordersPageLimit;
+  const ordersListTotal = Number(linesPagination.total) || orderProfitRows.length;
+  const ordersRangeStart = ordersListTotal === 0 ? 0 : ordersPageStart + 1;
+  const ordersRangeEnd = Math.min(ordersPageStart + ordersPageLimit, ordersListTotal);
 
-  const groupedLines = useMemo(() => {
+  const groupedLinesAll = useMemo(() => {
     if (orderGroups?.length) return orderGroups;
     return groupProfitLinesByOrder(lines);
   }, [orderGroups, lines]);
+
+  const pagedOrderRows = useMemo(
+    () => orderProfitRows.slice(ordersPageStart, ordersPageStart + ordersPageLimit),
+    [orderProfitRows, ordersPageStart, ordersPageLimit]
+  );
+
+  const groupedLines = useMemo(
+    () => groupedLinesAll.slice(ordersPageStart, ordersPageStart + ordersPageLimit),
+    [groupedLinesAll, ordersPageStart, ordersPageLimit]
+  );
+
+  const pageOrdersSummary = useMemo(
+    () => summarizeOrderProfitGroups(groupedLines),
+    [groupedLines]
+  );
+
+  const pageLinesSummary = useMemo(() => {
+    const pageLines = groupedLines.flatMap((group) => group.lines || []);
+    const profit = pageLines.reduce((sum, line) => sum + (Number(line.profit) || 0), 0);
+    const subtotal = pageLines.reduce((sum, line) => sum + (Number(line.subtotal) || 0), 0);
+    return {
+      lineCount: pageLines.length,
+      profit,
+      subtotal,
+      marginPct: subtotal !== 0 ? (profit / subtotal) * 100 : null,
+    };
+  }, [groupedLines]);
 
   const pageMarginText =
     pageLinesSummary?.marginPct != null && Number.isFinite(pageLinesSummary.marginPct)
@@ -445,6 +489,15 @@ export default function ProfitReportView() {
         </div>
       </div>
 
+      {loading ? (
+        <div className="text-center py-5 text-muted">
+          <div className="spinner-border text-primary mb-2" role="status">
+            <span className="visually-hidden">Loading…</span>
+          </div>
+          <div className="text-sm">Loading profit…</div>
+        </div>
+      ) : (
+        <>
       {error ? (
         <div className="alert alert-danger py-2 text-sm" role="alert">
           {error}
@@ -500,15 +553,6 @@ export default function ProfitReportView() {
         />
       </div>
 
-          {loading && !report ? (
-            <div className="text-center py-5 text-muted">
-              <div className="spinner-border text-primary mb-2" role="status">
-                <span className="visually-hidden">Loading…</span>
-              </div>
-              <div className="text-sm">Loading profit…</div>
-            </div>
-          ) : null}
-
           {report ? (
             <>
               <div className="mb-3">
@@ -523,15 +567,33 @@ export default function ProfitReportView() {
                 </p>
               </div>
               <div className="row g-3 mb-4">
-                <div className="col-md-6 col-xl-4">
+                <div className="col-md-6 col-xl-3">
                   <GlanceKpi
                     title="Selected period profit"
                     value={fmt(report.profit)}
-                    hint="All orders in the From / To dates"
+                    hint="Gross profit before order discounts"
                     accent
                   />
                 </div>
-                <div className="col-md-6 col-xl-2">
+                <div className="col-md-6 col-xl-3">
+                  <GlanceKpi
+                    title="Period discount"
+                    value={periodDiscount > 0 ? `−${fmt(periodDiscount)}` : fmt(0)}
+                    hint="Invoice discounts in the selected dates"
+                    valueClass={periodDiscount > 0 ? 'text-danger' : ''}
+                  />
+                </div>
+                <div className="col-md-6 col-xl-3">
+                  <GlanceKpi
+                    title="Net profit after discount"
+                    value={fmt(profitAfterDiscount)}
+                    hint="Period profit minus discounts"
+                    badge={netMarginText}
+                    accent
+                    valueClass={profitAfterDiscount < 0 ? 'text-danger' : ''}
+                  />
+                </div>
+                <div className="col-md-6 col-xl-3">
                   <GlanceKpi title="Subtotal (sales)" value={fmt(report.subtotal)} />
                 </div>
                 <div className="col-md-6 col-xl-2">
@@ -559,20 +621,34 @@ export default function ProfitReportView() {
             </>
           ) : null}
 
-          {orderProfitRows.length > 0 ? (
+          {orderProfitRows.length > 0 || linesPagination.total > 0 ? (
             <div className="card profit-report-panel mb-4">
               <div className="card-header bg-transparent">
                 <h6 className="profit-report-section-title mb-0">Profit by order</h6>
-                <p className="text-xs text-muted mb-0">Current page — click an order to open details.</p>
+                <p className="text-xs text-muted mb-0">
+                  {ordersListTotal > 0
+                    ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal} — click an order to open details.`
+                    : 'Click an order to open details.'}
+                </p>
               </div>
               <div className="card-body p-0">
-                <div className="table-responsive">
+                <ListDataTable
+                  className="list-data-table--profit-report mb-0"
+                  loading={linesLoading && pagedOrderRows.length === 0}
+                  loadingLabel="Loading orders…"
+                  pagination={linesPagination}
+                  onPageChange={handleLinesPageChange}
+                  onLimitChange={handleLinesLimitChange}
+                  selectId="profit-report-orders-page-size"
+                  showPagination={linesPagination.total > 0}
+                >
                   <table className="table align-items-center mb-0 profit-report-lines-table">
                     <thead>
                       <tr>
                         <th className="text-xxs text-uppercase">Order</th>
                         <th className="text-end text-xxs text-uppercase">Items</th>
                         <th className="text-end text-xxs text-uppercase">Items subtotal</th>
+                        <th className="text-end text-xxs text-uppercase">Discount %</th>
                         <th className="text-end text-xxs text-uppercase">Discount</th>
                         <th className="text-end text-xxs text-uppercase">Order profit</th>
                         <th className="text-end text-xxs text-uppercase">Margin</th>
@@ -580,7 +656,14 @@ export default function ProfitReportView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {orderProfitRows.map((order) => {
+                      {pagedOrderRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-5 text-muted text-sm">
+                            No orders on this page. Adjust filters or date range.
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedOrderRows.map((order) => {
                         const profitClass =
                           order.orderProfit > 0
                             ? 'text-success'
@@ -605,6 +688,15 @@ export default function ProfitReportView() {
                             <td className="text-sm text-end">{fmt(order.itemsSubtotal)}</td>
                             <td className="text-sm text-end">
                               {order.discount > 0 ? (
+                                <span className="text-danger">
+                                  {formatDiscountPercent(order.discount, order.itemsSubtotal)}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="text-sm text-end">
+                              {order.discount > 0 ? (
                                 <span className="text-danger">−{fmt(order.discount)}</span>
                               ) : (
                                 fmt(order.discount || 0)
@@ -619,7 +711,8 @@ export default function ProfitReportView() {
                             </td>
                           </tr>
                         );
-                      })}
+                      })
+                      )}
                     </tbody>
                     <tfoot>
                       <tr className="profit-report-order-total-row">
@@ -629,6 +722,18 @@ export default function ProfitReportView() {
                         </td>
                         <td className="text-sm text-end fw-semibold">
                           {fmt(pageOrdersSummary.subtotal)}
+                        </td>
+                        <td className="text-sm text-end fw-semibold">
+                          {pageOrdersSummary.discount > 0 ? (
+                            <span className="text-danger">
+                              {formatDiscountPercent(
+                                pageOrdersSummary.discount,
+                                pageOrdersSummary.subtotal
+                              )}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                         <td className="text-sm text-end fw-semibold">
                           {pageOrdersSummary.discount > 0 ? (
@@ -652,7 +757,7 @@ export default function ProfitReportView() {
                       </tr>
                     </tfoot>
                   </table>
-                </div>
+                </ListDataTable>
               </div>
             </div>
           ) : null}
@@ -689,7 +794,7 @@ export default function ProfitReportView() {
                 onPageChange={handleLinesPageChange}
                 onLimitChange={handleLinesLimitChange}
                 selectId="profit-report-lines-page-size"
-                showPagination={!linesLoading && linesPagination.total > 0}
+                showPagination={linesPagination.total > 0}
               >
                 <table className="table align-items-center mb-0 profit-report-lines-table">
                   <thead>
@@ -845,6 +950,8 @@ export default function ProfitReportView() {
               ]}
             />
           ) : null}
+        </>
+      )}
     </div>
   );
 }

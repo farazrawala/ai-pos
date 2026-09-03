@@ -279,18 +279,30 @@ export function normalizeProductCard(product, selectedVariant = null) {
   };
 }
 
+function nestedVariationRows(source) {
+  if (!source || typeof source !== 'object') return [];
+  if (Array.isArray(source)) return source;
+  const kids =
+    source.childproducts ??
+    source.child_products ??
+    source.variations ??
+    source.children ??
+    source.data;
+  return Array.isArray(kids) ? kids : [];
+}
+
 export function normalizeVariationList(result, parentProduct = null) {
   let rows = unwrapList(result);
-  if (rows.length === 0 && parentProduct) {
-    const kids =
-      parentProduct.childproducts ?? parentProduct.child_products ?? parentProduct.variations;
-    if (Array.isArray(kids)) rows = kids;
-  }
+  if (rows.length === 0) rows = nestedVariationRows(unwrapEntity(result) || result);
+  if (rows.length === 0 && parentProduct) rows = nestedVariationRows(parentProduct);
+  const parentId = refId(parentProduct?._id ?? parentProduct?.id);
+  const seen = new Set();
   return rows
     .map((row) => {
       if (!row || typeof row !== 'object') return null;
       const id = refId(row._id ?? row.id ?? row.product_id);
-      if (!id) return null;
+      if (!id || (parentId && id === parentId) || seen.has(id)) return null;
+      seen.add(id);
       return {
         id,
         _id: id,
@@ -774,6 +786,58 @@ function normalizeDedicatedOverview(result, fallbackCard) {
   };
 }
 
+function pulseSearchOption(row, extras = {}) {
+  if (!row || typeof row !== 'object') return null;
+  const id = refId(row._id ?? row.id ?? row.product_id);
+  if (!id) return null;
+  const parentId = extras.parentId || refId(row.parent_product_id ?? row.parentProductId);
+  const isChild = Boolean(parentId && parentId !== id);
+  const name = String(row.product_name ?? row.name ?? extras.parentName ?? 'Product').trim() || 'Product';
+  const variantName = isChild ? variantDisplayName(row) || name : name;
+  const sku = String(row.sku ?? row.product_code ?? row.barcode ?? '').trim();
+  const parentName = extras.parentName || '';
+  return {
+    value: id,
+    label: isChild && parentName && !name.includes(parentName) ? `${parentName} · ${variantName}` : isChild ? variantName : name,
+    subLabel: [sku, isChild ? 'Variant' : hasVariants(row) ? 'All variants' : row.product_type]
+      .filter(Boolean)
+      .join(' · '),
+    parentId: isChild ? parentId : '',
+    isVariantChild: isChild,
+    image: productImage(row) || extras.image || '',
+    raw: row,
+  };
+}
+
+/** Parent products plus nested child variants as selectable search rows. */
+export function buildPulseSearchOptions(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const out = [];
+  const seen = new Set();
+  const push = (option) => {
+    if (!option?.value || seen.has(option.value)) return;
+    seen.add(option.value);
+    out.push(option);
+  };
+
+  for (const row of list) {
+    const parent = pulseSearchOption(row);
+    push(parent);
+    const parentId = parent?.value || refId(row?._id ?? row?.id);
+    const parentName = parent?.isVariantChild ? '' : parent?.label || '';
+    for (const kid of nestedVariationRows(row)) {
+      push(
+        pulseSearchOption(kid, {
+          parentId,
+          parentName,
+          image: parent?.image,
+        })
+      );
+    }
+  }
+  return out;
+}
+
 export async function searchProductsForPulse(query) {
   const search = String(query || '').trim();
   if (!search) return [];
@@ -784,25 +848,38 @@ export async function searchProductsForPulse(query) {
     includeInactive: true,
   });
   const rows = Array.isArray(result?.data) ? result.data : [];
-  return rows
-    .map((row) => {
-      const id = refId(row._id ?? row.id ?? row.product_id);
-      if (!id) return null;
-      const sku = String(row.sku ?? row.product_code ?? row.barcode ?? '').trim();
-      const parentId = refId(row.parent_product_id ?? row.parentProductId);
-      return {
-        value: id,
-        label: String(row.product_name ?? row.name ?? 'Product').trim() || 'Product',
-        subLabel: [sku, row.product_type, parentId ? 'Variant' : '']
-          .filter(Boolean)
-          .join(' · '),
-        parentId,
-        isVariantChild: Boolean(parentId),
-        image: productImage(row),
-        raw: row,
-      };
-    })
-    .filter(Boolean);
+  const options = buildPulseSearchOptions(rows);
+
+  const needsVariationFetch = rows.filter((row) => {
+    const id = refId(row?._id ?? row?.id);
+    if (!id || !hasVariants(row) || nestedVariationRows(row).length) return false;
+    return !options.some((opt) => opt.parentId === id);
+  }).slice(0, 6);
+
+  if (!needsVariationFetch.length) return options;
+
+  const extra = await mapWithConcurrency(needsVariationFetch, 3, async (row) => {
+    const parentId = refId(row._id ?? row.id);
+    const parentName = String(row.product_name ?? row.name ?? 'Product').trim() || 'Product';
+    try {
+      const raw = await fetchProductVariationRequest(parentId);
+      return normalizeVariationList(raw, row).map((variant) =>
+        pulseSearchOption(variant, { parentId, parentName, image: productImage(row) })
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  const seen = new Set(options.map((opt) => opt.value));
+  for (const list of extra) {
+    for (const option of list) {
+      if (!option?.value || seen.has(option.value)) continue;
+      seen.add(option.value);
+      options.push(option);
+    }
+  }
+  return options;
 }
 
 export async function fetchWarehousesForPulse() {

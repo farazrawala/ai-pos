@@ -3,8 +3,10 @@ import {
   buildProductPulseOverviewUrl,
   buildProductPulseSalesUrl,
   buildPulseQuery,
+  buildPulseSearchOptions,
   fetchProductPulseOverview,
   isMongoObjectId,
+  normalizeVariationList,
   pickDedicatedTimelinePoints,
   sellableProductIds,
 } from './productPulseAPI.js';
@@ -65,6 +67,49 @@ describe('ProductPulse API contracts', () => {
     expect(sellableProductIds({ _id: 'parent' }, [{ id: 'a' }, { id: 'b' }], '')).toEqual(['a', 'b']);
     expect(sellableProductIds({ _id: 'parent' }, [{ id: 'a' }, { id: 'b' }], 'b')).toEqual(['b']);
     expect(sellableProductIds({ _id: 'single' }, [], '')).toEqual(['single']);
+  });
+
+  it('reads nested childproducts from variation payloads', () => {
+    const rows = normalizeVariationList(
+      {
+        success: true,
+        data: {
+          _id: 'parent',
+          product_type: 'Variable',
+          childproducts: [
+            { _id: 'child-a', product_name: 'Nice To Meet Short Set [S]', sku: 'NTM-S' },
+            { _id: 'child-b', product_name: 'Nice To Meet Short Set [M]', sku: 'NTM-M' },
+            { _id: 'parent', product_name: 'Nice To Meet Short Set' },
+          ],
+        },
+      },
+      { _id: 'parent' }
+    );
+    expect(rows.map((row) => row.id)).toEqual(['child-a', 'child-b']);
+    expect(rows[0].name).toBe('S');
+  });
+
+  it('lists nested variants as selectable search rows', () => {
+    const options = buildPulseSearchOptions([
+      {
+        _id: 'parent',
+        product_name: 'Nice To Meet Short Set',
+        product_type: 'Variable',
+        sku: 'shopify-10489802260661',
+        childproducts: [
+          {
+            _id: 'child-s',
+            product_name: 'Nice To Meet Short Set [S]',
+            sku: 'NTM-S',
+            parent_product_id: 'parent',
+          },
+        ],
+      },
+    ]);
+    expect(options.some((row) => row.value === 'parent' && !row.isVariantChild)).toBe(true);
+    expect(options.some((row) => row.value === 'child-s' && row.isVariantChild && row.parentId === 'parent')).toBe(
+      true
+    );
   });
 
   it('ignores empty dedicated timeline payloads so composition can run', () => {

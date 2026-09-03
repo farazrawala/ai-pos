@@ -136,6 +136,78 @@ export function resolveOrderDiscount(lookup, orderId, orderNo) {
   return 0;
 }
 
+function orderMatchesId(order, orderId) {
+  const oid = String(orderId || '')
+    .trim()
+    .toLowerCase();
+  if (!oid || !order || typeof order !== 'object') return false;
+  const id = String(order._id ?? order.id ?? '')
+    .trim()
+    .toLowerCase();
+  const no = String(order.order_no ?? order.orderNo ?? '')
+    .trim()
+    .toLowerCase();
+  return id === oid || no === oid;
+}
+
+/** Sum invoice / extra discounts across orders, de-duplicated by id. */
+export function sumOrderDiscounts(orders, { orderId } = {}) {
+  const oid = String(orderId || '').trim();
+  const seen = new Set();
+  let total = 0;
+  for (const order of Array.isArray(orders) ? orders : []) {
+    if (!order || typeof order !== 'object') continue;
+    if (oid && !orderMatchesId(order, oid)) continue;
+    const id = String(order._id ?? order.id ?? '').trim();
+    const no = String(order.order_no ?? order.orderNo ?? '')
+      .trim()
+      .toLowerCase();
+    const key = id || (no ? `no:${no}` : '');
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    total += getOrderDiscountAmount(order);
+  }
+  return total;
+}
+
+/** Orders fetched per API page when loading the profit report list. */
+export const PROFIT_ORDERS_PAGE_SIZE = 500;
+const ORDERS_FETCH_MAX_PAGES = 100;
+
+/**
+ * Sum order-level discounts for the selected date range (all pages).
+ */
+export async function fetchPeriodOrderDiscountTotal(params = {}) {
+  const listParams = {
+    limit: PROFIT_ORDERS_PAGE_SIZE,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+    ...(params.productId ? { productId: params.productId } : {}),
+    ...(params.orderId ? { search: params.orderId } : {}),
+  };
+
+  let page = 1;
+  let totalPages = 1;
+  let discount = 0;
+
+  while (page <= totalPages) {
+    const result = await fetchOrdersRequest({ ...listParams, page });
+    const orders = Array.isArray(result.data) ? result.data : [];
+    discount += sumOrderDiscounts(orders, { orderId: params.orderId });
+    if (params.orderId && orders.some((order) => orderMatchesId(order, params.orderId))) {
+      break;
+    }
+    totalPages = Math.max(Number(result.totalPages) || 1, 1);
+    if (orders.length === 0) break;
+    page += 1;
+    if (page > 100) break;
+  }
+
+  return discount;
+}
+
 /**
  * Subtract order discounts from grouped line profits.
  * Gross line profit is (qty × price) − (qty × cost); net = gross − order discount.
@@ -385,7 +457,7 @@ export function summarizeOrderProfitGroups(orderGroups) {
 /**
  * Merge period totals from order_item and order profit paths plus page order rollup.
  */
-export function mergeProfitSummaries(itemReport, orderPathReport, pageSummary) {
+export function mergeProfitSummaries(itemReport, orderPathReport, pageSummary, periodDiscount = 0) {
   if (!itemReport) return null;
   const orderPathProfit =
     orderPathReport?.profit != null && Number.isFinite(orderPathReport.profit)
@@ -393,9 +465,16 @@ export function mergeProfitSummaries(itemReport, orderPathReport, pageSummary) {
       : null;
   const profitsMatch =
     orderPathProfit == null || Math.abs(orderPathProfit - itemReport.profit) < 0.01;
+  const discount = parseProfitNumber(periodDiscount);
+  const profitAfterDiscount = parseProfitNumber(itemReport.profit) - discount;
+  const subtotal = parseProfitNumber(itemReport.subtotal);
+  const netMarginPct = subtotal !== 0 ? (profitAfterDiscount / subtotal) * 100 : null;
 
   return {
     ...itemReport,
+    discount,
+    profitAfterDiscount,
+    netMarginPct,
     orderPathProfit,
     profitsMatch,
     pageOrderCount: pageSummary?.orderCount ?? 0,
@@ -539,24 +618,50 @@ export async function fetchOrderProfitByOrderItemRequest(params = {}) {
 }
 
 /**
+ * Walk every order page in the selected range (the list API is paged).
+ */
+async function fetchAllOrdersForProfitReport(params = {}) {
+  const listParams = {
+    startDate: params.startDate,
+    endDate: params.endDate,
+    sortBy: params.sortBy ?? 'createdAt',
+    sortOrder: params.sortOrder ?? 'desc',
+    ...(params.search ? { search: params.search } : {}),
+    ...(params.orderId && !params.search ? { search: params.orderId } : {}),
+    ...(params.productId ? { productId: params.productId } : {}),
+  };
+
+  let page = 1;
+  let pageSize = PROFIT_ORDERS_PAGE_SIZE;
+  let apiTotal = 0;
+  const all = [];
+
+  while (page <= ORDERS_FETCH_MAX_PAGES) {
+    const result = await fetchOrdersRequest({ ...listParams, page, limit: pageSize });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    all.push(...batch);
+    apiTotal = Math.max(Number(result.total) || 0, apiTotal);
+    if (batch.length === 0) break;
+    if (apiTotal > 0 && all.length >= apiTotal) break;
+    if (batch.length < pageSize) {
+      pageSize = batch.length;
+    }
+    page += 1;
+  }
+
+  return { orders: all, total: Math.max(apiTotal, all.length) };
+}
+
+/**
  * GET `order/get-order-by-order-item` — orders with nested line items and per-line profit.
+ * Loads every page in the date range so the report lists all matching orders.
  * Note: does not apply the same date / inventory-movement rules as profit-by-order-item.
  */
 export async function fetchOrdersWithProfitLinesRequest(params = {}) {
   const page = params.page ?? 1;
-  const limit = params.limit ?? 25;
+  const limit = params.limit ?? PROFIT_ORDERS_PAGE_SIZE;
 
-  const result = await fetchOrdersRequest({
-    page,
-    limit,
-    startDate: params.startDate,
-    endDate: params.endDate,
-    search: params.search,
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
-  });
-
-  const orders = Array.isArray(result.data) ? result.data : [];
+  const { orders, total } = await fetchAllOrdersForProfitReport(params);
   let lines = flattenOrdersToProfitLines(orders);
   lines = filterProfitLines(lines, {
     orderId: params.orderId,
@@ -581,16 +686,19 @@ export async function fetchOrdersWithProfitLinesRequest(params = {}) {
     };
   });
 
+  const rowCount = orderProfitRows.length;
+  const safeLimit = Math.max(Number(limit) || PROFIT_ORDERS_PAGE_SIZE, 1);
+
   return {
     orders,
     orderProfitRows,
     orderGroups,
     lines,
     pagination: {
-      page: result.page ?? page,
-      limit: result.limit ?? limit,
-      total: result.total ?? orders.length,
-      totalPages: result.totalPages ?? 0,
+      page,
+      limit: safeLimit,
+      total: rowCount || total,
+      totalPages: Math.max(1, Math.ceil((rowCount || total) / safeLimit)),
     },
     linesSummary: summarizeProfitLines(lines),
     ordersPageSummary: summarizeOrderProfitGroups(orderGroups),
@@ -774,11 +882,13 @@ export async function fetchProfitReportBundleRequest(params = {}) {
     fetchOrdersWithProfitLinesRequest(params),
     fetchProfitQuickStatsRequest().catch(() => null),
   ]);
+  const periodDiscount = sumOrderDiscounts(linesResult.orders, { orderId: params.orderId });
 
   const mergedReport = mergeProfitSummaries(
     summaryResult.report,
     orderProfitResult.report,
-    linesResult.ordersPageSummary
+    linesResult.ordersPageSummary,
+    periodDiscount
   );
 
   return {

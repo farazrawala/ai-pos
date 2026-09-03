@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchProfitReportBundleRequest,
   fetchOrdersWithProfitLinesRequest,
+  PROFIT_ORDERS_PAGE_SIZE,
 } from './profitReportAPI.js';
 
 export const loadProfitReport = createAsyncThunk(
@@ -34,7 +35,7 @@ export const loadProfitReportLines = createAsyncThunk(
 
 const defaultPagination = {
   page: 1,
-  limit: 25,
+  limit: PROFIT_ORDERS_PAGE_SIZE,
   total: 0,
   totalPages: 0,
 };
@@ -70,8 +71,11 @@ const profitReportSlice = createSlice({
       state.linesPagination.page = action.payload;
     },
     setLinesLimit: (state, action) => {
-      state.linesPagination.limit = action.payload;
+      const limit = Math.max(Number(action.payload) || PROFIT_ORDERS_PAGE_SIZE, 1);
+      state.linesPagination.limit = limit;
       state.linesPagination.page = 1;
+      const total = Number(state.linesPagination.total) || 0;
+      state.linesPagination.totalPages = total > 0 ? Math.max(1, Math.ceil(total / limit)) : 0;
     },
   },
   extraReducers: (builder) => {

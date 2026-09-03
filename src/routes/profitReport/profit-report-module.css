@@ -59,6 +59,10 @@
   color: #5e72e4;
 }
 
+.profit-report-page .profit-report-kpi__value.text-danger {
+  color: #f5365c;
+}
+
 .profit-report-page .profit-report-kpi__hint {
   font-size: 0.7rem;
   color: #8392ab;
