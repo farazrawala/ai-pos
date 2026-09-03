@@ -59,6 +59,26 @@ function formatMarginBadge(marginPct) {
   return `${marginPct.toFixed(1)}%`;
 }
 
+const LINES_TABLE_PAGE_SIZE = 25;
+
+function textMatches(value, query) {
+  if (!query) return true;
+  return String(value || '')
+    .toLowerCase()
+    .includes(query);
+}
+
+function orderRowMatchesSearch(order, query) {
+  return textMatches(order?.orderNo, query) || textMatches(order?.orderId, query);
+}
+
+function lineGroupMatchesSearch(group, query) {
+  if (orderRowMatchesSearch(group, query)) return true;
+  return (group?.lines || []).some(
+    (line) => textMatches(line.productName, query) || textMatches(line.productId, query)
+  );
+}
+
 function formatDiscountPercent(discount, subtotal) {
   const d = Number(discount);
   const s = Number(subtotal);
@@ -168,6 +188,10 @@ export default function ProfitReportView() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [filterError, setFilterError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [orderTableSearch, setOrderTableSearch] = useState('');
+  const [lineTableSearch, setLineTableSearch] = useState('');
+  const [lineTablePage, setLineTablePage] = useState(1);
+  const [lineTableLimit, setLineTableLimit] = useState(LINES_TABLE_PAGE_SIZE);
   const loadRef = useRef(null);
 
   const loadOrderOptions = useCallback(async () => {
@@ -286,6 +310,7 @@ export default function ProfitReportView() {
     setFilterError('');
     if (loadRef.current) loadRef.current.abort();
     dispatch(setLinesPage(1));
+    setLineTablePage(1);
     loadRef.current = dispatch(
       loadProfitReport({
         startDate: from,
@@ -308,12 +333,22 @@ export default function ProfitReportView() {
   }, []);
 
   const handleLinesPageChange = (newPage) => {
-    if (newPage < 1 || newPage > linesPagination.totalPages) return;
+    if (newPage < 1) return;
     dispatch(setLinesPage(newPage));
   };
 
   const handleLinesLimitChange = (limit) => {
     dispatch(setLinesLimit(limit));
+  };
+
+  const handleLineTablePageChange = (newPage) => {
+    if (newPage < 1) return;
+    setLineTablePage(newPage);
+  };
+
+  const handleLineTableLimitChange = (limit) => {
+    setLineTableLimit(Math.max(Number(limit) || LINES_TABLE_PAGE_SIZE, 1));
+    setLineTablePage(1);
   };
 
   const handleExportOrders = async (kind) => {
@@ -366,29 +401,77 @@ export default function ProfitReportView() {
 
   const ordersPageLimit = Math.max(Number(linesPagination.limit) || PROFIT_ORDERS_PAGE_SIZE, 1);
   const ordersPageIndex = Math.max(Number(linesPagination.page) || 1, 1);
-  const ordersPageStart = (ordersPageIndex - 1) * ordersPageLimit;
-  const ordersListTotal = Number(linesPagination.total) || orderProfitRows.length;
-  const ordersRangeStart = ordersListTotal === 0 ? 0 : ordersPageStart + 1;
-  const ordersRangeEnd = Math.min(ordersPageStart + ordersPageLimit, ordersListTotal);
+  const orderSearchQuery = orderTableSearch.trim().toLowerCase();
+  const lineSearchQuery = lineTableSearch.trim().toLowerCase();
 
   const groupedLinesAll = useMemo(() => {
     if (orderGroups?.length) return orderGroups;
     return groupProfitLinesByOrder(lines);
   }, [orderGroups, lines]);
 
+  const filteredOrderRows = useMemo(() => {
+    if (!orderSearchQuery) return orderProfitRows;
+    return orderProfitRows.filter((row) => orderRowMatchesSearch(row, orderSearchQuery));
+  }, [orderProfitRows, orderSearchQuery]);
+
+  const filteredLineGroups = useMemo(() => {
+    if (!lineSearchQuery) return groupedLinesAll;
+    return groupedLinesAll.filter((group) => lineGroupMatchesSearch(group, lineSearchQuery));
+  }, [groupedLinesAll, lineSearchQuery]);
+
+  const ordersListTotal = filteredOrderRows.length;
+  const ordersPageStart = (ordersPageIndex - 1) * ordersPageLimit;
+  const ordersRangeStart = ordersListTotal === 0 ? 0 : Math.min(ordersPageStart + 1, ordersListTotal);
+  const ordersRangeEnd = Math.min(ordersPageStart + ordersPageLimit, ordersListTotal);
+  const ordersPagination = useMemo(
+    () => ({
+      page: ordersPageIndex,
+      limit: ordersPageLimit,
+      total: ordersListTotal,
+      totalPages: ordersListTotal > 0 ? Math.max(1, Math.ceil(ordersListTotal / ordersPageLimit)) : 0,
+    }),
+    [ordersPageIndex, ordersPageLimit, ordersListTotal]
+  );
+
   const pagedOrderRows = useMemo(
-    () => orderProfitRows.slice(ordersPageStart, ordersPageStart + ordersPageLimit),
-    [orderProfitRows, ordersPageStart, ordersPageLimit]
+    () => filteredOrderRows.slice(ordersPageStart, ordersPageStart + ordersPageLimit),
+    [filteredOrderRows, ordersPageStart, ordersPageLimit]
+  );
+
+  const lineTableTotal = filteredLineGroups.length;
+  const lineTableTotalPages =
+    lineTableTotal > 0 ? Math.max(1, Math.ceil(lineTableTotal / lineTableLimit)) : 0;
+  const safeLineTablePage = Math.min(Math.max(lineTablePage, 1), Math.max(lineTableTotalPages, 1));
+  const linePageStart = (safeLineTablePage - 1) * lineTableLimit;
+  const lineRangeStart = lineTableTotal === 0 ? 0 : linePageStart + 1;
+  const lineRangeEnd = Math.min(linePageStart + lineTableLimit, lineTableTotal);
+  const lineTablePagination = useMemo(
+    () => ({
+      page: safeLineTablePage,
+      limit: lineTableLimit,
+      total: lineTableTotal,
+      totalPages: lineTableTotalPages,
+    }),
+    [safeLineTablePage, lineTableLimit, lineTableTotal, lineTableTotalPages]
   );
 
   const groupedLines = useMemo(
-    () => groupedLinesAll.slice(ordersPageStart, ordersPageStart + ordersPageLimit),
-    [groupedLinesAll, ordersPageStart, ordersPageLimit]
+    () => filteredLineGroups.slice(linePageStart, linePageStart + lineTableLimit),
+    [filteredLineGroups, linePageStart, lineTableLimit]
   );
 
   const pageOrdersSummary = useMemo(
-    () => summarizeOrderProfitGroups(groupedLines),
-    [groupedLines]
+    () =>
+      summarizeOrderProfitGroups(
+        pagedOrderRows.map((row) => ({
+          orderProfit: row.orderProfit,
+          netProfit: orderNetProfit(row),
+          orderSubtotal: row.itemsSubtotal,
+          discount: row.discount,
+          itemCount: row.itemCount,
+        }))
+      ),
+    [pagedOrderRows]
   );
 
   const pageLinesSummary = useMemo(() => {
@@ -407,6 +490,18 @@ export default function ProfitReportView() {
     pageLinesSummary?.marginPct != null && Number.isFinite(pageLinesSummary.marginPct)
       ? `${pageLinesSummary.marginPct.toFixed(1)}%`
       : '—';
+
+  useEffect(() => {
+    if (ordersPagination.totalPages > 0 && ordersPageIndex > ordersPagination.totalPages) {
+      dispatch(setLinesPage(1));
+    }
+  }, [dispatch, ordersPageIndex, ordersPagination.totalPages]);
+
+  useEffect(() => {
+    if (lineTableTotalPages > 0 && lineTablePage > lineTableTotalPages) {
+      setLineTablePage(1);
+    }
+  }, [lineTablePage, lineTableTotalPages]);
 
   const glanceLoading = loading && quickStats == null;
   const todayProfit = quickStats?.today?.profit;
@@ -677,11 +772,27 @@ export default function ProfitReportView() {
                   <h6 className="profit-report-section-title mb-0">Profit by order</h6>
                   <p className="text-xs text-muted mb-0">
                     {ordersListTotal > 0
-                      ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal} — click an order to open details.`
-                      : 'Click an order to open details.'}
+                      ? `Showing ${ordersRangeStart}–${ordersRangeEnd} of ${ordersListTotal}${
+                          orderSearchQuery ? ' matching' : ''
+                        } — click an order to open details.`
+                      : orderSearchQuery
+                        ? 'No orders match this search.'
+                        : 'Click an order to open details.'}
                   </p>
                 </div>
                 <div className="d-flex flex-wrap align-items-center gap-2">
+                  <input
+                    type="search"
+                    className="form-control form-control-sm"
+                    style={{ minWidth: 180, maxWidth: 240 }}
+                    placeholder="Search orders…"
+                    value={orderTableSearch}
+                    onChange={(e) => {
+                      setOrderTableSearch(e.target.value);
+                      dispatch(setLinesPage(1));
+                    }}
+                    aria-label="Search profit by order"
+                  />
                   <span className="text-xs text-uppercase fw-bold text-muted me-1">
                     <i className="fas fa-download me-1" aria-hidden="true" />
                     Export all
@@ -723,11 +834,11 @@ export default function ProfitReportView() {
                   className="list-data-table--profit-report mb-0"
                   loading={linesLoading && pagedOrderRows.length === 0}
                   loadingLabel="Loading orders…"
-                  pagination={linesPagination}
+                  pagination={ordersPagination}
                   onPageChange={handleLinesPageChange}
                   onLimitChange={handleLinesLimitChange}
                   selectId="profit-report-orders-page-size"
-                  showPagination={linesPagination.total > 0}
+                  showPagination={ordersPagination.total > 0}
                 >
                   <table className="table align-items-center mb-0 profit-report-lines-table">
                     <thead>
@@ -747,7 +858,9 @@ export default function ProfitReportView() {
                       {pagedOrderRows.length === 0 ? (
                         <tr>
                           <td colSpan={9} className="text-center py-5 text-muted text-sm">
-                            No orders on this page. Adjust filters or date range.
+                            {orderSearchQuery
+                              ? 'No orders match this search.'
+                              : 'No orders on this page. Adjust filters or date range.'}
                           </td>
                         </tr>
                       ) : (
@@ -858,15 +971,35 @@ export default function ProfitReportView() {
               <div>
                 <h6 className="profit-report-section-title mb-0">Profit lines by order</h6>
                 <p className="text-xs text-muted mb-0">
-                  Order headers show merged profit; rows below are line items.
+                  {lineTableTotal > 0
+                    ? `Showing ${lineRangeStart}–${lineRangeEnd} of ${lineTableTotal} orders${
+                        lineSearchQuery ? ' matching' : ''
+                      } — headers are order totals, rows below are line items.`
+                    : lineSearchQuery
+                      ? 'No orders or products match this search.'
+                      : 'Order headers show merged profit; rows below are line items.'}
                 </p>
               </div>
-              {pageLinesSummary ? (
-                <div className="text-xs text-muted text-end">
-                  Page: {fmt(pageLinesSummary.profit)} profit · {pageLinesSummary.lineCount} lines ·{' '}
-                  {pageMarginText} margin
-                </div>
-              ) : null}
+              <div className="d-flex flex-wrap align-items-center gap-2">
+                {pageLinesSummary ? (
+                  <div className="text-xs text-muted text-end me-1">
+                    Page: {fmt(pageLinesSummary.profit)} profit · {pageLinesSummary.lineCount} lines ·{' '}
+                    {pageMarginText} margin
+                  </div>
+                ) : null}
+                <input
+                  type="search"
+                  className="form-control form-control-sm"
+                  style={{ minWidth: 180, maxWidth: 240 }}
+                  placeholder="Search order or product…"
+                  value={lineTableSearch}
+                  onChange={(e) => {
+                    setLineTableSearch(e.target.value);
+                    setLineTablePage(1);
+                  }}
+                  aria-label="Search profit lines"
+                />
+              </div>
             </div>
             <div className="card-body p-0">
               {linesError ? (
@@ -881,11 +1014,11 @@ export default function ProfitReportView() {
                 loadingLabel="Loading profit lines…"
                 error={lines.length === 0 ? linesError : null}
                 errorPrefix="Error loading profit lines"
-                pagination={linesPagination}
-                onPageChange={handleLinesPageChange}
-                onLimitChange={handleLinesLimitChange}
+                pagination={lineTablePagination}
+                onPageChange={handleLineTablePageChange}
+                onLimitChange={handleLineTableLimitChange}
                 selectId="profit-report-lines-page-size"
-                showPagination={linesPagination.total > 0}
+                showPagination={lineTablePagination.total > 0}
               >
                 <table className="table align-items-center mb-0 profit-report-lines-table">
                   <thead>
@@ -905,7 +1038,9 @@ export default function ProfitReportView() {
                     {groupedLines.length === 0 && !linesLoading ? (
                       <tr>
                         <td colSpan={9} className="text-center py-5 text-muted text-sm">
-                          No profit lines on this page. Adjust filters or date range.
+                          {lineSearchQuery
+                            ? 'No profit lines match this search.'
+                            : 'No profit lines on this page. Adjust filters or date range.'}
                         </td>
                       </tr>
                     ) : (
