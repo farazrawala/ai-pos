@@ -19,10 +19,25 @@ const PERIOD_OPTIONS = [
   { value: '1m', label: '1 month' },
   { value: '2m', label: '2 months' },
   { value: '3m', label: '3 months' },
+  { value: 'custom', label: 'Custom' },
 ];
 
-function getDateRangeForPeriod(periodKey) {
-  const to = moment().format('YYYY-MM-DD');
+function todayYmd() {
+  return moment().format('YYYY-MM-DD');
+}
+
+function defaultCustomRange() {
+  return {
+    from: moment().subtract(1, 'month').format('YYYY-MM-DD'),
+    to: todayYmd(),
+  };
+}
+
+function getDateRangeForPeriod(periodKey, custom = {}) {
+  if (periodKey === 'custom') {
+    return { from: custom.from || '', to: custom.to || '' };
+  }
+  const to = todayYmd();
   const ranges = {
     '1w': moment().subtract(7, 'days'),
     '2w': moment().subtract(14, 'days'),
@@ -35,6 +50,14 @@ function getDateRangeForPeriod(periodKey) {
   return { from: fromMoment.format('YYYY-MM-DD'), to };
 }
 
+function formatCustomRangeLabel(from, to) {
+  if (!from || !to) return 'Custom';
+  const start = moment(from, 'YYYY-MM-DD', true);
+  const end = moment(to, 'YYYY-MM-DD', true);
+  if (!start.isValid() || !end.isValid()) return 'Custom';
+  return `${start.format('DD MMM YYYY')} – ${end.format('DD MMM YYYY')}`;
+}
+
 function rankClass(index) {
   if (index === 0) return 'tsp-modal__rank tsp-modal__rank--1';
   if (index === 1) return 'tsp-modal__rank tsp-modal__rank--2';
@@ -44,6 +67,8 @@ function rankClass(index) {
 
 export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' }) {
   const [selectedPeriod, setSelectedPeriod] = useState('1m');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [activeSortBy, setActiveSortBy] = useState(sortBy);
@@ -53,12 +78,21 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
   useEffect(() => {
     if (!open) return undefined;
 
+    const { from, to } = getDateRangeForPeriod(selectedPeriod, {
+      from: customFrom,
+      to: customTo,
+    });
+    if (!from || !to) return undefined;
+    if (from > to) {
+      setError('From date must be on or before To date.');
+      setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
     setProducts([]);
-
-    const { from, to } = getDateRangeForPeriod(selectedPeriod);
 
     fetchTopSellingProductsRequest({
       from,
@@ -84,17 +118,33 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
     return () => {
       cancelled = true;
     };
-  }, [open, selectedPeriod, sortBy]);
+  }, [open, selectedPeriod, customFrom, customTo, sortBy]);
 
   useEffect(() => {
-    if (!open) setSelectedPeriod('1m');
+    if (!open) {
+      setSelectedPeriod('1m');
+      setCustomFrom('');
+      setCustomTo('');
+    }
   }, [open]);
+
+  const handlePeriodChange = (value) => {
+    setSelectedPeriod(value);
+    if (value === 'custom' && (!customFrom || !customTo)) {
+      const seeded = defaultCustomRange();
+      setCustomFrom(seeded.from);
+      setCustomTo(seeded.to);
+    }
+  };
 
   if (!open) return null;
 
   const sortLabel = activeSortBy === 'revenue' ? 'By revenue' : 'By quantity';
   const selectedPeriodLabel =
-    PERIOD_OPTIONS.find((opt) => opt.value === selectedPeriod)?.label || '1 month';
+    selectedPeriod === 'custom'
+      ? formatCustomRangeLabel(customFrom, customTo)
+      : PERIOD_OPTIONS.find((opt) => opt.value === selectedPeriod)?.label || '1 month';
+  const maxDate = todayYmd();
 
   return (
     <>
@@ -139,7 +189,7 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                   id="trendingProductsPeriod"
                   className="form-select form-select-sm tsp-modal__period-select"
                   value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  onChange={(e) => handlePeriodChange(e.target.value)}
                   disabled={loading}
                 >
                   {PERIOD_OPTIONS.map((opt) => (
@@ -148,6 +198,33 @@ export default function TopSellingProductsModal({ open, onClose, sortBy = 'qty' 
                     </option>
                   ))}
                 </select>
+                {selectedPeriod === 'custom' ? (
+                  <>
+                    <label className="tsp-modal__toolbar-label" htmlFor="trendingProductsFrom">
+                      From
+                    </label>
+                    <input
+                      id="trendingProductsFrom"
+                      type="date"
+                      className="form-control form-control-sm tsp-modal__date-input"
+                      value={customFrom}
+                      max={customTo || maxDate}
+                      onChange={(e) => setCustomFrom(e.target.value)}
+                    />
+                    <label className="tsp-modal__toolbar-label" htmlFor="trendingProductsTo">
+                      To
+                    </label>
+                    <input
+                      id="trendingProductsTo"
+                      type="date"
+                      className="form-control form-control-sm tsp-modal__date-input"
+                      value={customTo}
+                      min={customFrom || undefined}
+                      max={maxDate}
+                      onChange={(e) => setCustomTo(e.target.value)}
+                    />
+                  </>
+                ) : null}
               </div>
               {!loading && !error ? (
                 <div className="tsp-modal__summary">

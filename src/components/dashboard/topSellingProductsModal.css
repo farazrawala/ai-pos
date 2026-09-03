@@ -42,6 +42,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .tsp-modal__toolbar-label {
@@ -65,9 +66,21 @@
   box-shadow: none;
 }
 
-.tsp-modal__period-select:focus {
+.tsp-modal__period-select:focus,
+.tsp-modal__date-input:focus {
   border-color: rgba(94, 114, 228, 0.55);
   box-shadow: 0 0 0 0.15rem rgba(94, 114, 228, 0.15);
+}
+
+.tsp-modal__date-input {
+  min-width: 8.75rem;
+  max-width: 11rem;
+  border-color: #dee2e6;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #344767;
+  background-color: #fff;
+  box-shadow: none;
 }
 
 .tsp-modal__summary {
