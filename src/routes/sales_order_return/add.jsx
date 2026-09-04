@@ -35,7 +35,10 @@ import {
   PO_STATUS_OPTIONS,
   SR_LINE_ORDER_FIFO,
   SR_LINE_ORDER_LIFO,
+  clearSrDraftCache,
+  persistSrDraftCache,
   persistSrLineOrder,
+  readSrDraftCache,
   readStoredSrLineOrder,
   sanitizeAmountPaidInput,
 } from './srFormConstants.js';
@@ -248,6 +251,10 @@ const SalesReturnAdd = () => {
   const navigate = useNavigate();
   const authUser = useSelector((state) => state.user.user);
   const authCompany = useSelector((state) => state.user.company);
+  const companyId = useMemo(
+    () => getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim(),
+    [authUser, authCompany]
+  );
   const [form, setForm] = useState(() => emptyForm());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -264,6 +271,7 @@ const SalesReturnAdd = () => {
   const customerPickerRef = useRef(null);
 
   const [lines, setLines] = useState([]);
+  const [draftReady, setDraftReady] = useState(false);
   const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredSrLineOrder);
   const lineDisplayOrderRef = useRef(lineDisplayOrder);
   lineDisplayOrderRef.current = lineDisplayOrder;
@@ -282,6 +290,22 @@ const SalesReturnAdd = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [warehousesStatus, setWarehousesStatus] = useState('idle');
   const [poCompany, setPoCompany] = useState(null);
+
+  useEffect(() => {
+    if (!companyId || draftReady) return;
+    const cached = readSrDraftCache('add', companyId);
+    if (cached) {
+      if (cached.form) setForm((prev) => ({ ...prev, ...cached.form }));
+      setLines(cached.lines);
+      if (cached.amountPaidDirty) setAmountPaidDirty(true);
+    }
+    setDraftReady(true);
+  }, [companyId, draftReady]);
+
+  useEffect(() => {
+    if (!draftReady || !companyId) return;
+    persistSrDraftCache('add', companyId, '', { form, lines, amountPaidDirty });
+  }, [draftReady, companyId, form, lines, amountPaidDirty]);
 
   const loadUsers = useCallback(async (selectAfter) => {
     setUsersStatus('loading');
@@ -499,6 +523,7 @@ const SalesReturnAdd = () => {
       if (!product || typeof product !== 'object') return;
       const id = String(product._id ?? product.id ?? '').trim();
       if (!id) return;
+      playPosScanBeep('success');
 
       let resolved = product;
       if (!productHasListedPrice(product)) {
@@ -533,7 +558,6 @@ const SalesReturnAdd = () => {
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
-      playPosScanBeep('success');
     },
     [defaultWarehouseId]
   );
@@ -564,6 +588,7 @@ const SalesReturnAdd = () => {
 
   const handleProductSearchKeyDown = useCallback(
     async (e) => {
+      unlockPosScanAudio();
       if (e.key !== 'Enter') return;
       e.preventDefault();
       const q = String(
@@ -854,6 +879,7 @@ const SalesReturnAdd = () => {
     setIsSubmitting(true);
     try {
       await dispatch(createSalesReturn(buildPayload())).unwrap();
+      clearSrDraftCache('add', companyId);
       navigate('/sales-returns');
     } catch (err) {
       const submitError =

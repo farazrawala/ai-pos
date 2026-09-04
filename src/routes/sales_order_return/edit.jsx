@@ -35,7 +35,10 @@ import {
   PO_STATUS_OPTIONS,
   SR_LINE_ORDER_FIFO,
   SR_LINE_ORDER_LIFO,
+  clearSrDraftCache,
+  persistSrDraftCache,
   persistSrLineOrder,
+  readSrDraftCache,
   readStoredSrLineOrder,
   sanitizeAmountPaidInput,
 } from './srFormConstants.js';
@@ -389,8 +392,14 @@ const SalesReturnEdit = () => {
   );
   const authUser = useSelector((state) => state.user.user);
   const authCompany = useSelector((state) => state.user.company);
+  const companyId = useMemo(
+    () => getCompanyIdFromUser(authUser) || String(authCompany?._id ?? authCompany?.id ?? '').trim(),
+    [authUser, authCompany]
+  );
   const [form, setForm] = useState(recordToForm(null));
   const [lines, setLines] = useState([]);
+  const [draftReady, setDraftReady] = useState(false);
+  const hydratedRecordIdRef = useRef('');
   const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredSrLineOrder);
   const lineDisplayOrderRef = useRef(lineDisplayOrder);
   lineDisplayOrderRef.current = lineDisplayOrder;
@@ -497,6 +506,11 @@ const SalesReturnEdit = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    hydratedRecordIdRef.current = '';
+    setDraftReady(false);
+  }, [id]);
 
   useEffect(() => {
     if (id) dispatch(fetchSalesReturnById(id));
@@ -623,6 +637,7 @@ const SalesReturnEdit = () => {
       if (!product || typeof product !== 'object') return;
       const pid = String(product._id ?? product.id ?? '').trim();
       if (!pid) return;
+      playPosScanBeep('success');
 
       let resolved = product;
       if (productPickerWholesalePrice(product) === null) {
@@ -687,6 +702,7 @@ const SalesReturnEdit = () => {
 
   const handleProductSearchKeyDown = useCallback(
     async (e) => {
+      unlockPosScanAudio();
       if (e.key !== 'Enter') return;
       e.preventDefault();
       const q = String(
@@ -707,6 +723,7 @@ const SalesReturnEdit = () => {
         if (product) {
           await appendProduct(product);
         } else {
+          playPosScanBeep('error');
           addProductQueryRef.current = q;
           setAddProductQuery(q);
           toast.info('No exact product match for that barcode or code.');

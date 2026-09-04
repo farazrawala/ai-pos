@@ -34,6 +34,18 @@ function tone(ctx, startAt, freq, duration, type = 'sine', gainValue = 0.16) {
   osc.stop(startAt + duration + 0.02);
 }
 
+function playTones(ctx, kind) {
+  if (!ctx || ctx.state !== 'running') return;
+  const now = ctx.currentTime;
+  if (kind === 'error') {
+    tone(ctx, now, 220, 0.16, 'square', 0.1);
+    tone(ctx, now + 0.12, 160, 0.2, 'square', 0.1);
+    return;
+  }
+  tone(ctx, now, 980, 0.07, 'sine', 0.18);
+  tone(ctx, now + 0.08, 1320, 0.1, 'sine', 0.16);
+}
+
 /**
  * @param {'success' | 'error'} kind
  */
@@ -41,17 +53,11 @@ export function playPosScanBeep(kind = 'success') {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-    const now = ctx.currentTime;
-    if (kind === 'error') {
-      tone(ctx, now, 220, 0.16, 'square', 0.1);
-      tone(ctx, now + 0.12, 160, 0.2, 'square', 0.1);
+    if (ctx.state === 'running') {
+      playTones(ctx, kind);
       return;
     }
-    tone(ctx, now, 980, 0.07, 'sine', 0.18);
-    tone(ctx, now + 0.08, 1320, 0.1, 'sine', 0.16);
+    ctx.resume().then(() => playTones(ctx, kind)).catch(() => {});
   } catch {
     /* autoplay / unsupported */
   }
