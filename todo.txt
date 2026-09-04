@@ -128,5 +128,10 @@ En-Route to {city} warehouse
 
 
 // Testing id for ai - POS 
-- Ek shopify connect hoga
-- fetch product from bbg fashion
+- Ek shopify connect hoga (app access required.)
+- fetch product from bbg fashion (done)
+
+
+// bug 
+
+Me too : Vendor price will be not be affected : 

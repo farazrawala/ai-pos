@@ -867,17 +867,21 @@ const ProductEdit = () => {
 
   // Handle variation image change
   const handleVariationImageChange = (variationId, file) => {
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVariations((prev) =>
-          prev.map((v) =>
-            v.id === variationId ? { ...v, image: file, imagePreview: reader.result } : v
-          )
-        );
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    const validationError = validateProductImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setVariations((prev) =>
+        prev.map((v) =>
+          v.id === variationId ? { ...v, image: file, imagePreview: reader.result } : v
+        )
+      );
+    };
+    reader.readAsDataURL(file);
   };
 
   // Confirm, then soft-delete persisted variations (temp drafts are removed locally only)

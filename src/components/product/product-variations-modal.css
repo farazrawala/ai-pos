@@ -314,9 +314,10 @@
   align-items: center;
   gap: 0.65rem;
   margin-bottom: 0.75rem;
-  padding: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
   background: #f8fafc;
-  border: 1px dashed #d8dee9;
+  border: 1.5px dashed #d8dee9;
   border-radius: 0.6rem;
 }
 
@@ -355,12 +356,29 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #9aa4b6;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
-.pv-image-upload-btn {
+.pv-image-upload-drop-copy {
   font-size: 0.75rem;
-  padding: 0.25rem 0.55rem;
+  font-weight: 600;
+  color: #41506b;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.pv-image-upload-drop-copy .product-image-dropzone-or {
+  display: inline;
+  margin: 0 0.28rem;
+  font-weight: 500;
+}
+
+.pv-image-upload-drop-copy .product-image-dropzone-browse {
+  font-size: 0.75rem;
+}
+
+.pv-image-upload .product-image-dropzone-sub {
+  margin-top: 0.15rem;
 }
 
 .pv-field-grid {

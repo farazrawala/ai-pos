@@ -285,3 +285,38 @@
   color: #9aa4b6;
   margin: 0.45rem 0 0;
 }
+
+.product-image-dropzone--compact {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-radius: 0.6rem;
+}
+
+.product-image-dropzone--compact .product-image-dropzone-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 0.9rem;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.product-image-dropzone--compact .product-image-dropzone-text {
+  font-size: 0.75rem;
+}
+
+.product-image-dropzone--compact .product-image-dropzone-or {
+  display: inline;
+  margin: 0 0.28rem;
+}
+
+.product-image-dropzone--compact .product-image-dropzone-browse {
+  font-size: 0.75rem;
+}
+
+.product-image-dropzone--compact .product-image-dropzone-sub {
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+}

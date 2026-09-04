@@ -1,5 +1,7 @@
 import { useId, useRef } from 'react';
 import { parseVariationAttrs, generateBarcode } from './productVariationUtils.js';
+import ProductImageDropzone from './ProductImageDropzone.jsx';
+import { PRODUCT_IMAGE_ACCEPT, PRODUCT_IMAGE_HINT } from '../../utils/productImageUpload.js';
 
 const isUnsetBigCommercePrice = (value) => {
   const s = String(value ?? '').trim();
@@ -36,11 +38,11 @@ export default function ProductVariationCard({
     }
   };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleImageFiles = (files) => {
+    const file = files?.[0];
     if (file) onImageChange(variation.id, file);
     // Reset so selecting the same file again still fires onChange.
-    e.target.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -70,7 +72,15 @@ export default function ProductVariationCard({
       </div>
 
       <div className="pv-variation-card-body">
-        <div className="pv-image-upload">
+        <ProductImageDropzone
+          compact
+          className="pv-image-upload"
+          id={inputId}
+          inputRef={fileInputRef}
+          accept={PRODUCT_IMAGE_ACCEPT}
+          disabled={disabled}
+          onFiles={handleImageFiles}
+        >
           <div className="pv-image-preview">
             {variation.imagePreview ? (
               <img src={variation.imagePreview} alt={variation.name} />
@@ -82,26 +92,14 @@ export default function ProductVariationCard({
           </div>
           <div className="pv-image-upload-text">
             <div className="pv-image-upload-label">Image</div>
-            <input
-              id={inputId}
-              ref={fileInputRef}
-              type="file"
-              className="d-none"
-              accept="image/*"
-              disabled={disabled}
-              onChange={handleImageSelect}
-            />
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-primary pv-image-upload-btn mb-0"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <i className="fas fa-upload me-1" aria-hidden="true" />
-              {variation.imagePreview ? 'Change' : 'Upload'}
-            </button>
+            <p className="pv-image-upload-drop-copy">
+              {variation.imagePreview ? 'Drag & drop to replace' : 'Drag & drop an image here'}
+              <span className="product-image-dropzone-or">or</span>
+              <span className="product-image-dropzone-browse">Browse files</span>
+            </p>
+            <p className="product-image-dropzone-sub">{PRODUCT_IMAGE_HINT}</p>
           </div>
-        </div>
+        </ProductImageDropzone>
 
         <div className="pv-field-grid">
           {showMetaFields ? (

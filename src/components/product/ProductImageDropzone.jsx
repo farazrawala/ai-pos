@@ -12,6 +12,9 @@ export default function ProductImageDropzone({
   onFiles,
   hint,
   id,
+  compact = false,
+  className = '',
+  children,
 }) {
   const [dragOver, setDragOver] = useState(false);
 
@@ -51,9 +54,10 @@ export default function ProductImageDropzone({
         disabled={disabled}
       />
       <div
-        className={`product-image-dropzone${dragOver ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
+        className={`product-image-dropzone${compact ? ' product-image-dropzone--compact' : ''}${dragOver ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}${className ? ` ${className}` : ''}`}
         role="button"
         tabIndex={disabled ? -1 : 0}
+        aria-label={multiple ? 'Upload images' : 'Upload image'}
         aria-disabled={disabled || undefined}
         onClick={openPicker}
         onKeyDown={(e) => {
@@ -81,15 +85,19 @@ export default function ProductImageDropzone({
         }}
         onDrop={handleDrop}
       >
-        <div className="product-image-dropzone-icon" aria-hidden="true">
-          <i className="fas fa-cloud-arrow-up" />
-        </div>
-        <p className="product-image-dropzone-text">
-          {multiple ? 'Drag & drop images here' : 'Drag & drop an image here'}
-        </p>
-        <p className="product-image-dropzone-or">or</p>
-        <span className="product-image-dropzone-browse">Browse files</span>
-        {hint ? <p className="product-image-dropzone-sub">{hint}</p> : null}
+        {children ?? (
+          <>
+            <div className="product-image-dropzone-icon" aria-hidden="true">
+              <i className="fas fa-cloud-arrow-up" />
+            </div>
+            <p className="product-image-dropzone-text">
+              {multiple ? 'Drag & drop images here' : 'Drag & drop an image here'}
+            </p>
+            <p className="product-image-dropzone-or">or</p>
+            <span className="product-image-dropzone-browse">Browse files</span>
+            {hint ? <p className="product-image-dropzone-sub">{hint}</p> : null}
+          </>
+        )}
       </div>
     </>
   );
