@@ -132,6 +132,24 @@ describe('product import validation', () => {
     expect(result.rows[0].status).not.toBe('error');
   });
 
+  it('treats an empty selling price as 0', () => {
+    const mappings = autoMapColumns(['Name', 'SKU', 'Selling Price']);
+    const result = validateImportRows({
+      rows: [
+        ['TEXTA PENCIL IMPORTED', '001314', ''],
+        ['10 N PIN CHINA', '001315', '   '],
+      ],
+      mappings,
+      existingProducts: [],
+    });
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].values.price).toBe(0);
+    expect(result.rows[0].status).not.toBe('error');
+    expect(result.rows[1].errors).toEqual([]);
+    expect(result.rows[1].values.price).toBe(0);
+    expect(result.rows[1].status).not.toBe('error');
+  });
+
   it('skips existing SKUs unless update is selected', () => {
     const mappings = autoMapColumns(['Name', 'SKU', 'Price']);
     const existing = [{ _id: 'p1', sku: 'SAM-001', name: 'Old' }];

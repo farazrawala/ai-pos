@@ -550,11 +550,12 @@ function validateOneImportRow(row, index, ctx) {
     });
 
     if (mappedKeys.has('price')) {
-      if (values.price === '' || values.price == null) errors.push('Valid retail price is required');
+      if (values.price === '' || values.price == null) values.price = 0;
       else if (Number(values.price) < 0) errors.push('Retail price cannot be negative');
     } else if (mappedKeys.has('price_before_tax')) {
       if (values.price_before_tax === '' || values.price_before_tax == null) {
-        errors.push('Valid retail price is required');
+        values.price = 0;
+        values.price_before_tax = 0;
       } else {
         const rate = Number.isFinite(Number(values.tax_rate)) ? Number(values.tax_rate) : 0;
         values.price = Math.round(Number(values.price_before_tax) * (1 + rate / 100) * 100) / 100;
