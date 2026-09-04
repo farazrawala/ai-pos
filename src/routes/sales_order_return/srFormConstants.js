@@ -128,7 +128,11 @@ export function persistSrDraftCache(mode, companyId, recordId, draft) {
       key,
       JSON.stringify({
         ...payload,
-        lines: payload.lines.map(({ warehouseInventoryRows, ...rest }) => rest),
+        lines: payload.lines.map((row) => {
+          const rest = { ...row };
+          delete rest.warehouseInventoryRows;
+          return rest;
+        }),
       })
     );
   } catch {

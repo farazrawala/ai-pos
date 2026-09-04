@@ -544,12 +544,30 @@ const SalesReturnEdit = () => {
   }, [authUser, authCompany]);
 
   useEffect(() => {
-    if (currentSalesReturn) {
+    if (!currentSalesReturn || !id || !companyId) return;
+    const recId = pickIdString(currentSalesReturn._id ?? currentSalesReturn.id);
+    if (recId && recId !== String(id).trim()) return;
+    if (hydratedRecordIdRef.current === String(id).trim()) return;
+
+    const cached = companyId ? readSrDraftCache('edit', companyId, id) : null;
+    if (cached) {
+      setForm({ ...recordToForm(currentSalesReturn), ...(cached.form || {}) });
+      setLines(cached.lines);
+      if (cached.amountPaidDirty) setAmountPaidDirty(true);
+    } else {
       setForm(recordToForm(currentSalesReturn));
       setLines(linesFromPurchaseOrder(currentSalesReturn));
       setAmountPaidDirty(false);
     }
-  }, [currentSalesReturn]);
+    hydratedRecordIdRef.current = String(id).trim();
+    setDraftReady(true);
+  }, [currentSalesReturn, id, companyId]);
+
+  useEffect(() => {
+    if (!draftReady || !companyId || !id) return;
+    if (hydratedRecordIdRef.current !== String(id).trim()) return;
+    persistSrDraftCache('edit', companyId, id, { form, lines, amountPaidDirty });
+  }, [draftReady, companyId, id, form, lines, amountPaidDirty]);
 
   useEffect(() => {
     const q = addProductQuery.trim();
@@ -674,7 +692,6 @@ const SalesReturnEdit = () => {
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
-      playPosScanBeep('success');
     },
     [defaultWarehouseId]
   );
@@ -1000,6 +1017,7 @@ const SalesReturnEdit = () => {
       await dispatch(
         updateSalesReturn({ salesReturnId: id, salesReturnData: buildPayload() })
       ).unwrap();
+      clearSrDraftCache('edit', companyId, id);
       navigate('/sales-returns');
     } catch (err) {
       const submitError =

@@ -609,6 +609,7 @@ const SalesReturnAdd = () => {
         if (product) {
           await appendProduct(product);
         } else {
+          playPosScanBeep('error');
           addProductQueryRef.current = q;
           setAddProductQuery(q);
           toast.info('No exact product match for that barcode or code.');
