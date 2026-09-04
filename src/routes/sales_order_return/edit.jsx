@@ -31,7 +31,14 @@ import {
 } from '../../features/users/usersAPI.js';
 import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
-import { PO_STATUS_OPTIONS, sanitizeAmountPaidInput } from './srFormConstants.js';
+import {
+  PO_STATUS_OPTIONS,
+  SR_LINE_ORDER_FIFO,
+  SR_LINE_ORDER_LIFO,
+  persistSrLineOrder,
+  readStoredSrLineOrder,
+  sanitizeAmountPaidInput,
+} from './srFormConstants.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { toast } from '../../utils/toast.js';
@@ -384,6 +391,9 @@ const SalesReturnEdit = () => {
   const authCompany = useSelector((state) => state.user.company);
   const [form, setForm] = useState(recordToForm(null));
   const [lines, setLines] = useState([]);
+  const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredSrLineOrder);
+  const lineDisplayOrderRef = useRef(lineDisplayOrder);
+  lineDisplayOrderRef.current = lineDisplayOrder;
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
@@ -626,25 +636,25 @@ const SalesReturnEdit = () => {
       }
 
       const rate = productPickerDefaultLineRate(resolved);
-      setLines((prev) => [
-        ...prev,
-        {
-          key: newLineKey(),
-          productId: pid,
-          label: productPickerLabel(resolved),
-          qty: '1',
-          rate: String(rate),
-          totalShipping: '',
-          warehouseId: defaultWarehouseId,
-          warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
-            ? resolved.warehouse_inventory
-            : Array.isArray(product.warehouse_inventory)
-              ? product.warehouse_inventory
-              : [],
-          presetWarehouseInventoryId: '',
-          presetWarehouseId: '',
-        },
-      ]);
+      const newLine = {
+        key: newLineKey(),
+        productId: pid,
+        label: productPickerLabel(resolved),
+        qty: '1',
+        rate: String(rate),
+        totalShipping: '',
+        warehouseId: defaultWarehouseId,
+        warehouseInventoryRows: Array.isArray(resolved.warehouse_inventory)
+          ? resolved.warehouse_inventory
+          : Array.isArray(product.warehouse_inventory)
+            ? product.warehouse_inventory
+            : [],
+        presetWarehouseInventoryId: '',
+        presetWarehouseId: '',
+      };
+      setLines((prev) =>
+        lineDisplayOrderRef.current === SR_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
+      );
       addProductQueryRef.current = '';
       setAddProductQuery('');
       setAddProductResults([]);
@@ -1191,9 +1201,49 @@ const SalesReturnEdit = () => {
                     Search to add products, then set warehouse, rate, quantity, and optional
                     shipping per line.
                   </p>
-                  <label className="form-label" htmlFor="po-edit-product-search">
-                    Add product
-                  </label>
+                  <div className="po-form-lines-toolbar">
+                    <label className="form-label" htmlFor="po-edit-product-search">
+                      Add product
+                    </label>
+                    <div className="po-form-segment" role="group" aria-label="Line item add order">
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          lineDisplayOrder === SR_LINE_ORDER_FIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => {
+                          if (lineDisplayOrderRef.current === SR_LINE_ORDER_FIFO) return;
+                          lineDisplayOrderRef.current = SR_LINE_ORDER_FIFO;
+                          setLineDisplayOrder(SR_LINE_ORDER_FIFO);
+                          persistSrLineOrder(SR_LINE_ORDER_FIFO);
+                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                        }}
+                        disabled={isSubmitting}
+                        title="First in, first out — oldest products at the top"
+                        aria-pressed={lineDisplayOrder === SR_LINE_ORDER_FIFO}
+                      >
+                        FIFO
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          lineDisplayOrder === SR_LINE_ORDER_LIFO ? ' is-active' : ''
+                        }`}
+                        onClick={() => {
+                          if (lineDisplayOrderRef.current === SR_LINE_ORDER_LIFO) return;
+                          lineDisplayOrderRef.current = SR_LINE_ORDER_LIFO;
+                          setLineDisplayOrder(SR_LINE_ORDER_LIFO);
+                          persistSrLineOrder(SR_LINE_ORDER_LIFO);
+                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+                        }}
+                        disabled={isSubmitting}
+                        title="Last in, first out — newest products at the top"
+                        aria-pressed={lineDisplayOrder === SR_LINE_ORDER_LIFO}
+                      >
+                        LIFO
+                      </button>
+                    </div>
+                  </div>
                   <div className="po-form-product-search mb-3">
                     <div className="input-group input-group-sm">
                       <span className="input-group-text">
