@@ -30,6 +30,7 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
+import { openAppPathInNewTab, withBase } from '../../config/appBase.js';
 
 const poRef = (row) =>
   row?.sales_return_no ??
@@ -407,10 +408,38 @@ const SalesReturns = () => {
                         const txn = poTransactionNumber(item);
                         const statusVal = poStatus(item);
                         const customer = poCustomer(item);
+                        const ref = poRef(item);
+                        const editPath = id ? `/sales-returns/edit/${encodeURIComponent(id)}` : '';
                         return (
                           <tr key={id || index}>
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
-                            <td className="text-sm font-weight-bold text-dark">{poRef(item)}</td>
+                            <td className="text-sm font-weight-bold text-dark">
+                              {id && canView && ref !== '—' ? (
+                                <a
+                                  href={withBase(editPath)}
+                                  className="text-primary font-weight-bold text-decoration-none text-nowrap"
+                                  title={`Open ${ref} in new browser tab`}
+                                  onClick={(e) => {
+                                    if (
+                                      e.defaultPrevented ||
+                                      e.button !== 0 ||
+                                      e.metaKey ||
+                                      e.ctrlKey ||
+                                      e.shiftKey ||
+                                      e.altKey
+                                    ) {
+                                      return;
+                                    }
+                                    e.preventDefault();
+                                    openAppPathInNewTab(editPath);
+                                  }}
+                                >
+                                  {ref}
+                                </a>
+                              ) : (
+                                ref
+                              )}
+                            </td>
                             <td
                               className="text-sm list-cell-truncate"
                               title={txn !== '—' ? txn : undefined}
@@ -455,7 +484,7 @@ const SalesReturns = () => {
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-danger mb-0"
-                                      onClick={() => handleDelete(id, poRef(item))}
+                                      onClick={() => handleDelete(id, ref)}
                                       disabled={deleteStatus === 'loading'}
                                     >
                                       Delete
