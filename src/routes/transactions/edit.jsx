@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import moment from 'moment';
 import {
   updateTransaction,
   fetchTransactionById,
@@ -9,6 +10,14 @@ import TransactionForm from '../../components/transactions/TransactionForm.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
+
+const pickCreatedAt = (row) => row?.createdAt ?? row?.created_at ?? row?.created ?? '';
+
+const formatCreatedAt = (value) => {
+  if (!value) return '';
+  const when = moment(value);
+  return when.isValid() ? when.format('DD MMM YYYY, h:mm a') : '';
+};
 
 /** Normalize a transaction record (populated account_id → id) into form initial values. */
 const toInitialValues = (row) => {
@@ -38,9 +47,13 @@ const TransactionEdit = () => {
   const [initialValues, setInitialValues] = useState(() =>
     location.state?.transaction ? toInitialValues(location.state.transaction) : null
   );
+  const [createdAt, setCreatedAt] = useState(() =>
+    location.state?.transaction ? pickCreatedAt(location.state.transaction) : ''
+  );
   const [loadStatus, setLoadStatus] = useState(location.state?.transaction ? 'succeeded' : 'idle');
   const [loadError, setLoadError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const createdAtLabel = useMemo(() => formatCreatedAt(createdAt), [createdAt]);
 
   useEffect(() => {
     if (!isAdmin) navigate('/transactions', { replace: true });
@@ -56,6 +69,7 @@ const TransactionEdit = () => {
       .then((row) => {
         if (cancelled) return;
         setInitialValues(toInitialValues(row));
+        setCreatedAt(pickCreatedAt(row));
         setLoadStatus('succeeded');
       })
       .catch((err) => {
@@ -91,7 +105,7 @@ const TransactionEdit = () => {
         <div className="col-12" style={{ padding: '20px' }}>
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="card-header">
-              <div className="d-flex justify-content-between align-items-center">
+              <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
                 <div>
                   <h5 className="mb-0">Edit transaction</h5>
                   {DEBUG ? (
@@ -100,13 +114,21 @@ const TransactionEdit = () => {
                     </p>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary mb-0"
-                  onClick={() => navigate('/transactions')}
-                >
-                  Back to list
-                </button>
+                <div className="d-flex align-items-center gap-3 ms-auto">
+                  {createdAtLabel ? (
+                    <div className="text-end">
+                      <p className="text-xs text-uppercase text-muted mb-0">Created</p>
+                      <p className="text-sm text-dark mb-0 font-weight-bold">{createdAtLabel}</p>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary mb-0"
+                    onClick={() => navigate('/transactions')}
+                  >
+                    Back to list
+                  </button>
+                </div>
               </div>
             </div>
             <div className="card-body">

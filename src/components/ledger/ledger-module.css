@@ -47,6 +47,14 @@
   background-color: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.06);
 }
 
+.ledger-module .ledger-users-table .table-ledger tbody tr:nth-child(even):not(.ledger-expand-row) {
+  background-color: transparent;
+}
+
+.ledger-module .ledger-users-table .table-ledger tbody tr.ledger-data-row:hover {
+  background-color: transparent;
+}
+
 .ledger-module .ledger-summary-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -86,6 +94,14 @@
   .ledger-module .table-ledger tbody tr.ledger-data-row:hover {
     background-color: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.12);
   }
+
+  .ledger-module .ledger-users-table .table-ledger tbody tr:nth-child(even):not(.ledger-expand-row) {
+    background-color: transparent;
+  }
+
+  .ledger-module .ledger-users-table .table-ledger tbody tr.ledger-data-row:hover {
+    background-color: transparent;
+  }
 }
 
 .ledger-module .skeleton-line {
@@ -93,10 +109,138 @@
   border-radius: 0.25rem;
 }
 
+/* Ledger listing */
+.ledger-module .ledger-listing-wrap {
+  padding: 20px;
+}
+
+.ledger-module .ledger-kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 0.125rem 0.35rem rgba(15, 23, 42, 0.04);
+}
+
+.ledger-module .ledger-kpi-item {
+  padding: 1rem 1.25rem;
+  border-right: 1px solid #eef1f4;
+  min-width: 0;
+}
+
+.ledger-module .ledger-kpi-item:last-child {
+  border-right: 0;
+}
+
+.ledger-module .ledger-kpi-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8898aa;
+}
+
+.ledger-module .ledger-kpi-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #344767;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  margin-top: 0.2rem;
+}
+
+.ledger-module .ledger-kpi-item--recv .ledger-kpi-value {
+  color: #c92a2a;
+}
+
+.ledger-module .ledger-kpi-item--pay .ledger-kpi-value {
+  color: #0f766e;
+}
+
+.ledger-module .ledger-kpi-hint {
+  font-size: 0.7rem;
+  color: #8392ab;
+  margin-top: 0.15rem;
+}
+
+@media (max-width: 991.98px) {
+  .ledger-module .ledger-kpi-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ledger-module .ledger-kpi-item:nth-child(2) {
+    border-right: 0;
+  }
+
+  .ledger-module .ledger-kpi-item:nth-child(1),
+  .ledger-module .ledger-kpi-item:nth-child(2) {
+    border-bottom: 1px solid #eef1f4;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .ledger-module .ledger-kpi-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-module .ledger-kpi-item {
+    border-right: 0;
+    border-bottom: 1px solid #eef1f4;
+  }
+
+  .ledger-module .ledger-kpi-item:last-child {
+    border-bottom: 0;
+  }
+}
+
+.ledger-module .ledger-users-search {
+  width: 100%;
+  max-width: 280px;
+}
+
+.ledger-module .ledger-filter-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ledger-module .ledger-filter-chip {
+  appearance: none;
+  margin: 0;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 100px;
+  padding: 0.32rem 0.8rem;
+  line-height: 1.2;
+}
+
+.ledger-module .ledger-filter-chip:hover {
+  border-color: #cbd5e1;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.ledger-module .ledger-filter-chip.is-active {
+  border-color: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.35);
+  background: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.08);
+  color: var(--bs-primary, #5e72e4);
+}
+
 /* Ledger listing — users table */
 .ledger-module .ledger-users-card {
-  border: 0;
+  border: 1px solid #e9ecef;
   overflow: hidden;
+}
+
+.ledger-module .ledger-users-card > .card-header {
+  background: #fff;
+  border-bottom: 1px solid #eef1f4;
 }
 
 .ledger-module .ledger-users-table.list-data-table {
@@ -105,19 +249,21 @@
 }
 
 .ledger-module .ledger-users-table .table-ledger {
-  min-width: 1180px;
+  min-width: 1080px;
 }
 
 .ledger-module .ledger-users-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8f9fa;
+  background: #f8fafc;
   box-shadow: inset 0 -1px 0 #e9ecef;
 }
 
 .ledger-module .ledger-users-table tbody td {
   font-variant-numeric: tabular-nums;
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
 }
 
 .ledger-module .ledger-users-table tbody tr.ledger-data-row {
@@ -126,30 +272,65 @@
 }
 
 .ledger-module .ledger-users-table tbody tr.ledger-data-row:nth-child(even) td {
-  background-color: #fbfcfe;
+  background-color: transparent;
 }
 
 .ledger-module .ledger-users-table tbody tr.ledger-data-row:hover td {
-  background-color: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.07);
+  background-color: #f8fafc;
 }
 
 .ledger-module .ledger-user-avatar {
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 0.7rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  font-size: 0.68rem;
   font-weight: 700;
+  letter-spacing: 0.03em;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(52, 71, 103, 0.12);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .ledger-module .ledger-user-name {
-  max-width: 200px;
-  color: #344767;
+  max-width: 220px;
+  color: #1e293b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ledger-module .ledger-role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.28rem;
+}
+
+.ledger-module .ledger-role-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.3rem;
+  padding: 0.08rem 0.38rem;
+  line-height: 1.3;
 }
 
 .ledger-module .ledger-user-contact {
-  max-width: 180px;
-  color: #525f7f;
+  max-width: 220px;
+  color: #334155;
+}
+
+.ledger-module .ledger-user-phone {
+  font-size: 0.72rem;
+  color: #8898aa;
+  margin-top: 0.12rem;
 }
 
 .ledger-module .ledger-money {
@@ -158,23 +339,56 @@
 }
 
 .ledger-module .ledger-date {
-  color: #67748e;
+  color: #64748b;
 }
 
-.ledger-module .ledger-status-badge {
-  text-transform: capitalize;
+.ledger-module .ledger-date-day {
+  color: #334155;
+  font-weight: 600;
+}
+
+.ledger-module .ledger-date-time {
+  font-size: 0.72rem;
+  color: #8898aa;
+}
+
+.ledger-module .ledger-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   letter-spacing: 0.02em;
-  padding: 0.35rem 0.55rem;
+  text-transform: capitalize;
+  border-radius: 100px;
+  padding: 0.28rem 0.65rem;
 }
 
-.ledger-module .ledger-activity-dot {
-  width: 10px;
-  height: 10px;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+.ledger-module .ledger-status-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ledger-module .ledger-status-pill--active {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+
+.ledger-module .ledger-status-pill--inactive {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.ledger-module .ledger-status-pill--suspended {
+  color: #b45309;
+  background: #fffbeb;
 }
 
 .ledger-module .ledger-users-actions-col {
-  width: 88px;
+  width: 72px;
 }
 
 .ledger-module .ledger-row-action-btn {
@@ -185,43 +399,64 @@
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  border-color: #dee2e6;
-  color: #67748e;
+  border-color: #e2e8f0;
+  color: #64748b;
   background: #fff;
 }
 
 .ledger-module .ledger-row-action-btn:hover,
 .ledger-module .ledger-row-action-btn:focus {
-  border-color: var(--bs-primary, #5e72e4);
-  color: var(--bs-primary, #5e72e4);
-  background: #f8f9fe;
+  border-color: #cbd5e1;
+  color: #334155;
+  background: #f8fafc;
 }
 
 .ledger-module .ledger-users-empty {
-  background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
+  background: #fff;
   color: #8392ab;
 }
 
+.ledger-module .ledger-status-badge {
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  padding: 0.35rem 0.55rem;
+}
+
 @media (prefers-color-scheme: dark) {
+  .ledger-module .ledger-kpi-bar,
+  .ledger-module .ledger-users-card {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .ledger-module .ledger-kpi-item {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .ledger-module .ledger-kpi-value,
+  .ledger-module .ledger-user-name,
+  .ledger-module .ledger-date-day {
+    color: #e2e8f0;
+  }
+
   .ledger-module .ledger-users-table thead th {
     background: #1e293b;
     color: #cbd5e1;
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
   }
 
-  .ledger-module .ledger-users-table tbody tr.ledger-data-row:nth-child(even) td {
-    background-color: rgba(255, 255, 255, 0.02);
-  }
-
   .ledger-module .ledger-users-table tbody tr.ledger-data-row:hover td {
-    background-color: rgba(var(--bs-primary-rgb, 94, 114, 228), 0.14);
-  }
-
-  .ledger-module .ledger-user-name {
-    color: #e2e8f0;
+    background-color: rgba(255, 255, 255, 0.04);
   }
 
   .ledger-module .ledger-user-contact {
+    color: #cbd5e1;
+  }
+
+  .ledger-module .ledger-role-chip,
+  .ledger-module .ledger-filter-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
     color: #cbd5e1;
   }
 

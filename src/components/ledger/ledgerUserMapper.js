@@ -1,3 +1,5 @@
+import { parseRoleLabels } from './ledgerUtils.js';
+
 /**
  * Maps `/api/user/get-all-active` and `/api/user/get/:id` payloads to {@link import('./mock/ledgerTypes.js').LedgerUserRow}.
  * Ledger-specific fields (debit/credit totals, last tx) are absent from the user API — filled with safe defaults until a ledger endpoint exists.
@@ -15,6 +17,7 @@ export function mapApiUserToLedgerRow(api) {
       email: '',
       phone: '',
       role: '—',
+      roles: [],
       status: 'active',
       openingBalance: 0,
       currentBalance: 0,
@@ -30,8 +33,8 @@ export function mapApiUserToLedgerRow(api) {
 
   const id = String(api._id ?? api.id ?? '');
   const initial = Number(api.initial_balance ?? api.initialBalance ?? 0) || 0;
-  const roles = Array.isArray(api.role) ? api.role : api.role != null ? [api.role] : [];
-  const roleLabel = roles.filter(Boolean).join(', ') || '—';
+  const roles = parseRoleLabels(api.role);
+  const roleLabel = roles.join(', ') || '—';
   const statusRaw = String(api.status ?? 'active').toLowerCase();
   const status =
     statusRaw === 'active' || statusRaw === 'inactive' || statusRaw === 'suspended' ? statusRaw : 'active';
@@ -45,6 +48,7 @@ export function mapApiUserToLedgerRow(api) {
     email: api.email != null ? String(api.email) : '',
     phone: api.phone != null ? String(api.phone) : '',
     role: roleLabel,
+    roles,
     status,
     openingBalance: initial,
     currentBalance: initial,

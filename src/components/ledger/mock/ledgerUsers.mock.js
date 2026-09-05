@@ -95,8 +95,8 @@ export const MOCK_LEDGER_USERS = [
 /** Portfolio-level aggregates for listing summary cards (mock). */
 export function getLedgerListingAggregates(users, todayTxCount = 42) {
   const totalUsers = users.length;
-  const totalReceivables = users.reduce((s, u) => s + Math.max(0, u.currentBalance), 0);
-  const totalPayables = users.reduce((s, u) => s + Math.max(0, -u.currentBalance), 0);
+  const totalReceivables = users.reduce((s, u) => s + Math.max(0, -Number(u.currentBalance) || 0), 0);
+  const totalPayables = users.reduce((s, u) => s + Math.max(0, Number(u.currentBalance) || 0), 0);
   const activeLedgers = users.filter((u) => u.status === 'active').length;
   const overdueBalances = users.filter((u) => u.currentBalance < 0).reduce((s, u) => s + Math.abs(u.currentBalance), 0);
   return {

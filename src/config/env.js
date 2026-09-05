@@ -12,14 +12,14 @@ export const SHOP_NAME = import.meta.env.VITE_SHOP_NAME || APP_NAME;
 
 export const isDevServer = Boolean(import.meta.env.DEV);
 
-/** `VITE_DEBUG=true` — enables dev tooling (e.g. API sources footer). */
+/** `VITE_DEBUG=true` — enables dev tooling (e.g. API sources footer). Never on live. */
 function parseEnvBool(value) {
   if (value === undefined || value === '') return false;
   const v = String(value).trim().toLowerCase();
   return v === 'true' || v === '1' || v === 'yes';
 }
 
-export const DEBUG = parseEnvBool(import.meta.env.VITE_DEBUG);
+export const DEBUG = parseEnvBool(import.meta.env.VITE_DEBUG) && !IS_LIVE;
 
 /** Currency label and locale (e.g. PKR / en-PK). */
 export const CURRENCY_CODE = import.meta.env.VITE_CURRENCY_CODE || 'PKR';

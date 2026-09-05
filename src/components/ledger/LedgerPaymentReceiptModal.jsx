@@ -5,7 +5,9 @@ import AppModal from '../AppModal.jsx';
 import SearchableSelect from '../common/SearchableSelect.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { toast } from '../../utils/toast.js';
-import { buildApiUrl, formatDisplayApiUrl } from '../../config/apiConfig.js';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
+import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import {
   buildFetchAccountsByTypeUrl,
@@ -199,8 +201,9 @@ export default function LedgerPaymentReceiptModal({ open, onClose, user, onSaved
     [assetAccounts, form.paymentMode]
   );
 
-  const apiSources = useMemo(
-    () => [
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+    return [
       {
         key: 'users',
         label: 'Users',
@@ -224,9 +227,8 @@ export default function LedgerPaymentReceiptModal({ open, onClose, user, onSaved
         status: isSubmitting ? 'loading' : saveError ? 'error' : 'pending',
         error: saveError || null,
       },
-    ],
-    [accountFilterParams, accountsLoading, isSubmitting, saveError, usersLoading]
-  );
+    ];
+  }, [accountFilterParams, accountsLoading, isSubmitting, saveError, usersLoading]);
 
   const validate = useCallback(() => {
     const next = {};
@@ -482,45 +484,11 @@ export default function LedgerPaymentReceiptModal({ open, onClose, user, onSaved
           ) : null}
         </div>
 
-        <aside
-          className="dev-api-sources mt-3 mb-0"
-          aria-label="API request URLs used by this payment form"
-        >
-          <p className="dev-api-sources-title">API request URLs</p>
-          <ul className="dev-api-sources-list">
-            {apiSources.map((entry) => {
-              const timingClass =
-                entry.status === 'error'
-                  ? 'dev-api-sources-timing--error'
-                  : entry.status === 'success'
-                    ? 'dev-api-sources-timing--success'
-                    : 'dev-api-sources-timing--loading';
-
-              return (
-                <li key={entry.key} className="dev-api-sources-item">
-                  <div className="dev-api-sources-row-head">
-                    <span className="dev-api-sources-label">{entry.label}</span>
-                    <span className={`dev-api-sources-timing ${timingClass}`}>
-                      {entry.status === 'loading'
-                        ? '…'
-                        : entry.status === 'error'
-                          ? 'failed'
-                          : entry.status === 'success'
-                            ? 'GET'
-                            : 'POST on save'}
-                    </span>
-                  </div>
-                  <code className="dev-api-sources-url user-select-all">
-                    {formatDisplayApiUrl(entry.url)}
-                  </code>
-                  {entry.status === 'error' && entry.error ? (
-                    <span className="dev-api-sources-error">{entry.error}</span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </aside>
+        <DevApiSourcesFooter
+          sources={apiSources}
+          title="API request URLs"
+          className="mt-3 mb-0"
+        />
       </form>
     </AppModal>
   );

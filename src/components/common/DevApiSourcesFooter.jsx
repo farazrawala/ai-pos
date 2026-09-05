@@ -1,4 +1,4 @@
-import { APP_ENV, DEBUG } from '../../config/env.js';
+import { APP_ENV, DEBUG, IS_LIVE } from '../../config/env.js';
 import { formatDisplayApiUrl } from '../../config/apiConfig.js';
 import { formatApiDurationMs } from '../../utils/pageApiSources.js';
 
@@ -23,7 +23,7 @@ export default function DevApiSourcesFooter({
   className = '',
   wallDurationMs = null,
 }) {
-  if (!DEBUG || !sources.length) return null;
+  if (IS_LIVE || !DEBUG || !sources.length) return null;
 
   const resolvedWallMs =
     wallDurationMs != null && Number.isFinite(wallDurationMs)

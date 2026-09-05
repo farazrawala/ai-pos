@@ -14,9 +14,61 @@ export const fmtMoney = (n) => {
 /** @param {number} value */
 export const balanceTextClass = (value) => {
   const x = Number(value);
-  if (!Number.isFinite(x) || x === 0) return 'text-dark';
+  if (!Number.isFinite(x) || x === 0) return 'text-muted';
   return x > 0 ? 'text-success' : 'text-danger';
 };
+
+/** Debit/credit totals stay neutral at zero so empty books don't look like alerts. */
+export const flowAmountClass = (value, kind) => {
+  const x = Number(value);
+  if (!Number.isFinite(x) || x === 0) return 'text-muted';
+  return kind === 'credit' ? 'text-success' : 'text-danger';
+};
+
+export function formatRoleLabel(role) {
+  const raw = String(role || '').trim();
+  if (!raw) return '';
+  return raw
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function parseRoleLabels(role) {
+  const list = Array.isArray(role)
+    ? role
+    : role != null && String(role).trim()
+      ? String(role).split(',')
+      : [];
+  return list.map((item) => formatRoleLabel(item)).filter(Boolean);
+}
+
+export function userInitials(name) {
+  const initials = String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  return initials || '—';
+}
+
+const AVATAR_TONES = [
+  { bg: '#e8eef5', color: '#3d5a80' },
+  { bg: '#e9f4ee', color: '#2d6a4f' },
+  { bg: '#f1eef6', color: '#5b4b7a' },
+  { bg: '#f6efe8', color: '#7a5b3d' },
+  { bg: '#eaf3f6', color: '#2f6273' },
+  { bg: '#f5eef1', color: '#7a3d56' },
+];
+
+export function avatarTone(seed) {
+  const s = String(seed || '');
+  let hash = 0;
+  for (let i = 0; i < s.length; i += 1) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
 
 /**
  * Running balance is `credit - debit`, so amounts billed to the party (debits)

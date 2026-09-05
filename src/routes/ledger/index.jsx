@@ -5,7 +5,6 @@ import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
 import { toast } from '../../utils/toast.js';
 import { fetchUsersRequest } from '../../features/users/usersAPI.js';
 import LedgerListingSummaryCards from '../../components/ledger/users-list/LedgerListingSummaryCards.jsx';
-import LedgerUsersFilters from '../../components/ledger/filters/LedgerUsersFilters.jsx';
 import LedgerUsersTable from '../../components/ledger/tables/LedgerUsersTable.jsx';
 import { getLedgerListingAggregates } from '../../components/ledger/mock/ledgerUsers.mock.js';
 import { filterLedgerUsers } from '../../components/ledger/ledgerListingFilters.js';
@@ -45,7 +44,6 @@ export default function LedgerListingPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [totalRowCount, setTotalRowCount] = useState(0);
-  const [draftFilters, setDraftFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [sortKey, setSortKey] = useState('fullName');
   const [sortDir, setSortDir] = useState('asc');
@@ -171,54 +169,25 @@ export default function LedgerListingPage() {
     };
   }, [aggregateSample, aggregateTotalUsers]);
 
-  const handleFilterChange = useCallback((key, value) => {
-    setDraftFilters((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
   const handleSearchChange = useCallback((e) => {
     const value = e.target.value;
     setLocalSearch(value);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     searchTimeoutRef.current = setTimeout(() => {
-      setDraftFilters((prev) => ({ ...prev, search: value, contactSearch: '' }));
       setAppliedFilters((prev) => ({ ...prev, search: value, contactSearch: '' }));
       setPage(1);
     }, 500);
   }, []);
 
-  const handleApply = useCallback(() => {
-    setAppliedFilters({ ...draftFilters });
+  const handleQuickFilter = useCallback((label) => {
+    const next = initialFilters();
+    next.search = localSearch;
+    if (label === 'Active') next.status = 'active';
+    else if (label === 'Receivable') next.balanceType = 'negative';
+    else if (label === 'Payable') next.balanceType = 'positive';
+    setAppliedFilters(next);
     setPage(1);
-  }, [draftFilters]);
-
-  const handleReset = useCallback(() => {
-    const empty = initialFilters();
-    setDraftFilters(empty);
-    setAppliedFilters(empty);
-    setLocalSearch('');
-    setSortKey('fullName');
-    setSortDir('asc');
-    setPage(1);
-  }, []);
-
-  const handleQuickFilter = useCallback(
-    (label) => {
-      let next = { ...draftFilters };
-      if (label === 'Active') next = { ...next, status: 'active', balanceType: 'all' };
-      else if (label === 'Receivable') next = { ...next, balanceType: 'negative', status: 'all' };
-      else if (label === 'Payable') next = { ...next, balanceType: 'positive', status: 'all' };
-      else if (label === 'Recent activity') {
-        next = { ...next };
-        setSortKey('lastTransactionAt');
-        setSortDir('desc');
-      }
-      setDraftFilters(next);
-      setAppliedFilters(next);
-      setPage(1);
-      toast.info(`Quick filter: ${label}`, { delay: 2500 });
-    },
-    [draftFilters]
-  );
+  }, [localSearch]);
 
   const handleSort = useCallback((key, dir) => {
     setSortKey(key);
@@ -248,35 +217,37 @@ export default function LedgerListingPage() {
     [navigate]
   );
 
-  const headerActions = useCallback((kind) => {
-    const labels = {
-      add: 'Add ledger (demo)',
-      export: 'Export (demo)',
-      import: 'Import (demo)',
-      filter: 'Focus filters (demo)',
-    };
-    toast.info(labels[kind] || kind, { delay: 3500 });
-  }, []);
-
   return (
-    <div className="container-fluid py-4 ledger-module">
-      
-      <LedgerUsersTable
-        rows={users}
-        loading={loading}
-        page={page}
-        pageSize={pageSize}
-        totalRowCount={totalRowCount}
-        search={localSearch}
-        onSearchChange={handleSearchChange}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={handleSort}
-        onRowNavigate={handleRowNavigate}
-        onAction={handleAction}
-      />
+    <div className="container-fluid py-4 px-0 ledger-module">
+      <div className="row">
+        <div className="col-12 ledger-listing-wrap">
+          <LedgerListingSummaryCards
+            totalUsers={aggregates.totalUsers}
+            totalReceivables={aggregates.totalReceivables}
+            totalPayables={aggregates.totalPayables}
+            activeLedgers={aggregates.activeLedgers}
+          />
+          <LedgerUsersTable
+            rows={users}
+            loading={loading}
+            page={page}
+            pageSize={pageSize}
+            totalRowCount={totalRowCount}
+            search={localSearch}
+            onSearchChange={handleSearchChange}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            onRowNavigate={handleRowNavigate}
+            onAction={handleAction}
+            statusFilter={appliedFilters.status}
+            balanceTypeFilter={appliedFilters.balanceType}
+            onQuickFilter={handleQuickFilter}
+          />
+        </div>
+      </div>
     </div>
   );
 }

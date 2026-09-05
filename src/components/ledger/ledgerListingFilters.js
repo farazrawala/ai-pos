@@ -10,7 +10,16 @@ export function filterLedgerUsers(users, f) {
 
   const q = String(f.search || '').trim().toLowerCase();
   if (q) {
-    list = list.filter((u) => u.fullName.toLowerCase().includes(q));
+    list = list.filter(
+      (u) =>
+        u.fullName.toLowerCase().includes(q) ||
+        String(u.email || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(u.phone || '')
+          .toLowerCase()
+          .includes(q)
+    );
   }
 
   const cq = String(f.contactSearch || '').trim().toLowerCase();

@@ -6,6 +6,7 @@
  * @property {string} [phone]
  * @property {string} [avatarUrl]
  * @property {string} role
+ * @property {string[]} [roles]
  * @property {'active'|'inactive'|'suspended'} status
  * @property {number} openingBalance
  * @property {number} currentBalance
