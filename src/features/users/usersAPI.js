@@ -34,7 +34,6 @@ const USER_DELETE_PATH = 'user/delete';
 const USER_RESTORE_PATH = 'user/restore';
 const USER_RESTORE_FALLBACK_PATH = 'users/restore';
 const TOTAL_CUSTOMERS_PATH = 'user/total-customers';
-const TOTAL_USERS_PATH = 'user/total-users';
 
 export const USER_PROFILE_IMAGE_FIELD = 'profile_image';
 
@@ -753,32 +752,16 @@ export async function fetchTotalCustomersRequest() {
 }
 
 /**
- * GET `user/total-users` — `{ success, user_count }`.
+ * Count accounts that have the USER role (same filter as the Users list tab).
+ * `user/total-users` returns every record; use `get-all-active?role=USER` instead.
  */
 export async function fetchTotalUsersRequest() {
-  const token = getAuthToken();
-  const headers = { Accept: 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const url = `${BASE_URL}${TOTAL_USERS_PATH}`;
-  const response = await fetch(url, { method: 'GET', headers });
-
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    throw new Error(errBody.message || `HTTP ${response.status}`);
-  }
-
-  const result = await response.json().catch(() => ({}));
-  if (result && result.success === false) {
-    throw new Error(result.message || 'Could not load user count');
-  }
-
-  const raw = result.user_count ?? result.userCount ?? result.total ?? result.count;
-  const userCount =
-    typeof raw === 'number' && Number.isFinite(raw) ? raw : parseInt(String(raw ?? ''), 10);
-
+  const listed = await fetchUsersRequest({
+    role: 'USER',
+    limit: 1,
+    page: 1,
+  });
+  const userCount = Number(listed?.total);
   return {
     userCount: Number.isFinite(userCount) ? userCount : 0,
   };

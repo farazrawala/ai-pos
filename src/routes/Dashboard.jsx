@@ -165,7 +165,7 @@ const Dashboard = () => {
                             ) : usersError ? (
                               <span className="text-danger text-sm">{usersError}</span>
                             ) : (
-                              <span className="text-secondary text-sm">total users</span>
+                              <span className="text-secondary text-sm">with User role</span>
                             )}
                           </p>
                         </div>
