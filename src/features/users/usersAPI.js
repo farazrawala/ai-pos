@@ -1,5 +1,6 @@
 import { API_BASE_URL, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import { normalizeShowGraphsOnDashboard } from '../../constants/dashboardGraphs.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -47,7 +48,7 @@ export function isUserUploadFilePart(value) {
 }
 
 function appendUserFieldsToFormData(formData, data = {}) {
-  const { profile_image: _file, permissions, role, ...rest } = data;
+  const { profile_image: _file, permissions, role, show_graphs_on_dashboard, ...rest } = data;
 
   Object.entries(rest).forEach(([key, value]) => {
     if (value === undefined) return;
@@ -64,6 +65,16 @@ function appendUserFieldsToFormData(formData, data = {}) {
     });
   }
 
+  if (Array.isArray(show_graphs_on_dashboard)) {
+    if (show_graphs_on_dashboard.length === 0) {
+      formData.append('show_graphs_on_dashboard', '[]');
+    } else {
+      show_graphs_on_dashboard.forEach((graphKey, index) => {
+        formData.append(`show_graphs_on_dashboard[${index}]`, String(graphKey));
+      });
+    }
+  }
+
   if (permissions != null) {
     formData.append('permissions', JSON.stringify(permissions));
   }
@@ -77,12 +88,16 @@ function pickOptionalStringField(payload, key) {
 function buildUserUpdateFields(payload = {}) {
   const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
   const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
+  const show_graphs_on_dashboard = normalizeShowGraphsOnDashboard(
+    payload.show_graphs_on_dashboard ?? payload.show_grahs_on_dashboard ?? payload.show_graphs
+  );
   const fields = {
     name: payload.name != null ? String(payload.name) : undefined,
     email: payload.email != null ? String(payload.email) : undefined,
     status: payload.status != null ? String(payload.status) : undefined,
     role: roleList.map((r) => String(r)),
     permissions,
+    show_graphs_on_dashboard,
     initial_balance:
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     address: pickOptionalStringField(payload, 'address'),
@@ -177,6 +192,21 @@ export function normalizePermissionsForApi(raw) {
 /** Default password sent for POS-created customers (hidden in UI). */
 export const POS_DEFAULT_CUSTOMER_PASSWORD = '123456';
 
+/** Customer picker on POS / invoice — never download the full customer table. */
+export const POS_CUSTOMER_PICKER_LIMIT = 25;
+
+export async function fetchPosCustomerPickerRequest(search = '') {
+  const q = String(search || '').trim();
+  return fetchUsersListRequest({
+    limit: POS_CUSTOMER_PICKER_LIMIT,
+    skip: 0,
+    role: 'CUSTOMER',
+    ...(q ? { search: q } : {}),
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+}
+
 /** Digits only from phone (for synthetic email local part). */
 export function digitsOnlyFromPhone(phone) {
   return String(phone || '').replace(/\D/g, '');
@@ -209,6 +239,23 @@ export function pickCreatedUserFromResponse(result) {
     return result;
   }
   return null;
+}
+
+/** Merge create-API payload with the form so POS can select the customer without a full list refetch. */
+export function buildCreatedCustomerRecord(created, fallback = {}) {
+  const source = created && typeof created === 'object' ? created : {};
+  const id = getUserOptionValue(source) || String(fallback._id ?? fallback.id ?? '').trim();
+  return {
+    ...source,
+    ...(id ? { _id: id } : {}),
+    name: String(source.name || fallback.name || '').trim(),
+    email: String(source.email || fallback.email || '').trim(),
+    phone: String(source.phone || fallback.phone || '').trim(),
+    role: source.role || fallback.role || ['CUSTOMER'],
+    ...(fallback.city ? { city: fallback.city } : {}),
+    ...(fallback.state ? { state: fallback.state } : {}),
+    ...(fallback.area ? { area: fallback.area } : {}),
+  };
 }
 
 /**
@@ -295,6 +342,7 @@ export async function fetchUsersListRequest(params = {}) {
   query.set('limit', String(limit));
   query.set('skip', String(skip));
   if (params.role) query.set('role', String(params.role));
+  if (params.search) query.set('search', String(params.search).trim());
   if (params.sortBy) query.set('sortBy', String(params.sortBy));
   if (params.sortOrder) query.set('sortOrder', String(params.sortOrder));
 
@@ -536,6 +584,9 @@ export async function createUserRequest(payload = {}) {
   }
   const roleList = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
   const permissions = normalizePermissionsForApi(clonePlainJson(payload.permissions));
+  const show_graphs_on_dashboard = normalizeShowGraphsOnDashboard(
+    payload.show_graphs_on_dashboard ?? payload.show_grahs_on_dashboard ?? payload.show_graphs
+  );
   const body = {
     name: payload.name != null ? String(payload.name) : '',
     email: payload.email != null ? String(payload.email) : '',
@@ -545,6 +596,7 @@ export async function createUserRequest(payload = {}) {
     initial_balance:
       payload.initial_balance != null ? Number(payload.initial_balance) || 0 : undefined,
     permissions,
+    show_graphs_on_dashboard,
     address: pickOptionalStringField(payload, 'address') ?? '',
     area: pickOptionalStringField(payload, 'area') ?? '',
     city: pickOptionalStringField(payload, 'city') ?? '',

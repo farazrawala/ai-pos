@@ -14,15 +14,18 @@ import {
 } from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
-  fetchUsersListRequest,
+  fetchPosCustomerPickerRequest,
   formatUserOptionLabel,
   getDefaultPosCustomerUserId,
   getUserOptionValue,
   createCustomerUserRequest,
+  buildCreatedCustomerRecord,
   pickCreatedUserFromResponse,
   POS_DEFAULT_CUSTOMER_PASSWORD,
+  POS_CUSTOMER_PICKER_LIMIT,
   resolvePosCustomerEmail,
   digitsOnlyFromPhone,
+  isDefaultCustomerUser,
 } from '../../features/users/usersAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchProductActiveRequest } from '../../features/products/productsAPI.js';
@@ -81,6 +84,7 @@ import {
   getAllCustomers,
   countCustomers,
   upsertCustomers,
+  getCustomerById,
 } from '../../offline/repositories/customersRepo.js';
 import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
@@ -99,6 +103,49 @@ const ADD_CUSTOMER_INITIAL = {
   city: DEFAULT_USER_CITY,
   state: DEFAULT_USER_STATE,
 };
+
+function customerMatchesPickerQuery(user, query) {
+  const q = String(query || '').trim().toLowerCase();
+  const qDigits = digitsOnlyFromPhone(query);
+  if (!q && !qDigits) return true;
+  const label = formatUserOptionLabel(user).toLowerCase();
+  const email = String(user?.email || '').toLowerCase();
+  const phoneDigits = digitsOnlyFromPhone(user?.mobile || user?.phone || user?.phoneNumber || '');
+  if (q && label.includes(q)) return true;
+  if (q && email.includes(q)) return true;
+  if (qDigits && phoneDigits.includes(qDigits)) return true;
+  return false;
+}
+
+/** Keep selected / default rows, then at most `POS_CUSTOMER_PICKER_LIMIT` matches. */
+function mergePickerCustomers(list, extras = []) {
+  const seen = new Set();
+  const out = [];
+  const extraRows = (Array.isArray(extras) ? extras : []).filter(Boolean);
+  const push = (row) => {
+    const id = getUserOptionValue(row);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push(row);
+  };
+  extraRows.forEach(push);
+  (Array.isArray(list) ? list : []).forEach((row) => {
+    if (out.length >= extraRows.length + POS_CUSTOMER_PICKER_LIMIT) return;
+    push(row);
+  });
+  return out;
+}
+
+async function readCachedPickerCustomers(query = '') {
+  const cached = (await getAllCustomers()).filter((u) => getUserOptionValue(u));
+  const q = String(query || '').trim();
+  const matched = q ? cached.filter((u) => customerMatchesPickerQuery(u, q)) : cached;
+  if (q) return matched;
+  const def = matched.find((u) => isDefaultCustomerUser(u));
+  if (!def) return matched;
+  const defId = getUserOptionValue(def);
+  return [def, ...matched.filter((u) => getUserOptionValue(u) !== defId)];
+}
 const POS_DRAFTS_MODAL_ID = 'posDraftsModal';
 const POS_CART_ORDER_STORAGE_KEY = 'pos.cartDisplayOrder';
 const POS_CART_ORDER_FIFO = 'fifo';
@@ -1033,6 +1080,8 @@ const Pos = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState(
     () => initialCartSession?.selectedCustomerId || ''
   );
+  const [selectedCustomerRecord, setSelectedCustomerRecord] = useState(null);
+  const selectedCustomerRecordRef = useRef(null);
   const [customerFilter, setCustomerFilter] = useState('');
   const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const customerPickerRef = useRef(null);
@@ -1300,32 +1349,25 @@ const Pos = () => {
       if (match) {
         setSelectedCustomerId(getUserOptionValue(match));
       }
-    } else {
-      const defaultId = getDefaultPosCustomerUserId(arr);
-      if (defaultId) setSelectedCustomerId(defaultId);
     }
   }, []);
 
   const loadUsers = useCallback(
     async (selectAfter) => {
       setUsersError(null);
-
-      const readCachedCustomers = async () => {
-        const cached = await getAllCustomers();
-        return cached.filter((u) => getUserOptionValue(u));
-      };
+      const pinned = selectedCustomerRecordRef.current;
 
       if (!isOnline) {
         setUsersStatus('loading');
         try {
-          const arr = await readCachedCustomers();
-          if (arr.length === 0 || (await countCustomers()) === 0) {
+          const cached = await readCachedPickerCustomers();
+          if (cached.length === 0 || (await countCustomers()) === 0) {
             setUsers([]);
             setUsersError(OFFLINE_CATALOG_EMPTY_MESSAGE);
             setUsersStatus('failed');
             return;
           }
-          applyCustomerList(arr, selectAfter);
+          applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
         } catch (err) {
           console.warn('[POS] Failed to load customers from offline cache', err);
           setUsers([]);
@@ -1335,13 +1377,12 @@ const Pos = () => {
         return;
       }
 
-      // Online: paint from IndexedDB first so a slow API never blocks the picker.
       let hadCache = false;
       try {
-        const cached = await readCachedCustomers();
+        const cached = await readCachedPickerCustomers();
         if (cached.length > 0) {
           hadCache = true;
-          applyCustomerList(cached, selectAfter);
+          applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
         } else {
           setUsersStatus('loading');
         }
@@ -1350,28 +1391,23 @@ const Pos = () => {
         setUsersStatus('loading');
       }
 
-      // Fresh offline catalog is enough for the picker; skip the slow 2k user list
-      // unless we must pick a just-created customer (selectAfter).
+      if (hadCache && selectAfter) {
+        return;
+      }
+
       if (hadCache && !selectAfter) {
         try {
           const stale = await isMasterSyncStale();
           if (!stale) return;
         } catch {
-          /* fall through to network refresh */
+          /* fall through to a small picker refresh */
         }
       }
 
       try {
-        const list = await fetchUsersListRequest({
-          limit: 2000,
-          skip: 0,
-          role: 'CUSTOMER',
-          sortBy: 'createdAt',
-          sortOrder: 'asc',
-        });
+        const list = await fetchPosCustomerPickerRequest();
         const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
-        applyCustomerList(arr, selectAfter);
-        // Keep the offline catalog warm for the next visit (do not wipe extras beyond this page).
+        applyCustomerList(mergePickerCustomers(arr, [pinned]), selectAfter);
         upsertCustomers(arr).catch((cacheErr) => {
           console.warn('[POS] Failed to cache customers', cacheErr);
         });
@@ -1379,9 +1415,9 @@ const Pos = () => {
         console.warn('[POS] Failed to load users from API, trying offline cache', err);
         if (hadCache) return;
         try {
-          const cached = await readCachedCustomers();
+          const cached = await readCachedPickerCustomers();
           if (cached.length > 0) {
-            applyCustomerList(cached, selectAfter);
+            applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
             return;
           }
         } catch (cacheErr) {
@@ -1467,31 +1503,85 @@ const Pos = () => {
 
   const filteredCustomers = useMemo(() => {
     const withId = users.filter((u) => getUserOptionValue(u));
-    const q = customerFilter.trim().toLowerCase();
-    const qDigits = digitsOnlyFromPhone(customerFilter);
-    let list = withId;
-    if (q || qDigits) {
-      list = withId.filter((u) => {
-        const label = formatUserOptionLabel(u).toLowerCase();
-        const email = String(u.email || '').toLowerCase();
-        const phoneDigits = digitsOnlyFromPhone(u.mobile || u.phone || u.phoneNumber || '');
-        if (label.includes(q)) return true;
-        if (email && email.includes(q)) return true;
-        if (qDigits && phoneDigits.includes(qDigits)) return true;
-        return false;
-      });
-    }
-    const cap = 150;
-    return { rows: list.slice(0, cap), capped: list.length > cap };
-  }, [users, customerFilter]);
+    const q = customerFilter.trim();
+    const list =
+      isOnline && q ? withId : q ? withId.filter((u) => customerMatchesPickerQuery(u, q)) : withId;
+    return {
+      rows: list.slice(0, POS_CUSTOMER_PICKER_LIMIT),
+      capped: list.length > POS_CUSTOMER_PICKER_LIMIT,
+    };
+  }, [users, customerFilter, isOnline]);
 
   useEffect(() => {
-    const defaultCustomerId = getDefaultPosCustomerUserId(users);
-    if (!defaultCustomerId) return;
-    const selectedStillExists = users.some((u) => getUserOptionValue(u) === selectedCustomerId);
-    if (!selectedCustomerId || !selectedStillExists) {
-      setSelectedCustomerId(defaultCustomerId);
+    const fromList = users.find((u) => getUserOptionValue(u) === selectedCustomerId);
+    if (fromList) {
+      selectedCustomerRecordRef.current = fromList;
+      setSelectedCustomerRecord(fromList);
+      return;
     }
+    if (!selectedCustomerId) {
+      selectedCustomerRecordRef.current = null;
+      setSelectedCustomerRecord(null);
+    }
+  }, [users, selectedCustomerId]);
+
+  useEffect(() => {
+    if (!selectedCustomerId || selectedCustomerRecordRef.current) return undefined;
+    let cancelled = false;
+    getCustomerById(selectedCustomerId)
+      .then((row) => {
+        if (cancelled || !row) return;
+        selectedCustomerRecordRef.current = row;
+        setSelectedCustomerRecord(row);
+        setUsers((prev) => mergePickerCustomers(prev, [row]));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId]);
+
+  const pickerSearchQueryRef = useRef('');
+  useEffect(() => {
+    if (!customerMenuOpen) return undefined;
+    const q = customerFilter.trim();
+    const previous = pickerSearchQueryRef.current;
+    pickerSearchQueryRef.current = q;
+    let cancelled = false;
+    const delay = q ? 300 : 0;
+    const t = setTimeout(async () => {
+      if (!q) {
+        if (previous) await loadUsers();
+        return;
+      }
+      try {
+        if (!isOnline) {
+          const cached = await readCachedPickerCustomers(q);
+          if (cancelled) return;
+          setUsers(mergePickerCustomers(cached, [selectedCustomerRecordRef.current]));
+          return;
+        }
+        const list = await fetchPosCustomerPickerRequest(q);
+        if (cancelled) return;
+        const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
+        setUsers(mergePickerCustomers(arr, [selectedCustomerRecordRef.current]));
+        upsertCustomers(arr).catch((cacheErr) => {
+          console.warn('[POS] Failed to cache customer search', cacheErr);
+        });
+      } catch (err) {
+        console.warn('[POS] Customer search failed', err);
+      }
+    }, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [customerFilter, customerMenuOpen, isOnline, loadUsers]);
+
+  useEffect(() => {
+    if (selectedCustomerId) return;
+    const defaultCustomerId = getDefaultPosCustomerUserId(users);
+    if (defaultCustomerId) setSelectedCustomerId(defaultCustomerId);
   }, [users, selectedCustomerId]);
 
   const addToCart = useCallback(
@@ -1901,7 +1991,10 @@ const Pos = () => {
         }
       }
 
-      const customer = users.find((u) => getUserOptionValue(u) === selectedCustomerId) || null;
+      const customer =
+        users.find((u) => getUserOptionValue(u) === selectedCustomerId) ||
+        selectedCustomerRecord ||
+        null;
       const name = customer?.name || customer?.fullName || customer?.username || 'Walk-in Client';
       const email = customer?.email || 'test@gmail.com';
       const phone = customer?.mobile || customer?.phone || customer?.phoneNumber || '0000000000';
@@ -2023,6 +2116,7 @@ const Pos = () => {
       cartLines,
       users,
       selectedCustomerId,
+      selectedCustomerRecord,
       shippingNum,
       extraDiscountNum,
       extraDiscountPercentNum,
@@ -2222,7 +2316,7 @@ const Pos = () => {
     const label = String(entered).trim() || suggested;
     const payload = buildDraftPayload();
     const selectedCustomer = selectedCustomerId
-      ? users.find((u) => getUserOptionValue(u) === selectedCustomerId)
+      ? users.find((u) => getUserOptionValue(u) === selectedCustomerId) || selectedCustomerRecord
       : null;
     payload.customerName = selectedCustomer
       ? formatUserOptionLabel(selectedCustomer) || 'Customer'
@@ -2286,6 +2380,7 @@ const Pos = () => {
     authUser,
     authUserName,
     selectedCustomerId,
+    selectedCustomerRecord,
     users,
     refreshCompanyAfterDraftMutate,
     clearCartAfterSale,
@@ -2646,11 +2741,42 @@ const Pos = () => {
         area: showAddCustomerLocation ? addCustomerForm.area : '',
       });
       const created = pickCreatedUserFromResponse(json);
-      const newId = getUserOptionValue(created);
-      await loadUsers({
-        preferId: newId || undefined,
-        fallbackEmail: newId ? undefined : resolvedEmail,
+      const record = buildCreatedCustomerRecord(created, {
+        name: addCustomerForm.name,
+        email: resolvedEmail,
+        phone: addCustomerForm.phone,
+        city: showAddCustomerLocation ? addCustomerForm.city : '',
+        state: showAddCustomerLocation ? addCustomerForm.state : '',
+        area: showAddCustomerLocation ? addCustomerForm.area : '',
       });
+      const newId = getUserOptionValue(record);
+      if (newId) {
+        setUsers((prev) => {
+          const rest = (Array.isArray(prev) ? prev : []).filter(
+            (u) => getUserOptionValue(u) !== newId
+          );
+          return [record, ...rest];
+        });
+        setSelectedCustomerId(String(newId));
+        selectedCustomerRecordRef.current = record;
+        setSelectedCustomerRecord(record);
+        setUsersStatus('succeeded');
+        setUsersError(null);
+        upsertCustomers([record]).catch((cacheErr) => {
+          console.warn('[POS] Failed to cache new customer', cacheErr);
+        });
+      } else {
+        try {
+          const list = await fetchPosCustomerPickerRequest(resolvedEmail);
+          applyCustomerList(
+            (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u)),
+            { fallbackEmail: resolvedEmail }
+          );
+        } catch (lookupErr) {
+          console.warn('[POS] Could not look up new customer', lookupErr);
+          await loadUsers({ fallbackEmail: resolvedEmail });
+        }
+      }
       setAddCustomerForm(ADD_CUSTOMER_INITIAL);
       setShowAddCustomerLocation(false);
       closeAddCustomerModal();
@@ -2873,6 +2999,8 @@ const Pos = () => {
                             }`}
                             onClick={() => {
                               setSelectedCustomerId(value);
+                              selectedCustomerRecordRef.current = u;
+                              setSelectedCustomerRecord(u);
                               setCustomerFilter('');
                               setCustomerMenuOpen(false);
                             }}
@@ -2886,7 +3014,7 @@ const Pos = () => {
                       )}
                       {filteredCustomers.capped && (
                         <div className="px-3 py-2 text-muted small border-top bg-light">
-                          Showing first {filteredCustomers.rows.length} — type to narrow results
+                          Showing {filteredCustomers.rows.length} — type to search more
                         </div>
                       )}
                     </div>
@@ -2945,7 +3073,9 @@ const Pos = () => {
                         Default: <strong>Walk In</strong>
                       </span>
                     );
-                  const u = users.find((row) => getUserOptionValue(row) === selectedCustomerId);
+                  const u =
+                    users.find((row) => getUserOptionValue(row) === selectedCustomerId) ||
+                    selectedCustomerRecord;
                   return u ? (
                     <span>
                       Selected: <strong>{formatUserOptionLabel(u)}</strong>

@@ -206,6 +206,21 @@
   color: #3b6fd4;
 }
 
+.user-role-chip.is-disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.user-role-chip.is-disabled:hover {
+  border-color: #d8dee9;
+  background: #fff;
+}
+
+.user-role-chip.is-disabled.is-active:hover {
+  border-color: #5b8def;
+  background: #eef3ff;
+}
+
 .user-role-chip > input {
   position: absolute;
   opacity: 0;
@@ -216,16 +231,12 @@
 .user-perm-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.65rem 1.15rem;
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
   background: #f8fafc;
   border-radius: 0.65rem;
   border: 1px solid #edf0f5;
-}
-
-.user-perm-toolbar .form-check {
-  margin: 0;
 }
 
 .user-perm-table-wrap {
@@ -282,31 +293,145 @@
   text-align: center;
 }
 
-/* Argon theme hides native unchecked checkboxes (no border) — force visible boxes */
-.user-perm-toolbar .form-check-input,
-.user-perm-table .form-check-input {
-  width: 1.15rem !important;
-  height: 1.15rem !important;
-  min-width: 1.15rem !important;
-  margin: 0 !important;
-  flex-shrink: 0;
+.user-perm-tick {
+  --perm-tick-accent: var(--app-theme, #5e72e4);
+  --perm-tick-accent-end: var(--app-theme-gradient-end, #825ee4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 0;
   cursor: pointer;
-  border: 2px solid #64748b !important;
-  background-color: #fff !important;
-  background-size: 85% 85%;
+  user-select: none;
+  vertical-align: middle;
 }
 
-.user-perm-toolbar .form-check-input:checked,
-.user-perm-table .form-check-input:checked {
-  background-color: #5b8def !important;
-  border-color: #5b8def !important;
-  --bs-form-check-bg-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e");
+.user-perm-tick:not(.user-perm-tick--labeled) {
+  width: 1.85rem;
+  height: 1.85rem;
 }
 
-.user-perm-toolbar .form-check-input:disabled,
-.user-perm-table .form-check-input:disabled {
+.user-perm-tick--labeled {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.user-perm-tick__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.user-perm-tick__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.28rem;
+  height: 1.28rem;
+  flex-shrink: 0;
+  border-radius: 0.42rem;
+  border: 1.5px solid #c5cedb;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f6fa 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(28, 39, 61, 0.06);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.user-perm-tick__box::after {
+  content: '';
+  width: 0.62rem;
+  height: 0.34rem;
+  margin-top: -0.12rem;
+  border-left: 2.2px solid #fff;
+  border-bottom: 2.2px solid #fff;
+  transform: rotate(-45deg) scale(0.4);
+  opacity: 0;
+  transition:
+    transform 0.16s ease,
+    opacity 0.12s ease;
+}
+
+.user-perm-tick:hover .user-perm-tick__box {
+  border-color: var(--perm-tick-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(94, 114, 228, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 4px color-mix(in srgb, var(--perm-tick-accent) 16%, transparent);
+}
+
+.user-perm-tick__input:checked + .user-perm-tick__box {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--perm-tick-accent) 0%, var(--perm-tick-accent-end) 100%);
+  box-shadow: 0 4px 10px rgba(94, 114, 228, 0.38);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--perm-tick-accent) 38%, transparent);
+  animation: user-perm-tick-pop 0.22s ease-out;
+}
+
+.user-perm-tick__input:checked + .user-perm-tick__box::after {
+  opacity: 1;
+  transform: rotate(-45deg) scale(1);
+}
+
+.user-perm-tick__input:focus-visible + .user-perm-tick__box {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--perm-tick-accent) 32%, transparent);
+}
+
+.user-perm-tick__input:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+}
+
+.user-perm-tick:has(.user-perm-tick__input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.user-perm-tick:has(.user-perm-tick__input:disabled):hover .user-perm-tick__box {
+  border-color: #c5cedb;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(28, 39, 61, 0.06);
+}
+
+.user-perm-tick__text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #41506b;
+  line-height: 1.2;
+}
+
+@keyframes user-perm-tick-pop {
+  0% {
+    transform: scale(0.86);
+  }
+  65% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-perm-tick__box,
+  .user-perm-tick__box::after {
+    transition: none;
+  }
+
+  .user-perm-tick__input:checked + .user-perm-tick__box {
+    animation: none;
+  }
 }
 
 .user-form-footer {

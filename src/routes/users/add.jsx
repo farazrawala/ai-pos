@@ -6,12 +6,15 @@ import { createUser, clearCreateStatus } from '../../features/users/usersSlice.j
 import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import { DASHBOARD_GRAPH_KEYS } from '../../constants/dashboardGraphs.js';
 import {
   DEFAULT_USER_CITY,
   DEFAULT_USER_COUNTRY,
   DEFAULT_USER_STATE,
 } from '../../constants/pakistanLocations.js';
 import UserAddressFields from '../../components/users/UserAddressFields.jsx';
+import UserPermCheckbox from '../../components/users/UserPermCheckbox.jsx';
+import UserDashboardGraphsFields from '../../components/users/UserDashboardGraphsFields.jsx';
 import './user-form.css';
 
 /** Backend accepts multiple `role[]` values on create user. */
@@ -56,6 +59,7 @@ const AddUser = () => {
     country: DEFAULT_USER_COUNTRY,
     zip_code: '',
     role: ['USER'],
+    show_graphs_on_dashboard: [],
     permissions: buildInitialPermissions(),
   });
   const [errors, setErrors] = useState({});
@@ -136,12 +140,40 @@ const AddUser = () => {
       const nextRole = hasRole
         ? prev.role.filter((item) => item !== roleName)
         : [...prev.role, roleName];
-      return { ...prev, role: nextRole };
+      const addingAdmin = !hasRole && roleName === 'ADMIN';
+      return {
+        ...prev,
+        role: nextRole,
+        show_graphs_on_dashboard: addingAdmin
+          ? [...DASHBOARD_GRAPH_KEYS]
+          : prev.show_graphs_on_dashboard,
+      };
     });
     if (errors.role) {
       setErrors((prev) => ({ ...prev, role: '' }));
     }
   };
+
+  const handleGraphToggle = (graphKey) => {
+    setForm((prev) => {
+      const hasGraph = prev.show_graphs_on_dashboard.includes(graphKey);
+      return {
+        ...prev,
+        show_graphs_on_dashboard: hasGraph
+          ? prev.show_graphs_on_dashboard.filter((item) => item !== graphKey)
+          : [...prev.show_graphs_on_dashboard, graphKey],
+      };
+    });
+  };
+
+  const setAllGraphs = (granted) => {
+    setForm((prev) => ({
+      ...prev,
+      show_graphs_on_dashboard: granted ? [...DASHBOARD_GRAPH_KEYS] : [],
+    }));
+  };
+
+  const adminSeesAllGraphs = form.role.includes('ADMIN');
 
   const handlePermissionToggle = (moduleName, actionName) => {
     setForm((prev) => ({
@@ -210,6 +242,9 @@ const AddUser = () => {
           password: form.password,
           initial_balance,
           role: form.role,
+          show_graphs_on_dashboard: form.role.includes('ADMIN')
+            ? [...DASHBOARD_GRAPH_KEYS]
+            : form.show_graphs_on_dashboard,
           permissions: form.permissions,
           status: form.status,
           address: form.address.trim(),
@@ -467,6 +502,15 @@ const AddUser = () => {
               {errors.role ? <small className="text-danger d-block mt-2">{errors.role}</small> : null}
             </div>
 
+            <UserDashboardGraphsFields
+              selected={form.show_graphs_on_dashboard}
+              onToggle={handleGraphToggle}
+              onSetAll={setAllGraphs}
+              disabled={isSubmitting}
+              adminSeesAll={adminSeesAllGraphs}
+              idPrefix="add-graph"
+            />
+
             <div className="user-form-section">
               <div className="user-form-section-title">
                 <i className="fas fa-shield-halved text-primary" aria-hidden="true" />
@@ -477,34 +521,22 @@ const AddUser = () => {
               </p>
 
               <div className="user-perm-toolbar">
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="add-check-all-rights"
-                    checked={allPermissionsGranted}
-                    onChange={(e) => setAllPermissions(e.target.checked)}
-                    disabled={isSubmitting}
-                  />
-                  <label className="form-check-label text-sm" htmlFor="add-check-all-rights">
-                    Grant all permissions
-                  </label>
-                </div>
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="add-remove-all-rights"
-                    checked={noPermissionsGranted}
-                    onChange={(e) => {
-                      if (e.target.checked) setAllPermissions(false);
-                    }}
-                    disabled={isSubmitting}
-                  />
-                  <label className="form-check-label text-sm" htmlFor="add-remove-all-rights">
-                    Remove all permissions
-                  </label>
-                </div>
+                <UserPermCheckbox
+                  id="add-check-all-rights"
+                  label="Grant all permissions"
+                  checked={allPermissionsGranted}
+                  onChange={(e) => setAllPermissions(e.target.checked)}
+                  disabled={isSubmitting}
+                />
+                <UserPermCheckbox
+                  id="add-remove-all-rights"
+                  label="Remove all permissions"
+                  checked={noPermissionsGranted}
+                  onChange={(e) => {
+                    if (e.target.checked) setAllPermissions(false);
+                  }}
+                  disabled={isSubmitting}
+                />
               </div>
 
               <div className="user-perm-table-wrap">
@@ -525,13 +557,11 @@ const AddUser = () => {
                         </td>
                         {PERMISSION_ACTIONS.map((action) => (
                           <td key={`${moduleName}-${action}`}>
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
+                            <UserPermCheckbox
                               checked={Boolean(form.permissions[moduleName]?.[action])}
                               onChange={() => handlePermissionToggle(moduleName, action)}
                               disabled={isSubmitting}
-                              aria-label={`${moduleName} ${action}`}
+                              ariaLabel={`${moduleName} ${action}`}
                             />
                           </td>
                         ))}

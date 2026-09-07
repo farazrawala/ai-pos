@@ -3,6 +3,8 @@
  * Provides smart permission checking functions and hooks
  */
 
+import { pickShowGraphsOnDashboard } from '../constants/dashboardGraphs.js';
+
 /**
  * Normalize a single role value to an uppercase string (or '').
  * Accepts strings and common API shapes: `{ name }`, `{ role }`, `{ label }`, `{ value }`.
@@ -186,3 +188,28 @@ export const getModulePermissionObject = (state, module) => {
     delete: Boolean(modulePermissions?.delete),
   };
 };
+
+/**
+ * Assigned dashboard graph keys from the logged-in user document.
+ * Admins ignore this list and see every graph.
+ * @param {Object} state - Redux state
+ * @returns {string[]}
+ */
+export const getShowGraphsOnDashboard = (state) => {
+  return pickShowGraphsOnDashboard(state?.user?.user);
+};
+
+/**
+ * Whether the current user may see a dashboard graph.
+ * ADMIN always sees every graph.
+ * @param {Object} state - Redux state
+ * @param {string} graphKey
+ * @returns {boolean}
+ */
+export const canShowDashboardGraph = (state, graphKey) => {
+  if (isAdmin(state)) return true;
+  const key = String(graphKey || '').trim();
+  if (!key) return false;
+  return getShowGraphsOnDashboard(state).includes(key);
+};
+

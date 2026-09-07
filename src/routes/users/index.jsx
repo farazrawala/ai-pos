@@ -42,6 +42,7 @@ import { DEBUG } from '../../config/env.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { fmtMoney, balanceTextClass } from '../../components/ledger/ledgerUtils.js';
 import { showToast } from '../../utils/toast.js';
+import { openAppPathInNewTab, withBase } from '../../config/appBase.js';
 import './users-module.css';
 
 const userOpeningBalance = (user) =>
@@ -640,12 +641,38 @@ const Users = () => {
                             ) : null}
                             {isVisible('name') ? (
                               <td className="list-cell-truncate">
-                                <div
-                                  className="text-sm font-weight-bold text-dark text-truncate"
-                                  title={displayName !== '—' ? displayName : undefined}
-                                >
-                                  {displayName}
-                                </div>
+                                {userId && canEdit && !isDeletedUsersView && displayName !== '—' ? (
+                                  <a
+                                    href={withBase(`/users/edit/${encodeURIComponent(userId)}`)}
+                                    className="text-sm font-weight-bold text-primary text-decoration-none text-truncate d-block"
+                                    title={`Open ${displayName}`}
+                                    onClick={(e) => {
+                                      if (
+                                        e.defaultPrevented ||
+                                        e.button !== 0 ||
+                                        e.metaKey ||
+                                        e.ctrlKey ||
+                                        e.shiftKey ||
+                                        e.altKey
+                                      ) {
+                                        return;
+                                      }
+                                      e.preventDefault();
+                                      openAppPathInNewTab(
+                                        `/users/edit/${encodeURIComponent(userId)}`
+                                      );
+                                    }}
+                                  >
+                                    {displayName}
+                                  </a>
+                                ) : (
+                                  <div
+                                    className="text-sm font-weight-bold text-dark text-truncate"
+                                    title={displayName !== '—' ? displayName : undefined}
+                                  >
+                                    {displayName}
+                                  </div>
+                                )}
                                 {isDefaultCustomer || isDefaultVendor ? (
                                   <div className="d-flex flex-wrap gap-1 mt-1">
                                     {isDefaultCustomer ? (

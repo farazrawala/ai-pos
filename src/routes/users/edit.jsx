@@ -12,8 +12,11 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { digitsOnlyFromPhone, isUserUploadFilePart } from '../../features/users/usersAPI.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { PERMISSION_ACTIONS, PERMISSION_MODULE_KEYS } from '../../constants/permissionModules.js';
+import { DASHBOARD_GRAPH_KEYS, pickShowGraphsOnDashboard } from '../../constants/dashboardGraphs.js';
 import { DEFAULT_USER_COUNTRY } from '../../constants/pakistanLocations.js';
 import UserAddressFields from '../../components/users/UserAddressFields.jsx';
+import UserPermCheckbox from '../../components/users/UserPermCheckbox.jsx';
+import UserDashboardGraphsFields from '../../components/users/UserDashboardGraphsFields.jsx';
 import './user-form.css';
 
 const normalizePermissions = (input) => {
@@ -74,6 +77,7 @@ const EditUser = () => {
     country: DEFAULT_USER_COUNTRY,
     zip_code: '',
     role: ['USER'],
+    show_graphs_on_dashboard: [],
     permissions: normalizePermissions(null),
   });
   const [errors, setErrors] = useState({});
@@ -135,6 +139,7 @@ const EditUser = () => {
       country: DEFAULT_USER_COUNTRY,
       zip_code: '',
       role: ['USER'],
+      show_graphs_on_dashboard: [],
       permissions: normalizePermissions(null),
     });
     setErrors({});
@@ -176,6 +181,7 @@ const EditUser = () => {
         : currentUser.role
           ? [currentUser.role]
           : ['USER'],
+      show_graphs_on_dashboard: pickShowGraphsOnDashboard(currentUser),
       permissions: normalizePermissions(currentUser.permissions),
     });
     setExistingProfileImageUrl(pickUserProfileImageUrl(currentUser));
@@ -261,9 +267,37 @@ const EditUser = () => {
       const nextRole = hasRole
         ? prev.role.filter((item) => item !== roleName)
         : [...prev.role, roleName];
-      return { ...prev, role: nextRole };
+      const addingAdmin = !hasRole && roleName === 'ADMIN';
+      return {
+        ...prev,
+        role: nextRole,
+        show_graphs_on_dashboard: addingAdmin
+          ? [...DASHBOARD_GRAPH_KEYS]
+          : prev.show_graphs_on_dashboard,
+      };
     });
   };
+
+  const handleGraphToggle = (graphKey) => {
+    setForm((prev) => {
+      const hasGraph = prev.show_graphs_on_dashboard.includes(graphKey);
+      return {
+        ...prev,
+        show_graphs_on_dashboard: hasGraph
+          ? prev.show_graphs_on_dashboard.filter((item) => item !== graphKey)
+          : [...prev.show_graphs_on_dashboard, graphKey],
+      };
+    });
+  };
+
+  const setAllGraphs = (granted) => {
+    setForm((prev) => ({
+      ...prev,
+      show_graphs_on_dashboard: granted ? [...DASHBOARD_GRAPH_KEYS] : [],
+    }));
+  };
+
+  const adminSeesAllGraphs = form.role.includes('ADMIN');
 
   const handlePermissionToggle = (moduleName, actionName) => {
     setForm((prev) => ({
@@ -319,6 +353,9 @@ const EditUser = () => {
             password: form.password,
             initial_balance,
             role: form.role,
+            show_graphs_on_dashboard: form.role.includes('ADMIN')
+              ? [...DASHBOARD_GRAPH_KEYS]
+              : form.show_graphs_on_dashboard,
             permissions: form.permissions,
             status: form.status,
             address: form.address.trim(),
@@ -615,6 +652,15 @@ const EditUser = () => {
               {errors.role ? <small className="text-danger d-block mt-2">{errors.role}</small> : null}
             </div>
 
+            <UserDashboardGraphsFields
+              selected={form.show_graphs_on_dashboard}
+              onToggle={handleGraphToggle}
+              onSetAll={setAllGraphs}
+              disabled={isSubmitting}
+              adminSeesAll={adminSeesAllGraphs}
+              idPrefix="edit-graph"
+            />
+
             <div className="user-form-section">
               <div className="user-form-section-title">
                 <i className="fas fa-shield-halved text-primary" aria-hidden="true" />
@@ -625,34 +671,22 @@ const EditUser = () => {
               </p>
 
               <div className="user-perm-toolbar">
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="give-all-permissions"
-                    checked={allPermissionsGranted}
-                    onChange={(e) => setAllPermissions(e.target.checked)}
-                    disabled={isSubmitting}
-                  />
-                  <label className="form-check-label text-sm" htmlFor="give-all-permissions">
-                    Grant all permissions
-                  </label>
-                </div>
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="remove-all-permissions"
-                    checked={noPermissionsGranted}
-                    onChange={(e) => {
-                      if (e.target.checked) setAllPermissions(false);
-                    }}
-                    disabled={isSubmitting}
-                  />
-                  <label className="form-check-label text-sm" htmlFor="remove-all-permissions">
-                    Remove all permissions
-                  </label>
-                </div>
+                <UserPermCheckbox
+                  id="give-all-permissions"
+                  label="Grant all permissions"
+                  checked={allPermissionsGranted}
+                  onChange={(e) => setAllPermissions(e.target.checked)}
+                  disabled={isSubmitting}
+                />
+                <UserPermCheckbox
+                  id="remove-all-permissions"
+                  label="Remove all permissions"
+                  checked={noPermissionsGranted}
+                  onChange={(e) => {
+                    if (e.target.checked) setAllPermissions(false);
+                  }}
+                  disabled={isSubmitting}
+                />
               </div>
 
               <div className="user-perm-table-wrap">
@@ -673,9 +707,7 @@ const EditUser = () => {
                           <span className="user-perm-module">{moduleName}</span>
                         </td>
                         <td>
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
+                          <UserPermCheckbox
                             checked={PERMISSION_ACTIONS.every((action) =>
                               Boolean(form.permissions[moduleName]?.[action])
                             )}
@@ -683,18 +715,16 @@ const EditUser = () => {
                               setModulePermissions(moduleName, e.target.checked)
                             }
                             disabled={isSubmitting}
-                            aria-label={`${moduleName} all permissions`}
+                            ariaLabel={`${moduleName} all permissions`}
                           />
                         </td>
                         {PERMISSION_ACTIONS.map((action) => (
                           <td key={`${moduleName}-${action}`}>
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
+                            <UserPermCheckbox
                               checked={Boolean(form.permissions[moduleName]?.[action])}
                               onChange={() => handlePermissionToggle(moduleName, action)}
                               disabled={isSubmitting}
-                              aria-label={`${moduleName} ${action}`}
+                              ariaLabel={`${moduleName} ${action}`}
                             />
                           </td>
                         ))}

@@ -24,14 +24,17 @@ import {
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import {
-  fetchUsersListRequest,
+  fetchPosCustomerPickerRequest,
   formatUserOptionLabel,
   getUserOptionValue,
   createCustomerUserRequest,
   pickCreatedUserFromResponse,
+  buildCreatedCustomerRecord,
   POS_DEFAULT_CUSTOMER_PASSWORD,
+  POS_CUSTOMER_PICKER_LIMIT,
   resolvePosCustomerEmail,
   digitsOnlyFromPhone,
+  fetchUserByIdRequest,
 } from '../../features/users/usersAPI.js';
 import {
   buildPosPaymentAccountFilterParams,
@@ -460,6 +463,7 @@ const PosInvoice = () => {
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
+  const [customerPickerQuery, setCustomerPickerQuery] = useState('');
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentMethodsStatus, setPaymentMethodsStatus] = useState('idle');
   const [paymentMethodsError, setPaymentMethodsError] = useState('');
@@ -531,26 +535,49 @@ const PosInvoice = () => {
   useEffect(() => {
     if (!invoiceId) return undefined;
     let cancelled = false;
-    setUsersStatus('loading');
-    setUsersError(null);
-    (async () => {
+    const q = customerPickerQuery.trim();
+    const delay = q ? 300 : 0;
+    const t = setTimeout(async () => {
+      if (!q) {
+        setUsersStatus((prev) => (prev === 'idle' ? 'loading' : prev));
+        setUsersError(null);
+      }
       try {
-        const list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
+        const list = await fetchPosCustomerPickerRequest(q);
         if (cancelled) return;
-        setUsers(Array.isArray(list) ? list : []);
+        setUsers((Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u)));
         setUsersStatus('succeeded');
       } catch (e) {
         if (!cancelled) {
-          setUsers([]);
           setUsersError(e?.message || 'Could not load customers');
           setUsersStatus('failed');
         }
       }
-    })();
+    }, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [invoiceId, customerPickerQuery]);
+
+  useEffect(() => {
+    const cid = String(invoiceCustomerId || '').trim();
+    if (!cid) return undefined;
+    let cancelled = false;
+    fetchUserByIdRequest(cid)
+      .then((u) => {
+        if (cancelled || !u) return;
+        setUsers((prev) => {
+          const id = getUserOptionValue(u);
+          if (!id || prev.some((row) => getUserOptionValue(row) === id)) return prev;
+          return [u, ...prev].slice(0, POS_CUSTOMER_PICKER_LIMIT + 1);
+        });
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [invoiceId]);
+  }, [invoiceCustomerId]);
 
   useEffect(() => {
     if (!invoiceId) return undefined;
@@ -1033,13 +1060,24 @@ const PosInvoice = () => {
           area: showAddCustomerLocation ? addCustomerForm.area : '',
         });
         const created = pickCreatedUserFromResponse(json);
-        const newId = getUserOptionValue(created);
-        let list = [];
-        try {
-          list = await fetchUsersListRequest({ limit: 2000, skip: 0 });
-        } catch {
-          list = Array.isArray(users) ? [...users] : [];
-          if (created && newId) list = [created, ...list];
+        const record = buildCreatedCustomerRecord(created, {
+          name: addCustomerForm.name,
+          email: resolvedEmail,
+          phone: addCustomerForm.phone,
+          city: showAddCustomerLocation ? addCustomerForm.city : '',
+          state: showAddCustomerLocation ? addCustomerForm.state : '',
+          area: showAddCustomerLocation ? addCustomerForm.area : '',
+        });
+        const newId = getUserOptionValue(record);
+        let list = Array.isArray(users) ? [...users] : [];
+        if (newId) {
+          list = [record, ...list.filter((u) => getUserOptionValue(u) !== newId)];
+        } else {
+          try {
+            list = await fetchPosCustomerPickerRequest(resolvedEmail);
+          } catch {
+            list = Array.isArray(users) ? [...users] : [];
+          }
         }
         setUsers(Array.isArray(list) ? list : []);
         setUsersStatus('succeeded');
@@ -1691,7 +1729,9 @@ const PosInvoice = () => {
         {
           key: 'customers',
           label: 'Customers',
-          url: buildApiUrl('user/get-all-active?limit=2000&skip=0'),
+          url: buildApiUrl(
+            `user/get-all-active?limit=${POS_CUSTOMER_PICKER_LIMIT}&skip=0&role=CUSTOMER`
+          ),
           status: mapLoadStatus(usersStatus),
           durationMs: null,
           error: usersStatus === 'failed' ? usersError : null,
@@ -1984,7 +2024,11 @@ const PosInvoice = () => {
                               options={customerOptions}
                               value={invoiceCustomerId}
                               placeholder="Walk in (no customer)"
-                              disabled={usersStatus === 'loading'}
+                              searchPlaceholder="Search name, phone, or email…"
+                              disabled={usersStatus === 'loading' && users.length === 0}
+                              loading={usersStatus === 'loading'}
+                              filterLocally={false}
+                              onQueryChange={setCustomerPickerQuery}
                               onChange={setInvoiceCustomerId}
                             />
                           </div>

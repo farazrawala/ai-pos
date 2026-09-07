@@ -8,28 +8,7 @@ import {
 } from 'react-icons/fa6';
 import Footer from '../components/Footer.jsx';
 import NavIcon from '../components/NavIcon.jsx';
-import SalesOverviewCard from '../components/dashboard/SalesOverviewCard.jsx';
-import PosSalesMonthWiseCard from '../components/dashboard/PosSalesMonthWiseCard.jsx';
-import PosPurchasesSummaryCard from '../components/dashboard/PosPurchasesSummaryCard.jsx';
-import PosTopProductsCard from '../components/dashboard/PosTopProductsCard.jsx';
-import PosPeakHoursCard from '../components/dashboard/PosPeakHoursCard.jsx';
-import PosTopVendorsCard from '../components/dashboard/PosTopVendorsCard.jsx';
-import PosDailyOrdersCard from '../components/dashboard/PosDailyOrdersCard.jsx';
-import PosAvgOrderValueCard from '../components/dashboard/PosAvgOrderValueCard.jsx';
-import PosSalesByCategoryCard from '../components/dashboard/PosSalesByCategoryCard.jsx';
-import PosAccountsReceivableSummaryCard from '../components/dashboard/PosAccountsReceivableSummaryCard.jsx';
-import PosReceivablesByCustomerCard from '../components/dashboard/PosReceivablesByCustomerCard.jsx';
-import PosReceivablesAgingCard from '../components/dashboard/PosReceivablesAgingCard.jsx';
-import PosExpenseSummaryCard from '../components/dashboard/PosExpenseSummaryCard.jsx';
-import PosExpensesByAccountCard from '../components/dashboard/PosExpensesByAccountCard.jsx';
-import PosExpenseVsRevenueCard from '../components/dashboard/PosExpenseVsRevenueCard.jsx';
-import PosGrossMarginTrendCard from '../components/dashboard/PosGrossMarginTrendCard.jsx';
-import PosCogsVsSalesCard from '../components/dashboard/PosCogsVsSalesCard.jsx';
-import PosInventoryValueCard from '../components/dashboard/PosInventoryValueCard.jsx';
-import PosDiscountTotalsCard from '../components/dashboard/PosDiscountTotalsCard.jsx';
-import PosLedgerDebitCreditCard from '../components/dashboard/PosLedgerDebitCreditCard.jsx';
-import DashboardChartErrorBoundary from '../components/dashboard/DashboardChartErrorBoundary.jsx';
-import LowStockAlertsTable from '../components/dashboard/LowStockAlertsTable.jsx';
+import PosDashboardGraphs from '../components/dashboard/PosDashboardGraphs.jsx';
 import { formatCurrency } from '../components/balanceSheet/formatCurrency.js';
 import { useCurrentMonthSales } from '../hooks/useCurrentMonthSales.js';
 import { useTodaySales } from '../hooks/useTodaySales.js';
@@ -267,109 +246,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        <div className="row">
-          <div className="col-lg-7 mb-4 mb-lg-0">
-            <SalesOverviewCard />
-          </div>
-          <div className="col-lg-5 mb-4 mb-lg-0">
-            <PosPurchasesSummaryCard />
-          </div>
-        </div>
-        <div className="row mt-3">
-          <div className="col-12 mb-4">
-            <DashboardChartErrorBoundary title="Sales by month">
-              <PosSalesMonthWiseCard />
-            </DashboardChartErrorBoundary>
-          </div>
-        </div>
-        <div className="row mt-3">
-          <div className="col-12">
-            <h5 className="mb-1">Profit, inventory &amp; ledger</h5>
-            <p className="text-sm text-secondary mb-3">
-              Gross margin, COGS vs sales, inventory value, discounts, and ledger debit/credit
-            </p>
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-7 mb-4">
-            <DashboardChartErrorBoundary title="Gross profit / margin trend">
-              <PosGrossMarginTrendCard />
-            </DashboardChartErrorBoundary>
-          </div>
-          <div className="col-lg-5 mb-4">
-            <DashboardChartErrorBoundary title="COGS vs sales">
-              <PosCogsVsSalesCard />
-            </DashboardChartErrorBoundary>
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-4 mb-4">
-            <DashboardChartErrorBoundary title="Inventory value (COGA)">
-              <PosInventoryValueCard />
-            </DashboardChartErrorBoundary>
-          </div>
-          <div className="col-lg-4 mb-4">
-            <DashboardChartErrorBoundary title="Discount totals">
-              <PosDiscountTotalsCard />
-            </DashboardChartErrorBoundary>
-          </div>
-          <div className="col-lg-4 mb-4">
-            <DashboardChartErrorBoundary title="Ledger debit / credit">
-              <PosLedgerDebitCreditCard />
-            </DashboardChartErrorBoundary>
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosTopProductsCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosPeakHoursCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosTopVendorsCard />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosDailyOrdersCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosAvgOrderValueCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosExpenseSummaryCard />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosAccountsReceivableSummaryCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosReceivablesByCustomerCard />
-          </div>
-          <div className="col-lg-4 mb-4 mb-lg-0">
-            <PosReceivablesAgingCard />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-6 mb-4 mb-lg-0">
-            <PosSalesByCategoryCard />
-          </div>
-          <div className="col-lg-6 mb-4 mb-lg-0">
-            <PosExpensesByAccountCard />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-lg-6 mb-4">
-            <PosExpenseVsRevenueCard />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-12 mb-4">
-            <LowStockAlertsTable />
-          </div>
-        </div>
+        <PosDashboardGraphs />
       </div>
     </>
   );

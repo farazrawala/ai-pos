@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isAdmin, normalizeRoles, getUserRoleLabels } from './permissions.js';
+import {
+  isAdmin,
+  normalizeRoles,
+  getUserRoleLabels,
+  canShowDashboardGraph,
+  getShowGraphsOnDashboard,
+} from './permissions.js';
+import { DASHBOARD_GRAPH_KEYS } from '../constants/dashboardGraphs.js';
 import { filterNavItems, NAV_ITEMS } from '../config/navItems.js';
 import { ROUTE_PERMISSION_MODULE } from '../constants/permissionModules.js';
 
@@ -30,6 +37,35 @@ describe('isAdmin', () => {
 
   it('returns false for non-admin users', () => {
     expect(isAdmin({ user: { user: { role: 'USER' }, roles: [] } })).toBe(false);
+  });
+});
+
+describe('canShowDashboardGraph', () => {
+  it('lets ADMIN see every graph even with an empty assignment', () => {
+    const state = {
+      user: { user: { role: ['ADMIN'], show_graphs_on_dashboard: [] }, roles: [] },
+    };
+    expect(DASHBOARD_GRAPH_KEYS.every((key) => canShowDashboardGraph(state, key))).toBe(true);
+  });
+
+  it('shows only assigned graphs for non-admin users', () => {
+    const state = {
+      user: {
+        user: { role: ['USER'], show_graphs_on_dashboard: ['sales_overview', 'top_vendors'] },
+        roles: [],
+      },
+    };
+    expect(canShowDashboardGraph(state, 'sales_overview')).toBe(true);
+    expect(canShowDashboardGraph(state, 'top_vendors')).toBe(true);
+    expect(canShowDashboardGraph(state, 'inventory_value')).toBe(false);
+  });
+
+  it('hides all graphs when a non-admin has none assigned', () => {
+    const state = {
+      user: { user: { role: ['USER'], show_graphs_on_dashboard: [] }, roles: [] },
+    };
+    expect(getShowGraphsOnDashboard(state)).toEqual([]);
+    expect(canShowDashboardGraph(state, 'sales_overview')).toBe(false);
   });
 });
 
