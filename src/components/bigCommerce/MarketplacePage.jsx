@@ -28,6 +28,7 @@ import {
   excludeChildProducts,
   getProductName,
   isAlreadyMeTooProduct,
+  parentProductTotal,
   productIdFromRecord,
   resolveSortParams,
 } from '../../features/bigCommerce/marketplaceUtils.js';
@@ -43,6 +44,7 @@ import MarketplaceListingTabs from './MarketplaceListingTabs.jsx';
 import ProductToolbar from './ProductToolbar.jsx';
 import ProductCard, { ProductCardSkeleton } from './ProductCard.jsx';
 import ProductDetailModal from './ProductDetailModal.jsx';
+import MeTooPriceModal from './MeTooPriceModal.jsx';
 
 const LISTING_TAB_ALL = 'all';
 const LISTING_TAB_ME_TOO = 'me-too';
@@ -69,6 +71,7 @@ export default function MarketplacePage({ companyId }) {
   /** Partner products resolved by id for the Already Me too tab (not yet in the scroll list). */
   const [meTooResolved, setMeTooResolved] = useState([]);
   const [meTooResolveStatus, setMeTooResolveStatus] = useState('idle');
+  const [meTooProduct, setMeTooProduct] = useState(null);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
@@ -248,11 +251,12 @@ export default function MarketplacePage({ companyId }) {
       const name = state.duplicateProductName || getProductName(state.selectedProduct) || 'Product';
       showToast({
         message: state.duplicateAlreadyFetched
-          ? `"${name}" is already in your catalog.`
+          ? `"${name}" selling price was updated.`
           : `"${name}" was added to your catalog.`,
         variant: 'success',
       });
       dispatch(clearDuplicateStatus());
+      setMeTooProduct(null);
     } else if (state.duplicateStatus === 'failed' && state.duplicateError) {
       showToast({ message: state.duplicateError, variant: 'error' });
       dispatch(clearDuplicateStatus());
@@ -323,14 +327,29 @@ export default function MarketplacePage({ companyId }) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
         return;
       }
+      setMeTooProduct(item);
+    },
+    [isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
+  );
+
+  const handleConfirmMeToo = useCallback(
+    ({ price, multiplier } = {}) => {
+      if (isOwnStore || meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+      const id = productIdFromRecord(meTooProduct);
+      if (!id) {
+        showToast({ message: 'Product id is missing.', variant: 'error' });
+        return;
+      }
       dispatch(
         duplicateMarketplaceProduct({
           productId: id,
-          productName: getProductName(item) || 'Product',
+          productName: getProductName(meTooProduct) || 'Product',
+          price,
+          multiplier,
         })
       );
     },
-    [dispatch, isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
+    [dispatch, isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy, meTooProduct]
   );
 
   const handleDeleteMeToo = useCallback(
@@ -534,12 +553,17 @@ export default function MarketplacePage({ companyId }) {
     return { min: 0, max: Math.ceil(max / 100) * 100 || 100000 };
   }, [visibleProducts]);
 
+  const parentTotal = useMemo(
+    () => parentProductTotal(state.products, state.pagination.total),
+    [state.products, state.pagination.total]
+  );
+
   const showing = displayProducts.length;
   const showingTotal = isMeTooTab
     ? String(searchDraft || '').trim()
       ? displayProducts.length
       : alreadyMeTooCount
-    : state.pagination.total;
+    : parentTotal;
   const meTooInitialLoading =
     isMeTooTab &&
     displayProducts.length === 0 &&
@@ -761,7 +785,7 @@ export default function MarketplacePage({ companyId }) {
           <MarketplaceListingTabs
             activeTab={listingTab}
             onChange={handleListingTabChange}
-            allCount={state.pagination.total}
+            allCount={parentTotal}
             meTooCount={alreadyMeTooCount}
             showMeTooTab={!isOwnStore}
           />
@@ -921,6 +945,16 @@ export default function MarketplacePage({ companyId }) {
         resetMeTooProductId={state.resetFetchedProductId}
         hideMeToo={isOwnStore}
         alreadyMeTooIds={alreadyMeTooIdSet}
+      />
+
+      <MeTooPriceModal
+        open={Boolean(meTooProduct)}
+        product={meTooProduct}
+        loading={meTooBusy}
+        onClose={() => {
+          if (!meTooBusy) setMeTooProduct(null);
+        }}
+        onConfirm={handleConfirmMeToo}
       />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />

@@ -121,11 +121,15 @@ export default function ProductCard({
             <button
               type="button"
               className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-ghost'}`}
-              disabled={actionBusy || alreadyMeToo}
+              disabled={actionBusy}
               onClick={() => onMeToo?.(product)}
-              title={alreadyMeToo ? 'Already in your catalog' : 'Copy this product to your catalog'}
+              title={
+                alreadyMeToo
+                  ? 'Update your catalog selling price'
+                  : 'Copy this product to your catalog'
+              }
             >
-              {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
+              {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Set price' : 'Me too'}
             </button>
           ) : null}
           {showReset ? (

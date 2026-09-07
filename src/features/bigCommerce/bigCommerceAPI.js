@@ -7,6 +7,7 @@ import {
 import {
   fetchProductByIdRequest,
   fetchProductVariationRequest,
+  updateProductRequest,
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../products/productsAPI.js';
 import { fetchCategoriesRequest } from '../categories/categoriesAPI.js';
@@ -19,6 +20,7 @@ import {
   getProductVariations,
   attachSiblingChildren,
   collectMarketplaceVariations,
+  productIdFromRecord,
 } from './marketplaceUtils.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
@@ -708,18 +710,139 @@ export async function updateConnectionSettingsRequest(requestId, settings = {}) 
   throw lastError || new Error('Failed to update connection settings');
 }
 
+function roundMeTooMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function catalogRetailPrice(item) {
+  const raw =
+    item?.price ??
+    item?.product_price ??
+    item?.price_before_tax ??
+    item?.sale_price ??
+    item?.selling_price ??
+    0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function nextMeTooSellingPrice(originPrice, { price, multiplier } = {}) {
+  const factor = Number(multiplier);
+  const origin = Number(originPrice);
+  if (Number.isFinite(factor) && factor > 0 && Number.isFinite(origin) && origin > 0) {
+    return roundMeTooMoney(origin * factor);
+  }
+  return roundMeTooMoney(price);
+}
+
+export function extractCopiedProductId(result, sourceProductId) {
+  const source = String(sourceProductId || '').trim();
+  const record =
+    result?.product && typeof result.product === 'object' && !Array.isArray(result.product)
+      ? result.product
+      : result?.data && typeof result.data === 'object' && !Array.isArray(result.data)
+        ? result.data
+        : result && typeof result === 'object'
+          ? result
+          : null;
+  const candidates = [
+    record?._id,
+    record?.id,
+    record?.product_id,
+    result?.product_id,
+    result?.copied_product_id,
+    result?.data?._id,
+    result?.data?.product_id,
+  ];
+  for (const candidate of candidates) {
+    const id = String(candidate || '').trim();
+    if (id && id !== source) return id;
+  }
+  return '';
+}
+
+function buildMeTooDuplicateBody({ price, multiplier } = {}) {
+  const body = {};
+  const sellingPrice = roundMeTooMoney(price);
+  if (sellingPrice > 0) {
+    body.price = sellingPrice;
+    body.product_price = sellingPrice;
+    body.price_before_tax = sellingPrice;
+    body.selling_price = sellingPrice;
+  }
+  const factor = Number(multiplier);
+  if (Number.isFinite(factor) && factor > 0) {
+    body.multiplier = factor;
+  }
+  return body;
+}
+
+async function applyPriceToCatalogProduct(productId, sellingPrice) {
+  const amount = roundMeTooMoney(sellingPrice);
+  if (!productId || !(amount > 0)) return;
+  await updateProductRequest(productId, {
+    price: amount,
+    price_before_tax: amount,
+  });
+}
+
+/**
+ * Duplicate copies vendor prices as-is. Write the chosen selling price onto the
+ * local catalog copy (parent + variations). Vendor/source product is not updated.
+ */
+export async function applyMeTooSellingPriceRequest(
+  localProductId,
+  { price, multiplier } = {}
+) {
+  const id = String(localProductId || '').trim();
+  const parentPrice = roundMeTooMoney(price);
+  if (!id || !(parentPrice > 0)) return;
+
+  await applyPriceToCatalogProduct(id, parentPrice);
+
+  try {
+    const variationBody = await fetchProductVariationRequest(id);
+    const record = unwrapProductRecord(variationBody);
+    const kids = Array.isArray(record) ? record.filter(Boolean) : getProductVariations(record);
+    await Promise.all(
+      kids.map(async (child) => {
+        const childId = productIdFromRecord(child);
+        if (!childId || childId === id) return;
+        const next = nextMeTooSellingPrice(catalogRetailPrice(child), { price, multiplier });
+        if (!(next > 0)) return;
+        await applyPriceToCatalogProduct(childId, next);
+      })
+    );
+  } catch {
+    // Single products, or variation fetch not available — parent price still saved.
+  }
+}
+
 /**
  * Copy a partner marketplace product into the current company catalog ("Me too").
  * POST `big-commerce/products/:productId/duplicate`
  * (also tries `big-commerce/products/fetch/:productId`)
  *
+ * Optional `price` is the current company's selling price. Vendor/source price is not sent
+ * as an overwrite — only the copy's catalog price.
+ *
  * Idempotent: if already fetched, API returns `already_fetched: true` with the existing row.
  */
-export async function duplicateMarketplaceProductRequest(productId) {
+export async function duplicateMarketplaceProductRequest(productId, { price, multiplier } = {}) {
   const id = String(productId || '').trim();
   if (!id) throw new Error('Product is required');
 
   const encoded = encodeURIComponent(id);
+  const payload = buildMeTooDuplicateBody({ price, multiplier });
+  const requestInit = {
+    method: 'POST',
+    headers: getHeaders(),
+  };
+  if (Object.keys(payload).length > 0) {
+    requestInit.body = JSON.stringify(payload);
+  }
   const candidates = [
     `big-commerce/products/${encoded}/duplicate`,
     `big-commerce/products/fetch/${encoded}`,
@@ -728,10 +851,7 @@ export async function duplicateMarketplaceProductRequest(productId) {
 
   for (const path of candidates) {
     try {
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method: 'POST',
-        headers: getHeaders(),
-      });
+      const response = await fetch(`${BASE_URL}${path}`, requestInit);
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.success === false) {
         lastError = new Error(

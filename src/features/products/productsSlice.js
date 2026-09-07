@@ -1,12 +1,14 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   fetchProductsRequest,
+  fetchDeletedProductsRequest,
   fetchProductByIdRequest,
   fetchProductVariationRequest,
   createProductRequest,
   updateProductRequest,
   updateProductVariationRequest,
   deleteProductRequest,
+  restoreProductRequest,
   uploadProductImageRequest,
   uploadBulkProductImagesRequest,
 } from './productsAPI.js';
@@ -19,6 +21,18 @@ export const fetchProducts = createAsyncThunk(
       return response;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch products');
+    }
+  }
+);
+
+export const fetchDeletedProducts = createAsyncThunk(
+  'products/fetchDeletedProducts',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await fetchDeletedProductsRequest(params);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch deleted products');
     }
   }
 );
@@ -100,6 +114,18 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
+export const restoreProduct = createAsyncThunk(
+  'products/restoreProduct',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const response = await restoreProductRequest(productId);
+      return { productId, response };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to restore product');
+    }
+  }
+);
+
 export const uploadProductImage = createAsyncThunk(
   'products/uploadProductImage',
   async ({ productId, imageFile }, { rejectWithValue }) => {
@@ -135,6 +161,8 @@ const initialState = {
   updateError: null,
   deleteStatus: 'idle',
   deleteError: null,
+  restoreStatus: 'idle',
+  restoreError: null,
   uploadImageStatus: 'idle',
   uploadImageError: null,
   pagination: {
@@ -203,6 +231,10 @@ const productsSlice = createSlice({
     clearDeleteStatus: (state) => {
       state.deleteStatus = 'idle';
       state.deleteError = null;
+    },
+    clearRestoreStatus: (state) => {
+      state.restoreStatus = 'idle';
+      state.restoreError = null;
     },
     clearUpdateStatus: (state) => {
       state.updateStatus = 'idle';
@@ -288,6 +320,27 @@ const productsSlice = createSlice({
         state.error = action.payload || action.error.message || 'Failed to fetch products';
         state.list = [];
       })
+      .addCase(fetchDeletedProducts.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchDeletedProducts.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.list = action.payload.data || [];
+        state.pagination = {
+          page: action.payload.page || state.pagination.page,
+          limit: action.payload.limit || state.pagination.limit,
+          total: action.payload.total || 0,
+          totalPages: action.payload.totalPages || 0,
+        };
+        state.error = null;
+      })
+      .addCase(fetchDeletedProducts.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error =
+          action.payload || action.error.message || 'Failed to fetch deleted products';
+        state.list = [];
+      })
       .addCase(deleteProduct.pending, (state) => {
         state.deleteStatus = 'loading';
         state.deleteError = null;
@@ -314,6 +367,34 @@ const productsSlice = createSlice({
       .addCase(deleteProduct.rejected, (state, action) => {
         state.deleteStatus = 'failed';
         state.deleteError = action.payload || action.error.message || 'Failed to delete product';
+      })
+      .addCase(restoreProduct.pending, (state) => {
+        state.restoreStatus = 'loading';
+        state.restoreError = null;
+      })
+      .addCase(restoreProduct.fulfilled, (state, action) => {
+        state.restoreStatus = 'succeeded';
+        state.restoreError = null;
+        const restoredId = String(action.payload.productId ?? '');
+        state.list = state.list.filter((item) => {
+          const id = String(item._id || item.id || item.product_id || '');
+          if (id && id === restoredId) return false;
+          const rawParent = item.parent_product_id ?? item.parentProductId;
+          const parentId =
+            rawParent && typeof rawParent === 'object' && !Array.isArray(rawParent)
+              ? String(rawParent._id ?? rawParent.id ?? '')
+              : String(rawParent ?? '');
+          if (parentId && parentId === restoredId) return false;
+          return true;
+        });
+        if (state.pagination.total > 0) {
+          state.pagination.total -= 1;
+        }
+      })
+      .addCase(restoreProduct.rejected, (state, action) => {
+        state.restoreStatus = 'failed';
+        state.restoreError =
+          action.payload || action.error.message || 'Failed to restore product';
       })
       .addCase(fetchProductById.pending, (state) => {
         state.fetchStatus = 'loading';
@@ -430,6 +511,7 @@ export const {
   setLimit,
   setSort,
   clearDeleteStatus,
+  clearRestoreStatus,
   clearUpdateStatus,
   clearCurrentProduct,
   clearUploadImageStatus,

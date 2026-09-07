@@ -54,6 +54,13 @@ const buildApiErrorMessage = (errorData, status) => {
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
 
+/** Soft-deleted products list. */
+export const PRODUCT_DELETED_LIST_PATH = 'product/get-deleted';
+const PRODUCT_DELETED_LIST_FALLBACK_PATH = 'products/get-deleted';
+
+const PRODUCT_RESTORE_PATH = 'product/restore';
+const PRODUCT_RESTORE_FALLBACK_PATH = 'products/restore';
+
 /** Populate Me-too origin + category + create/update actors. */
 export const PRODUCTS_LIST_POPULATE =
   'fetch_from_company_id,fetch_from_product_id,category_id,created_by,updated_by';
@@ -139,18 +146,7 @@ const normalizeProductsListResponse = (result, params = {}) => {
   };
 };
 
-export const fetchProductsRequest = async (params = {}) => {
-  const token = getAuthToken();
-
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Build query string with pagination, search, and sort parameters
+const buildProductsListQueryParams = (params = {}, { includeStatus = true } = {}) => {
   const queryParams = new URLSearchParams();
   if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
@@ -167,7 +163,7 @@ export const fetchProductsRequest = async (params = {}) => {
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   const categoryId = params.category_id ?? params.categoryId;
   if (categoryId) queryParams.append('category_id', String(categoryId));
-  appendPosStatusParams(queryParams, params);
+  if (includeStatus) appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
   queryParams.set(
@@ -176,8 +172,29 @@ export const fetchProductsRequest = async (params = {}) => {
       ? String(params.populate).trim()
       : PRODUCTS_LIST_POPULATE
   );
+  return queryParams;
+};
 
-  const queryString = queryParams.toString();
+const throwProductsHttpError = async (response, fallbackMessage) => {
+  const errorData = await response.json().catch(() => ({}));
+  const message = buildApiErrorMessage(errorData, response.status) || fallbackMessage;
+  const error = new Error(message);
+  error.status = response.status;
+  throw error;
+};
+
+export const fetchProductsRequest = async (params = {}) => {
+  const token = getAuthToken();
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryString = buildProductsListQueryParams(params).toString();
   const url = `${BASE_URL}${resolveProductsListPath()}${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetch(url, {
@@ -191,6 +208,43 @@ export const fetchProductsRequest = async (params = {}) => {
 
   const result = await response.json();
   return normalizeProductsListResponse(result, params);
+};
+
+/**
+ * GET deleted products — tries dedicated deleted routes.
+ */
+export const fetchDeletedProductsRequest = async (params = {}) => {
+  const token = getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const queryString = buildProductsListQueryParams(params, { includeStatus: false }).toString();
+  const candidates = [
+    `${BASE_URL}${PRODUCT_DELETED_LIST_PATH}${queryString ? `?${queryString}` : ''}`,
+    `${BASE_URL}${PRODUCT_DELETED_LIST_FALLBACK_PATH}${queryString ? `?${queryString}` : ''}`,
+  ];
+
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, { method: 'GET', headers });
+      if (!response.ok) {
+        await throwProductsHttpError(response, 'Failed to load deleted products');
+      }
+      const result = await response.json();
+      return normalizeProductsListResponse(result, params);
+    } catch (err) {
+      lastError = err;
+      if (err?.status === 404 || err?.status === 400) continue;
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Failed to load deleted products');
 };
 
 /** Products list + POS search: name/code/SKU/barcode + Mongo `_id` / parent id. */
@@ -649,6 +703,76 @@ export const deleteProductRequest = async (productId) => {
   }
 };
 
+/**
+ * Restore a soft-deleted product — tries POST restore routes, then PATCH clears deletedAt.
+ */
+export const restoreProductRequest = async (productId) => {
+  const token = getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const id = String(productId ?? '').trim();
+  if (!id) throw new Error('Missing product id');
+
+  const restoreCandidates = [
+    `${BASE_URL}${PRODUCT_RESTORE_PATH}/${id}`,
+    `${BASE_URL}${PRODUCT_RESTORE_FALLBACK_PATH}/${id}`,
+  ];
+
+  let lastError = null;
+  for (const url of restoreCandidates) {
+    try {
+      const response = await fetch(url, { method: 'POST', headers });
+      if (response.ok) {
+        const result = await response.json().catch(() => ({}));
+        if (result && result.success === false) {
+          throw new Error(result.message || result.error || 'Failed to restore product');
+        }
+        return result;
+      }
+      const errBody = await response.json().catch(() => ({}));
+      const message = errBody.message || errBody.error || `HTTP ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      if (response.status === 404 || response.status === 400) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    } catch (err) {
+      if (err?.status === 404 || err?.status === 400) {
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const url = `${BASE_URL}product/update/${id}`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ deletedAt: null, status: 'active' }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(
+      errBody.message || errBody.error || lastError?.message || `HTTP ${response.status}`
+    );
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (result && result.success === false) {
+    throw new Error(result.message || result.error || 'Failed to restore product');
+  }
+  return result;
+};
+
 // Upload single image
 export const uploadProductImageRequest = async (productId, imageFile) => {
   const token = getAuthToken();
@@ -978,9 +1102,10 @@ export async function fetchAllProductsForExportRequest(params = {}, onProgress) 
   let totalPages = 1;
   const { page: _p, limit: _l, onProgress: nestedProgress, ...baseParams } = params;
   const report = typeof onProgress === 'function' ? onProgress : nestedProgress;
+  const fetchPage = baseParams.deleted ? fetchDeletedProductsRequest : fetchProductsRequest;
 
   while (page <= totalPages) {
-    const result = await fetchProductsRequest({ ...baseParams, page, limit });
+    const result = await fetchPage({ ...baseParams, page, limit });
     const batch = Array.isArray(result.data) ? result.data : [];
     allData = allData.concat(batch);
     totalPages = Math.max(result.totalPages || 1, 1);

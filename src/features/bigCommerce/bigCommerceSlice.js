@@ -9,6 +9,8 @@ import {
   fetchMarketplaceCompaniesRequest,
   sendCompanyStoreRequestRequest,
   duplicateMarketplaceProductRequest,
+  applyMeTooSellingPriceRequest,
+  extractCopiedProductId,
   fetchAlreadyMeTooProductIdsRequest,
   deleteFetchedMarketplaceProductWithFallback,
   resetFetchedMarketplaceProductRequest,
@@ -19,6 +21,7 @@ import {
   attachSiblingChildren,
   getProductCategory,
   getProductVariations,
+  parentProductTotal,
   productIdFromRecord,
   collectAlreadyFetchedIdsFromProducts,
 } from './marketplaceUtils.js';
@@ -196,10 +199,33 @@ export const sendCompanyStoreRequest = createAsyncThunk(
 
 export const duplicateMarketplaceProduct = createAsyncThunk(
   'bigCommerce/duplicateProduct',
-  async ({ productId } = {}, { rejectWithValue }) => {
+  async ({ productId, price, multiplier } = {}, { getState, rejectWithValue }) => {
     try {
-      const result = await duplicateMarketplaceProductRequest(productId);
-      return { productId, result };
+      const result = await duplicateMarketplaceProductRequest(productId, {
+        price,
+        multiplier,
+      });
+      const alreadyFetched = Boolean(result?.already_fetched);
+      let localProductId = extractCopiedProductId(result, productId);
+
+      if (!localProductId) {
+        const bc = getState()?.bigCommerce || {};
+        const sourceCompanyId = String(bc.companyId || '').trim();
+        const ownCompanyId = String(getState()?.user?.companyId || '').trim();
+        if (sourceCompanyId) {
+          const links = await fetchAlreadyMeTooProductIdsRequest({
+            sourceCompanyId,
+            ownCompanyId,
+          });
+          localProductId = String(links?.bySourceId?.[productId] || '').trim();
+        }
+      }
+
+      if (localProductId && Number(price) > 0) {
+        await applyMeTooSellingPriceRequest(localProductId, { price, multiplier });
+      }
+
+      return { productId, result, localProductId, alreadyFetched };
     } catch (err) {
       return rejectWithValue(err?.message || 'Failed to copy product');
     }
@@ -608,12 +634,14 @@ const bigCommerceSlice = createSlice({
         };
         const loaded = state.products.length;
         const total = Number(action.payload.total) || 0;
+        const parentTotal = parentProductTotal(state.products, total);
         const listGrew = !append || loaded > previousLength;
         // Stop when the API returns an empty page, only duplicates, or we've caught up.
         // Relying on `loaded < total` alone loops forever if `total` is stale / mismatched.
+        // Keep API `total` (includes children) for pagination; `parentTotal` is display-only.
         state.productsHasMore = incoming.length > 0 && listGrew && loaded < total;
         if (state.company) {
-          state.company.totalProducts = total;
+          state.company.totalProducts = parentTotal;
           state.company.totalCategories = state.categories.length;
         } else if (total > 0) {
           // Profile may still be loading/failed — still surface the catalog count.
@@ -630,7 +658,7 @@ const bigCommerceSlice = createSlice({
             showStoreForListing: true,
             showProducts: true,
             showStoreForRequest: true,
-            totalProducts: total,
+            totalProducts: parentTotal,
             totalCategories: state.categories.length,
             joinedAt: null,
           };

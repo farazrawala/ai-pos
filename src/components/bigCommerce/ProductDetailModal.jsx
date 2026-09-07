@@ -161,17 +161,15 @@ export default function ProductDetailModal({
             <button
               type="button"
               className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-primary'}`}
-              disabled={
-                loading ||
-                !product ||
-                actionBusy ||
-                alreadyMeToo ||
-                !onMeToo
-              }
+              disabled={loading || !product || actionBusy || !onMeToo}
               onClick={() => onMeToo?.(product)}
-              title={alreadyMeToo ? 'Already in your catalog' : 'Copy this product to your catalog'}
+              title={
+                alreadyMeToo
+                  ? 'Update your catalog selling price'
+                  : 'Copy this product to your catalog'
+              }
             >
-              {meTooBusyForProduct ? 'Copying…' : alreadyMeToo ? 'Already added' : 'Me too'}
+              {meTooBusyForProduct ? 'Copying…' : alreadyMeToo ? 'Set price' : 'Me too'}
             </button>
           ) : null}
           {!hideMeToo && alreadyMeToo && onResetMeToo ? (

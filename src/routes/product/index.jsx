@@ -5,13 +5,16 @@ import moment from 'moment';
 import { FaArrowsRotate, FaCloudArrowUp, FaFileImport, FaFilter } from 'react-icons/fa6';
 import {
   fetchProducts,
+  fetchDeletedProducts,
   deleteProduct,
+  restoreProduct,
   updateProduct,
   setSearch,
   setPage,
   setLimit,
   setSort,
   clearDeleteStatus,
+  clearRestoreStatus,
   setListProductsStatus,
 } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -40,6 +43,7 @@ import { formatMoney } from '../../utils/formatMoney.js';
 import {
   fetchAllProductsForExportRequest,
   fetchProductVariationRequest,
+  PRODUCT_DELETED_LIST_PATH,
   PRODUCT_LIST_SEARCH_FIELDS,
   PRODUCTS_LIST_POPULATE,
   updateProductRequest,
@@ -238,6 +242,9 @@ function getUpdatedByLabel(row) {
 const productIsActive = (item) =>
   String(item?.status ?? '').trim().toLowerCase() === 'active';
 
+const pickProductDeletedOn = (item) =>
+  item?.deletedAt ?? item?.deleted_at ?? item?.deleted_on ?? item?.deletedOn ?? null;
+
 /** Product.bigcommerce_sync_status — boolean (also accepts active/true strings from older data). */
 const productBigcommerceSyncIsOn = (item) => {
   const raw = item?.bigcommerce_sync_status ?? item?.bigcommerceSyncStatus;
@@ -332,10 +339,14 @@ const Product = () => {
     sort,
     deleteStatus,
     deleteError,
+    restoreStatus,
+    restoreError,
   } = useSelector((state) => state.products);
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const searchTimeoutRef = useRef(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [restoringProductId, setRestoringProductId] = useState(null);
   const [togglingProductId, setTogglingProductId] = useState(null);
   const [togglingSyncProductId, setTogglingSyncProductId] = useState(null);
   const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
@@ -353,10 +364,11 @@ const Product = () => {
   const [statusFilter, setStatusFilter] = useState('active');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const isDeletedView = showDeleted;
 
   const activeFilterCount =
     (categoryFilter ? 1 : 0) +
-    (statusFilter !== 'active' ? 1 : 0) +
+    (!isDeletedView && statusFilter !== 'active' ? 1 : 0) +
     (typeFilter !== 'all' ? 1 : 0);
 
   // Get product permissions
@@ -376,7 +388,9 @@ const Product = () => {
     };
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
-    if (statusFilter === 'all') {
+    if (isDeletedView) {
+      params.deleted = true;
+    } else if (statusFilter === 'all') {
       params.includeInactive = true;
     } else if (statusFilter === 'inactive') {
       params.status = 'inactive';
@@ -400,6 +414,7 @@ const Product = () => {
     categoryFilter,
     statusFilter,
     typeFilter,
+    isDeletedView,
     sort.sortBy,
     sort.sortOrder,
   ]);
@@ -452,6 +467,13 @@ const Product = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (isDeletedView) {
+        if (!cancelled) {
+          setSyncRowsByProductId({});
+          setSyncRowsStatus('succeeded');
+        }
+        return;
+      }
       const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
       if (!ids.length) {
         if (!cancelled) {
@@ -479,7 +501,7 @@ const Product = () => {
     return () => {
       cancelled = true;
     };
-  }, [pageProductIds]);
+  }, [pageProductIds, isDeletedView]);
 
   const reloadCurrentPageSyncRows = useCallback(() => {
     const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
@@ -504,12 +526,26 @@ const Product = () => {
 
   // Fetch data from API using Redux with pagination, search, category, and sort
   useEffect(() => {
-    dispatch(fetchProducts(buildListParams()));
-  }, [dispatch, buildListParams]);
+    if (isDeletedView) {
+      dispatch(fetchDeletedProducts(buildListParams()));
+    } else {
+      dispatch(fetchProducts(buildListParams()));
+    }
+  }, [dispatch, buildListParams, isDeletedView]);
 
   const handleRetryFetch = useCallback(() => {
-    dispatch(fetchProducts(buildListParams()));
-  }, [dispatch, buildListParams]);
+    if (isDeletedView) {
+      dispatch(fetchDeletedProducts(buildListParams()));
+    } else {
+      dispatch(fetchProducts(buildListParams()));
+    }
+  }, [dispatch, buildListParams, isDeletedView]);
+
+  const handleDeletedTabChange = (nextDeleted) => {
+    if (Boolean(nextDeleted) === isDeletedView) return;
+    setShowDeleted(Boolean(nextDeleted));
+    dispatch(setPage(1));
+  };
 
   const handleCategoryFilterChange = useCallback(
     (e) => {
@@ -799,6 +835,27 @@ const Product = () => {
     }
   };
 
+  const handleRestore = async (productId, productName) => {
+    if (!productId || !canEdit || restoringProductId) return;
+    const productNameDisplay = productName || 'this product';
+    if (
+      !window.confirm(
+        `Restore "${productNameDisplay}"? The product will be active again.`
+      )
+    ) {
+      return;
+    }
+    setRestoringProductId(productId);
+    try {
+      await dispatch(restoreProduct(productId)).unwrap();
+      dispatch(fetchDeletedProducts(buildListParams()));
+    } catch (error) {
+      console.error('Restore error:', error);
+    } finally {
+      setRestoringProductId(null);
+    }
+  };
+
   // Sync local search with Redux search term
   useEffect(() => {
     setLocalSearch(searchTerm || '');
@@ -863,6 +920,20 @@ const Product = () => {
     }
   }, [deleteError]);
 
+  useEffect(() => {
+    if (restoreStatus === 'succeeded') {
+      toast.success('Product restored successfully.');
+      dispatch(clearRestoreStatus());
+    }
+  }, [restoreStatus, dispatch]);
+
+  useEffect(() => {
+    if (restoreError) {
+      toast.error(restoreError);
+      dispatch(clearRestoreStatus());
+    }
+  }, [restoreError, dispatch]);
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -900,7 +971,11 @@ const Product = () => {
   };
 
   const refreshProductList = () => {
-    dispatch(fetchProducts(buildListParams()));
+    if (isDeletedView) {
+      dispatch(fetchDeletedProducts(buildListParams()));
+    } else {
+      dispatch(fetchProducts(buildListParams()));
+    }
   };
 
   const openViewSyncModal = (item) => {
@@ -929,7 +1004,9 @@ const Product = () => {
     listQuery.set('searchFields', PRODUCT_LIST_SEARCH_FIELDS);
     if (params.search) listQuery.set('search', String(params.search));
     if (params.categoryId) listQuery.set('category_id', String(params.categoryId));
-    if (params.includeInactive) {
+    if (params.deleted) {
+      listQuery.set('deleted', '1');
+    } else if (params.includeInactive) {
       listQuery.set('include_inactive', 'true');
     } else if (params.status) {
       listQuery.set('status', String(params.status));
@@ -942,8 +1019,10 @@ const Product = () => {
     return [
       {
         key: 'products-list',
-        label: 'Products list',
-        url: buildApiUrl(`product/get-all-active-pos?${listQuery.toString()}`),
+        label: isDeletedView ? 'Deleted products list' : 'Products list',
+        url: buildApiUrl(
+          `${isDeletedView ? PRODUCT_DELETED_LIST_PATH : 'product/get-all-active-pos'}?${listQuery.toString()}`
+        ),
         status: mapLoadStatus(status),
         durationMs: null,
         error: status === 'failed' ? error : null,
@@ -981,9 +1060,19 @@ const Product = () => {
         error: deleteStatus === 'failed' ? deleteError : null,
       },
       {
+        key: 'product-restore',
+        label: 'Restore product',
+        url: buildApiUrl('product/restore/:id'),
+        status: mapLoadStatus(restoreStatus),
+        durationMs: null,
+        error: restoreStatus === 'failed' ? restoreError : null,
+      },
+      {
         key: 'products-export',
-        label: 'Export products (paged list)',
-        url: buildApiUrl(`product/get-all-active-pos?${listQuery.toString()}`),
+        label: isDeletedView ? 'Export deleted products (paged list)' : 'Export products (paged list)',
+        url: buildApiUrl(
+          `${isDeletedView ? PRODUCT_DELETED_LIST_PATH : 'product/get-all-active-pos'}?${listQuery.toString()}`
+        ),
         status: exporting ? 'loading' : 'pending',
         durationMs: null,
         error: null,
@@ -991,12 +1080,15 @@ const Product = () => {
     ];
   }, [
     buildListParams,
+    isDeletedView,
     status,
     error,
     categoriesStatus,
     togglingProductId,
     deleteStatus,
     deleteError,
+    restoreStatus,
+    restoreError,
     exporting,
   ]);
 
@@ -1021,7 +1113,9 @@ const Product = () => {
     const params = {};
     if (searchTerm) params.search = searchTerm;
     if (categoryFilter) params.categoryId = categoryFilter;
-    if (statusFilter === 'all') {
+    if (isDeletedView) {
+      params.deleted = true;
+    } else if (statusFilter === 'all') {
       params.includeInactive = true;
     } else if (statusFilter === 'inactive') {
       params.status = 'inactive';
@@ -1050,7 +1144,7 @@ const Product = () => {
       }
       const mapped = mapProductsToExportRows(records);
       const stamp = moment().format('YYYY-MM-DD-HHmm');
-      const filename = `products-with-stock-${stamp}`;
+      const filename = `${isDeletedView ? 'deleted-products' : 'products-with-stock'}-${stamp}`;
       if (format === 'csv') {
         exportRowsToCsv({ columns: PRODUCT_EXPORT_COLUMNS, rows: mapped, filename });
       } else if (format === 'excel') {
@@ -1058,14 +1152,14 @@ const Product = () => {
           columns: PRODUCT_EXPORT_COLUMNS,
           rows: mapped,
           filename,
-          sheetTitle: 'Products',
+          sheetTitle: isDeletedView ? 'Deleted Products' : 'Products',
         });
       } else if (format === 'pdf') {
         await exportRowsToPdf({
           columns: PRODUCT_EXPORT_COLUMNS,
           rows: mapped,
           filename,
-          title: 'Products with stock',
+          title: isDeletedView ? 'Deleted products' : 'Products with stock',
         });
       }
       toast.success(`Exported ${mapped.length} product(s) as ${format.toUpperCase()}.`);
@@ -1085,10 +1179,28 @@ const Product = () => {
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
                 <div className="col-lg-4 col-md-5">
-                  <h5 className="mb-1">Products</h5>
+                  <h5 className="mb-1">{isDeletedView ? 'Deleted Products' : 'Products'}</h5>
                   {DEBUG ? (
                     <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
+                  <div className="btn-group btn-group-sm mt-2" role="group" aria-label="Products list tabs">
+                    <button
+                      type="button"
+                      className={`btn mb-0 ${!isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleDeletedTabChange(false)}
+                      aria-pressed={!isDeletedView}
+                    >
+                      Products
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn mb-0 ${isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleDeletedTabChange(true)}
+                      aria-pressed={isDeletedView}
+                    >
+                      Deleted Products
+                    </button>
+                  </div>
                 </div>
                 <div className="col-lg-8 col-md-7">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
@@ -1099,10 +1211,14 @@ const Product = () => {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search name, barcode, SKU, or id…"
+                        placeholder={
+                          isDeletedView
+                            ? 'Search deleted products…'
+                            : 'Search name, barcode, SKU, or id…'
+                        }
                         value={localSearch}
                         onChange={handleSearchChange}
-                        aria-label="Search products"
+                        aria-label={isDeletedView ? 'Search deleted products' : 'Search products'}
                       />
                     </div>
                     <ColumnVisibilityMenu
@@ -1111,7 +1227,7 @@ const Product = () => {
                       onToggle={toggle}
                       onReset={reset}
                     />
-                    {canCreate ? (
+                    {canCreate && !isDeletedView ? (
                       <>
                         <button
                           type="button"
@@ -1190,6 +1306,7 @@ const Product = () => {
                         ))}
                       </select>
                     </div>
+                    {!isDeletedView ? (
                     <div className="col-xl-3 col-md-4 col-sm-6">
                       <label
                         className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
@@ -1209,6 +1326,7 @@ const Product = () => {
                         <option value="all">All</option>
                       </select>
                     </div>
+                    ) : null}
                     <div className="col-xl-3 col-md-4 col-sm-6">
                       <label
                         className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
@@ -1288,8 +1406,11 @@ const Product = () => {
               <ListDataTable
                 className="list-data-table--products"
                 loading={loading}
-                loadingLabel="Loading products…"
+                loadingLabel={isDeletedView ? 'Loading deleted products…' : 'Loading products…'}
                 error={error}
+                errorPrefix={
+                  isDeletedView ? 'Error loading deleted products' : 'Error loading products'
+                }
                 onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
@@ -1329,7 +1450,11 @@ const Product = () => {
                         : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
                       {isVisible('dates')
-                        ? sortableTh('createdAt', 'Created / Updated', 'list-col-date')
+                        ? sortableTh(
+                            isDeletedView ? 'deletedAt' : 'createdAt',
+                            isDeletedView ? 'Deleted' : 'Created / Updated',
+                            'list-col-date'
+                          )
                         : null}
                       {isVisible('integration') ? (
                         <th className="list-col-integrations">Integration</th>
@@ -1355,7 +1480,9 @@ const Product = () => {
                     {filteredData.length === 0 ? (
                       <tr>
                         <td colSpan={visibleCount} className="text-center py-5 text-muted">
-                          No products found. Try adjusting your search.
+                          {isDeletedView
+                            ? 'No deleted products found. Try adjusting your search.'
+                            : 'No products found. Try adjusting your search.'}
                         </td>
                       </tr>
                     ) : (
@@ -1377,6 +1504,7 @@ const Product = () => {
                         const isTogglingSync = togglingSyncProductId === productId;
                         const created = item.createdAt ?? item.created_at;
                         const updated = item.updatedAt ?? item.updated_at;
+                        const deletedOn = pickProductDeletedOn(item);
                         const createdByLabel = getCreatedByLabel(item);
                         const updatedByLabel = getUpdatedByLabel(item);
                         const taxRate = item.tax_rate ?? item.taxRate;
@@ -1421,7 +1549,7 @@ const Product = () => {
                               className="text-sm font-weight-bold text-dark list-cell-truncate"
                               title={productName !== 'Product' ? productName : undefined}
                             >
-                              {canEdit ? (
+                              {canEdit && !isDeletedView ? (
                                 <button
                                   type="button"
                                   className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
@@ -1536,30 +1664,49 @@ const Product = () => {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                <div className="form-check form-switch mb-0 list-status-switch">
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    role="switch"
-                                    id={`toggle-${productId || index}`}
-                                    checked={isActive}
-                                    onChange={() => handleToggleStatus(productId, isActive)}
-                                    disabled={!canEdit || isToggling}
-                                    aria-label={`Toggle ${productName} status`}
-                                  />
-                                  {isToggling ? (
-                                    <span
-                                      className="spinner-border spinner-border-sm text-primary ms-1"
-                                      role="status"
-                                      aria-hidden="true"
+                                {isDeletedView ? (
+                                  <span className="badge text-xxs bg-gradient-secondary mb-0">
+                                    Deleted
+                                  </span>
+                                ) : (
+                                  <div className="form-check form-switch mb-0 list-status-switch">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`toggle-${productId || index}`}
+                                      checked={isActive}
+                                      onChange={() => handleToggleStatus(productId, isActive)}
+                                      disabled={!canEdit || isToggling}
+                                      aria-label={`Toggle ${productName} status`}
                                     />
-                                  ) : null}
-                                </div>
+                                    {isToggling ? (
+                                      <span
+                                        className="spinner-border spinner-border-sm text-primary ms-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                    ) : null}
+                                  </div>
+                                )}
                               </td>
                             ) : null}
                             {isVisible('dates') ? (
                               <td className="text-sm list-col-date">
-                                {created || updated ? (
+                                {isDeletedView ? (
+                                  <div
+                                    className="text-nowrap"
+                                    title={
+                                      deletedOn
+                                        ? `Deleted ${moment(deletedOn).format('DD MMM YYYY h:mm a')}`
+                                        : undefined
+                                    }
+                                  >
+                                    {deletedOn
+                                      ? `Deleted ${moment(deletedOn).fromNow()}`
+                                      : '—'}
+                                  </div>
+                                ) : created || updated ? (
                                   <div className="oms-dates-cell">
                                     <div
                                       className="oms-dates-cell__created text-nowrap"
@@ -1596,7 +1743,9 @@ const Product = () => {
                                   integrations={integrations}
                                   totalIntegrations={integrations.length}
                                   loading={syncRowsStatus === 'loading'}
-                                  onClick={() => openViewSyncModal(item)}
+                                  onClick={
+                                    isDeletedView ? undefined : () => openViewSyncModal(item)
+                                  }
                                 />
                               </td>
                             ) : null}
@@ -1650,7 +1799,7 @@ const Product = () => {
                                     onChange={() =>
                                       handleToggleBigcommerceSync(productId, syncOn)
                                     }
-                                    disabled={!canEdit || isTogglingSync}
+                                    disabled={!canEdit || isTogglingSync || isDeletedView}
                                     aria-label={`Toggle ${productName} BigCommerce sync`}
                                     title={
                                       syncOn
@@ -1670,34 +1819,50 @@ const Product = () => {
                             ) : null}
                             <td className="text-end">
                               <div className="list-table-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-secondary mb-0 px-2"
-                                  title="View sync"
-                                  aria-label="View sync"
-                                  onClick={() => openViewSyncModal(item)}
-                                >
-                                  <NavIcon icon={FaArrowsRotate} size={14} />
-                                </button>
-                                {canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-primary mb-0"
-                                    onClick={() => navigate(`/products/edit/${productEditId}`)}
-                                  >
-                                    Edit
-                                  </button>
-                                ) : null}
-                                {canDelete ? (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-danger mb-0"
-                                    onClick={() => handleDelete(item, productId, productName)}
-                                    disabled={deleteStatus === 'loading'}
-                                  >
-                                    {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}
-                                  </button>
-                                ) : null}
+                                {isDeletedView ? (
+                                  canEdit ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-success mb-0"
+                                      title="Restore product"
+                                      onClick={() => handleRestore(productId, productName)}
+                                      disabled={restoringProductId === productId}
+                                    >
+                                      {restoringProductId === productId ? 'Restoring…' : 'Restore'}
+                                    </button>
+                                  ) : null
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                      title="View sync"
+                                      aria-label="View sync"
+                                      onClick={() => openViewSyncModal(item)}
+                                    >
+                                      <NavIcon icon={FaArrowsRotate} size={14} />
+                                    </button>
+                                    {canEdit ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-primary mb-0"
+                                        onClick={() => navigate(`/products/edit/${productEditId}`)}
+                                      >
+                                        Edit
+                                      </button>
+                                    ) : null}
+                                    {canDelete ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-danger mb-0"
+                                        onClick={() => handleDelete(item, productId, productName)}
+                                        disabled={deleteStatus === 'loading'}
+                                      >
+                                        {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>

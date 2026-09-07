@@ -624,7 +624,10 @@
   background: rgba(15, 118, 110, 0.12);
   color: #0f766e;
   border: 1px solid rgba(15, 118, 110, 0.28);
-  cursor: default;
+}
+
+.bc-btn-me-too-done:hover:not(:disabled) {
+  background: rgba(15, 118, 110, 0.18);
 }
 
 .bc-btn-me-too-done:disabled {
@@ -2023,6 +2026,140 @@
   .bc-connection-settings-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.bc-metoo-price {
+  --bc-border: #e5eaf1;
+  --bc-text: #172033;
+  --bc-muted: #68758a;
+  --bc-accent: #087f73;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bc-metoo-price-product {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #172033;
+}
+
+.bc-metoo-price-origin {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--bc-border, #e5eaf1);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.bc-metoo-price-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #68758a;
+}
+
+.bc-metoo-price-value {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 750;
+  color: #172033;
+  line-height: 1.2;
+}
+
+.bc-metoo-price-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.82rem;
+  color: #68758a;
+}
+
+.bc-metoo-price-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.bc-metoo-price-multipliers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.bc-metoo-price-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.bc-metoo-price-chip--custom {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bc-metoo-price-chip span {
+  font-weight: 750;
+  font-size: 0.95rem;
+}
+
+.bc-metoo-price-chip small {
+  color: #68758a;
+  font-size: 0.78rem;
+}
+
+.bc-metoo-price-chip:hover:not(:disabled) {
+  border-color: rgba(8, 127, 115, 0.45);
+}
+
+.bc-metoo-price-chip.is-active {
+  border-color: #087f73;
+  background: rgba(8, 127, 115, 0.08);
+  box-shadow: 0 0 0 3px rgba(8, 127, 115, 0.12);
+}
+
+.bc-metoo-price-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bc-metoo-price-custom {
+  display: block;
+}
+
+.bc-metoo-price-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(8, 127, 115, 0.1), rgba(32, 83, 122, 0.08));
+}
+
+.bc-metoo-price-summary span {
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.bc-metoo-price-summary strong {
+  font-size: 1.05rem;
+  color: #087f73;
 }
 
 

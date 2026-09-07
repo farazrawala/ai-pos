@@ -76,6 +76,19 @@ export function excludeChildProducts(list) {
   return list.filter((item) => !isMarketplaceChildProduct(item));
 }
 
+/**
+ * Parent-only catalog total for marketplace UI badges.
+ * List APIs count variation/child SKUs in `total`; subtract children already loaded.
+ */
+export function parentProductTotal(products, apiTotal) {
+  const list = Array.isArray(products) ? products : [];
+  const parentCount = excludeChildProducts(list).length;
+  const childCount = Math.max(0, list.length - parentCount);
+  const total = Number(apiTotal);
+  if (!Number.isFinite(total) || total < 0) return parentCount;
+  return Math.max(parentCount, total - childCount);
+}
+
 /** Variations / child products on a parent product record. */
 export function getProductVariations(item) {
   if (!item || typeof item !== 'object') return [];
