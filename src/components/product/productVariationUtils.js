@@ -88,6 +88,11 @@ export function isProductInactive(item) {
   return s === 'inactive' || s === 'disabled' || s === 'deleted';
 }
 
+/** Product.status enum for save/toggle payloads. Missing status defaults to active. */
+export function variationStatusValue(item) {
+  return isProductInactive(item) ? 'inactive' : 'active';
+}
+
 /** True for Variable parent SKUs (not sellable as a POS line — use a child variation). */
 export function isVariableParentProduct(item) {
   if (!item || typeof item !== 'object') return false;

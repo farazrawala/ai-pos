@@ -1,4 +1,9 @@
-import { isProductInactive } from '../../components/product/productVariationUtils.js';
+import {
+  isProductInactive,
+  isVariableParentProduct,
+  parentProductIdFromRecord,
+  sellablePosProductId,
+} from '../../components/product/productVariationUtils.js';
 import { ensureOfflineDbOpen, offlineDb } from '../db.js';
 import { omitUndefined, pickRecordId } from '../utils/recordId.js';
 
@@ -101,6 +106,11 @@ function productMatchesSearchQuery(product, query) {
   return haystacks.some((value) => value != null && normalizeSearchToken(value).includes(needle));
 }
 
+function nestedChildProducts(product) {
+  const kids = product?.childproducts ?? product?.child_products ?? product?.variations;
+  return Array.isArray(kids) ? kids : [];
+}
+
 function matchesCategoryFilter(product, categoryId) {
   if (!categoryId) return true;
   const productCategory = String(product?.category_id ?? product?.categoryId ?? '').trim();
@@ -127,20 +137,49 @@ export async function searchProducts({ query = '', categoryId, status } = {}) {
   if (!q) return filterByStatus(baseRows);
 
   const matches = new Map();
+  const putMatch = (product) => {
+    const id = sellablePosProductId(product) || product?._id;
+    if (!id || !matchesCategoryFilter(product, cat)) return;
+    matches.set(String(id), product);
+  };
 
   const byBarcode = await getProductByBarcode(q);
-  if (byBarcode && matchesCategoryFilter(byBarcode, cat)) {
-    matches.set(byBarcode._id, byBarcode);
-  }
+  if (byBarcode) putMatch(byBarcode);
 
   const bySku = await getProductBySku(q);
-  if (bySku && matchesCategoryFilter(bySku, cat)) {
-    matches.set(bySku._id, bySku);
+  if (bySku) putMatch(bySku);
+
+  const byId = new Map();
+  for (const product of baseRows) {
+    const id = sellablePosProductId(product) || product?._id;
+    if (id) byId.set(String(id), product);
   }
 
   for (const product of baseRows) {
     if (productMatchesSearchQuery(product, q)) {
-      matches.set(product._id, product);
+      putMatch(product);
+      for (const child of nestedChildProducts(product)) putMatch(child);
+    }
+  }
+
+  // Variations are sellable; parents are hidden in POS. If the query hits a
+  // parent name, include its children even when child names omit that text.
+  const matchingParentIds = new Set();
+  for (const product of matches.values()) {
+    if (isVariableParentProduct(product)) {
+      const id = sellablePosProductId(product);
+      if (id) matchingParentIds.add(id);
+    }
+  }
+  for (const product of baseRows) {
+    const parentId = parentProductIdFromRecord(product);
+    if (parentId && matchingParentIds.has(parentId)) {
+      putMatch(product);
+      continue;
+    }
+    const parent = parentId ? byId.get(parentId) : null;
+    if (parent && productMatchesSearchQuery(parent, q)) {
+      putMatch(product);
     }
   }
 

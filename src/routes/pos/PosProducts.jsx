@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaBarcode, FaFloppyDisk, FaMicrophone, FaMoneyBill1, FaPenToSquare } from 'react-icons/fa6';
 import {
   fetchProductActiveRequest,
+  fetchProductVariationRequest,
   POS_PRODUCT_SEARCH_FIELDS,
 } from '../../features/products/productsAPI.js';
 import {
   getProductListingImage,
   getParentProductId,
+  getProductVariations,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import NavIcon from '../../components/NavIcon.jsx';
 import FetchRetryStatus from '../../components/list/FetchRetryStatus.jsx';
@@ -16,14 +18,18 @@ import {
   getProductAvailableStock,
   isProductStockBelowMinimum,
 } from '../../utils/productStock.js';
-import { isVariableParentProduct, sellablePosProductId, isProductInactive } from '../../components/product/productVariationUtils.js';
+import {
+  isVariableParentProduct,
+  sellablePosProductId,
+  isProductInactive,
+  parentProductIdFromRecord,
+} from '../../components/product/productVariationUtils.js';
 import { toast } from '../../utils/toast.js';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js';
 import { useFetchRetryCountdown } from '../../hooks/useFetchRetryCountdown.js';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition.js';
 import {
   countProducts,
-  lookupProductsForScan,
   searchProducts,
   upsertProducts,
 } from '../../offline/repositories/productsRepo.js';
@@ -61,10 +67,22 @@ function looksLikeBarcode(value) {
   const s = String(value ?? '').trim();
   if (s.length < 6 || s.length > 64) return false;
   if (/\s/.test(s)) return false;
+  // Names like "Macaulay" are not scanner codes — require at least one digit.
+  if (!/\d/.test(s)) return false;
   return /^[0-9A-Za-z\-._/]+$/.test(s);
 }
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
+/** Empty POS grid (no search). Typed search stays smaller. */
+const POS_PRODUCT_BROWSE_LIMIT = 200;
+const POS_PRODUCT_SEARCH_LIMIT = 50;
+
+function limitPosBrowseRows(rows, query) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (String(query ?? '').trim()) return list;
+  if (list.length <= POS_PRODUCT_BROWSE_LIMIT) return list;
+  return list.slice(0, POS_PRODUCT_BROWSE_LIMIT);
+}
 
 /** Load "Remove stock with less than 1" preference from localStorage cache. */
 function readStoredHideLowStock() {
@@ -141,11 +159,121 @@ function productMatchesSoftQuery(product, query) {
 
 function pickSoftMatchedProduct(products, query) {
   if (!Array.isArray(products) || products.length === 0) return null;
-  const soft = products.filter(
-    (p) => !isVariableParentProduct(p) && !isProductInactive(p) && productMatchesSoftQuery(p, query)
+  const matchingParentIds = new Set(
+    products
+      .filter((p) => isVariableParentProduct(p) && productMatchesSoftQuery(p, query))
+      .map((p) => sellablePosProductId(p))
+      .filter(Boolean)
   );
+  const soft = products.filter((p) => {
+    if (isVariableParentProduct(p) || isProductInactive(p)) return false;
+    if (productMatchesSoftQuery(p, query)) return true;
+    const parentId = parentProductIdFromRecord(p);
+    return Boolean(parentId && matchingParentIds.has(parentId));
+  });
   if (soft.length === 1) return soft[0];
   return null;
+}
+
+function nestedChildProducts(product) {
+  const kids = product?.childproducts ?? product?.child_products ?? product?.variations;
+  return Array.isArray(kids) ? kids : [];
+}
+
+function mergeProductRows(rows) {
+  const byId = new Map();
+  for (const row of rows || []) {
+    const id = sellablePosProductId(row);
+    if (id) byId.set(id, row);
+  }
+  return Array.from(byId.values());
+}
+
+/** POS hides variable parents, so search must surface their sellable children. */
+function flattenWithNestedChildren(rows) {
+  const out = [];
+  for (const row of rows || []) {
+    out.push(row);
+    if (isVariableParentProduct(row)) {
+      for (const child of nestedChildProducts(row)) {
+        out.push(asSellableChild(child, row) || child);
+      }
+    }
+  }
+  return mergeProductRows(out);
+}
+
+function variationsFromApiBody(body) {
+  if (!body) return [];
+  if (Array.isArray(body)) return body.filter(Boolean);
+  const record = body.data ?? body.product ?? body;
+  if (Array.isArray(record)) return record.filter(Boolean);
+  return getProductVariations(record);
+}
+
+function asSellableChild(child, parent) {
+  if (!child || typeof child !== 'object') return null;
+  const id = sellablePosProductId(child);
+  const parentId = sellablePosProductId(parent);
+  if (!id || (parentId && id === parentId)) return null;
+  const parentName = parent?.product_name || parent?.name || '';
+  const childName = child.product_name || child.name || parentName;
+  return {
+    ...child,
+    _id: child._id ?? child.id ?? id,
+    product_type: 'Single',
+    productType: 'Single',
+    product_name: childName,
+    name: childName,
+    parent_product_id: parentProductIdFromRecord(child) || parentId,
+    category_id: child.category_id ?? child.categoryId ?? parent?.category_id ?? parent?.categoryId,
+  };
+}
+
+async function fetchMissingVariationChildren(rows, { categoryId, statusParams } = {}) {
+  const flattened = flattenWithNestedChildren(rows);
+  const byId = new Map(flattened.map((p) => [sellablePosProductId(p), p]));
+  const childParentIds = new Set(
+    flattened.map((p) => parentProductIdFromRecord(p)).filter(Boolean)
+  );
+  const parentsNeedingKids = flattened.filter((p) => {
+    if (!isVariableParentProduct(p)) return false;
+    const id = sellablePosProductId(p);
+    return Boolean(id && !childParentIds.has(id));
+  });
+  if (!parentsNeedingKids.length) return flattened;
+
+  const extraBatches = await Promise.all(
+    parentsNeedingKids.map(async (parent) => {
+      const parentId = sellablePosProductId(parent);
+      try {
+        const variationBody = await fetchProductVariationRequest(parentId);
+        const kids = variationsFromApiBody(variationBody)
+          .map((child) => asSellableChild(child, parent))
+          .filter(Boolean);
+        if (kids.length) return kids;
+      } catch (err) {
+        console.warn('[POS] Variation lookup failed', parentId, err);
+      }
+      try {
+        const result = await fetchProductActiveRequest({
+          search: parentId,
+          searchFields: 'parent_product_id',
+          page: 1,
+          limit: 200,
+          ...(categoryId ? { categoryId } : {}),
+          ...(statusParams || {}),
+        });
+        return (Array.isArray(result?.data) ? result.data : [])
+          .map((child) => asSellableChild(child, byId.get(parentId) || parent))
+          .filter(Boolean);
+      } catch (err) {
+        console.warn('[POS] Failed to load variations for parent', parentId, err);
+        return [];
+      }
+    })
+  );
+  return mergeProductRows([...flattened, ...extraBatches.flat()]);
 }
 
 /**
@@ -191,6 +319,7 @@ const PosProducts = ({
   const scanInFlightRef = useRef(false);
   const scannerBurstRef = useRef({ count: 0, lastAt: 0 });
   const autoScanTimerRef = useRef(null);
+  const loadProductsGenRef = useRef(0);
 
   useEffect(() => {
     productQueryRef.current = productQuery;
@@ -221,13 +350,15 @@ const PosProducts = ({
       setProductsStatus('failed');
       return false;
     }
-    setProducts(cached);
+    setProducts(limitPosBrowseRows(flattenWithNestedChildren(cached), debouncedQuery));
     setProductsError(null);
     setProductsStatus('succeeded');
     return true;
   }, [debouncedQuery, categoryFilter, statusFilter]);
 
   const loadProducts = useCallback(async () => {
+    const loadGen = ++loadProductsGenRef.current;
+    const stillCurrent = () => loadGen === loadProductsGenRef.current;
     setProductsError(null);
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
     const statusParams =
@@ -243,8 +374,10 @@ const PosProducts = ({
       return;
     }
 
-    // Online: paint from IndexedDB first so a slow API never blocks the grid.
+    // Online: search the local catalog first. get-all-active-pos is too slow
+    // to run on every keystroke.
     let hadCache = false;
+    let cachedRows = [];
     try {
       const cached = await searchProducts({
         query: debouncedQuery,
@@ -252,11 +385,20 @@ const PosProducts = ({
         status: statusFilter,
       });
       const totalCached = await countProducts();
+      cachedRows = limitPosBrowseRows(flattenWithNestedChildren(cached), debouncedQuery);
       if (totalCached > 0) {
         hadCache = true;
-        setProducts(cached);
+        if (!stillCurrent()) return;
+        setProducts(cachedRows);
         setProductsError(null);
         setProductsStatus('succeeded');
+        if (debouncedQuery) return;
+        try {
+          const stale = await isMasterSyncStale();
+          if (!stale) return;
+        } catch {
+          /* fall through to a browse-only network refresh */
+        }
       } else {
         setProductsStatus('loading');
       }
@@ -265,26 +407,23 @@ const PosProducts = ({
       setProductsStatus('loading');
     }
 
-    // Fresh offline catalog is enough; skip the slow product list fetch.
-    if (hadCache) {
-      try {
-        const stale = await isMasterSyncStale();
-        if (!stale) return;
-      } catch {
-        /* fall through to network refresh */
-      }
-    }
-
     try {
       const result = await fetchProductActiveRequest({
         search: debouncedQuery || undefined,
         searchFields: POS_PRODUCT_SEARCH_FIELDS,
         page: 1,
-        limit: 2000,
+        limit: debouncedQuery ? POS_PRODUCT_SEARCH_LIMIT : POS_PRODUCT_BROWSE_LIMIT,
         ...(categoryId ? { categoryId } : {}),
         ...statusParams,
       });
-      const arr = Array.isArray(result?.data) ? result.data : [];
+      const arr = limitPosBrowseRows(
+        await fetchMissingVariationChildren(
+          Array.isArray(result?.data) ? result.data : [],
+          { categoryId, statusParams }
+        ),
+        debouncedQuery
+      );
+      if (!stillCurrent()) return;
       setProducts(arr);
       setProductsError(null);
       setProductsStatus('succeeded');
@@ -293,7 +432,14 @@ const PosProducts = ({
       });
     } catch (err) {
       console.warn('[POS] Failed to load products from API, trying offline cache', err);
-      if (hadCache) return;
+      if (!stillCurrent()) return;
+      if (hadCache && !debouncedQuery) return;
+      if (hadCache && cachedRows.length > 0) {
+        setProducts(cachedRows);
+        setProductsError(null);
+        setProductsStatus('succeeded');
+        return;
+      }
       const usedCache = await loadProductsFromCache();
       if (!usedCache) {
         setProducts([]);
@@ -322,7 +468,21 @@ const PosProducts = ({
     });
 
   const visibleProducts = useMemo(() => {
-    let list = products.filter((p) => !isVariableParentProduct(p));
+    const sellable = products.filter((p) => !isVariableParentProduct(p));
+    const sellableParentIds = new Set(
+      sellable.map((p) => parentProductIdFromRecord(p)).filter(Boolean)
+    );
+    // Search hits a Variable parent (Products list row). POS cannot sell the
+    // parent, but if variations did not load, still show the parent so the
+    // match is not a blank grid.
+    const unmatchedParents = debouncedQuery
+      ? products.filter((p) => {
+          if (!isVariableParentProduct(p)) return false;
+          const id = sellablePosProductId(p);
+          return Boolean(id && !sellableParentIds.has(id));
+        })
+      : [];
+    let list = [...sellable, ...unmatchedParents];
     if (statusFilter === 'active') {
       list = list.filter((p) => !isProductInactive(p));
     } else if (statusFilter === 'inactive') {
@@ -332,7 +492,7 @@ const PosProducts = ({
       list = list.filter((p) => !isProductStockBelowMinimum(p, { warehouseId, minimum: 1 }));
     }
     return list;
-  }, [products, hideLowStock, warehouseId, statusFilter]);
+  }, [products, hideLowStock, warehouseId, statusFilter, debouncedQuery]);
 
   /** Full catalog map so child cards can fall back to parent image even when parents are hidden. */
   const productsById = useMemo(() => {
@@ -381,9 +541,21 @@ const PosProducts = ({
       const fromList = pickScannedProduct(products, q);
       if (fromList) return fromList;
 
+      const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+      try {
+        const cached = await searchProducts({
+          query: q,
+          categoryId,
+          status: statusFilter,
+        });
+        const picked = pickScannedProduct(flattenWithNestedChildren(cached), q);
+        if (picked) return picked;
+      } catch (err) {
+        console.error('[POS] Catalog barcode lookup failed', err);
+      }
+
       if (isOnline) {
         try {
-          const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
           const result = await fetchProductActiveRequest({
             search: q,
             searchFields: POS_PRODUCT_SEARCH_FIELDS,
@@ -391,25 +563,19 @@ const PosProducts = ({
             limit: 50,
             ...(categoryId ? { categoryId } : {}),
           });
-          const arr = Array.isArray(result?.data) ? result.data : [];
+          const arr = await fetchMissingVariationChildren(
+            Array.isArray(result?.data) ? result.data : [],
+            { categoryId }
+          );
           const picked = pickScannedProduct(arr, q);
           if (picked) return picked;
         } catch (err) {
-          console.warn('[POS] Barcode lookup failed, trying offline cache', err);
+          console.warn('[POS] Barcode lookup failed', err);
         }
-      }
-
-      try {
-        const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
-        const cached = await lookupProductsForScan(q, categoryId);
-        const picked = pickScannedProduct(cached, q);
-        if (picked) return picked;
-      } catch (err) {
-        console.error('[POS] Offline barcode lookup failed', err);
       }
       return null;
     },
-    [products, categoryFilter, isOnline]
+    [products, categoryFilter, statusFilter, isOnline]
   );
 
   const findSoftProductForQuery = useCallback(
@@ -420,9 +586,21 @@ const PosProducts = ({
       const fromList = pickSoftMatchedProduct(products, q);
       if (fromList) return fromList;
 
+      const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+      try {
+        const cached = await searchProducts({
+          query: q,
+          categoryId,
+          status: statusFilter,
+        });
+        const picked = pickSoftMatchedProduct(flattenWithNestedChildren(cached), q);
+        if (picked) return picked;
+      } catch (err) {
+        console.error('[POS] Catalog voice lookup failed', err);
+      }
+
       if (isOnline) {
         try {
-          const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
           const result = await fetchProductActiveRequest({
             search: q,
             searchFields: POS_PRODUCT_SEARCH_FIELDS,
@@ -430,28 +608,18 @@ const PosProducts = ({
             limit: 50,
             ...(categoryId ? { categoryId } : {}),
           });
-          const arr = Array.isArray(result?.data) ? result.data : [];
-          const picked = pickSoftMatchedProduct(arr, q);
-          if (picked) return picked;
+          const arr = await fetchMissingVariationChildren(
+            Array.isArray(result?.data) ? result.data : [],
+            { categoryId }
+          );
+          return pickSoftMatchedProduct(arr, q);
         } catch (err) {
           console.warn('[POS] Voice soft lookup failed', err);
         }
       }
-
-      try {
-        const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
-        const cached = await searchProducts({
-          query: q,
-          categoryId,
-        });
-        const arr = Array.isArray(cached) ? cached : [];
-        return pickSoftMatchedProduct(arr, q);
-      } catch (err) {
-        console.error('[POS] Offline voice soft lookup failed', err);
-      }
       return null;
     },
-    [products, categoryFilter, isOnline]
+    [products, categoryFilter, statusFilter, isOnline]
   );
 
   const tryAddProductFromQuery = useCallback(
@@ -595,6 +763,39 @@ const PosProducts = ({
     [tryAddProductFromQuery, setProductQuery, clearAutoScanTimer]
   );
 
+  const submitNamedProductQuery = useCallback(
+    async (rawQuery) => {
+      const q = String(rawQuery ?? '').trim();
+      if (!q || scanInFlightRef.current) return null;
+
+      unlockPosScanAudio();
+      scanInFlightRef.current = true;
+      try {
+        let product = await findExactProductForQuery(q);
+        if (!product) product = await findSoftProductForQuery(q);
+        if (product) {
+          const result = tryAddSellableProduct(product);
+          if (result === 'added') {
+            playPosScanBeep('success');
+            productQueryRef.current = '';
+            setProductQuery('');
+            toast.success(`Added ${getProductName(product)}`);
+          } else {
+            playPosScanBeep('error');
+          }
+          requestAnimationFrame(() => searchInputRef.current?.focus());
+          return result;
+        }
+        // Keep the typed name so debounce/API search can fill the grid.
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+        return 'not_found';
+      } finally {
+        scanInFlightRef.current = false;
+      }
+    },
+    [findExactProductForQuery, findSoftProductForQuery, tryAddSellableProduct, setProductQuery]
+  );
+
   const handleSearchKeyDown = useCallback(
     async (e) => {
       unlockPosScanAudio();
@@ -603,7 +804,12 @@ const PosProducts = ({
         const q = String(
           productQueryRef.current || e.currentTarget?.value || searchInputRef.current?.value || ''
         ).trim();
-        await submitScannedCode(q);
+        if (!q) return;
+        if (looksLikeBarcode(q)) {
+          await submitScannedCode(q);
+          return;
+        }
+        await submitNamedProductQuery(q);
         return;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -613,7 +819,7 @@ const PosProducts = ({
         burst.lastAt = now;
       }
     },
-    [submitScannedCode]
+    [submitScannedCode, submitNamedProductQuery]
   );
 
   const handleSearchChange = useCallback(
@@ -777,7 +983,9 @@ const PosProducts = ({
           {DEBUG ? (
             <p className="pos-panel-header__debug mb-0">
               <code>
-                {`GET /product/get-all-active-pos?search=&searchFields=${POS_PRODUCT_SEARCH_FIELDS}&status=${statusFilter}&category_id=`}
+                {debouncedQuery
+                  ? `IndexedDB catalog search=${JSON.stringify(debouncedQuery)} status=${statusFilter}`
+                  : `catalog/API browse limit=${POS_PRODUCT_BROWSE_LIMIT} status=${statusFilter}`}
               </code>
             </p>
           ) : null}
@@ -886,11 +1094,14 @@ const PosProducts = ({
               visibleProducts.length === 0 && (
               <div className="text-center text-muted py-5">
                 No products found
-                {hideLowStock && products.length > 0 ? (
+                {hideLowStock &&
+                products.some((p) => !isVariableParentProduct(p)) ? (
                   <div className="small mt-1">Try unchecking &quot;Remove stock with less than 1&quot;</div>
                 ) : debouncedQuery ? (
+                  <div className="small mt-1">Try a different name, SKU, or barcode</div>
+                ) : (
                   <div className="small mt-1">Scan a barcode to add it to the cart</div>
-                ) : null}
+                )}
               </div>
             )}
             {!(productsStatus === 'loading' && products.length === 0) && visibleProducts.length > 0 && (

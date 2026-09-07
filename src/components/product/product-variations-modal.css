@@ -236,6 +236,11 @@
   box-shadow: 0 4px 14px rgba(20, 31, 51, 0.06);
 }
 
+.pv-variation-card.is-inactive {
+  border-color: #e5e7eb;
+  background: #fafafa;
+}
+
 .pv-variation-card-head {
   display: flex;
   align-items: flex-start;
@@ -244,6 +249,48 @@
   padding: 0.65rem 0.75rem;
   background: #fbfcfe;
   border-bottom: 1px solid #f1f3f8;
+}
+
+.pv-variation-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.pv-status-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pv-status-switch .pv-bc-switch-input:checked + .pv-bc-switch-track {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.pv-status-switch .pv-bc-switch-input:focus-visible + .pv-bc-switch-track {
+  box-shadow: 0 0 0 3px rgb(22 163 74 / 22%);
+}
+
+.pv-status-switch-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+  min-width: 3.6rem;
+}
+
+.pv-status-switch:has(.pv-bc-switch-input:checked) .pv-status-switch-label {
+  color: #15803d;
+}
+
+.pv-status-switch:has(.pv-bc-switch-input:disabled) {
+  cursor: not-allowed;
 }
 
 .pv-variation-attrs {

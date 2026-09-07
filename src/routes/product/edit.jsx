@@ -11,7 +11,7 @@ import {
   clearUpdateStatus,
   clearCurrentProduct,
 } from '../../features/products/productsSlice.js';
-import { generateUniqueProductBarcodeRequest } from '../../features/products/productsAPI.js';
+import { generateUniqueProductBarcodeRequest, updateProductRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import { fetchBrandsRequest } from '../../features/brands/brandsAPI.js';
@@ -29,6 +29,7 @@ import {
   variationProductIdFromRecord,
   generateBarcode,
   parseVariationAttrs,
+  variationStatusValue,
 } from '../../components/product/productVariationUtils.js';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { buildApiUrl } from '../../config/apiConfig.js';
@@ -139,6 +140,8 @@ const ProductEdit = () => {
   const [applyingBarcodes, setApplyingBarcodes] = useState(false);
   const [variationPendingDelete, setVariationPendingDelete] = useState(null);
   const [removingVariationId, setRemovingVariationId] = useState('');
+  const [togglingVariationId, setTogglingVariationId] = useState('');
+  const togglingVariationIdRef = useRef('');
 
   const isSubmitting = updateStatus === 'loading';
   const isLoading = fetchStatus === 'loading';
@@ -555,6 +558,7 @@ const ProductEdit = () => {
             length: child.length !== undefined ? child.length.toString() : '',
             width: child.width !== undefined ? child.width.toString() : '',
             height: child.height !== undefined ? child.height.toString() : '',
+            status: variationStatusValue(child),
             image: null,
             imagePreview: null,
             // Store the original child product ID for reference
@@ -676,6 +680,7 @@ const ProductEdit = () => {
         bigcommerce_hold_qty: '',
         image: null,
         imagePreview: null,
+        status: 'active',
         attributes: combo.map((v, i) => ({
           attributeId: attributeArrays[i].attributeId,
           attributeName: attributeArrays[i].attributeName,
@@ -754,6 +759,7 @@ const ProductEdit = () => {
         bigcommerce_hold_qty: '',
         image: null,
         imagePreview: null,
+        status: 'active',
         attributes: combo.map((v, i) => ({
           attributeId: attributeArrays[i].attributeId,
           attributeName: attributeArrays[i].attributeName,
@@ -767,6 +773,34 @@ const ProductEdit = () => {
   // Handle variation field change
   const handleVariationChange = (variationId, field, value) => {
     setVariations((prev) => prev.map((v) => (v.id === variationId ? { ...v, [field]: value } : v)));
+  };
+
+  const handleVariationStatusToggle = async (variation, nextActive) => {
+    const nextStatus = nextActive ? 'active' : 'inactive';
+    const previousStatus = variationStatusValue(variation);
+    if (previousStatus === nextStatus) return;
+    if (togglingVariationIdRef.current) return;
+
+    handleVariationChange(variation.id, 'status', nextStatus);
+
+    const persistedId = variationProductIdFromRecord(variation);
+    if (!persistedId) return;
+
+    const rowId = String(variation.id);
+    togglingVariationIdRef.current = rowId;
+    setTogglingVariationId(rowId);
+    try {
+      await updateProductRequest(persistedId, { status: nextStatus }, []);
+      toast.success(
+        nextActive ? 'Variation activated successfully.' : 'Variation deactivated successfully.'
+      );
+    } catch (error) {
+      handleVariationChange(variation.id, 'status', previousStatus);
+      toast.error(error?.message || 'Failed to update variation status');
+    } finally {
+      togglingVariationIdRef.current = '';
+      setTogglingVariationId('');
+    }
   };
 
   const applyRetailPriceToAllVariations = () => {
@@ -1297,6 +1331,7 @@ const ProductEdit = () => {
             quantity: variation.qty && variation.qty !== '' ? parseInt(variation.qty) : 0,
             alert_qty:
               variation.alert_qty && variation.alert_qty !== '' ? parseInt(variation.alert_qty) : 0,
+            status: variationStatusValue(variation),
           };
 
           const existingVariationId = variationProductIdFromRecord(variation);
@@ -2331,10 +2366,12 @@ const ProductEdit = () => {
                             hideBigCommerceSection || Boolean(variation.hideBigCommerce)
                           }
                           disabled={isSubmitting || isRemovingVariation}
+                          statusBusy={String(togglingVariationId) === String(variation.id)}
                           fileInputId={`product-edit-variation-image-${variation.id}`}
                           onChange={handleVariationChange}
                           onImageChange={handleVariationImageChange}
                           onRemove={handleRemoveVariation}
+                          onStatusToggle={handleVariationStatusToggle}
                         />
                       ))}
                     </div>
@@ -2393,6 +2430,8 @@ const ProductEdit = () => {
         onVariationChange={handleVariationChange}
         onVariationImageChange={handleVariationImageChange}
         onRemoveVariation={handleRemoveVariation}
+        onVariationStatusToggle={handleVariationStatusToggle}
+        togglingVariationId={togglingVariationId}
         onApply={handleCloseModal}
         isSubmitting={isSubmitting || isRemovingVariation}
       />

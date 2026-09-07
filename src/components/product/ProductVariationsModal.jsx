@@ -19,6 +19,8 @@ export default function ProductVariationsModal({
   onVariationChange,
   onVariationImageChange,
   onRemoveVariation,
+  onVariationStatusToggle,
+  togglingVariationId = '',
   onApply,
   isSubmitting = false,
 }) {
@@ -226,10 +228,12 @@ export default function ProductVariationsModal({
                         hideBigCommerce || Boolean(variation.hideBigCommerce)
                       }
                       disabled={isSubmitting}
+                      statusBusy={String(togglingVariationId) === String(variation.id)}
                       fileInputId={`pv-modal-variation-image-${variation.id}`}
                       onChange={onVariationChange}
                       onImageChange={onVariationImageChange}
                       onRemove={onRemoveVariation}
+                      onStatusToggle={onVariationStatusToggle}
                     />
                   ))}
                 </div>

@@ -1,5 +1,9 @@
 import { useId, useRef } from 'react';
-import { parseVariationAttrs, generateBarcode } from './productVariationUtils.js';
+import {
+  parseVariationAttrs,
+  generateBarcode,
+  variationStatusValue,
+} from './productVariationUtils.js';
 import ProductImageDropzone from './ProductImageDropzone.jsx';
 import { PRODUCT_IMAGE_ACCEPT, PRODUCT_IMAGE_HINT } from '../../utils/productImageUpload.js';
 
@@ -13,6 +17,8 @@ export default function ProductVariationCard({
   onChange,
   onImageChange,
   onRemove,
+  onStatusToggle,
+  statusBusy = false,
   disabled = false,
   showMetaFields = false,
   hideBigCommerce = false,
@@ -21,11 +27,14 @@ export default function ProductVariationCard({
   const reactId = useId();
   const inputId = fileInputId || `pv-variation-image-${variation.id}-${reactId}`;
   const showOnBcId = `pv-show-on-bc-${variation.id}-${reactId}`;
+  const statusId = `pv-status-${variation.id}-${reactId}`;
   const bcPriceId = `pv-bc-price-${variation.id}-${reactId}`;
   const bcHoldId = `pv-bc-hold-${variation.id}-${reactId}`;
   const fileInputRef = useRef(null);
   const attrPills = parseVariationAttrs(variation.name);
   const showOnBigCommerce = Boolean(variation.show_on_bigcommerce);
+  const isActive = variationStatusValue(variation) === 'active';
+  const controlsDisabled = disabled || statusBusy;
 
   const handleRegenerateBarcode = () => {
     onChange(variation.id, 'barcode', generateBarcode());
@@ -38,6 +47,14 @@ export default function ProductVariationCard({
     }
   };
 
+  const handleStatusToggle = (checked) => {
+    if (onStatusToggle) {
+      onStatusToggle(variation, checked);
+      return;
+    }
+    onChange(variation.id, 'status', checked ? 'active' : 'inactive');
+  };
+
   const handleImageFiles = (files) => {
     const file = files?.[0];
     if (file) onImageChange(variation.id, file);
@@ -46,7 +63,7 @@ export default function ProductVariationCard({
   };
 
   return (
-    <div className="pv-variation-card">
+    <div className={`pv-variation-card${isActive ? '' : ' is-inactive'}`}>
       <div className="pv-variation-card-head">
         <div className="pv-variation-attrs">
           {attrPills.length > 0 ? (
@@ -59,16 +76,40 @@ export default function ProductVariationCard({
             <span className="pv-variation-attr-pill">{variation.name}</span>
           )}
         </div>
-        <button
-          type="button"
-          className="pv-variation-remove"
-          onClick={() => onRemove(variation.id)}
-          title="Remove variation"
-          aria-label={`Remove ${variation.name}`}
-          disabled={disabled}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
+        <div className="pv-variation-card-actions">
+          <label className="pv-status-switch" htmlFor={statusId}>
+            <input
+              className="pv-bc-switch-input"
+              type="checkbox"
+              role="switch"
+              id={statusId}
+              checked={isActive}
+              disabled={controlsDisabled}
+              onChange={(e) => handleStatusToggle(e.target.checked)}
+            />
+            <span className="pv-bc-switch-track" aria-hidden="true">
+              <span className="pv-bc-switch-thumb" />
+            </span>
+            <span className="pv-status-switch-label">{isActive ? 'Active' : 'Inactive'}</span>
+          </label>
+          {statusBusy ? (
+            <span
+              className="spinner-border spinner-border-sm text-primary"
+              role="status"
+              aria-label="Updating status"
+            />
+          ) : null}
+          <button
+            type="button"
+            className="pv-variation-remove"
+            onClick={() => onRemove(variation.id)}
+            title="Remove variation"
+            aria-label={`Remove ${variation.name}`}
+            disabled={controlsDisabled}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
       </div>
 
       <div className="pv-variation-card-body">
@@ -78,7 +119,7 @@ export default function ProductVariationCard({
           id={inputId}
           inputRef={fileInputRef}
           accept={PRODUCT_IMAGE_ACCEPT}
-          disabled={disabled}
+          disabled={controlsDisabled}
           onFiles={handleImageFiles}
         >
           <div className="pv-image-preview">
@@ -121,7 +162,7 @@ export default function ProductVariationCard({
                   type="text"
                   className="pv-field-input"
                   value={variation.slug}
-                  disabled={disabled}
+                  disabled={controlsDisabled}
                   onChange={(e) => onChange(variation.id, 'slug', e.target.value)}
                 />
               </div>
@@ -137,7 +178,7 @@ export default function ProductVariationCard({
               className="pv-field-input"
               placeholder="0.00"
               value={variation.price}
-              disabled={disabled}
+              disabled={controlsDisabled}
               onChange={(e) => onChange(variation.id, 'price', e.target.value)}
             />
           </div>
@@ -149,7 +190,7 @@ export default function ProductVariationCard({
               className="pv-field-input"
               placeholder="0"
               value={variation.qty}
-              disabled={disabled}
+              disabled={controlsDisabled}
               onChange={(e) => onChange(variation.id, 'qty', e.target.value)}
             />
           </div>
@@ -175,7 +216,7 @@ export default function ProductVariationCard({
               className="pv-field-input"
               placeholder="0"
               value={variation.alert_qty || ''}
-              disabled={disabled}
+              disabled={controlsDisabled}
               onChange={(e) => onChange(variation.id, 'alert_qty', e.target.value)}
             />
           </div>
@@ -186,7 +227,7 @@ export default function ProductVariationCard({
               className="pv-field-input"
               placeholder="Code"
               value={variation.product_code || ''}
-              disabled={disabled}
+              disabled={controlsDisabled}
               onChange={(e) => onChange(variation.id, 'product_code', e.target.value)}
             />
           </div>
@@ -197,7 +238,7 @@ export default function ProductVariationCard({
               className="pv-field-input"
               placeholder="SKU"
               value={variation.sku || ''}
-              disabled={disabled}
+              disabled={controlsDisabled}
               onChange={(e) => onChange(variation.id, 'sku', e.target.value)}
             />
           </div>
@@ -209,14 +250,14 @@ export default function ProductVariationCard({
                 className="pv-field-input"
                 placeholder="Auto-generated if empty"
                 value={variation.barcode || ''}
-                disabled={disabled}
+                disabled={controlsDisabled}
                 onChange={(e) => onChange(variation.id, 'barcode', e.target.value)}
               />
               <button
                 type="button"
                 className="pv-field-icon-btn"
                 onClick={handleRegenerateBarcode}
-                disabled={disabled}
+                disabled={controlsDisabled}
                 title="Regenerate barcode"
                 aria-label="Regenerate barcode"
               >
@@ -251,7 +292,7 @@ export default function ProductVariationCard({
                   role="switch"
                   id={showOnBcId}
                   checked={showOnBigCommerce}
-                  disabled={disabled}
+                  disabled={controlsDisabled}
                   onChange={(e) => handleShowOnBigCommerce(e.target.checked)}
                 />
                 <span className="pv-bc-switch-track" aria-hidden="true">
@@ -271,7 +312,7 @@ export default function ProductVariationCard({
                       className="pv-field-input"
                       placeholder={variation.price || '0.00'}
                       value={variation.bigcommerce_price ?? ''}
-                      disabled={disabled}
+                      disabled={controlsDisabled}
                       onChange={(e) => onChange(variation.id, 'bigcommerce_price', e.target.value)}
                     />
                   </div>
@@ -287,7 +328,7 @@ export default function ProductVariationCard({
                       className="pv-field-input"
                       placeholder="0"
                       value={variation.bigcommerce_hold_qty ?? ''}
-                      disabled={disabled}
+                      disabled={controlsDisabled}
                       onChange={(e) =>
                         onChange(variation.id, 'bigcommerce_hold_qty', e.target.value)
                       }

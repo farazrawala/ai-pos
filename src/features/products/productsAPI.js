@@ -946,6 +946,9 @@ export const updateProductVariationRequest = async (
       if (variation.sku !== undefined) {
         formData.append(`variations[${idx}][sku]`, String(variation.sku));
       }
+      if (variation.status !== undefined) {
+        formData.append(`variations[${idx}][status]`, String(variation.status));
+      }
       if (variation.show_on_bigcommerce !== undefined) {
         formData.append(
           `variations[${idx}][show_on_bigcommerce]`,
