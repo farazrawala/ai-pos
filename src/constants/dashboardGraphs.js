@@ -3,6 +3,10 @@
  * Keep in sync with Node-js-CRUD-Generator/models/user.js DASHBOARD_GRAPH_OPTIONS.
  */
 export const DASHBOARD_GRAPH_OPTIONS = [
+  { key: 'todays_money', label: "Today's Money" },
+  { key: 'todays_users', label: "Today's Users" },
+  { key: 'total_customers', label: 'Total Customers' },
+  { key: 'sales', label: 'Sales' },
   { key: 'sales_overview', label: 'Sales Overview' },
   { key: 'purchases_vs_sales', label: 'Purchases vs Sales' },
   { key: 'sales_by_month', label: 'Sales by Month' },
@@ -27,6 +31,8 @@ export const DASHBOARD_GRAPH_OPTIONS = [
 ];
 
 export const DASHBOARD_GRAPH_KEYS = DASHBOARD_GRAPH_OPTIONS.map((item) => item.key);
+
+export const DASHBOARD_STAT_KEYS = ['todays_money', 'todays_users', 'total_customers', 'sales'];
 
 const ALLOWED_GRAPH_KEYS = new Set(DASHBOARD_GRAPH_KEYS);
 

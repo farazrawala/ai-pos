@@ -52,8 +52,8 @@ export default function PosDashboardGraphs() {
         <div className="col-12">
           <div className="card mb-0">
             <div className="card-body py-4 text-center text-secondary">
-              No dashboard graphs are assigned to this account. Ask an admin to enable charts
-              under user permissions.
+              No dashboard cards or graphs are assigned to this account. Ask an admin to enable
+              them under user permissions.
             </div>
           </div>
         </div>

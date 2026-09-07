@@ -24,7 +24,7 @@ export default function UserDashboardGraphsFields({
         Dashboard graphs
       </div>
       <p className="user-form-section-hint">
-        Choose which charts this user can see on the dashboard.
+        Choose which summary cards and charts this user can see on the dashboard.
         {adminSeesAll ? ' Admin users always see every graph.' : ''}
       </p>
 

@@ -57,6 +57,7 @@ describe('canShowDashboardGraph', () => {
     };
     expect(canShowDashboardGraph(state, 'sales_overview')).toBe(true);
     expect(canShowDashboardGraph(state, 'top_vendors')).toBe(true);
+    expect(canShowDashboardGraph(state, 'todays_money')).toBe(false);
     expect(canShowDashboardGraph(state, 'inventory_value')).toBe(false);
   });
 
