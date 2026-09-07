@@ -668,7 +668,7 @@ const PosProducts = ({
   );
 
   const handleConfirmScanDraft = useCallback(
-    (lines) => {
+    (lines, { silent = false } = {}) => {
       if (!Array.isArray(lines) || lines.length === 0) return false;
       let addedCount = 0;
       for (const line of lines) {
@@ -682,13 +682,28 @@ const PosProducts = ({
       }
       if (addedCount > 0) {
         playPosScanBeep('success');
-        toast.success(addedCount === 1 ? 'Added to cart' : `Added ${addedCount} items to cart`);
+        if (!silent) {
+          toast.success(addedCount === 1 ? 'Added to cart' : `Added ${addedCount} items to cart`);
+        }
         return true;
       }
       return false;
     },
     [onAddToCart]
   );
+
+  const pendingSaveDraftAfterScanRef = useRef(false);
+  const handleRequestSaveDraftFromScan = useCallback(() => {
+    pendingSaveDraftAfterScanRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!pendingSaveDraftAfterScanRef.current) return;
+    if (continuousScanOpen) return;
+    if (cartLineCount < 1) return;
+    pendingSaveDraftAfterScanRef.current = false;
+    onSaveDraft?.();
+  }, [continuousScanOpen, cartLineCount, onSaveDraft]);
 
   return (
     <div className={columnClassName} style={columnStyle}>
@@ -704,8 +719,11 @@ const PosProducts = ({
         onScan={handleContinuousScan}
         cartLines={cartLines}
         onConfirmDraft={handleConfirmScanDraft}
+        onSaveDraft={handleRequestSaveDraftFromScan}
         onCheckout={onPaymentClick}
         checkoutBusy={paymentBusy || draftSaving}
+        draftSaving={draftSaving}
+        isOnline={isOnline}
         companyLogoUrl={companyLogoUrl}
       />
       <div className="card shadow-sm pos-panel-card h-100 d-flex flex-column">

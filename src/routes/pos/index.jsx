@@ -1128,7 +1128,7 @@ const Pos = () => {
   const [draftDeletingId, setDraftDeletingId] = useState(null);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const draftsRefreshInFlightRef = useRef(false);
-  const [mobilePosPane, setMobilePosPane] = useState('order');
+  const [mobilePosPane, setMobilePosPane] = useState('products');
   const [draftLabelModalOpen, setDraftLabelModalOpen] = useState(false);
   const [draftLabelInput, setDraftLabelInput] = useState('');
 
@@ -3001,32 +3001,33 @@ const Pos = () => {
           disabled={draftSaving}
         />
       </AppModal>
-      <div className="pos-mobile-nav" role="tablist" aria-label="POS sections">
-        <button
-          type="button"
-          role="tab"
-          className={`pos-mobile-nav__btn${mobilePosPane === 'order' ? ' is-active' : ''}`}
-          aria-selected={mobilePosPane === 'order'}
-          onClick={() => handleMobilePosPane('order')}
-        >
-          <NavIcon icon={FaCartShopping} size={13} />
-          <span>Order</span>
-          {cartLines.length > 0 ? (
-            <span className="pos-mobile-nav__count">{formatPosQtyLabel(cartTotalQty)}</span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={`pos-mobile-nav__btn${mobilePosPane === 'products' ? ' is-active' : ''}`}
-          aria-selected={mobilePosPane === 'products'}
-          onClick={() => handleMobilePosPane('products')}
-        >
-          <NavIcon icon={FaBoxesStacked} size={13} />
-          <span>Products</span>
-        </button>
-      </div>
-      <div className="pos-page-header">
+      <div className="pos-mobile-chrome">
+        <div className="pos-mobile-nav" role="tablist" aria-label="POS sections">
+          <button
+            type="button"
+            role="tab"
+            className={`pos-mobile-nav__btn${mobilePosPane === 'order' ? ' is-active' : ''}`}
+            aria-selected={mobilePosPane === 'order'}
+            onClick={() => handleMobilePosPane('order')}
+          >
+            <NavIcon icon={FaCartShopping} size={13} />
+            <span>Order</span>
+            {cartLines.length > 0 ? (
+              <span className="pos-mobile-nav__count">{formatPosQtyLabel(cartTotalQty)}</span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`pos-mobile-nav__btn${mobilePosPane === 'products' ? ' is-active' : ''}`}
+            aria-selected={mobilePosPane === 'products'}
+            onClick={() => handleMobilePosPane('products')}
+          >
+            <NavIcon icon={FaBoxesStacked} size={13} />
+            <span>Products</span>
+          </button>
+        </div>
+        <div className="pos-page-header">
         <div className="pos-page-header__meta">
           <span
             className="pos-page-header__version"
@@ -3093,6 +3094,7 @@ const Pos = () => {
           </button>
           <OfflineStatusBadge />
         </div>
+      </div>
       </div>
       <div
         className={`row g-4 pos-layout-row${posLayout.swapped ? ' is-swapped' : ''} is-mobile-${mobilePosPane}`}

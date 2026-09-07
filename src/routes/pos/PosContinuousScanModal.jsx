@@ -5,6 +5,7 @@ import {
   FaCartShopping,
   FaChevronLeft,
   FaCircleCheck,
+  FaFloppyDisk,
   FaMinus,
   FaPlus,
   FaXmark,
@@ -181,7 +182,7 @@ function ScanProductThumb({ src, fallbackSrc, name }) {
 
 /**
  * Full-screen continuous camera barcode scanner for mobile POS.
- * Keeps scanning into a local draft until the user presses Confirm.
+ * Keeps scanning into a local draft until the user saves as Draft, views the cart, or checks out.
  * Defaults to rear camera; Flip switches to front and back.
  */
 export default function PosContinuousScanModal({
@@ -190,8 +191,11 @@ export default function PosContinuousScanModal({
   onScan,
   cartLines = [],
   onConfirmDraft,
+  onSaveDraft,
   onCheckout,
   checkoutBusy = false,
+  draftSaving = false,
+  isOnline = true,
   companyLogoUrl = '',
 }) {
   const { canCreate: canCreateProduct } = usePermissions('products');
@@ -571,6 +575,17 @@ export default function PosContinuousScanModal({
     requestConfirm('checkout');
   }, [requestConfirm]);
 
+  const handleDraft = useCallback(() => {
+    if (scanCartLines.length < 1) return;
+    const added = onConfirmDraft?.(scanCartLines, { silent: true });
+    if (added === false) return;
+    setDraftLines([]);
+    setLastProductId('');
+    setLastStatus('');
+    onSaveDraft?.();
+    closeScanner();
+  }, [scanCartLines, onConfirmDraft, onSaveDraft, closeScanner]);
+
   const handleConfirmYes = useCallback(() => {
     const added = onConfirmDraft?.(scanCartLines);
     setConfirmOpen(false);
@@ -602,7 +617,7 @@ export default function PosContinuousScanModal({
   const cameraReady = !cameraError && !starting && !flipping;
   const uniqueCount = scanCartLines.length;
   const parentCartCount = Array.isArray(cartLines) ? cartLines.length : 0;
-  const confirmDisabled = uniqueCount < 1;
+  const draftDisabled = uniqueCount < 1 || draftSaving || !isOnline;
   const checkoutDisabled = checkoutBusy || (uniqueCount < 1 && parentCartCount < 1);
   const defaultImg = withBase('/assets/img/default.jpg');
   const leavingWithoutAdd = confirmAfter === 'close' || confirmAfter === 'viewCart';
@@ -803,12 +818,19 @@ export default function PosContinuousScanModal({
           <div className="pos-scan-summary__actions">
             <button
               type="button"
-              className="pos-scan-summary__confirm"
-              onClick={() => requestConfirm('stay')}
-              disabled={confirmDisabled}
+              className="pos-scan-summary__draft"
+              onClick={handleDraft}
+              disabled={draftDisabled}
+              title={
+                !isOnline
+                  ? 'Connect to the internet to save drafts'
+                  : uniqueCount < 1
+                    ? 'Scan items before saving a draft'
+                    : 'Save scanned items as a draft'
+              }
             >
-              <FaCircleCheck aria-hidden />
-              Confirm
+              <FaFloppyDisk aria-hidden />
+              {draftSaving ? 'Saving…' : 'Draft'}
             </button>
             <button type="button" className="pos-scan-summary__ghost" onClick={handleViewCart}>
               <FaCartShopping aria-hidden />
