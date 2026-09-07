@@ -691,6 +691,7 @@ export async function fetchCompanyById(companyId, options = {}) {
     ...(fresh ? { cache: 'no-store' } : {}),
     headers: {
       Accept: 'application/json',
+      ...(fresh ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
@@ -2189,21 +2190,80 @@ export function resolveDraftSavedByName(draft) {
   );
 }
 
+function stringifyDocId(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object') {
+    const oid = raw.$oid ?? raw.oid ?? raw.id;
+    if (oid != null && oid !== '') return String(oid);
+    if (typeof raw.toHexString === 'function') {
+      const hex = raw.toHexString();
+      if (hex) return String(hex);
+    }
+    if (typeof raw.toString === 'function') {
+      const text = raw.toString();
+      if (text && text !== '[object Object]') return text;
+    }
+    return '';
+  }
+  return String(raw);
+}
+
+function looksLikeDraftRows(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  return arr.some(
+    (row) =>
+      row &&
+      typeof row === 'object' &&
+      (row.payload != null || row.label != null || Array.isArray(row.cartLines))
+  );
+}
+
+function draftOrdersFromKeys(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  if (Array.isArray(obj.draft_orders)) return obj.draft_orders;
+  if (Array.isArray(obj.draftOrders)) return obj.draftOrders;
+  return null;
+}
+
+/** Find `draft_orders` in GET company / GET draft-orders envelopes. */
+export function pickDraftOrdersFromApiBody(body) {
+  if (body == null) return null;
+  if (Array.isArray(body)) return looksLikeDraftRows(body) ? body : body.length === 0 ? body : null;
+
+  const fromRoot = draftOrdersFromKeys(body);
+  if (fromRoot) return fromRoot;
+
+  const nested = body.data ?? body.company ?? body.result;
+  const fromNested = draftOrdersFromKeys(nested);
+  if (fromNested) return fromNested;
+
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const deeper = nested.data ?? nested.company;
+    const fromDeeper = draftOrdersFromKeys(deeper);
+    if (fromDeeper) return fromDeeper;
+  }
+
+  if (Array.isArray(nested) && looksLikeDraftRows(nested)) return nested;
+  if (Array.isArray(body.data) && looksLikeDraftRows(body.data)) return body.data;
+  return null;
+}
+
 /** Normalize `draft_orders` from a company doc (newest first by `updated_at`). */
 export function normalizeCompanyDraftOrders(companyOrBody) {
+  const picked = pickDraftOrdersFromApiBody(companyOrBody);
   const company =
     companyOrBody && typeof companyOrBody === 'object'
       ? extractCompanyRecord(companyOrBody) || companyOrBody
       : null;
-  const raw = company?.draft_orders ?? company?.draftOrders;
+  const raw = picked ?? company?.draft_orders ?? company?.draftOrders;
   if (!Array.isArray(raw)) return [];
   return [...raw]
-    .map((row) => {
+    .map((row, index) => {
       if (!row || typeof row !== 'object') return null;
-      const id = row._id ?? row.id;
+      const id = stringifyDocId(row._id ?? row.id) || `draft-${index}`;
       const normalized = {
         ...row,
-        _id: id != null ? String(id) : '',
+        _id: id,
         label: String(row.label ?? '').trim() || 'Draft',
         updated_at: row.updated_at ?? row.updatedAt ?? null,
         payload: row.payload && typeof row.payload === 'object' ? row.payload : {},
@@ -2213,7 +2273,7 @@ export function normalizeCompanyDraftOrders(companyOrBody) {
         savedByName: resolveDraftSavedByName(normalized),
       };
     })
-    .filter((row) => row && row._id)
+    .filter(Boolean)
     .sort((a, b) => {
       const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
       const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
@@ -2221,9 +2281,34 @@ export function normalizeCompanyDraftOrders(companyOrBody) {
     });
 }
 
-/** Read draft_orders from company store / GET company body. */
+async function fetchJsonNoStore(url) {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  return parseJsonResponse(res);
+}
+
+/** Read latest draft_orders (dedicated list endpoint, then company GET). */
 export async function fetchCompanyDraftOrders(companyId) {
   if (!companyId) return [];
+  const id = encodeURIComponent(companyId);
+  const bust = Date.now();
+  const listUrl = `${API_BASE_URL}/company/draft-orders/${id}?_=${bust}`;
+  const { data, ok, status } = await fetchJsonNoStore(listUrl);
+  if (ok && status !== 204 && !(data && data.success === false)) {
+    const fromList = normalizeCompanyDraftOrders(data);
+    if (fromList.length > 0 || Array.isArray(pickDraftOrdersFromApiBody(data))) {
+      return fromList;
+    }
+  }
   const body = await fetchCompanyById(companyId, { cache: 'no-store' });
   return normalizeCompanyDraftOrders(body);
 }

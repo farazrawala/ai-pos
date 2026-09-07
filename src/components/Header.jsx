@@ -9,6 +9,7 @@ import {
   FaChevronDown,
   FaClock,
   FaGear,
+  FaLaptop,
   FaRightFromBracket,
   FaMagnifyingGlass,
   FaUser,
@@ -22,6 +23,7 @@ import { clearOfflineDb } from '../offline/db.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { APP_VERSION, APP_BUILT_AT } from '../config/appVersion.js';
+import { usePermissions } from '../hooks/usePermissions.js';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -31,6 +33,7 @@ const Header = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const { toggle: toggleSidenav } = useSidenav();
   const { togglePanel } = useTheme();
+  const { isAdmin, canView } = usePermissions();
   const [cacheNotice, setCacheNotice] = useState(null);
 
   const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
@@ -39,6 +42,8 @@ const Header = () => {
     : 'Dashboard';
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
   const isPosCheckout = /(^|\/)pos$/.test(normalizedPath);
+  const showMobilePosButton =
+    isAuthenticated && !isPosCheckout && (isAdmin || canView('pos'));
 
   const handleSignOut = (e) => {
     e.preventDefault();
@@ -62,7 +67,7 @@ const Header = () => {
       id="navbarBlur"
       data-scroll="false"
     >
-      <div className="container-fluid py-1 px-0 d-flex align-items-center">
+      <div className="container-fluid py-1 px-0 d-flex align-items-center flex-nowrap">
         <button
           type="button"
           className="navbar-sidenav-toggle btn btn-link text-white p-0 me-3 mb-0 d-inline-flex align-items-center justify-content-center border-0"
@@ -75,7 +80,7 @@ const Header = () => {
           <NavIcon icon={FaBars} className="text-white" size={18} />
         </button>
         <nav aria-label="breadcrumb">
-          <ol className="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-sm-6 me-5">
+          <ol className="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-2">
             <li className="breadcrumb-item text-sm">
               <a className="text-white d-inline-flex align-items-center" href="javascript:;">
                 <NavIcon icon={FaBox} className="text-white" size={14} />
@@ -86,21 +91,29 @@ const Header = () => {
             </li>
           </ol>
         </nav>
-        <InstallAppButton className="ms-auto me-2" />
+        <span
+          className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold navbar-version-badge"
+          title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
+        >
+          v{APP_VERSION}
+        </span>
+        {showMobilePosButton ? (
+          <Link
+            to="/pos"
+            className="navbar-mobile-pos-btn btn btn-sm btn-white mb-0 py-1 px-3 text-xs d-xl-none d-inline-flex align-items-center ms-auto me-2"
+            aria-label="Open POS"
+          >
+            <NavIcon icon={FaLaptop} className="me-1" size={13} />
+            POS
+          </Link>
+        ) : null}
+        <InstallAppButton className={showMobilePosButton ? 'me-2' : 'ms-auto me-2'} />
         <div className="collapse navbar-collapse mt-0 me-md-0" id="navbar">
           <ul className="ms-md-auto navbar-nav justify-content-end flex-row flex-nowrap align-items-center">
             {isAuthenticated ? (
               <>
                 <li className="nav-item d-none d-md-flex align-items-center me-2">
                   <PerformanceChip />
-                </li>
-                <li className="nav-item d-none d-lg-flex align-items-center me-2">
-                  <span
-                    className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold"
-                    title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
-                  >
-                    v{APP_VERSION}
-                  </span>
                 </li>
                 <li className="nav-item d-none d-lg-flex align-items-center me-2">
                   <ClearCompanyCacheButton

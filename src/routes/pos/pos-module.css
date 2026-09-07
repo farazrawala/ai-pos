@@ -31,6 +31,28 @@
   box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
 }
 
+.pos-page .pos-page-header__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.pos-page .pos-page-header__version {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #344767;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .pos-page .pos-master-sync-status {
   min-height: 1.25rem;
   color: rgba(255, 255, 255, 0.72);
@@ -1795,6 +1817,10 @@
     border-radius: 1rem;
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .pos-page .pos-page-header__meta {
+    justify-content: center;
   }
 
   .pos-page .pos-master-sync-status {

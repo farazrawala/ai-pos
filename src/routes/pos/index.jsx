@@ -50,6 +50,7 @@ import {
   pickCompanyLogoUrl,
   getWarehouseIdFromCompany,
   normalizeCompanyDraftOrders,
+  fetchCompanyDraftOrders,
   addCompanyDraftOrder,
   updateCompanyDraftOrder,
   removeCompanyDraftOrder,
@@ -96,6 +97,7 @@ import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js'
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
+import { APP_VERSION, APP_BUILT_AT } from '../../config/appVersion.js';
 import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = {
@@ -1127,6 +1129,8 @@ const Pos = () => {
   const [draftsLoading, setDraftsLoading] = useState(false);
   const draftsRefreshInFlightRef = useRef(false);
   const [mobilePosPane, setMobilePosPane] = useState('order');
+  const [draftLabelModalOpen, setDraftLabelModalOpen] = useState(false);
+  const [draftLabelInput, setDraftLabelInput] = useState('');
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
@@ -2312,6 +2316,23 @@ const Pos = () => {
     ]
   );
 
+  const handleOpenSaveDraft = useCallback(() => {
+    if (!isOnline) {
+      toast.error('Connect to the internet to save drafts');
+      return;
+    }
+    if (!companyId) {
+      toast.error('Company not found — cannot save draft');
+      return;
+    }
+    if (cartLines.length === 0) {
+      toast.warning('Cart is empty — add items before saving a draft');
+      return;
+    }
+    setDraftLabelInput(defaultDraftLabel(grandTotal));
+    setDraftLabelModalOpen(true);
+  }, [isOnline, companyId, cartLines.length, grandTotal]);
+
   const handleSaveDraft = useCallback(async () => {
     if (!isOnline) {
       toast.error('Connect to the internet to save drafts');
@@ -2326,10 +2347,7 @@ const Pos = () => {
       return;
     }
 
-    const suggested = defaultDraftLabel(grandTotal);
-    const entered = window.prompt('Draft label', suggested);
-    if (entered === null) return;
-    const label = String(entered).trim() || suggested;
+    const label = String(draftLabelInput || '').trim() || defaultDraftLabel(grandTotal);
     const payload = buildDraftPayload();
     const selectedCustomer = selectedCustomerId
       ? users.find((u) => getUserOptionValue(u) === selectedCustomerId) || selectedCustomerRecord
@@ -2377,7 +2395,22 @@ const Pos = () => {
         result = await addCompanyDraftOrder(companyId, draftMeta);
       }
       await refreshCompanyAfterDraftMutate(result);
+      try {
+        const drafts = await fetchCompanyDraftOrders(companyId);
+        if (authCompanyRef.current) {
+          dispatch(
+            setCompany({
+              ...authCompanyRef.current,
+              draft_orders: drafts,
+              draftOrders: drafts,
+            })
+          );
+        }
+      } catch {
+        /* list refresh is best-effort; save already succeeded */
+      }
       clearCartAfterSale();
+      setDraftLabelModalOpen(false);
       toast.success(activeDraftId ? 'Draft updated' : 'Draft saved');
     } catch (err) {
       console.error('[POS] Failed to save draft', err);
@@ -2400,6 +2433,8 @@ const Pos = () => {
     users,
     refreshCompanyAfterDraftMutate,
     clearCartAfterSale,
+    draftLabelInput,
+    dispatch,
   ]);
 
   const applyDraftPayload = useCallback((payload) => {
@@ -2418,19 +2453,19 @@ const Pos = () => {
   }, []);
 
   const refreshDraftsFromServer = useCallback(async () => {
-    if (!companyId) return null;
-    const body = await fetchCompanyById(companyId, { cache: 'no-store' });
-    const fetched = getCompanyFromApiBody(body);
-    if (fetched) {
-      const drafts = fetched.draft_orders ?? fetched.draftOrders;
+    if (!companyId) return [];
+    const drafts = await fetchCompanyDraftOrders(companyId);
+    const current = authCompanyRef.current;
+    if (current) {
       dispatch(
         setCompany({
-          ...mergeCompanyRecordForSettings(fetched, authCompanyRef.current),
-          ...(Array.isArray(drafts) ? { draft_orders: drafts, draftOrders: drafts } : {}),
+          ...current,
+          draft_orders: drafts,
+          draftOrders: drafts,
         })
       );
     }
-    return fetched;
+    return drafts;
   }, [companyId, dispatch]);
 
   const handleOpenDrafts = useCallback(async () => {
@@ -2917,6 +2952,55 @@ const Pos = () => {
           </button>
         </div>
       </AppModal>
+      <AppModal
+        open={draftLabelModalOpen}
+        onClose={() => {
+          if (!draftSaving) setDraftLabelModalOpen(false);
+        }}
+        title="Save draft"
+        subtitle="This cart will be available on other devices after you save."
+        size="sm"
+        disableBackdropClose={draftSaving}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn btn-link btn-sm mb-0"
+              onClick={() => setDraftLabelModalOpen(false)}
+              disabled={draftSaving}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm mb-0"
+              onClick={handleSaveDraft}
+              disabled={draftSaving}
+            >
+              {draftSaving ? 'Saving…' : 'Save draft'}
+            </button>
+          </>
+        }
+      >
+        <label className="form-label text-sm mb-1" htmlFor="pos-draft-label">
+          Draft name
+        </label>
+        <input
+          id="pos-draft-label"
+          type="text"
+          className="form-control"
+          value={draftLabelInput}
+          onChange={(e) => setDraftLabelInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSaveDraft();
+            }
+          }}
+          autoFocus
+          disabled={draftSaving}
+        />
+      </AppModal>
       <div className="pos-mobile-nav" role="tablist" aria-label="POS sections">
         <button
           type="button"
@@ -2943,21 +3027,29 @@ const Pos = () => {
         </button>
       </div>
       <div className="pos-page-header">
-        <div className="pos-master-sync-status">
-          {masterSyncProgress?.message ? (
-            <span role="status" aria-live="polite">
-              {masterSyncRunning && (
-                <span
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                  aria-hidden="true"
-                />
-              )}
-              {masterSyncProgress.message}
-            </span>
-          ) : (
-            <span>Offline catalog ready</span>
-          )}
+        <div className="pos-page-header__meta">
+          <span
+            className="pos-page-header__version"
+            title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
+          >
+            v{APP_VERSION}
+          </span>
+          <div className="pos-master-sync-status">
+            {masterSyncProgress?.message ? (
+              <span role="status" aria-live="polite">
+                {masterSyncRunning && (
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                )}
+                {masterSyncProgress.message}
+              </span>
+            ) : (
+              <span>Offline catalog ready</span>
+            )}
+          </div>
         </div>
         <div className="pos-page-header__actions">
           <button
@@ -3513,7 +3605,7 @@ const Pos = () => {
           companyLogoUrl={companyBrand.logoUrl}
           onAddToCart={addToCart}
           onPaymentClick={handlePaymentClick}
-          onSaveDraft={handleSaveDraft}
+          onSaveDraft={handleOpenSaveDraft}
           cartLineCount={cartLines.length}
           draftSaving={draftSaving}
           paymentBusy={paymentPreparing || orderSaving}
@@ -3531,7 +3623,7 @@ const Pos = () => {
         <button
           type="button"
           className="btn btn-draft"
-          onClick={handleSaveDraft}
+          onClick={handleOpenSaveDraft}
           disabled={draftSaving || cartLines.length < 1 || !isOnline}
         >
           <NavIcon icon={FaFloppyDisk} size={14} />
