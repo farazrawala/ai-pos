@@ -828,8 +828,12 @@ export default function PosContinuousScanModal({
       </div>
 
       {confirmOpen ? (
-        <div className="pos-scan-miss" role="dialog" aria-label="Add draft to cart">
-          <div className="pos-scan-miss__sheet">
+        <div className="pos-scan-miss pos-scan-confirm" role="dialog" aria-label="Add draft to cart">
+          <div className="pos-scan-miss__sheet pos-scan-confirm__sheet">
+            <span className="pos-scan-confirm__handle" aria-hidden="true" />
+            <div className="pos-scan-confirm__icon" aria-hidden="true">
+              <FaCircleCheck />
+            </div>
             <div className="pos-scan-miss__text pos-scan-miss__text--prompt">
               <strong>Add to cart?</strong>
               <span>
@@ -844,8 +848,8 @@ export default function PosContinuousScanModal({
               <button type="button" className="pos-scan-miss__ghost" onClick={handleConfirmNo}>
                 {leavingWithoutAdd ? 'No, discard' : 'No'}
               </button>
-              <button type="button" className="pos-scan-miss__primary" onClick={handleConfirmYes}>
-                Yes
+              <button type="button" className="pos-scan-miss__primary pos-scan-confirm__yes" onClick={handleConfirmYes}>
+                Yes, add
               </button>
             </div>
           </div>

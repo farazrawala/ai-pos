@@ -2970,15 +2970,16 @@ const Pos = () => {
             onClick={() => setLayoutSettingsOpen(true)}
           >
             <NavIcon icon={FaGear} size={12} />
-            Settings
+            <span className="pos-toolbar-btn__label">Settings</span>
           </button>
           <button
             type="button"
             className="pos-toolbar-btn pos-toolbar-btn--accent"
             onClick={() => openOfflineSyncPanel()}
+            title="Pending sync"
           >
             <NavIcon icon={FaCloudArrowUp} size={12} />
-            Pending sync
+            <span className="pos-toolbar-btn__label">Sync</span>
           </button>
           <button
             type="button"
@@ -2994,7 +2995,9 @@ const Pos = () => {
               size={12}
               className={masterSyncRunning ? 'pos-toolbar-btn__spin' : undefined}
             />
-            {masterSyncRunning ? 'Downloading…' : 'Refresh catalog'}
+            {masterSyncRunning ? 'Downloading…' : (
+              <span className="pos-toolbar-btn__label">Refresh</span>
+            )}
           </button>
           <OfflineStatusBadge />
         </div>
@@ -3142,19 +3145,30 @@ const Pos = () => {
                 {(() => {
                   if (!selectedCustomerId)
                     return (
-                      <span>
-                        Default: <strong>Walk In</strong>
-                      </span>
+                      <>
+                        <span className="pos-customer-selected__avatar" aria-hidden="true">
+                          W
+                        </span>
+                        <span className="pos-customer-selected__copy">
+                          <em>Customer</em>
+                          <strong>Walk In</strong>
+                        </span>
+                      </>
                     );
                   const u =
                     users.find((row) => getUserOptionValue(row) === selectedCustomerId) ||
                     selectedCustomerRecord;
-                  return u ? (
-                    <span>
-                      Selected: <strong>{formatUserOptionLabel(u)}</strong>
-                    </span>
-                  ) : (
-                    <span>Customer selected</span>
+                  const label = u ? formatUserOptionLabel(u) : 'Customer selected';
+                  return (
+                    <>
+                      <span className="pos-customer-selected__avatar" aria-hidden="true">
+                        {String(label).trim().slice(0, 1).toUpperCase() || 'C'}
+                      </span>
+                      <span className="pos-customer-selected__copy">
+                        <em>Selected</em>
+                        <strong>{label}</strong>
+                      </span>
+                    </>
                   );
                 })()}
               </div>
@@ -3521,7 +3535,7 @@ const Pos = () => {
           disabled={draftSaving || cartLines.length < 1 || !isOnline}
         >
           <NavIcon icon={FaFloppyDisk} size={14} />
-          {draftSaving ? 'Saving…' : 'Draft'}
+          <span>{draftSaving ? 'Saving…' : 'Draft'}</span>
         </button>
         <button
           type="button"
@@ -3532,12 +3546,15 @@ const Pos = () => {
           {paymentPreparing && !orderSaving ? (
             <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
           ) : (
-            <NavIcon icon={FaMoneyBill1} size={14} />
+            <NavIcon icon={FaMoneyBill1} size={15} />
           )}
-          <span>
-            {paymentPreparing && !orderSaving
-              ? 'Processing…'
-              : `Pay PKR ${grandTotal.toFixed(0)}`}
+          <span className="pos-mobile-checkout-bar__pay">
+            <span className="pos-mobile-checkout-bar__pay-kicker">
+              {paymentPreparing && !orderSaving ? 'Please wait' : 'Pay now'}
+            </span>
+            <span className="pos-mobile-checkout-bar__pay-amt">
+              {paymentPreparing && !orderSaving ? 'Processing…' : `PKR ${grandTotal.toFixed(0)}`}
+            </span>
           </span>
         </button>
       </div>
