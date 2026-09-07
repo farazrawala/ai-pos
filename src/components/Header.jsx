@@ -14,6 +14,7 @@ import {
   FaUser,
 } from 'react-icons/fa6';
 import NavIcon from './NavIcon.jsx';
+import InstallAppButton from './InstallAppButton.jsx';
 import PerformanceChip from './PerformanceChip.jsx';
 import ClearCompanyCacheButton from './company/ClearCompanyCacheButton.jsx';
 import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js';
@@ -81,6 +82,7 @@ const Header = () => {
             </li>
           </ol>
         </nav>
+        <InstallAppButton className="ms-auto me-2" />
         <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
           <ul className="ms-md-auto navbar-nav justify-content-end">
             {isAuthenticated ? (

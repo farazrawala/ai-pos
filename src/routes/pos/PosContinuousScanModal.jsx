@@ -1,13 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FaBarcode, FaCameraRotate, FaCircleStop, FaXmark } from 'react-icons/fa6';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FaBarcode,
+  FaCameraRotate,
+  FaCartShopping,
+  FaChevronLeft,
+  FaCircleCheck,
+  FaMinus,
+  FaPlus,
+  FaXmark,
+} from 'react-icons/fa6';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import NavIcon from '../../components/NavIcon.jsx';
+import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
+import { sellablePosProductId } from '../../components/product/productVariationUtils.js';
+import { formatMoney } from '../../utils/formatMoney.js';
+import { openAppPathInNewTab, withBase } from '../../config/appBase.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
 
 const SCANNER_ELEMENT_ID = 'pos-continuous-barcode-reader';
 /** Ignore the same code briefly so one barcode isn't added many times. */
-const SAME_CODE_COOLDOWN_MS = 1600;
+const SAME_CODE_COOLDOWN_MS = 850;
 /** Brief lock after any successful add so the camera can settle. */
-const AFTER_ADD_PAUSE_MS = 450;
+const AFTER_ADD_PAUSE_MS = 280;
 
 const BARCODE_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -47,27 +61,161 @@ function buildScanConfig() {
   };
 }
 
+function scanStatusOf(result) {
+  if (result && typeof result === 'object') return result.status;
+  return result;
+}
+
+function parseScanQty(raw) {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatScanQty(raw) {
+  const n = parseScanQty(raw);
+  if (!Number.isFinite(n) || n <= 0) return '0';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+function productIdOf(product) {
+  return sellablePosProductId(product) || '';
+}
+
+function productNameOf(product) {
+  return product?.name || product?.product_name || 'Product';
+}
+
+function productSkuOf(product) {
+  return String(product?.sku || product?.product_code || '').trim();
+}
+
+function productBarcodeOf(product, fallback = '') {
+  return String(product?.barcode || fallback || '').trim();
+}
+
+function productPriceOf(product, fallback = 0) {
+  const v = product?.price ?? product?.product_price ?? fallback;
+  if (v == null || v === '') return Number(fallback) || 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : Number(fallback) || 0;
+}
+
+function buildScanMeta(product, code = '') {
+  if (!product) return null;
+  const productId = productIdOf(product);
+  if (!productId) return null;
+  return {
+    productId,
+    name: productNameOf(product),
+    sku: productSkuOf(product),
+    barcode: productBarcodeOf(product, code),
+    image: getProductListingImage(product) || '',
+    price: productPriceOf(product),
+  };
+}
+
+function lightHaptic() {
+  try {
+    navigator.vibrate?.(12);
+  } catch {
+    /* unsupported */
+  }
+}
+
+function ScanQtyControl({ quantity, name, onMinus, onPlus }) {
+  return (
+    <div className="pos-scan-qty" role="group" aria-label={`Quantity for ${name}`}>
+      <button
+        type="button"
+        className="pos-scan-qty__btn"
+        aria-label={`Decrease quantity of ${name}`}
+        onClick={onMinus}
+      >
+        <FaMinus aria-hidden />
+      </button>
+      <span className="pos-scan-qty__value">{formatScanQty(quantity)}</span>
+      <button
+        type="button"
+        className="pos-scan-qty__btn pos-scan-qty__btn--plus"
+        aria-label={`Increase quantity of ${name}`}
+        onClick={onPlus}
+      >
+        <FaPlus aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function ScanProductThumb({ src, fallbackSrc, name }) {
+  const candidates = [src, fallbackSrc]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    setIdx(0);
+  }, [src, fallbackSrc]);
+  const current = candidates[idx];
+  return (
+    <div className="pos-scan-thumb" aria-hidden="true">
+      {current ? (
+        <img
+          src={current}
+          alt=""
+          className={idx > 0 ? 'pos-scan-thumb--logo' : undefined}
+          onError={() => setIdx((i) => i + 1)}
+        />
+      ) : (
+        <span>{String(name || '?').slice(0, 1).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
 /**
  * Full-screen continuous camera barcode scanner for mobile POS.
- * Keeps scanning and calling onScan until the user presses Stop.
+ * Keeps scanning and calling onScan until the user presses Stop / Close.
  * Defaults to rear camera; Flip switches to front and back.
+ * Cart quantity uses the parent POS cart — this is display + controls only.
  */
-export default function PosContinuousScanModal({ open, onClose, onScan }) {
+export default function PosContinuousScanModal({
+  open,
+  onClose,
+  onScan,
+  cartLines = [],
+  cartSubtotal = 0,
+  cartTotalQty = 0,
+  onBumpCartQty,
+  onCheckout,
+  checkoutBusy = false,
+  companyLogoUrl = '',
+}) {
+  const { canCreate: canCreateProduct } = usePermissions('products');
   const [cameraError, setCameraError] = useState('');
   const [starting, setStarting] = useState(false);
   const [flipping, setFlipping] = useState(false);
   const [facingMode, setFacingMode] = useState('environment');
   const [canFlip, setCanFlip] = useState(false);
+  const [continuousOn, setContinuousOn] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const [lookupBusy, setLookupBusy] = useState(false);
   const [lastCode, setLastCode] = useState('');
-  const [lastResult, setLastResult] = useState('');
-  const [addedCount, setAddedCount] = useState(0);
+  const [lastStatus, setLastStatus] = useState('');
+  const [lastProductId, setLastProductId] = useState('');
+  const [flashKey, setFlashKey] = useState(0);
+  const [scanMeta, setScanMeta] = useState({});
+  const [notFoundCode, setNotFoundCode] = useState('');
 
   const scannerRef = useRef(null);
   const busyRef = useRef(false);
+  const pausedRef = useRef(false);
+  const continuousRef = useRef(true);
   const lastCodeRef = useRef({ code: '', at: 0 });
   const onScanRef = useRef(onScan);
   const camerasRef = useRef([]);
   onScanRef.current = onScan;
+  continuousRef.current = continuousOn;
+  pausedRef.current = paused;
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -98,6 +246,23 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   }, [starting, flipping, cameraError]);
 
+  const resumeScanning = useCallback(() => {
+    pausedRef.current = false;
+    setPaused(false);
+  }, []);
+
+  const handleToggleContinuous = useCallback(() => {
+    setContinuousOn((prev) => {
+      const next = !prev;
+      continuousRef.current = next;
+      if (next) {
+        pausedRef.current = false;
+        setPaused(false);
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     if (!open) {
       setFacingMode('environment');
@@ -111,8 +276,13 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
     setStarting(true);
     if (!flipping) {
       setLastCode('');
-      setLastResult('');
-      setAddedCount(0);
+      setLastStatus('');
+      setLastProductId('');
+      setNotFoundCode('');
+      setPaused(false);
+      pausedRef.current = false;
+      setContinuousOn(true);
+      continuousRef.current = true;
     }
     busyRef.current = false;
     lastCodeRef.current = { code: '', at: 0 };
@@ -125,7 +295,7 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
 
       const onDetected = async (decodedText) => {
         const code = String(decodedText || '').trim();
-        if (!code || busyRef.current) return;
+        if (!code || busyRef.current || pausedRef.current) return;
 
         const now = Date.now();
         const last = lastCodeRef.current;
@@ -134,21 +304,41 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
         busyRef.current = true;
         lastCodeRef.current = { code, at: now };
         setLastCode(code);
-        setLastResult('Looking up…');
+        setLookupBusy(true);
+        setLastStatus('lookup');
+        setNotFoundCode('');
 
         try {
           const result = await onScanRef.current?.(code);
-          if (result === 'added') {
-            setAddedCount((n) => n + 1);
-            setLastResult('Added to cart');
-          } else if (result === 'blocked') {
-            setLastResult('Skipped');
+          const status = scanStatusOf(result);
+          const product = result && typeof result === 'object' ? result.product : null;
+          const meta = buildScanMeta(product, code);
+
+          if (status === 'added' && meta) {
+            lightHaptic();
+            setScanMeta((prev) => ({ ...prev, [meta.productId]: meta }));
+            setLastProductId(meta.productId);
+            setLastStatus('added');
+            setFlashKey((k) => k + 1);
+            if (!continuousRef.current) {
+              pausedRef.current = true;
+              setPaused(true);
+            }
+          } else if (status === 'blocked') {
+            setLastStatus('blocked');
+            if (meta) {
+              setScanMeta((prev) => ({ ...prev, [meta.productId]: meta }));
+              setLastProductId(meta.productId);
+            }
           } else {
-            setLastResult('No product match');
+            setLastStatus('not_found');
+            setNotFoundCode(code);
           }
-        } catch (err) {
-          setLastResult(err?.message || 'Lookup failed');
+        } catch {
+          setLastStatus('error');
+          setNotFoundCode(code);
         } finally {
+          setLookupBusy(false);
           await new Promise((r) => setTimeout(r, AFTER_ADD_PAUSE_MS));
           busyRef.current = false;
         }
@@ -217,19 +407,96 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  const scanCartLines = useMemo(() => {
+    const lines = Array.isArray(cartLines) ? [...cartLines] : [];
+    lines.sort((a, b) => (Number(b.addedSeq) || 0) - (Number(a.addedSeq) || 0));
+    return lines;
+  }, [cartLines]);
+
+  const lastLine = useMemo(
+    () => scanCartLines.find((line) => line.productId === lastProductId) || null,
+    [scanCartLines, lastProductId]
+  );
+  const lastMeta = lastProductId ? scanMeta[lastProductId] : null;
+
+  const bumpQty = useCallback(
+    (productId, delta) => {
+      if (!productId) return;
+      onBumpCartQty?.(productId, delta);
+    },
+    [onBumpCartQty]
+  );
+
+  const handleViewCart = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
+  const handleCheckout = useCallback(() => {
+    onClose?.();
+    queueMicrotask(() => onCheckout?.());
+  }, [onClose, onCheckout]);
+
+  const handleAddMissingProduct = useCallback(() => {
+    const code = String(notFoundCode || lastCode || '').trim();
+    const path = code
+      ? `/products/add?barcode=${encodeURIComponent(code)}`
+      : '/products/add';
+    setNotFoundCode('');
+    openAppPathInNewTab(path);
+  }, [notFoundCode, lastCode]);
+
   if (!open) return null;
 
-  const facingLabel = facingMode === 'environment' ? 'Back camera' : 'Front camera';
+  const cameraReady = !cameraError && !starting && !flipping;
+  const uniqueCount = scanCartLines.length;
+  const checkoutDisabled = checkoutBusy || uniqueCount < 1;
+  const defaultImg = withBase('/assets/img/default.jpg');
+
+  let scannerHint = 'Point camera at barcode';
+  if (starting) scannerHint = 'Starting camera…';
+  else if (flipping) scannerHint = 'Switching camera…';
+  else if (cameraError) scannerHint = 'Camera unavailable';
+  else if (lookupBusy) scannerHint = 'Looking up product…';
+  else if (paused) scannerHint = 'Tap to scan next product';
+  else if (lastStatus === 'added') scannerHint = 'Ready for next barcode';
 
   return (
-    <div className="pos-scan-overlay" role="dialog" aria-modal="true" aria-label="Continuous barcode scan">
+    <div className="pos-scan-overlay" role="dialog" aria-modal="true" aria-label="Barcode scanner">
       <div className="pos-scan-overlay__panel">
-        <div className="pos-scan-overlay__header">
+        <header className="pos-scan-overlay__header">
+          <button
+            type="button"
+            className="pos-scan-overlay__icon-btn"
+            onClick={handleStop}
+            aria-label="Close scanner"
+          >
+            <FaChevronLeft aria-hidden />
+          </button>
           <div className="pos-scan-overlay__title">
-            <NavIcon icon={FaBarcode} size={16} />
+            <span className="pos-scan-overlay__title-icon" aria-hidden="true">
+              <NavIcon icon={FaBarcode} size={16} />
+            </span>
             <div>
-              <strong>Continuous scan</strong>
-              <span>Point at barcodes — products add automatically</span>
+              <strong>Scan Products</strong>
+              <button
+                type="button"
+                className={`pos-scan-overlay__live${continuousOn ? ' is-on' : ''}`}
+                onClick={handleToggleContinuous}
+                aria-pressed={continuousOn}
+                title={continuousOn ? 'Turn continuous scan off' : 'Turn continuous scan on'}
+              >
+                <span className="pos-scan-overlay__live-dot" aria-hidden="true" />
+                Continuous Scan {continuousOn ? 'ON' : 'OFF'}
+              </button>
             </div>
           </div>
           <div className="pos-scan-overlay__header-actions">
@@ -249,54 +516,176 @@ export default function PosContinuousScanModal({ open, onClose, onScan }) {
               type="button"
               className="pos-scan-overlay__icon-btn"
               onClick={handleStop}
-              aria-label="Close scanner"
+              aria-label="Stop scanning"
             >
               <FaXmark aria-hidden />
             </button>
           </div>
-        </div>
+        </header>
 
         <div className="pos-scan-overlay__stage">
           <div id={SCANNER_ELEMENT_ID} className="pos-scan-overlay__reader" />
+          {cameraReady ? (
+            <div className="pos-scan-overlay__frame" aria-hidden="true">
+              <span className="pos-scan-overlay__corner pos-scan-overlay__corner--tl" />
+              <span className="pos-scan-overlay__corner pos-scan-overlay__corner--tr" />
+              <span className="pos-scan-overlay__corner pos-scan-overlay__corner--bl" />
+              <span className="pos-scan-overlay__corner pos-scan-overlay__corner--br" />
+              <span className="pos-scan-overlay__laser" />
+            </div>
+          ) : null}
           {starting || flipping ? (
             <div className="pos-scan-overlay__status">
               {flipping ? 'Switching camera…' : 'Starting camera…'}
             </div>
           ) : null}
           {cameraError ? <div className="pos-scan-overlay__error">{cameraError}</div> : null}
-          {!cameraError && !starting && !flipping ? (
-            <div className="pos-scan-overlay__facing">{facingLabel}</div>
-          ) : null}
-        </div>
-
-        <div className="pos-scan-overlay__meta">
-          <div className="pos-scan-overlay__stat">
-            <span className="label">Added</span>
-            <strong>{addedCount}</strong>
-          </div>
-          <div className="pos-scan-overlay__stat pos-scan-overlay__stat--grow">
-            <span className="label">Last scan</span>
-            <strong className="pos-scan-overlay__code">{lastCode || '—'}</strong>
-            {lastResult ? <em>{lastResult}</em> : null}
-          </div>
-          {canFlip ? (
-            <button
-              type="button"
-              className="pos-scan-overlay__flip"
-              onClick={handleFlip}
-              disabled={starting || flipping}
-            >
-              <FaCameraRotate aria-hidden />
-              Flip
+          {paused && cameraReady ? (
+            <button type="button" className="pos-scan-overlay__paused" onClick={resumeScanning}>
+              Tap to scan next
             </button>
           ) : null}
         </div>
 
-        <button type="button" className="pos-scan-overlay__stop" onClick={handleStop}>
-          <FaCircleStop aria-hidden />
-          Stop scanning
-        </button>
+        <p className="pos-scan-overlay__hint">
+          <span
+            className={`pos-scan-overlay__hint-dot${cameraReady && continuousOn && !paused ? ' is-live' : ''}`}
+            aria-hidden="true"
+          />
+          {scannerHint}
+        </p>
+
+        {lastLine ? (
+          <article
+            key={flashKey}
+            className={`pos-scan-last${lastStatus === 'added' ? ' is-added' : ''}`}
+            aria-live="polite"
+          >
+            <div className="pos-scan-last__top">
+              <span className="pos-scan-last__badge">
+                <FaCircleCheck aria-hidden />
+                Product added
+              </span>
+              <span className="pos-scan-last__price">
+                {formatMoney(lastLine.unitPrice ?? lastMeta?.price ?? 0)}
+              </span>
+            </div>
+            <div className="pos-scan-last__row">
+              <ScanProductThumb
+                src={lastMeta?.image || companyLogoUrl}
+                fallbackSrc={companyLogoUrl || defaultImg}
+                name={lastLine.name}
+              />
+              <div className="pos-scan-last__info">
+                <strong>{lastLine.name}</strong>
+                <span>
+                  {lastMeta?.sku
+                    ? `SKU: ${lastMeta.sku}`
+                    : lastMeta?.barcode || lastCode
+                      ? `Barcode: ${lastMeta?.barcode || lastCode}`
+                      : 'In cart'}
+                </span>
+              </div>
+              <ScanQtyControl
+                quantity={lastLine.quantity}
+                name={lastLine.name}
+                onMinus={() => bumpQty(lastLine.productId, -1)}
+                onPlus={() => bumpQty(lastLine.productId, 1)}
+              />
+            </div>
+          </article>
+        ) : null}
+
+        <section className="pos-scan-cart" aria-label="Scanned products">
+          <div className="pos-scan-cart__head">
+            <h3>Cart</h3>
+            <span>{uniqueCount ? `${uniqueCount} ${uniqueCount === 1 ? 'item' : 'items'}` : 'Empty'}</span>
+          </div>
+          <div className="pos-scan-cart__list">
+            {scanCartLines.length === 0 ? (
+              <p className="pos-scan-cart__empty">Scan a barcode to add products</p>
+            ) : (
+              scanCartLines.map((line) => {
+                const meta = scanMeta[line.productId];
+                const sku = meta?.sku;
+                const barcode = meta?.barcode;
+                const lineTotal = parseScanQty(line.quantity) * (Number(line.unitPrice) || 0);
+                return (
+                  <div key={line.productId} className="pos-scan-item">
+                    <ScanProductThumb
+                      src={meta?.image || companyLogoUrl}
+                      fallbackSrc={companyLogoUrl || defaultImg}
+                      name={line.name}
+                    />
+                    <div className="pos-scan-item__info">
+                      <strong>{line.name}</strong>
+                      <span>
+                        {sku ? `SKU: ${sku}` : barcode ? `Barcode: ${barcode}` : 'Scanned item'}
+                      </span>
+                      <em>
+                        {formatMoney(line.unitPrice)}
+                        {parseScanQty(line.quantity) > 1 ? ` · ${formatMoney(lineTotal)}` : ''}
+                      </em>
+                    </div>
+                    <ScanQtyControl
+                      quantity={line.quantity}
+                      name={line.name}
+                      onMinus={() => bumpQty(line.productId, -1)}
+                      onPlus={() => bumpQty(line.productId, 1)}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <footer className="pos-scan-summary">
+          <div className="pos-scan-summary__totals">
+            <span>
+              {formatScanQty(cartTotalQty)} qty · {uniqueCount}{' '}
+              {uniqueCount === 1 ? 'item' : 'items'}
+            </span>
+            <strong>{formatMoney(cartSubtotal)}</strong>
+          </div>
+          <div className="pos-scan-summary__actions">
+            <button type="button" className="pos-scan-summary__ghost" onClick={handleViewCart}>
+              <FaCartShopping aria-hidden />
+              View Cart
+            </button>
+            <button
+              type="button"
+              className="pos-scan-summary__checkout"
+              onClick={handleCheckout}
+              disabled={checkoutDisabled}
+            >
+              Checkout
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </footer>
       </div>
+
+      {notFoundCode ? (
+        <div className="pos-scan-miss" role="status">
+          <div className="pos-scan-miss__sheet">
+            <div className="pos-scan-miss__text">
+              <strong>Barcode not found</strong>
+              <span>{notFoundCode}</span>
+            </div>
+            <div className={`pos-scan-miss__actions${canCreateProduct ? '' : ' pos-scan-miss__actions--single'}`}>
+              {canCreateProduct ? (
+                <button type="button" className="pos-scan-miss__ghost" onClick={handleAddMissingProduct}>
+                  Add Product
+                </button>
+              ) : null}
+              <button type="button" className="pos-scan-miss__primary" onClick={() => setNotFoundCode('')}>
+                Scan Again
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

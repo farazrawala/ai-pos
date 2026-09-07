@@ -9,6 +9,7 @@ import { hasCachedAuthSession, OFFLINE_SIGN_IN_MESSAGE } from '../utils/offlineA
 import apiClient from '../api/apiClient.js';
 import { API_BASE_URL } from '../config/apiConfig.js';
 import { APP_NAME } from '../config/env.js';
+import InstallAppButton from '../components/InstallAppButton.jsx';
 
 const initialForm = {
   email: '',
@@ -181,6 +182,7 @@ const SignIn = () => {
             <button type="button" className="ghost-btn" onClick={() => navigate('/signup')}>
               Create account
             </button>
+            <InstallAppButton variant="signin" />
           </form>
         </div>
       </div>

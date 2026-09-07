@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Multiselect from 'multiselect-react-dropdown';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createProduct } from '../../features/products/productsSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
@@ -28,6 +28,7 @@ const isUnsetBigCommercePrice = (value) => {
 const ProductAdd = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -83,6 +84,12 @@ const ProductAdd = () => {
       navigate('/products');
     }
   }, [canCreate, navigate]);
+
+  useEffect(() => {
+    const barcode = String(searchParams.get('barcode') || '').trim();
+    if (!barcode) return;
+    setForm((prev) => (prev.barcode ? prev : { ...prev, barcode }));
+  }, [searchParams]);
 
   // Fetch categories for dropdown
   useEffect(() => {

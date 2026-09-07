@@ -75,6 +75,8 @@ export default defineConfig(({ mode }) => {
         scope: normalizedBase,
         includeAssets: [
           'pwa-icon.svg',
+          'pwa-icon-192.png',
+          'pwa-icon-512.png',
           'manifest.json',
           'assets/css/argon-dashboard.min.css',
           'assets/css/pos-sidenav-override.css',

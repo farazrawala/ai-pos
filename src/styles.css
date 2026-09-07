@@ -11,6 +11,17 @@ body {
   visibility: visible;
 }
 
+.install-app-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.install-app-btn--signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Header user / notification dropdowns — slightly below Argon default (2.25rem) */
 @media (min-width: 992px) {
   :not(.main-content) .navbar .dropdown .dropdown-menu {

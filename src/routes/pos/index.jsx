@@ -3430,6 +3430,10 @@ const Pos = () => {
           orderTotal={grandTotal}
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}
+          cartLines={cartLines}
+          cartSubtotal={cartSubtotal}
+          cartTotalQty={cartTotalQty}
+          onBumpCartQty={bumpCartQty}
           columnClassName="pos-layout-col pos-layout-col--products"
           productCols={posLayout.productCols}
         />

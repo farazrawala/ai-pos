@@ -171,6 +171,10 @@ const PosProducts = ({
   orderTotal = 0,
   onPaymentComplete,
   onPaymentCompletePrint,
+  cartLines = [],
+  cartSubtotal = 0,
+  cartTotalQty = 0,
+  onBumpCartQty,
   columnClassName = 'col-lg-6 col-xl-7',
   columnStyle,
   productCols = 4,
@@ -642,18 +646,19 @@ const PosProducts = ({
   const handleContinuousScan = useCallback(
     async (code) => {
       unlockPosScanAudio();
-      const result = await tryAddProductFromQuery(code);
-      if (result === 'added') {
-        playPosScanBeep('success');
-      } else {
+      const q = String(code ?? '').trim();
+      const product = await findExactProductForQuery(q);
+      if (!product) {
         playPosScanBeep('error');
-        if (result === 'not_found') {
-          toast.info(`No product for “${code}”`);
-        }
+        return { status: 'not_found', code: q, product: null };
       }
-      return result;
+      const result = tryAddSellableProduct(product);
+      if (result !== 'added') {
+        playPosScanBeep('error');
+      }
+      return { status: result, code: q, product };
     },
-    [tryAddProductFromQuery]
+    [findExactProductForQuery, tryAddSellableProduct]
   );
 
   return (
@@ -668,6 +673,13 @@ const PosProducts = ({
         open={continuousScanOpen}
         onClose={() => setContinuousScanOpen(false)}
         onScan={handleContinuousScan}
+        cartLines={cartLines}
+        cartSubtotal={cartSubtotal}
+        cartTotalQty={cartTotalQty}
+        onBumpCartQty={onBumpCartQty}
+        onCheckout={onPaymentClick}
+        checkoutBusy={paymentBusy || draftSaving}
+        companyLogoUrl={companyLogoUrl}
       />
       <div className="card shadow-sm pos-panel-card h-100 d-flex flex-column">
         <div className="pos-panel-header">
