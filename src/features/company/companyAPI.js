@@ -679,11 +679,16 @@ export async function checkCompanySlugAvailableRequest({ slug, excludeId } = {})
   };
 }
 
-export async function fetchCompanyById(companyId) {
+export async function fetchCompanyById(companyId, options = {}) {
   const token = getAuthToken();
-  const url = `${API_BASE_URL}/company/get/${encodeURIComponent(companyId)}`;
+  const fresh = options.cache === 'no-store';
+  let url = `${API_BASE_URL}/company/get/${encodeURIComponent(companyId)}`;
+  if (fresh) {
+    url += `?_=${Date.now()}`;
+  }
   const res = await fetch(url, {
     method: 'GET',
+    ...(fresh ? { cache: 'no-store' } : {}),
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -2219,7 +2224,7 @@ export function normalizeCompanyDraftOrders(companyOrBody) {
 /** Read draft_orders from company store / GET company body. */
 export async function fetchCompanyDraftOrders(companyId) {
   if (!companyId) return [];
-  const body = await fetchCompanyById(companyId);
+  const body = await fetchCompanyById(companyId, { cache: 'no-store' });
   return normalizeCompanyDraftOrders(body);
 }
 

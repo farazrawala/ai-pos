@@ -172,9 +172,6 @@ const PosProducts = ({
   onPaymentComplete,
   onPaymentCompletePrint,
   cartLines = [],
-  cartSubtotal = 0,
-  cartTotalQty = 0,
-  onBumpCartQty,
   columnClassName = 'col-lg-6 col-xl-7',
   columnStyle,
   productCols = 4,
@@ -347,7 +344,7 @@ const PosProducts = ({
     return map;
   }, [products]);
 
-  const tryAddSellableProduct = useCallback(
+  const validateSellableProduct = useCallback(
     (product) => {
       if (isVariableParentProduct(product)) {
         toast.warning(
@@ -362,10 +359,18 @@ const PosProducts = ({
         toast.info('Product hidden — stock is less than 1.');
         return 'blocked';
       }
+      return 'ok';
+    },
+    [hideLowStock, warehouseId]
+  );
+
+  const tryAddSellableProduct = useCallback(
+    (product) => {
+      if (validateSellableProduct(product) !== 'ok') return 'blocked';
       onAddToCart?.(product);
       return 'added';
     },
-    [hideLowStock, warehouseId, onAddToCart]
+    [validateSellableProduct, onAddToCart]
   );
 
   const findExactProductForQuery = useCallback(
@@ -652,13 +657,37 @@ const PosProducts = ({
         playPosScanBeep('error');
         return { status: 'not_found', code: q, product: null };
       }
-      const result = tryAddSellableProduct(product);
-      if (result !== 'added') {
+      if (validateSellableProduct(product) !== 'ok') {
         playPosScanBeep('error');
+        return { status: 'blocked', code: q, product };
       }
-      return { status: result, code: q, product };
+      playPosScanBeep('success');
+      return { status: 'added', code: q, product };
     },
-    [findExactProductForQuery, tryAddSellableProduct]
+    [findExactProductForQuery, validateSellableProduct]
+  );
+
+  const handleConfirmScanDraft = useCallback(
+    (lines) => {
+      if (!Array.isArray(lines) || lines.length === 0) return false;
+      let addedCount = 0;
+      for (const line of lines) {
+        const product = line?.product;
+        if (!product) continue;
+        const qty = parseFloat(String(line.quantity ?? '').replace(/,/g, '').trim());
+        const ok = onAddToCart?.(product, Number.isFinite(qty) && qty > 0 ? qty : 1, {
+          silent: true,
+        });
+        if (ok) addedCount += 1;
+      }
+      if (addedCount > 0) {
+        playPosScanBeep('success');
+        toast.success(addedCount === 1 ? 'Added to cart' : `Added ${addedCount} items to cart`);
+        return true;
+      }
+      return false;
+    },
+    [onAddToCart]
   );
 
   return (
@@ -674,9 +703,7 @@ const PosProducts = ({
         onClose={() => setContinuousScanOpen(false)}
         onScan={handleContinuousScan}
         cartLines={cartLines}
-        cartSubtotal={cartSubtotal}
-        cartTotalQty={cartTotalQty}
-        onBumpCartQty={onBumpCartQty}
+        onConfirmDraft={handleConfirmScanDraft}
         onCheckout={onPaymentClick}
         checkoutBusy={paymentBusy || draftSaving}
         companyLogoUrl={companyLogoUrl}
@@ -717,7 +744,10 @@ const PosProducts = ({
               <button
                 type="button"
                 className="pos-scan-btn"
-                onClick={() => setContinuousScanOpen(true)}
+                onClick={() => {
+                  unlockPosScanAudio();
+                  setContinuousScanOpen(true);
+                }}
                 title="Open camera and keep scanning barcodes into the cart"
                 aria-label="Open continuous barcode scanner"
               >
@@ -932,7 +962,7 @@ const PosProducts = ({
             )}
           </div>
 
-          <div className="pos-footer-actions">
+          <div className="pos-footer-actions d-none d-lg-flex">
             <button
               type="button"
               className="btn btn-draft"

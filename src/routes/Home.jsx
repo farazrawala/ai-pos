@@ -169,7 +169,7 @@ const Home = () => {
                       <div className="col-8">
                         <div className="numbers">
                           <p className="text-sm mb-0 text-uppercase font-weight-bold">
-                            New Clients
+                            Total Customers
                           </p>
                           <h5 className="font-weight-bolder">
                             {customersLoading

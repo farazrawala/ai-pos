@@ -37,6 +37,8 @@ const Header = () => {
   const firstSegment = pathSegment
     ? pathSegment.charAt(0).toUpperCase() + pathSegment.slice(1)
     : 'Dashboard';
+  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const isPosCheckout = /(^|\/)pos$/.test(normalizedPath);
 
   const handleSignOut = (e) => {
     e.preventDefault();
@@ -54,7 +56,9 @@ const Header = () => {
 
   return (
     <nav
-      className="navbar navbar-main navbar-expand-lg px-0 mx-3 shadow-none border-radius-xl z-index-sticky"
+      className={`navbar navbar-main navbar-expand-lg px-0 mx-3 shadow-none border-radius-xl z-index-sticky${
+        isPosCheckout ? ' navbar-pos' : ''
+      }`}
       id="navbarBlur"
       data-scroll="false"
     >
@@ -83,14 +87,14 @@ const Header = () => {
           </ol>
         </nav>
         <InstallAppButton className="ms-auto me-2" />
-        <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
-          <ul className="ms-md-auto navbar-nav justify-content-end">
+        <div className="collapse navbar-collapse mt-0 me-md-0" id="navbar">
+          <ul className="ms-md-auto navbar-nav justify-content-end flex-row flex-nowrap align-items-center">
             {isAuthenticated ? (
               <>
                 <li className="nav-item d-none d-md-flex align-items-center me-2">
                   <PerformanceChip />
                 </li>
-                <li className="nav-item d-flex align-items-center me-2">
+                <li className="nav-item d-none d-lg-flex align-items-center me-2">
                   <span
                     className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold"
                     title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
@@ -98,7 +102,7 @@ const Header = () => {
                     v{APP_VERSION}
                   </span>
                 </li>
-                <li className="nav-item d-flex align-items-center me-2">
+                <li className="nav-item d-none d-lg-flex align-items-center me-2">
                   <ClearCompanyCacheButton
                     className="btn btn-sm btn-outline-light mb-0 py-1 px-2 text-xs"
                     onError={(err) => {
@@ -110,7 +114,7 @@ const Header = () => {
                   />
                 </li>
                 {cacheNotice ? (
-                  <li className="nav-item d-flex align-items-center me-2">
+                  <li className="nav-item d-none d-lg-flex align-items-center me-2">
                     <span
                       className={`badge mb-0 ${cacheNotice.type === 'success' ? 'bg-success' : 'bg-danger'}`}
                       role="status"
@@ -188,7 +192,7 @@ const Header = () => {
                 />
               </button>
             </li>
-            <li className="nav-item dropdown pe-2 d-flex align-items-center">
+            <li className="nav-item dropdown pe-2 d-none d-lg-flex align-items-center">
               <a
                 href="javascript:;"
                 className="nav-link text-white p-0"

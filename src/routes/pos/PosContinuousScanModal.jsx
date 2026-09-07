@@ -16,6 +16,7 @@ import { sellablePosProductId } from '../../components/product/productVariationU
 import { formatMoney } from '../../utils/formatMoney.js';
 import { openAppPathInNewTab, withBase } from '../../config/appBase.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 
 const SCANNER_ELEMENT_ID = 'pos-continuous-barcode-reader';
 /** Ignore the same code briefly so one barcode isn't added many times. */
@@ -30,8 +31,6 @@ const BARCODE_FORMATS = [
   Html5QrcodeSupportedFormats.UPC_E,
   Html5QrcodeSupportedFormats.CODE_128,
   Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.ITF,
   Html5QrcodeSupportedFormats.QR_CODE,
 ];
 
@@ -49,15 +48,23 @@ function pickCameraForFacing(cameras, facing) {
   );
 }
 
-function buildScanConfig() {
+function buildScanConfig(facing = 'environment') {
   return {
-    fps: 10,
+    fps: 24,
     qrbox: (viewW, viewH) => {
-      const side = Math.min(Math.floor(viewW * 0.86), Math.floor(viewH * 0.42), 320);
-      return { width: Math.max(180, side), height: Math.max(100, Math.floor(side * 0.55)) };
+      const width = Math.max(240, Math.min(viewW, Math.floor(viewW * 0.96)));
+      const height = Math.max(
+        90,
+        Math.min(viewH, Math.floor(viewH * 0.55), Math.floor(width * 0.42))
+      );
+      return { width, height };
     },
-    aspectRatio: 1.777,
-    disableFlip: false,
+    disableFlip: true,
+    videoConstraints: {
+      facingMode: { ideal: facing },
+      width: { min: 640, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
+    },
   };
 }
 
@@ -116,7 +123,7 @@ function buildScanMeta(product, code = '') {
 
 function lightHaptic() {
   try {
-    navigator.vibrate?.(12);
+    navigator.vibrate?.([40, 30, 70]);
   } catch {
     /* unsupported */
   }
@@ -174,18 +181,15 @@ function ScanProductThumb({ src, fallbackSrc, name }) {
 
 /**
  * Full-screen continuous camera barcode scanner for mobile POS.
- * Keeps scanning and calling onScan until the user presses Stop / Close.
+ * Keeps scanning into a local draft until the user presses Confirm.
  * Defaults to rear camera; Flip switches to front and back.
- * Cart quantity uses the parent POS cart — this is display + controls only.
  */
 export default function PosContinuousScanModal({
   open,
   onClose,
   onScan,
   cartLines = [],
-  cartSubtotal = 0,
-  cartTotalQty = 0,
-  onBumpCartQty,
+  onConfirmDraft,
   onCheckout,
   checkoutBusy = false,
   companyLogoUrl = '',
@@ -205,6 +209,9 @@ export default function PosContinuousScanModal({
   const [flashKey, setFlashKey] = useState(0);
   const [scanMeta, setScanMeta] = useState({});
   const [notFoundCode, setNotFoundCode] = useState('');
+  const [draftLines, setDraftLines] = useState([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAfter, setConfirmAfter] = useState('stay');
 
   const scannerRef = useRef(null);
   const busyRef = useRef(false);
@@ -213,9 +220,12 @@ export default function PosContinuousScanModal({
   const lastCodeRef = useRef({ code: '', at: 0 });
   const onScanRef = useRef(onScan);
   const camerasRef = useRef([]);
+  const draftSeqRef = useRef(0);
+  const confirmOpenRef = useRef(false);
   onScanRef.current = onScan;
   continuousRef.current = continuousOn;
   pausedRef.current = paused;
+  confirmOpenRef.current = confirmOpen;
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -235,13 +245,9 @@ export default function PosContinuousScanModal({
     }
   }, []);
 
-  const handleStop = useCallback(async () => {
-    await stopScanner();
-    onClose?.();
-  }, [onClose, stopScanner]);
-
   const handleFlip = useCallback(() => {
     if (starting || flipping || cameraError) return;
+    unlockPosScanAudio();
     setFlipping(true);
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   }, [starting, flipping, cameraError]);
@@ -252,6 +258,7 @@ export default function PosContinuousScanModal({
   }, []);
 
   const handleToggleContinuous = useCallback(() => {
+    unlockPosScanAudio();
     setContinuousOn((prev) => {
       const next = !prev;
       continuousRef.current = next;
@@ -295,7 +302,7 @@ export default function PosContinuousScanModal({
 
       const onDetected = async (decodedText) => {
         const code = String(decodedText || '').trim();
-        if (!code || busyRef.current || pausedRef.current) return;
+        if (!code || busyRef.current || pausedRef.current || confirmOpenRef.current) return;
 
         const now = Date.now();
         const last = lastCodeRef.current;
@@ -315,8 +322,35 @@ export default function PosContinuousScanModal({
           const meta = buildScanMeta(product, code);
 
           if (status === 'added' && meta) {
+            playPosScanBeep('success');
             lightHaptic();
             setScanMeta((prev) => ({ ...prev, [meta.productId]: meta }));
+            setDraftLines((prev) => {
+              const i = prev.findIndex((line) => line.productId === meta.productId);
+              if (i >= 0) {
+                const next = [...prev];
+                next[i] = {
+                  ...next[i],
+                  quantity: parseScanQty(next[i].quantity) + 1,
+                  unitPrice: meta.price,
+                  name: meta.name,
+                  product: product || next[i].product,
+                  addedSeq: ++draftSeqRef.current,
+                };
+                return next;
+              }
+              return [
+                {
+                  productId: meta.productId,
+                  name: meta.name,
+                  unitPrice: meta.price,
+                  quantity: 1,
+                  addedSeq: ++draftSeqRef.current,
+                  product,
+                },
+                ...prev,
+              ];
+            });
             setLastProductId(meta.productId);
             setLastStatus('added');
             setFlashKey((k) => k + 1);
@@ -360,19 +394,45 @@ export default function PosContinuousScanModal({
 
         setCanFlip(cameras.length > 1);
         const preferred = pickCameraForFacing(cameras, facingMode);
-        const config = buildScanConfig();
+        const config = buildScanConfig(facingMode);
+        const configNoVideo = { fps: config.fps, qrbox: config.qrbox, disableFlip: true };
         const scanner = new Html5Qrcode(SCANNER_ELEMENT_ID, {
           verbose: false,
           formatsToSupport: BARCODE_FORMATS,
+          useBarCodeDetectorIfSupported: true,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         });
         scannerRef.current = scanner;
 
-        // Prefer facingMode constraint; fall back to an explicit device id.
+        const onFrame = () => {};
+        const startCamera = async (cameraConfig, scanConfig) => {
+          if (scanner.isScanning) {
+            try {
+              await scanner.stop();
+            } catch {
+              /* continue */
+            }
+          }
+          await scanner.start(cameraConfig, scanConfig, onDetected, onFrame);
+        };
         try {
-          await scanner.start({ facingMode }, config, onDetected, () => {});
+          await startCamera({ facingMode }, config);
         } catch {
-          if (!preferred?.id) throw new Error('Could not open camera.');
-          await scanner.start(preferred.id, config, onDetected, () => {});
+          try {
+            await startCamera({ facingMode }, configNoVideo);
+          } catch {
+            if (!preferred?.id) throw new Error('Could not open camera.');
+            await startCamera(preferred.id, configNoVideo);
+          }
+        }
+        try {
+          if (typeof scanner.applyVideoConstraints === 'function') {
+            await scanner.applyVideoConstraints({
+              advanced: [{ focusMode: 'continuous' }],
+            });
+          }
+        } catch {
+          /* autofocus not supported */
         }
         if (cancelled) {
           await stopScanner();
@@ -404,6 +464,11 @@ export default function PosContinuousScanModal({
   useEffect(() => {
     if (!open) {
       camerasRef.current = [];
+      setDraftLines([]);
+      setConfirmOpen(false);
+      setConfirmAfter('stay');
+      setScanMeta({});
+      draftSeqRef.current = 0;
     }
   }, [open]);
 
@@ -417,10 +482,10 @@ export default function PosContinuousScanModal({
   }, [open]);
 
   const scanCartLines = useMemo(() => {
-    const lines = Array.isArray(cartLines) ? [...cartLines] : [];
+    const lines = Array.isArray(draftLines) ? [...draftLines] : [];
     lines.sort((a, b) => (Number(b.addedSeq) || 0) - (Number(a.addedSeq) || 0));
     return lines;
-  }, [cartLines]);
+  }, [draftLines]);
 
   const lastLine = useMemo(
     () => scanCartLines.find((line) => line.productId === lastProductId) || null,
@@ -428,22 +493,100 @@ export default function PosContinuousScanModal({
   );
   const lastMeta = lastProductId ? scanMeta[lastProductId] : null;
 
-  const bumpQty = useCallback(
-    (productId, delta) => {
-      if (!productId) return;
-      onBumpCartQty?.(productId, delta);
-    },
-    [onBumpCartQty]
+  const draftTotalQty = useMemo(
+    () => scanCartLines.reduce((sum, line) => sum + parseScanQty(line.quantity), 0),
+    [scanCartLines]
+  );
+  const draftSubtotal = useMemo(
+    () =>
+      scanCartLines.reduce(
+        (sum, line) => sum + parseScanQty(line.quantity) * (Number(line.unitPrice) || 0),
+        0
+      ),
+    [scanCartLines]
   );
 
-  const handleViewCart = useCallback(() => {
+  const bumpQty = useCallback((productId, delta) => {
+    if (!productId || !delta) return;
+    setDraftLines((prev) => {
+      const next = [];
+      for (const line of prev) {
+        if (line.productId !== productId) {
+          next.push(line);
+          continue;
+        }
+        const qty = parseScanQty(line.quantity) + delta;
+        if (qty <= 0) continue;
+        next.push({ ...line, quantity: qty });
+      }
+      return next;
+    });
+  }, []);
+
+  const closeScanner = useCallback(async () => {
+    await stopScanner();
     onClose?.();
-  }, [onClose]);
+  }, [onClose, stopScanner]);
+
+  const runAfterConfirm = useCallback(
+    (after) => {
+      if (after === 'checkout') {
+        onClose?.();
+        queueMicrotask(() => onCheckout?.());
+        return;
+      }
+      if (after === 'viewCart' || after === 'close') {
+        closeScanner();
+      }
+    },
+    [onClose, onCheckout, closeScanner]
+  );
+
+  const requestConfirm = useCallback(
+    (after = 'stay') => {
+      setConfirmAfter(after);
+      if (scanCartLines.length < 1) {
+        if (after === 'stay') return;
+        if (after === 'checkout') {
+          runAfterConfirm('checkout');
+          return;
+        }
+        closeScanner();
+        return;
+      }
+      setConfirmOpen(true);
+    },
+    [scanCartLines.length, closeScanner, runAfterConfirm]
+  );
+
+  const handleStop = useCallback(() => {
+    requestConfirm('close');
+  }, [requestConfirm]);
+
+  const handleViewCart = useCallback(() => {
+    requestConfirm('viewCart');
+  }, [requestConfirm]);
 
   const handleCheckout = useCallback(() => {
-    onClose?.();
-    queueMicrotask(() => onCheckout?.());
-  }, [onClose, onCheckout]);
+    requestConfirm('checkout');
+  }, [requestConfirm]);
+
+  const handleConfirmYes = useCallback(() => {
+    const added = onConfirmDraft?.(scanCartLines);
+    setConfirmOpen(false);
+    if (added === false) return;
+    setDraftLines([]);
+    setLastProductId('');
+    setLastStatus('');
+    if (confirmAfter !== 'stay') runAfterConfirm(confirmAfter);
+  }, [onConfirmDraft, scanCartLines, confirmAfter, runAfterConfirm]);
+
+  const handleConfirmNo = useCallback(() => {
+    setConfirmOpen(false);
+    if (confirmAfter === 'stay' || confirmAfter === 'checkout') return;
+    setDraftLines([]);
+    closeScanner();
+  }, [confirmAfter, closeScanner]);
 
   const handleAddMissingProduct = useCallback(() => {
     const code = String(notFoundCode || lastCode || '').trim();
@@ -458,8 +601,11 @@ export default function PosContinuousScanModal({
 
   const cameraReady = !cameraError && !starting && !flipping;
   const uniqueCount = scanCartLines.length;
-  const checkoutDisabled = checkoutBusy || uniqueCount < 1;
+  const parentCartCount = Array.isArray(cartLines) ? cartLines.length : 0;
+  const confirmDisabled = uniqueCount < 1;
+  const checkoutDisabled = checkoutBusy || (uniqueCount < 1 && parentCartCount < 1);
   const defaultImg = withBase('/assets/img/default.jpg');
+  const leavingWithoutAdd = confirmAfter === 'close' || confirmAfter === 'viewCart';
 
   let scannerHint = 'Point camera at barcode';
   if (starting) scannerHint = 'Starting camera…';
@@ -470,7 +616,13 @@ export default function PosContinuousScanModal({
   else if (lastStatus === 'added') scannerHint = 'Ready for next barcode';
 
   return (
-    <div className="pos-scan-overlay" role="dialog" aria-modal="true" aria-label="Barcode scanner">
+    <div
+      className="pos-scan-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Barcode scanner"
+      onPointerDown={unlockPosScanAudio}
+    >
       <div className="pos-scan-overlay__panel">
         <header className="pos-scan-overlay__header">
           <button
@@ -564,7 +716,7 @@ export default function PosContinuousScanModal({
             <div className="pos-scan-last__top">
               <span className="pos-scan-last__badge">
                 <FaCircleCheck aria-hidden />
-                Product added
+                Added to draft
               </span>
               <span className="pos-scan-last__price">
                 {formatMoney(lastLine.unitPrice ?? lastMeta?.price ?? 0)}
@@ -583,7 +735,7 @@ export default function PosContinuousScanModal({
                     ? `SKU: ${lastMeta.sku}`
                     : lastMeta?.barcode || lastCode
                       ? `Barcode: ${lastMeta?.barcode || lastCode}`
-                      : 'In cart'}
+                      : 'In draft'}
                 </span>
               </div>
               <ScanQtyControl
@@ -596,14 +748,14 @@ export default function PosContinuousScanModal({
           </article>
         ) : null}
 
-        <section className="pos-scan-cart" aria-label="Scanned products">
+        <section className="pos-scan-cart" aria-label="Draft products">
           <div className="pos-scan-cart__head">
-            <h3>Cart</h3>
+            <h3>Draft</h3>
             <span>{uniqueCount ? `${uniqueCount} ${uniqueCount === 1 ? 'item' : 'items'}` : 'Empty'}</span>
           </div>
           <div className="pos-scan-cart__list">
             {scanCartLines.length === 0 ? (
-              <p className="pos-scan-cart__empty">Scan a barcode to add products</p>
+              <p className="pos-scan-cart__empty">Scan a barcode to add products to draft</p>
             ) : (
               scanCartLines.map((line) => {
                 const meta = scanMeta[line.productId];
@@ -643,12 +795,21 @@ export default function PosContinuousScanModal({
         <footer className="pos-scan-summary">
           <div className="pos-scan-summary__totals">
             <span>
-              {formatScanQty(cartTotalQty)} qty · {uniqueCount}{' '}
+              {formatScanQty(draftTotalQty)} qty · {uniqueCount}{' '}
               {uniqueCount === 1 ? 'item' : 'items'}
             </span>
-            <strong>{formatMoney(cartSubtotal)}</strong>
+            <strong>{formatMoney(draftSubtotal)}</strong>
           </div>
           <div className="pos-scan-summary__actions">
+            <button
+              type="button"
+              className="pos-scan-summary__confirm"
+              onClick={() => requestConfirm('stay')}
+              disabled={confirmDisabled}
+            >
+              <FaCircleCheck aria-hidden />
+              Confirm
+            </button>
             <button type="button" className="pos-scan-summary__ghost" onClick={handleViewCart}>
               <FaCartShopping aria-hidden />
               View Cart
@@ -666,7 +827,32 @@ export default function PosContinuousScanModal({
         </footer>
       </div>
 
-      {notFoundCode ? (
+      {confirmOpen ? (
+        <div className="pos-scan-miss" role="dialog" aria-label="Add draft to cart">
+          <div className="pos-scan-miss__sheet">
+            <div className="pos-scan-miss__text pos-scan-miss__text--prompt">
+              <strong>Add to cart?</strong>
+              <span>
+                {leavingWithoutAdd
+                  ? 'Add these draft items to the cart before leaving?'
+                  : `Add ${formatScanQty(draftTotalQty)} qty · ${uniqueCount} ${
+                      uniqueCount === 1 ? 'item' : 'items'
+                    } to the cart?`}
+              </span>
+            </div>
+            <div className="pos-scan-miss__actions">
+              <button type="button" className="pos-scan-miss__ghost" onClick={handleConfirmNo}>
+                {leavingWithoutAdd ? 'No, discard' : 'No'}
+              </button>
+              <button type="button" className="pos-scan-miss__primary" onClick={handleConfirmYes}>
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {notFoundCode && !confirmOpen ? (
         <div className="pos-scan-miss" role="status">
           <div className="pos-scan-miss__sheet">
             <div className="pos-scan-miss__text">

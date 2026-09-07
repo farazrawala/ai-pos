@@ -11,6 +11,9 @@ import {
   FaArrowsRotate,
   FaGear,
   FaArrowRightArrowLeft,
+  FaCartShopping,
+  FaBoxesStacked,
+  FaMoneyBill1,
 } from 'react-icons/fa6';
 import NavIcon from '../../components/NavIcon.jsx';
 import {
@@ -1121,6 +1124,9 @@ const Pos = () => {
   const [cartSessionReady, setCartSessionReady] = useState(() => initialCartSession != null);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDeletingId, setDraftDeletingId] = useState(null);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const draftsRefreshInFlightRef = useRef(false);
+  const [mobilePosPane, setMobilePosPane] = useState('order');
 
   const [addCustomerForm, setAddCustomerForm] = useState(ADD_CUSTOMER_INITIAL);
   const [addCustomerErrors, setAddCustomerErrors] = useState({});
@@ -1585,16 +1591,18 @@ const Pos = () => {
   }, [users, selectedCustomerId]);
 
   const addToCart = useCallback(
-    (product) => {
-      if (!product || typeof product !== 'object') return;
+    (product, addQty = 1, { silent = false } = {}) => {
+      if (!product || typeof product !== 'object') return false;
       if (isVariableParentProduct(product)) {
         toast.warning(
           'This is a variable product. Add a size/color variation from the product list instead.'
         );
-        return;
+        return false;
       }
       const productId = sellablePosProductId(product);
-      if (!productId) return;
+      if (!productId) return false;
+      const qtyToAdd = roundPosQty(typeof addQty === 'number' ? addQty : parsePosQty(addQty));
+      if (!Number.isFinite(qtyToAdd) || qtyToAdd < POS_QTY_MIN) return false;
       const name = product.name || product.product_name || 'Product';
       const unitPrice = parsePosUnitPrice(product);
       const availableStock = getProductAvailableStock(product, {
@@ -1608,7 +1616,7 @@ const Pos = () => {
       setCartLines((prev) => {
         const i = prev.findIndex((l) => l.productId === productId);
         const currentQty = i >= 0 ? parsePosQty(prev[i].quantity) : 0;
-        const nextQty = currentQty + 1;
+        const nextQty = roundPosQty(currentQty + qtyToAdd);
         const stockInCart = i >= 0 ? (prev[i].availableStock ?? availableStock) : availableStock;
 
         const stockBlock = posStockBlocksQty({
@@ -1637,7 +1645,7 @@ const Pos = () => {
           productId,
           name,
           unitPrice,
-          quantity: '1',
+          quantity: formatPosQtyLabel(qtyToAdd),
           availableStock,
           addedSeq: nextCartLineSeq(prev),
           category_id:
@@ -1659,9 +1667,10 @@ const Pos = () => {
       if (blockMsg) {
         playPosScanBeep('error');
         queueMicrotask(() => showStockErrorToast(blockMsg, { delay: 5000 }));
-        return;
+        return false;
       }
-      if (added) playPosScanBeep('success');
+      if (added && !silent) playPosScanBeep('success');
+      return added;
     },
     [defaultWarehouseId, allowAddWhenStockInsufficient]
   );
@@ -1747,6 +1756,13 @@ const Pos = () => {
       return prev;
     });
     setLayoutSettingsOpen(false);
+  }, []);
+
+  const handleMobilePosPane = useCallback((pane) => {
+    setMobilePosPane(pane);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }, []);
 
   const bumpCartQty = useCallback(
@@ -2401,13 +2417,45 @@ const Pos = () => {
     discountEditSourceRef.current = null;
   }, []);
 
-  const handleOpenDrafts = useCallback(() => {
+  const refreshDraftsFromServer = useCallback(async () => {
+    if (!companyId) return null;
+    const body = await fetchCompanyById(companyId, { cache: 'no-store' });
+    const fetched = getCompanyFromApiBody(body);
+    if (fetched) {
+      const drafts = fetched.draft_orders ?? fetched.draftOrders;
+      dispatch(
+        setCompany({
+          ...mergeCompanyRecordForSettings(fetched, authCompanyRef.current),
+          ...(Array.isArray(drafts) ? { draft_orders: drafts, draftOrders: drafts } : {}),
+        })
+      );
+    }
+    return fetched;
+  }, [companyId, dispatch]);
+
+  const handleOpenDrafts = useCallback(async () => {
     if (!isOnline) {
       toast.error('Connect to the internet to load drafts');
       return;
     }
+    if (!companyId) {
+      toast.error('Company not found — cannot load drafts');
+      return;
+    }
     openPosDraftsModal();
-  }, [isOnline]);
+    if (draftsRefreshInFlightRef.current) return;
+    draftsRefreshInFlightRef.current = true;
+    setDraftsLoading(true);
+    try {
+      await refreshDraftsFromServer();
+    } catch (err) {
+      console.error('[POS] Failed to refresh drafts', err);
+      toast.error(err?.message || 'Failed to load latest drafts');
+    } finally {
+      draftsRefreshInFlightRef.current = false;
+      setDraftsLoading(false);
+    }
+  }, [isOnline, companyId, refreshDraftsFromServer]);
 
   const handleLoadDraft = useCallback(
     (draft) => {
@@ -2869,6 +2917,31 @@ const Pos = () => {
           </button>
         </div>
       </AppModal>
+      <div className="pos-mobile-nav" role="tablist" aria-label="POS sections">
+        <button
+          type="button"
+          role="tab"
+          className={`pos-mobile-nav__btn${mobilePosPane === 'order' ? ' is-active' : ''}`}
+          aria-selected={mobilePosPane === 'order'}
+          onClick={() => handleMobilePosPane('order')}
+        >
+          <NavIcon icon={FaCartShopping} size={13} />
+          <span>Order</span>
+          {cartLines.length > 0 ? (
+            <span className="pos-mobile-nav__count">{formatPosQtyLabel(cartTotalQty)}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`pos-mobile-nav__btn${mobilePosPane === 'products' ? ' is-active' : ''}`}
+          aria-selected={mobilePosPane === 'products'}
+          onClick={() => handleMobilePosPane('products')}
+        >
+          <NavIcon icon={FaBoxesStacked} size={13} />
+          <span>Products</span>
+        </button>
+      </div>
       <div className="pos-page-header">
         <div className="pos-master-sync-status">
           {masterSyncProgress?.message ? (
@@ -2927,7 +3000,7 @@ const Pos = () => {
         </div>
       </div>
       <div
-        className={`row g-4 pos-layout-row${posLayout.swapped ? ' is-swapped' : ''}`}
+        className={`row g-4 pos-layout-row${posLayout.swapped ? ' is-swapped' : ''} is-mobile-${mobilePosPane}`}
         style={{
           '--pos-order-width': `${posLayout.orderWidth}%`,
           '--pos-products-width': `${100 - posLayout.orderWidth}%`,
@@ -3195,11 +3268,15 @@ const Pos = () => {
                       disabled={!isOnline}
                       title={
                         isOnline
-                          ? 'View saved draft orders'
+                          ? 'View latest saved draft orders'
                           : 'Connect to the internet to load drafts'
                       }
                     >
-                      <NavIcon icon={FaListUl} size={11} />
+                      <NavIcon
+                        icon={draftsLoading ? FaArrowsRotate : FaListUl}
+                        size={11}
+                        className={draftsLoading ? 'pos-toolbar-btn__spin' : undefined}
+                      />
                       <span>Drafts</span>
                       {draftOrders.length > 0 ? (
                         <span className="pos-toolbar-action__count">{draftOrders.length}</span>
@@ -3236,7 +3313,7 @@ const Pos = () => {
                           <div className="pos-cart-product-name" title={displayName}>
                             {displayName}
                           </div>
-                          <div className="d-flex justify-content-center">
+                          <div className="pos-cart-qty-cell">
                             <div className="pos-qty-group">
                               <button
                                 type="button"
@@ -3265,7 +3342,7 @@ const Pos = () => {
                               </button>
                             </div>
                           </div>
-                          <div>
+                          <div className="pos-cart-price-cell">
                             <input
                               type="number"
                               min={0}
@@ -3431,12 +3508,38 @@ const Pos = () => {
           onPaymentComplete={handlePaymentComplete}
           onPaymentCompletePrint={handlePaymentCompletePrint}
           cartLines={cartLines}
-          cartSubtotal={cartSubtotal}
-          cartTotalQty={cartTotalQty}
-          onBumpCartQty={bumpCartQty}
           columnClassName="pos-layout-col pos-layout-col--products"
           productCols={posLayout.productCols}
         />
+      </div>
+
+      <div className="pos-mobile-checkout-bar">
+        <button
+          type="button"
+          className="btn btn-draft"
+          onClick={handleSaveDraft}
+          disabled={draftSaving || cartLines.length < 1 || !isOnline}
+        >
+          <NavIcon icon={FaFloppyDisk} size={14} />
+          {draftSaving ? 'Saving…' : 'Draft'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-pay"
+          onClick={handlePaymentClick}
+          disabled={paymentPreparing || orderSaving || draftSaving || cartLines.length < 1}
+        >
+          {paymentPreparing && !orderSaving ? (
+            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+          ) : (
+            <NavIcon icon={FaMoneyBill1} size={14} />
+          )}
+          <span>
+            {paymentPreparing && !orderSaving
+              ? 'Processing…'
+              : `Pay PKR ${grandTotal.toFixed(0)}`}
+          </span>
+        </button>
       </div>
 
       <div
@@ -3599,11 +3702,13 @@ const Pos = () => {
                   Draft orders
                 </h5>
                 <p className="pos-drafts-modal__subtitle mb-0">
-                  {isOnline
-                    ? draftOrders.length === 0
-                      ? 'Saved carts appear here for later checkout'
-                      : `${draftOrders.length} saved draft${draftOrders.length === 1 ? '' : 's'}`
-                    : 'Drafts require an internet connection'}
+                  {draftsLoading
+                    ? 'Loading latest drafts…'
+                    : isOnline
+                      ? draftOrders.length === 0
+                        ? 'Saved carts appear here for later checkout'
+                        : `${draftOrders.length} saved draft${draftOrders.length === 1 ? '' : 's'}`
+                      : 'Drafts require an internet connection'}
                 </p>
               </div>
               <button
@@ -3617,6 +3722,16 @@ const Pos = () => {
               {!isOnline ? (
                 <div className="pos-drafts-empty">
                   <p className="mb-0">Connect to the internet to manage drafts.</p>
+                </div>
+              ) : draftsLoading && draftOrders.length === 0 ? (
+                <div className="pos-drafts-empty">
+                  <span
+                    className="spinner-border spinner-border-sm text-primary mb-3"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  <p className="pos-drafts-empty__title mb-1">Loading latest drafts…</p>
+                  <p className="mb-0">Fetching saved carts from the server.</p>
                 </div>
               ) : draftOrders.length === 0 ? (
                 <div className="pos-drafts-empty">
