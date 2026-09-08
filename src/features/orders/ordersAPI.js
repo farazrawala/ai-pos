@@ -1098,7 +1098,15 @@ export async function fetchOrdersRequest(params = {}) {
   const queryString = queryParams.toString();
   const path = String(listPath || DEFAULT_ORDER_LIST_PATH).replace(/^\/+/, '');
   const url = `${BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
-  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+  const response = await fetch(url, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      ...getHeaders({ json: false }),
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
 
   if (!response.ok) {
     throw new Error(await getErrorMessageFromResponse(response));
@@ -1117,10 +1125,21 @@ export async function fetchDeletedOrdersRequest(params = {}) {
   const primaryUrl = `${BASE_URL}${DELETED_ORDER_BY_ORDER_ITEM_PATH}${queryString ? `?${queryString}` : ''}`;
   const fallbackUrl = `${BASE_URL}${DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH}${queryString ? `?${queryString}` : ''}`;
 
-  let response = await fetch(primaryUrl, { method: 'GET', headers: getHeaders({ json: false }) });
+  const listFetch = (url) =>
+    fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        ...getHeaders({ json: false }),
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
+
+  let response = await listFetch(primaryUrl);
 
   if (response.status === 404) {
-    response = await fetch(fallbackUrl, { method: 'GET', headers: getHeaders({ json: false }) });
+    response = await listFetch(fallbackUrl);
   }
 
   if (!response.ok) {

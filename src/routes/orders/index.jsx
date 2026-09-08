@@ -15,7 +15,7 @@ const ORDERS_PAGE_CONFIG = {
   showTagsColumn: false,
   showValidateAddressAction: false,
   showConfirmationAction: false,
-  showStatusHistoryAction: false,
+  showStatusHistoryAction: true,
   viewReadOnly: false,
 };
 
