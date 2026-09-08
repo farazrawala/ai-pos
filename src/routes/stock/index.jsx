@@ -12,9 +12,11 @@ import {
 } from '../../features/stockMovement/stockMovementSlice.js';
 import {
   fetchAllStockMovementsForExportRequest,
+  formatShortMovementId,
   getProductLabel,
   getProductSku,
   getWarehouseLabel,
+  getMovementId,
   getMovementQuantity,
   getMovementType,
   getReferenceDisplay,
@@ -22,6 +24,7 @@ import {
   getReferenceId,
   getCreatedByLabel,
 } from '../../features/stockMovement/stockMovementAPI.js';
+import { FaCopy } from 'react-icons/fa6';
 import { routeForReferenceType } from '../../components/transactions/TransactionDescriptionLinks.jsx';
 import { fetchProductsRequest } from '../../features/products/productsAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -58,6 +61,7 @@ const STOCK_EXPORT_COLUMNS = [
   { key: 'sno', label: '#' },
   { key: 'product', label: 'Product' },
   { key: 'sku', label: 'Code' },
+  { key: 'trackingId', label: 'Tracking ID' },
   { key: 'warehouse', label: 'Warehouse' },
   { key: 'type', label: 'Type' },
   { key: 'qty', label: 'Qty' },
@@ -84,6 +88,7 @@ const mapStockMovementsToExportRows = (records) =>
       sno: index + 1,
       product: dashToEmpty(getProductLabel(item)),
       sku,
+      trackingId: getMovementId(item),
       warehouse: dashToEmpty(getWarehouseLabel(item)),
       type: movementType ? movementType.toUpperCase() : '',
       qty: qtyLabel === '—' ? '' : qtyLabel.replace('−', '-'),
@@ -223,6 +228,20 @@ const StockListing = () => {
       return;
     }
     dispatch(setSort({ sortBy: column }));
+  };
+
+  const handleCopyTrackingId = async (trackingId) => {
+    const id = String(trackingId || '').trim();
+    if (!id) {
+      toast.error('No tracking ID to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(id);
+      toast.success('Tracking ID copied.');
+    } catch {
+      toast.error('Could not copy tracking ID.');
+    }
   };
 
   const sortableTh = (column, label, className = '') => (
@@ -415,6 +434,7 @@ const StockListing = () => {
                     <tr>
                       <th className="text-center list-col-sno">#</th>
                       {sortableTh('product_id', 'Product', 'list-col-truncate')}
+                      <th className="list-col-tracking">Tracking</th>
                       <th className="list-col-warehouse">Warehouse</th>
                       {sortableTh('movement_type', 'Type')}
                       {sortableTh('quantity', 'Qty', 'text-end')}
@@ -427,7 +447,7 @@ const StockListing = () => {
                   <tbody>
                     {data.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="text-center py-5 text-muted">
+                        <td colSpan={10} className="text-center py-5 text-muted">
                           No stock movements found. Try adjusting your search.
                         </td>
                       </tr>
@@ -435,6 +455,7 @@ const StockListing = () => {
                       data.map((item, index) => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const key = item._id || item.id || index;
+                        const trackingId = getMovementId(item);
                         const movementType = getMovementType(item);
                         const qty = getMovementQuantity(item);
                         const ref = getReferenceDisplay(item);
@@ -483,6 +504,26 @@ const StockListing = () => {
                                 ) : null}
                               </span>
                             </td>
+                            <td className="text-sm list-cell-tracking">
+                              {trackingId ? (
+                                <div className="sm-tracking">
+                                  <span className="sm-tracking__id" title={trackingId}>
+                                    {formatShortMovementId(trackingId)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-link btn-sm p-0 mb-0 sm-tracking__copy"
+                                    title={`Copy tracking ID ${trackingId}`}
+                                    aria-label={`Copy tracking ID ${trackingId}`}
+                                    onClick={() => handleCopyTrackingId(trackingId)}
+                                  >
+                                    <FaCopy aria-hidden="true" />
+                                  </button>
+                                </div>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
                             <td className="text-sm list-cell-warehouse" title={warehouse || undefined}>
                               {warehouse || '—'}
                             </td>
@@ -519,7 +560,7 @@ const StockListing = () => {
                             >
                               {created ? (
                                 <span className="sm-date">
-                                  <span className="sm-date__day">{moment(created).format('DD MMM YYYY')}</span>
+                                  <span className="sm-date__day">{moment(created).format('DD MMM YYYY h:mm a')}</span>
                                   <span className="sm-date__rel">{moment(created).fromNow()}</span>
                                 </span>
                               ) : (

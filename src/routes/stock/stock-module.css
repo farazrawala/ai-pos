@@ -17,7 +17,7 @@
 }
 
 .list-data-table.list-data-table--stock .table {
-  min-width: 1080px;
+  min-width: 1180px;
 }
 
 .stock-page .list-data-table--stock .table > :not(caption) > * > * {
@@ -55,6 +55,41 @@
   font-weight: 500;
   color: #8392ab;
   letter-spacing: 0.01em;
+}
+
+.stock-page .list-data-table--stock .list-col-tracking,
+.stock-page .list-data-table--stock .list-cell-tracking {
+  min-width: 8.75rem;
+  max-width: 11rem;
+}
+
+.stock-page .sm-tracking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stock-page .sm-tracking__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #344767;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-page .sm-tracking__copy {
+  flex-shrink: 0;
+  line-height: 1;
+  color: #5e72e4;
+}
+
+.stock-page .sm-tracking__copy:hover {
+  color: #324cdd;
 }
 
 .stock-page .list-data-table--stock .list-col-warehouse,
@@ -151,6 +186,10 @@
 
 .stock-page .sm-user {
   color: #67748e;
+}
+
+.stock-page .list-col-date {
+  min-width: 10.5rem;
 }
 
 .stock-page .sm-date {

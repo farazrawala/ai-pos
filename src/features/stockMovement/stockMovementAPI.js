@@ -152,6 +152,25 @@ export async function fetchAllStockMovementsForExportRequest(params = {}) {
 
 const isPopulatedRef = (ref) => ref && typeof ref === 'object' && !Array.isArray(ref);
 
+/** Mongo `_id` of the inventory movement row. */
+export const getMovementId = (row) => {
+  if (!row || typeof row !== 'object') return '';
+  const raw = row._id ?? row.id;
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw._id ?? raw.id ?? raw.$oid;
+    return id != null ? String(id).trim() : '';
+  }
+  return String(raw).trim();
+};
+
+export const formatShortMovementId = (id) => {
+  const value = String(id || '').trim();
+  if (!value) return '';
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}…${value.slice(-4)}`;
+};
+
 /** Populated `product_id` display name. */
 export const getProductLabel = (row) => {
   if (!row || typeof row !== 'object') return '—';

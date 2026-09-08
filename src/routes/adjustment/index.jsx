@@ -11,6 +11,7 @@ import {
 import {
   formatAdjustmentType,
   getAdjustmentProductName,
+  getAdjustmentCreatedByLabel,
 } from '../../features/adjustments/adjustmentsAPI.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
@@ -89,7 +90,7 @@ const AdjustmentIndex = () => {
     <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
   );
 
-  const colCount = 7;
+  const colCount = 8;
 
   return (
     <div className="container-fluid py-4 px-0" style={{ width: '100%', maxWidth: '100%' }}>
@@ -147,6 +148,7 @@ const AdjustmentIndex = () => {
                         {sortableTh('type', 'Type')}
                         <th className="list-col-truncate">Description</th>
                         {sortableTh('status', 'Status')}
+                        {sortableTh('createdBy', 'Created by', 'list-col-truncate-sm')}
                         {sortableTh('createdAt', 'Created', 'list-col-date')}
                       </tr>
                     </thead>
@@ -164,6 +166,7 @@ const AdjustmentIndex = () => {
                           const description =
                             item.description != null ? String(item.description) : '';
                           const productName = getAdjustmentProductName(item);
+                          const createdBy = getAdjustmentCreatedByLabel(item);
                           const isActive = String(item.status || '').toLowerCase() === 'active';
                           return (
                             <tr key={rowKey}>
@@ -198,6 +201,12 @@ const AdjustmentIndex = () => {
                                 >
                                   {item.status || '—'}
                                 </span>
+                              </td>
+                              <td
+                                className="text-sm list-cell-truncate-sm"
+                                title={createdBy && createdBy !== '—' ? createdBy : undefined}
+                              >
+                                {createdBy}
                               </td>
                               <td
                                 className="text-sm text-nowrap list-col-date"

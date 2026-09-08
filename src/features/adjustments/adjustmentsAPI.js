@@ -53,7 +53,7 @@ export const ADJUSTMENT_TYPE_OPTIONS = [
 ];
 
 /** Default `populate` for adjustment list (`GET adjustment/get-all-active`). */
-export const ADJUSTMENT_LIST_POPULATE = 'product_id';
+export const ADJUSTMENT_LIST_POPULATE = 'product_id,created_by';
 
 export function normalizeAdjustmentsListRows(result) {
   if (!result || typeof result !== 'object') return [];
@@ -85,6 +85,21 @@ export const getAdjustmentProductName = (row) => {
     if (sku) return sku;
     return '—';
   }
+  return '—';
+};
+
+/** Populated `created_by` display name. */
+export const getAdjustmentCreatedByLabel = (row) => {
+  if (!row || typeof row !== 'object') return '—';
+  const user = row.created_by ?? row.createdBy;
+  if (user && typeof user === 'object' && !Array.isArray(user)) {
+    const name = String(user.name ?? user.fullName ?? user.username ?? '').trim();
+    if (name) return name;
+    const email = String(user.email ?? '').trim();
+    if (email) return email;
+  }
+  const byName = String(row.created_by_name ?? row.createdByName ?? '').trim();
+  if (byName) return byName;
   return '—';
 };
 
@@ -121,6 +136,7 @@ export function filterAdjustments(rows, searchTerm = '') {
       row?.type,
       row?.status,
       row?.quantity,
+      getAdjustmentCreatedByLabel(row),
     ]
       .map((v) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' '))
       .filter(Boolean)
@@ -152,6 +168,10 @@ export function sortAdjustments(rows, sortBy, sortOrder) {
       case 'product':
         av = getAdjustmentProductName(a).toLowerCase();
         bv = getAdjustmentProductName(b).toLowerCase();
+        break;
+      case 'createdBy':
+        av = getAdjustmentCreatedByLabel(a).toLowerCase();
+        bv = getAdjustmentCreatedByLabel(b).toLowerCase();
         break;
       case 'createdAt':
       default:
