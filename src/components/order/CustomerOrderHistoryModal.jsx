@@ -8,6 +8,7 @@ import {
 } from '../../features/orders/ordersAPI.js';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { formatOrderStatusOptionLabel } from './ChangeOrderStatusModal.jsx';
+import { orderStatusBadgeClass } from './orderStatusBadge.js';
 import NavIcon from '../NavIcon.jsx';
 import { toast } from '../../utils/toast.js';
 import './customerOrderHistoryModal.css';
@@ -93,44 +94,7 @@ const dedupeAndSortOrders = (rows) => {
   return unique;
 };
 
-const statusBadgeClass = (status) => {
-  const s = String(status || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, ' ');
-  if (
-    ['active', 'completed', 'posted', 'delivered', 'confirmed', 'shipped', 'packed', 'dispatched'].includes(
-      s
-    )
-  ) {
-    return 'bg-gradient-success';
-  }
-  if (['pending', 'pay pending'].includes(s)) {
-    return 'bg-gradient-pending';
-  }
-  if (
-    [
-      'draft',
-      'placed',
-      'processing',
-      'on hold',
-      'on-hold',
-      'checkout-draft',
-      'auto-draft',
-    ].includes(s)
-  ) {
-    return 'bg-gradient-warning';
-  }
-  if (
-    ['cancelled', 'canceled', 'void', 'refunded', 'failed', 'trash', 'no stock', 'issues'].includes(s)
-  ) {
-    return 'bg-gradient-danger';
-  }
-  if (['duplicate', 'split', 'combined', 'claim'].includes(s)) {
-    return 'bg-gradient-info';
-  }
-  return 'bg-gradient-secondary';
-};
+const statusBadgeClass = (status) => orderStatusBadgeClass(status);
 
 /**
  * Popup listing previous orders for the same customer (matched by phone / email).

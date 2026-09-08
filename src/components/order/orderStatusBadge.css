@@ -1,0 +1,261 @@
+.badge.oms-st,
+button.badge.oms-st {
+  background-image: none !important;
+}
+
+.badge.oms-st-active,
+button.badge.oms-st-active {
+  background-color: #22c55e !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-placed,
+button.badge.oms-st-placed {
+  background-color: #f97316 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-confirmed,
+button.badge.oms-st-confirmed {
+  background-color: #14b8a6 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-duplicate,
+button.badge.oms-st-duplicate {
+  background-color: #a855f7 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-packed,
+button.badge.oms-st-packed {
+  background-color: #3b82f6 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-delivered,
+button.badge.oms-st-delivered {
+  background-color: #15803d !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-draft,
+button.badge.oms-st-draft {
+  background-color: #94a3b8 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-pending,
+button.badge.oms-st-pending {
+  background-color: #ffd000 !important;
+  color: #111827 !important;
+}
+
+.badge.oms-st-on_hold,
+button.badge.oms-st-on_hold {
+  background-color: #6366f1 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-cancelled,
+button.badge.oms-st-cancelled {
+  background-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-failed,
+button.badge.oms-st-failed {
+  background-color: #7f1d1d !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-processing,
+button.badge.oms-st-processing {
+  background-color: #06b6d4 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-return,
+button.badge.oms-st-return {
+  background-color: #ec4899 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-return_received,
+button.badge.oms-st-return_received {
+  background-color: #9d174d !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-pay_pending,
+button.badge.oms-st-pay_pending {
+  background-color: #eab308 !important;
+  color: #111827 !important;
+}
+
+.badge.oms-st-no_stock,
+button.badge.oms-st-no_stock {
+  background-color: #c2410c !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-split,
+button.badge.oms-st-split {
+  background-color: #7c3aed !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-combined,
+button.badge.oms-st-combined {
+  background-color: #65a30d !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-claim,
+button.badge.oms-st-claim {
+  background-color: #e11d48 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-re_dispatch,
+button.badge.oms-st-re_dispatch {
+  background-color: #d97706 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-dispatched,
+button.badge.oms-st-dispatched {
+  background-color: #1d4ed8 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-out_for_delivery,
+button.badge.oms-st-out_for_delivery {
+  background-color: #0f766e !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-stuck_5_days,
+button.badge.oms-st-stuck_5_days {
+  background-color: #92400e !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-issues,
+button.badge.oms-st-issues {
+  background-color: #dc2626 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-returned,
+button.badge.oms-st-returned {
+  background-color: #f43f5e !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-rto_received,
+button.badge.oms-st-rto_received {
+  background-color: #57534e !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-customer_query,
+button.badge.oms-st-customer_query {
+  background-color: #818cf8 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-deleted,
+button.badge.oms-st-deleted {
+  background-color: #111827 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-completed,
+button.badge.oms-st-completed {
+  background-color: #16a34a !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-shipped,
+button.badge.oms-st-shipped {
+  background-color: #0284c7 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-posted,
+button.badge.oms-st-posted {
+  background-color: #0d9488 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-void,
+button.badge.oms-st-void {
+  background-color: #b91c1c !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-refunded,
+button.badge.oms-st-refunded {
+  background-color: #db2777 !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-trash,
+button.badge.oms-st-trash {
+  background-color: #44403c !important;
+  color: #fff !important;
+}
+
+.badge.oms-st-unknown,
+button.badge.oms-st-unknown {
+  background-color: #64748b !important;
+  color: #fff !important;
+}
+
+.oms-status-dropdown .form-select {
+  min-height: 2.6rem;
+  margin-bottom: 0;
+}
+
+.modal-content:has(.oms-status-dropdown) {
+  overflow: visible;
+}
+
+.oms-status-dropdown__menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  z-index: 1080;
+  max-height: 280px;
+  overflow: auto;
+  padding: 0.35rem;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.65rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.12);
+}
+
+.oms-status-dropdown__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.oms-status-dropdown__option:hover,
+.oms-status-dropdown__option.is-selected {
+  background: #f6f9fc;
+}
+
+.oms-status-dropdown__option:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 2px #5e72e4;
+}

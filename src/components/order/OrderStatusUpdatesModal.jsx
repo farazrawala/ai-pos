@@ -3,6 +3,7 @@ import moment from 'moment';
 import { FaClock } from 'react-icons/fa6';
 import { fetchOrderStatusUpdatesRequest } from '../../features/orders/ordersAPI.js';
 import { formatOrderStatusOptionLabel } from './ChangeOrderStatusModal.jsx';
+import { orderStatusBadgeClass } from './orderStatusBadge.js';
 import NavIcon from '../NavIcon.jsx';
 import './customerOrderHistoryModal.css';
 
@@ -24,44 +25,7 @@ const getChangedBy = (row) => {
   return '—';
 };
 
-const statusBadgeClass = (status) => {
-  const s = String(status || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, ' ');
-  if (
-    ['active', 'completed', 'posted', 'delivered', 'confirmed', 'shipped', 'packed', 'dispatched'].includes(
-      s
-    )
-  ) {
-    return 'bg-gradient-success';
-  }
-  if (['pending', 'pay pending'].includes(s)) {
-    return 'bg-gradient-pending';
-  }
-  if (
-    [
-      'draft',
-      'placed',
-      'processing',
-      'on hold',
-      'on-hold',
-      'checkout-draft',
-      'auto-draft',
-    ].includes(s)
-  ) {
-    return 'bg-gradient-warning';
-  }
-  if (
-    ['cancelled', 'canceled', 'void', 'refunded', 'failed', 'trash', 'no stock', 'issues'].includes(s)
-  ) {
-    return 'bg-gradient-danger';
-  }
-  if (['duplicate', 'split', 'combined', 'claim'].includes(s)) {
-    return 'bg-gradient-info';
-  }
-  return 'bg-gradient-secondary';
-};
+const statusBadgeClass = (status) => orderStatusBadgeClass(status);
 
 /**
  * Popup listing `order_status_updates` rows for one order.

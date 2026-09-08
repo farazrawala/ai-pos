@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { updateOrderStatusRequest } from '../../features/orders/ordersAPI.js';
 import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
+import { orderStatusBadgeClass } from './orderStatusBadge.js';
 
 /** Matches backend `order_status` enum. */
 export const OMS_ORDER_STATUS_OPTIONS = [
@@ -55,13 +56,35 @@ export default function ChangeOrderStatusModal({
   const [selectedStatus, setSelectedStatus] = useState('');
   const [saveStatus, setSaveStatus] = useState('idle');
   const [saveError, setSaveError] = useState(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     setSelectedStatus(normalizeStatusValue(currentStatus) || 'placed');
     setSaveStatus('idle');
     setSaveError(null);
+    setDropdownOpen(false);
   }, [open, currentStatus, orderId]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return undefined;
+
+    const onDoc = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') setDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [dropdownOpen]);
 
   const handleSave = async () => {
     if (!orderId) {
@@ -169,25 +192,63 @@ export default function ChangeOrderStatusModal({
               </p>
 
               <div className="mb-0">
-                <label htmlFor="changeOrderStatusSelect" className="form-label">
+                <span className="form-label d-block" id="changeOrderStatusSelectLabel">
                   Status <span className="text-danger">*</span>
-                </label>
-                <select
-                  id="changeOrderStatusSelect"
-                  className="form-select"
-                  value={selectedStatus}
-                  onChange={(e) => {
-                    setSelectedStatus(e.target.value);
-                    if (saveError) setSaveError(null);
-                  }}
-                  disabled={isSaving}
-                >
-                  {options.map((s) => (
-                    <option key={s} value={s}>
-                      {formatOrderStatusOptionLabel(s)}
-                    </option>
-                  ))}
-                </select>
+                </span>
+                <div ref={dropdownRef} className="oms-status-dropdown position-relative">
+                  <button
+                    type="button"
+                    id="changeOrderStatusSelect"
+                    className="form-select text-start d-flex align-items-center justify-content-between"
+                    aria-labelledby="changeOrderStatusSelectLabel"
+                    aria-expanded={dropdownOpen}
+                    aria-haspopup="listbox"
+                    disabled={isSaving}
+                    onClick={() => {
+                      if (isSaving) return;
+                      setDropdownOpen((openMenu) => !openMenu);
+                    }}
+                  >
+                    {selectedStatus ? (
+                      <span
+                        className={`badge text-xxs ${orderStatusBadgeClass(selectedStatus)}`}
+                      >
+                        {formatOrderStatusOptionLabel(selectedStatus)}
+                      </span>
+                    ) : (
+                      <span className="text-muted text-sm">Select status</span>
+                    )}
+                  </button>
+                  {dropdownOpen ? (
+                    <div
+                      className="oms-status-dropdown__menu"
+                      role="listbox"
+                      aria-labelledby="changeOrderStatusSelectLabel"
+                    >
+                      {options.map((s) => {
+                        const selected = selectedStatus === s;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            className={`oms-status-dropdown__option${selected ? ' is-selected' : ''}`}
+                            onClick={() => {
+                              setSelectedStatus(s);
+                              setDropdownOpen(false);
+                              if (saveError) setSaveError(null);
+                            }}
+                          >
+                            <span className={`badge text-xxs ${orderStatusBadgeClass(s)}`}>
+                              {formatOrderStatusOptionLabel(s)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {saveError ? (

@@ -83,6 +83,7 @@ import ChangeOrderStatusModal, {
   OMS_ORDER_STATUS_OPTIONS,
   formatOrderStatusOptionLabel,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
+import { orderStatusBadgeClass } from '../../components/order/orderStatusBadge.js';
 import OrderStatusUpdatesModal from '../../components/order/OrderStatusUpdatesModal.jsx';
 import CustomerOrderHistoryModal from '../../components/order/CustomerOrderHistoryModal.jsx';
 import OrderConfirmationTagsModal, {
@@ -592,43 +593,7 @@ const formatOrderTypeLabel = (value) => {
     .join(' ');
 };
 
-const statusBadgeClass = (status) => {
-  const s = String(status || '').toLowerCase();
-  if (
-    s === 'active' ||
-    s === 'completed' ||
-    s === 'posted' ||
-    s === 'delivered' ||
-    s === 'confirmed' ||
-    s === 'shipped'
-  ) {
-    return 'bg-gradient-success';
-  }
-  if (s === 'pending' || s === 'pay pending' || s === 'pay_pending') {
-    return 'bg-gradient-pending';
-  }
-  if (
-    s === 'draft' ||
-    s === 'placed' ||
-    s === 'processing' ||
-    s === 'on-hold' ||
-    s === 'checkout-draft' ||
-    s === 'auto-draft'
-  ) {
-    return 'bg-gradient-warning';
-  }
-  if (
-    s === 'cancelled' ||
-    s === 'canceled' ||
-    s === 'void' ||
-    s === 'refunded' ||
-    s === 'failed' ||
-    s === 'trash'
-  ) {
-    return 'bg-gradient-danger';
-  }
-  return 'bg-gradient-secondary';
-};
+const statusBadgeClass = (status) => orderStatusBadgeClass(status);
 
 const trackingStatusBadgeClass = (status) => {
   const s = String(status || '')
