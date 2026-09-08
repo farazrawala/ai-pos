@@ -648,12 +648,19 @@ function toYesNo(value, fallback = 'yes') {
   return fallback;
 }
 
-/** Normalize sync toggle fields from a connection/request record. */
+function nestedProductSettings(record) {
+  if (record?.product_settings && typeof record.product_settings === 'object') {
+    return record.product_settings;
+  }
+  if (record?.productSettings && typeof record.productSettings === 'object') {
+    return record.productSettings;
+  }
+  return null;
+}
+
+/** Normalize sync toggle fields from a company_connection / request record. */
 export function normalizeConnectionSyncSettings(record) {
-  const nested =
-    record?.product_settings && typeof record.product_settings === 'object'
-      ? record.product_settings
-      : null;
+  const nested = nestedProductSettings(record);
   const settings = {};
   for (const key of CONNECTION_SYNC_FIELDS) {
     settings[key] = toYesNo(record?.[key] ?? nested?.[key], 'yes');
@@ -662,22 +669,28 @@ export function normalizeConnectionSyncSettings(record) {
 }
 
 /**
- * PATCH `big-commerce/request/:id/settings` (alias `big-commerce/connection/:id/settings`)
- * Update product sync settings for an approved connection.
+ * PATCH `big-commerce/connection/:id/settings` (alias `big-commerce/request/:id/settings`)
+ * `:id` is the company_connection `_id`. Either company on an approved row can call it.
+ * Body keys are optional `"yes"` / `"no"` flags (flat or nested under `product_settings`).
  */
 export async function updateConnectionSettingsRequest(requestId, settings = {}) {
   const id = String(requestId || '').trim();
-  if (!id) throw new Error('Request is required');
+  if (!id) throw new Error('Connection is required');
 
+  const nested = nestedProductSettings(settings) || {};
   const payload = {};
   for (const key of CONNECTION_SYNC_FIELDS) {
-    if (settings[key] == null) continue;
-    payload[key] = toYesNo(settings[key]);
+    const raw = settings[key] ?? nested[key];
+    if (raw == null) continue;
+    payload[key] = toYesNo(raw);
+  }
+  if (Object.keys(payload).length === 0) {
+    throw new Error('No settings to update');
   }
 
   const candidates = [
-    `big-commerce/request/${encodeURIComponent(id)}/settings`,
     `big-commerce/connection/${encodeURIComponent(id)}/settings`,
+    `big-commerce/request/${encodeURIComponent(id)}/settings`,
   ];
   let lastError = null;
 
@@ -697,9 +710,16 @@ export async function updateConnectionSettingsRequest(requestId, settings = {}) 
         data?.data && typeof data.data === 'object' && !Array.isArray(data.data)
           ? data.data
           : data;
+      const nested = nestedProductSettings(record);
+      const fromRecord = {};
+      for (const key of CONNECTION_SYNC_FIELDS) {
+        const raw = record?.[key] ?? nested?.[key];
+        if (raw == null) continue;
+        fromRecord[key] = toYesNo(raw);
+      }
       return {
         ...data,
-        settings: normalizeConnectionSyncSettings(record),
+        settings: { ...payload, ...fromRecord },
         connection: record,
       };
     } catch (err) {

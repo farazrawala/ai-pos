@@ -22,6 +22,7 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { FaCopy } from 'react-icons/fa6';
 import { toast } from '../../utils/toast.js';
 import { DEBUG } from '../../config/env.js';
 
@@ -350,6 +351,20 @@ const ProcessIndex = () => {
       console.error('[Process module] Failed to stop process', { processId, error: err });
     } finally {
       setStoppingProcessId(null);
+    }
+  };
+
+  const handleCopyTrackingId = async (processId) => {
+    const trackingId = String(processId || '').trim();
+    if (!trackingId) {
+      toast.error('No tracking ID to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(trackingId);
+      toast.success('Tracking ID copied.');
+    } catch {
+      toast.error('Could not copy tracking ID.');
     }
   };
 
@@ -829,9 +844,23 @@ const ProcessIndex = () => {
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
                             <td>
-                              <span className="badge bg-info text-dark">
-                                {formatAction(item.action)}
-                              </span>
+                              <div className="d-flex flex-column align-items-start gap-1">
+                                <span className="badge bg-info text-dark">
+                                  {formatAction(item.action)}
+                                </span>
+                                {id ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-link btn-sm p-0 mb-0 text-xs"
+                                    onClick={() => handleCopyTrackingId(id)}
+                                    title={`Copy tracking ID ${id}`}
+                                    aria-label={`Copy tracking ID ${id}`}
+                                  >
+                                    <FaCopy className="me-1" aria-hidden="true" />
+                                    Copy tracking ID
+                                  </button>
+                                ) : null}
+                              </div>
                             </td>
                             {isVisible('integration') ? (
                               <td title={refId(item.integration_id)}>

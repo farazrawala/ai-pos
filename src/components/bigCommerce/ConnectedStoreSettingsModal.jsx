@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  FaAlignLeft,
+  FaBoxOpen,
+  FaCircleCheck,
+  FaFont,
+  FaImage,
+  FaLink,
+  FaToggleOn,
+} from 'react-icons/fa6';
 import AppModal from '../AppModal.jsx';
 import {
   normalizeConnectionSyncSettings,
@@ -7,12 +16,42 @@ import {
 import { showToast } from '../../utils/toast.js';
 
 export const CONNECTION_SYNC_SETTING_FIELDS = [
-  { key: 'sync_product_name', label: 'Sync product name' },
-  { key: 'sync_product_slug', label: 'Sync product slug' },
-  { key: 'sync_product_image', label: 'Sync product image' },
-  { key: 'sync_product_quantity', label: 'Sync product quantity' },
-  { key: 'sync_product_description', label: 'Sync product description' },
-  { key: 'sync_product_status', label: 'Sync product status' },
+  {
+    key: 'sync_product_name',
+    label: 'Product name',
+    hint: 'Keep the catalog title in sync',
+    Icon: FaFont,
+  },
+  {
+    key: 'sync_product_slug',
+    label: 'Product slug',
+    hint: 'Match the public URL slug',
+    Icon: FaLink,
+  },
+  {
+    key: 'sync_product_image',
+    label: 'Product image',
+    hint: 'Sync catalog photos',
+    Icon: FaImage,
+  },
+  {
+    key: 'sync_product_quantity',
+    label: 'Product quantity',
+    hint: 'Keep stock levels updated',
+    Icon: FaBoxOpen,
+  },
+  {
+    key: 'sync_product_description',
+    label: 'Product description',
+    hint: 'Sync product copy and details',
+    Icon: FaAlignLeft,
+  },
+  {
+    key: 'sync_product_status',
+    label: 'Product status',
+    hint: 'Sync active and inactive state',
+    Icon: FaToggleOn,
+  },
 ];
 
 export default function ConnectedStoreSettingsModal({
@@ -51,10 +90,16 @@ export default function ConnectedStoreSettingsModal({
 
     try {
       const result = await updateConnectionSettingsRequest(id, { [key]: nextValue });
-      const synced = result.settings || next;
+      const synced = { ...next, ...(result.settings || {}) };
       setSettings(synced);
       settingsRef.current = synced;
       onSaved?.(synced, result.connection);
+      const field =
+        CONNECTION_SYNC_SETTING_FIELDS.find((item) => item.key === key)?.label || 'Setting';
+      showToast({
+        message: `${field} sync ${nextValue === 'yes' ? 'enabled' : 'disabled'}.`,
+        variant: 'success',
+      });
     } catch (err) {
       setSettings(previous);
       settingsRef.current = previous;
@@ -70,37 +115,55 @@ export default function ConnectedStoreSettingsModal({
   return (
     <AppModal
       open={open}
-      onClose={onClose}
-      title="Connected store settings"
-      subtitle={`Choose which product fields to sync with ${partnerName}.`}
+      onClose={() => {
+        if (!savingKey) onClose?.();
+      }}
+      title="Product settings"
+      subtitle={`Choose which fields stay in sync with ${partnerName}. Changes save immediately.`}
       size="md"
       disableBackdropClose={Boolean(savingKey)}
     >
-      <div className="bc-connection-settings-grid">
-        {CONNECTION_SYNC_SETTING_FIELDS.map(({ key, label }) => {
-          const checked = settings?.[key] === 'yes';
-          const inputId = `bc-connection-setting-${key}`;
-          const busy = savingKey === key;
-          return (
-            <div key={key} className="bc-connection-setting-card">
-              <label className="bc-connection-setting-label" htmlFor={inputId}>
-                {label}
-              </label>
-              <div className="form-check form-switch mb-0">
-                <input
-                  className="form-check-input bc-connection-setting-switch"
-                  type="checkbox"
-                  role="switch"
-                  id={inputId}
-                  checked={checked}
-                  onChange={(e) => handleToggle(key, e.target.checked)}
-                  disabled={Boolean(savingKey)}
-                  aria-busy={busy}
-                />
+      <div className="bc-connection-settings">
+        <div className="bc-connection-settings-note">
+          <FaCircleCheck aria-hidden="true" />
+          <span>Toggles apply to this connected store as soon as you switch them.</span>
+        </div>
+        <div className="bc-connection-settings-list">
+          {CONNECTION_SYNC_SETTING_FIELDS.map(({ key, label, hint, Icon }) => {
+            const checked = settings?.[key] === 'yes';
+            const inputId = `bc-connection-setting-${key}`;
+            const busy = savingKey === key;
+            return (
+              <div
+                key={key}
+                className={`bc-connection-setting-row${checked ? ' is-on' : ''}${busy ? ' is-busy' : ''}`}
+              >
+                <span className="bc-connection-setting-icon" aria-hidden="true">
+                  <Icon />
+                </span>
+                <label className="bc-connection-setting-copy" htmlFor={inputId}>
+                  <strong>{label}</strong>
+                  <small>{hint}</small>
+                </label>
+                <span className={`bc-connection-setting-state${checked ? ' is-on' : ''}`}>
+                  {busy ? 'Saving' : checked ? 'On' : 'Off'}
+                </span>
+                <div className="form-check form-switch mb-0">
+                  <input
+                    className="form-check-input bc-connection-setting-switch"
+                    type="checkbox"
+                    role="switch"
+                    id={inputId}
+                    checked={checked}
+                    onChange={(e) => handleToggle(key, e.target.checked)}
+                    disabled={Boolean(savingKey)}
+                    aria-busy={busy}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </AppModal>
   );

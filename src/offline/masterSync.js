@@ -18,8 +18,8 @@ import { getMeta, setMeta } from './repositories/metaRepo.js';
 import { replaceAllPaymentMethods } from './repositories/paymentMethodsRepo.js';
 import { replaceAllProducts } from './repositories/productsRepo.js';
 
-/** Re-sync catalog when last download is older than this (4 hours). */
-export const MASTER_SYNC_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+/** Re-sync catalog when last download is older than this (1 hour). */
+export const MASTER_SYNC_MAX_AGE_MS = 1 * 60 * 60 * 1000;
 
 export const MASTER_SYNC_PAGE_SIZE = 500;
 

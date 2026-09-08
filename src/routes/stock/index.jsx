@@ -11,6 +11,7 @@ import {
   setSort,
 } from '../../features/stockMovement/stockMovementSlice.js';
 import {
+  fetchAllStockMovementsForExportRequest,
   getProductLabel,
   getProductSku,
   getWarehouseLabel,
@@ -31,6 +32,8 @@ import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import { DEBUG } from '../../config/env.js';
+import { toast } from '../../utils/toast.js';
+import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import './stock-module.css';
 
 const productOptionId = (p) => String(p?._id || p?.id || p?.product_id || '').trim();
@@ -50,6 +53,47 @@ const formatQty = (qty, movementType) => {
   if (movementType === 'in') return n > 0 ? `+${n}` : String(n);
   return String(n);
 };
+
+const STOCK_EXPORT_COLUMNS = [
+  { key: 'sno', label: '#' },
+  { key: 'product', label: 'Product' },
+  { key: 'sku', label: 'Code' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'type', label: 'Type' },
+  { key: 'qty', label: 'Qty' },
+  { key: 'reference', label: 'Reference' },
+  { key: 'status', label: 'Status' },
+  { key: 'movedBy', label: 'Moved by' },
+  { key: 'date', label: 'Date' },
+];
+
+const dashToEmpty = (value) => {
+  const text = String(value ?? '').trim();
+  return !text || text === '—' ? '' : text;
+};
+
+const mapStockMovementsToExportRows = (records) =>
+  records.map((item, index) => {
+    const movementType = getMovementType(item);
+    const qty = getMovementQuantity(item);
+    const ref = getReferenceDisplay(item);
+    const created = item.createdAt || item.created_at;
+    const sku = dashToEmpty(getProductSku(item));
+    const qtyLabel = formatQty(qty, movementType);
+    return {
+      sno: index + 1,
+      product: dashToEmpty(getProductLabel(item)),
+      sku,
+      warehouse: dashToEmpty(getWarehouseLabel(item)),
+      type: movementType ? movementType.toUpperCase() : '',
+      qty: qtyLabel === '—' ? '' : qtyLabel.replace('−', '-'),
+      reference: [ref.primary, ref.secondary].filter(Boolean).join(' '),
+      status: String(item.status || '').trim(),
+      movedBy: dashToEmpty(getCreatedByLabel(item)),
+      date:
+        created && moment(created).isValid() ? moment(created).format('DD MMM YYYY h:mm a') : '',
+    };
+  });
 
 const StockListing = () => {
   const dispatch = useDispatch();
@@ -71,6 +115,7 @@ const StockListing = () => {
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [products, setProducts] = useState([]);
   const [productsStatus, setProductsStatus] = useState('idle');
+  const [exporting, setExporting] = useState(false);
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -203,6 +248,59 @@ const StockListing = () => {
     sort.sortOrder,
   ]);
 
+  const buildExportParams = () => {
+    const params = {};
+    if (searchTerm) params.search = searchTerm;
+    if (productId) params.product_id = productId;
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortOrder = sort.sortOrder;
+    }
+    return params;
+  };
+
+  const handleExport = async (format) => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const records = await fetchAllStockMovementsForExportRequest(buildExportParams());
+      if (!records.length) {
+        toast.info('No stock movements to export.');
+        return;
+      }
+      const mapped = mapStockMovementsToExportRows(records);
+      const stamp = moment().format('YYYY-MM-DD-HHmm');
+      const filename = `stock-movements-${stamp}`;
+      const productLabel = productOptions.find((opt) => opt.value === productId)?.label;
+      const title = productId && productLabel ? `Stock movements — ${productLabel}` : 'Stock movements';
+      if (format === 'csv') {
+        exportRowsToCsv({ columns: STOCK_EXPORT_COLUMNS, rows: mapped, filename });
+      } else if (format === 'excel') {
+        exportRowsToExcel({
+          columns: STOCK_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          sheetTitle: 'Stock movements',
+        });
+      } else if (format === 'pdf') {
+        await exportRowsToPdf({
+          columns: STOCK_EXPORT_COLUMNS,
+          rows: mapped,
+          filename,
+          title,
+        });
+      }
+      toast.success(`Exported ${mapped.length} movement(s) as ${format.toUpperCase()}.`);
+    } catch (err) {
+      console.error('[Stock movement module] export failed', err);
+      toast.error(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const canExport = !loading && !error && (data.length > 0 || pagination.total > 0);
+
   return (
     <div className="container-fluid py-4 px-0 stock-page" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="row">
@@ -236,6 +334,38 @@ const StockListing = () => {
                 </div>
                 <div className="col-lg-7 col-md-6">
                   <div className="d-flex justify-content-md-end align-items-center gap-2 mt-2 mt-md-0 flex-wrap">
+                    <div className="btn-group btn-group-sm" role="group" aria-label="Export current data">
+                      <button
+                        type="button"
+                        className="btn btn-outline-success mb-0"
+                        disabled={!canExport || exporting}
+                        onClick={() => handleExport('csv')}
+                        title="Export current filtered movements (CSV)"
+                      >
+                        <i className="fas fa-file-csv me-1" aria-hidden="true" />
+                        {exporting ? 'Exporting…' : 'CSV'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-success mb-0"
+                        disabled={!canExport || exporting}
+                        onClick={() => handleExport('excel')}
+                        title="Export current filtered movements (Excel)"
+                      >
+                        <i className="fas fa-file-excel me-1" aria-hidden="true" />
+                        Excel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger mb-0"
+                        disabled={!canExport || exporting}
+                        onClick={() => handleExport('pdf')}
+                        title="Export current filtered movements (PDF)"
+                      >
+                        <i className="fas fa-file-pdf me-1" aria-hidden="true" />
+                        PDF
+                      </button>
+                    </div>
                     <div style={{ minWidth: '220px', maxWidth: '280px', flex: '1 1 220px' }}>
                       <SearchableSelect
                         options={productOptions}

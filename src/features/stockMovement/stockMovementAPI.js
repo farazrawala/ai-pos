@@ -130,6 +130,26 @@ export async function fetchStockMovementsRequest(params = {}) {
   };
 }
 
+/** Fetch every page matching current filters (for CSV / Excel / PDF export). */
+export async function fetchAllStockMovementsForExportRequest(params = {}) {
+  const limit = 500;
+  let page = 1;
+  let allData = [];
+  let totalPages = 1;
+  const { page: _p, limit: _l, ...baseParams } = params;
+
+  while (page <= totalPages) {
+    const result = await fetchStockMovementsRequest({ ...baseParams, page, limit });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    allData = allData.concat(batch);
+    totalPages = Math.max(result.totalPages || 1, 1);
+    if (batch.length === 0) break;
+    page += 1;
+  }
+
+  return allData;
+}
+
 const isPopulatedRef = (ref) => ref && typeof ref === 'object' && !Array.isArray(ref);
 
 /** Populated `product_id` display name. */

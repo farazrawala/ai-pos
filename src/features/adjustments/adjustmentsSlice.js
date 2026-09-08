@@ -1,15 +1,45 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { fetchAdjustmentsRequest, saveAdjustmentRequest } from './adjustmentsAPI.js';
+import {
+  fetchAdjustmentsRequest,
+  filterAdjustments,
+  paginateAdjustments,
+  saveAdjustmentRequest,
+  sortAdjustments,
+} from './adjustmentsAPI.js';
 
 export const fetchAdjustments = createAsyncThunk(
   'adjustments/fetchAdjustments',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
       const stateToken = getState()?.user?.token;
-      return await fetchAdjustmentsRequest({
+      const token = params.token || stateToken || undefined;
+      const pageSize = Number(params.limit) > 0 ? Number(params.limit) : 1000;
+      const first = await fetchAdjustmentsRequest({
         ...params,
-        token: params.token || stateToken || undefined,
+        token,
+        skip: params.skip ?? 0,
+        limit: pageSize,
       });
+      const rows = Array.isArray(first.data) ? first.data : [];
+      const total = Number(first.total) || rows.length;
+      if (rows.length >= total) {
+        return { ...first, data: rows };
+      }
+      const all = [...rows];
+      let skip = rows.length;
+      while (skip < total) {
+        const next = await fetchAdjustmentsRequest({
+          ...params,
+          token,
+          skip,
+          limit: pageSize,
+        });
+        const chunk = Array.isArray(next.data) ? next.data : [];
+        if (!chunk.length) break;
+        all.push(...chunk);
+        skip += chunk.length;
+      }
+      return { ...first, data: all, total: all.length };
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch adjustments');
     }
@@ -32,9 +62,22 @@ export const createAdjustment = createAsyncThunk(
   }
 );
 
+const applyListView = (state) => {
+  const source = Array.isArray(state.listAll) ? state.listAll : [];
+  const filtered = filterAdjustments(source, state.search);
+  const sorted = sortAdjustments(filtered, state.sort.sortBy, state.sort.sortOrder);
+  const paginated = paginateAdjustments(sorted, state.pagination.page, state.pagination.limit);
+  state.list = paginated.data;
+  state.pagination.total = paginated.total;
+  state.pagination.totalPages = paginated.totalPages;
+  state.pagination.page = paginated.page;
+  state.pagination.limit = paginated.limit;
+};
+
 const initialState = {
   listStatus: 'idle',
   list: [],
+  listAll: [],
   listError: null,
   pagination: {
     page: 1,
@@ -66,13 +109,16 @@ const adjustmentsSlice = createSlice({
     setSearch: (state, action) => {
       state.search = action.payload;
       state.pagination.page = 1;
+      applyListView(state);
     },
     setPage: (state, action) => {
       state.pagination.page = action.payload;
+      applyListView(state);
     },
     setLimit: (state, action) => {
       state.pagination.limit = action.payload;
       state.pagination.page = 1;
+      applyListView(state);
     },
     setSort: (state, action) => {
       const { sortBy, sortOrder } = action.payload;
@@ -86,6 +132,7 @@ const adjustmentsSlice = createSlice({
         state.sort.sortOrder = sortOrder || 'asc';
       }
       state.pagination.page = 1;
+      applyListView(state);
     },
   },
   extraReducers: (builder) => {
@@ -96,19 +143,15 @@ const adjustmentsSlice = createSlice({
       })
       .addCase(fetchAdjustments.fulfilled, (state, action) => {
         state.listStatus = 'succeeded';
-        state.list = action.payload.data || [];
-        state.pagination = {
-          page: action.payload.page || state.pagination.page,
-          limit: action.payload.limit || state.pagination.limit,
-          total: action.payload.total || 0,
-          totalPages: action.payload.totalPages || 0,
-        };
+        state.listAll = action.payload.data || [];
         state.listError = null;
+        applyListView(state);
       })
       .addCase(fetchAdjustments.rejected, (state, action) => {
         state.listStatus = 'failed';
         state.listError = action.payload || action.error.message || 'Failed to fetch adjustments';
         state.list = [];
+        state.listAll = [];
       })
       .addCase(createAdjustment.pending, (state) => {
         state.createStatus = 'loading';

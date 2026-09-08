@@ -116,7 +116,7 @@ export default function ProductCard({
           <p className="bc-card-desc bc-card-desc--clamp">{description}</p>
         ) : null}
 
-        <div className="bc-card-actions">
+        <div className={`bc-card-actions${alreadyMeToo ? ' bc-card-actions--catalog' : ''}`}>
           {showMeToo ? (
             <button
               type="button"

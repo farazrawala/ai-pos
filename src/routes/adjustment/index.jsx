@@ -42,17 +42,8 @@ const AdjustmentIndex = () => {
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-    };
-    if (searchTerm) params.search = searchTerm;
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-    dispatch(fetchAdjustments(params));
-  }, [dispatch, pagination.page, pagination.limit, searchTerm, sort.sortBy, sort.sortOrder]);
+    dispatch(fetchAdjustments({ limit: 5000, skip: 0, sortBy: 'createdAt', sortOrder: 'desc' }));
+  }, [dispatch]);
 
   const handleSearchChange = useCallback(
     (e) => {
@@ -69,6 +60,12 @@ const AdjustmentIndex = () => {
   useEffect(() => {
     setLocalSearch(searchTerm || '');
   }, [searchTerm]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -91,17 +88,6 @@ const AdjustmentIndex = () => {
   const sortableTh = (column, label, className = '') => (
     <ListSortableTh column={column} label={label} sort={sort} onSort={handleSort} className={className} />
   );
-
-  const loadAdjustments = () => {
-    const params = { page: pagination.page, limit: pagination.limit };
-    if (searchTerm) params.search = searchTerm;
-    if (sort.sortBy) {
-      params.sortBy = sort.sortBy;
-      params.sortOrder = sort.sortOrder;
-    }
-    dispatch(fetchAdjustments(params));
-  };
-
 
   const colCount = 7;
 

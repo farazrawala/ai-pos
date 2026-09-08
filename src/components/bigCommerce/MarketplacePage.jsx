@@ -23,11 +23,15 @@ import {
 import {
   ECOMMERCE_PRODUCT_SEARCH_FIELDS,
   fetchMarketplaceProductByIdRequest,
+  fetchReceivedStoreRequestsRequest,
+  fetchSentStoreRequestsRequest,
+  normalizeConnectionSyncSettings,
 } from '../../features/bigCommerce/bigCommerceAPI.js';
 import {
   excludeChildProducts,
   getProductName,
   isAlreadyMeTooProduct,
+  isMarketplaceChildProduct,
   parentProductTotal,
   productIdFromRecord,
   resolveSortParams,
@@ -39,6 +43,7 @@ import { DEBUG } from '../../config/env.js';
 import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
 import '../common/devApiSources.css';
 import CompanyProfileHeader from './CompanyProfileHeader.jsx';
+import ConnectedStoreSettingsModal from './ConnectedStoreSettingsModal.jsx';
 import MarketplaceFilters from './MarketplaceFilters.jsx';
 import MarketplaceListingTabs from './MarketplaceListingTabs.jsx';
 import ProductToolbar from './ProductToolbar.jsx';
@@ -56,6 +61,43 @@ const mapLoadStatus = (status) => {
   return 'pending';
 };
 
+function companyIdFromTarget(value) {
+  if (!value) return '';
+  if (typeof value === 'object') {
+    return String(value._id ?? value.id ?? '').trim();
+  }
+  return String(value).trim();
+}
+
+function connectionMatchesStore(partner, store) {
+  const storeId = String(store?.id || '').trim();
+  const storeSlug = String(store?.slug || '').trim();
+  const partnerId = companyIdFromTarget(partner);
+  if (storeId && partnerId && storeId === partnerId) return true;
+  if (storeSlug && partner && typeof partner === 'object') {
+    const slug = String(
+      partner.company_slug ?? partner.companySlug ?? partner.slug ?? ''
+    ).trim();
+    if (slug && slug === storeSlug) return true;
+  }
+  return false;
+}
+
+function findApprovedConnection(sentRows, receivedRows, store) {
+  const fromSent = (sentRows || []).find(
+    (row) =>
+      row?.status === 'approved' && connectionMatchesStore(row?.target_company_id, store)
+  );
+  if (fromSent) return fromSent;
+  return (
+    (receivedRows || []).find(
+      (row) =>
+        row?.status === 'approved' &&
+        connectionMatchesStore(row?.sender_company || row?.company_id, store)
+    ) || null
+  );
+}
+
 /**
  * Reusable Facebook-style product marketplace.
  * Pass `companyId` to load that company's profile + catalog.
@@ -72,6 +114,8 @@ export default function MarketplacePage({ companyId }) {
   const [meTooResolved, setMeTooResolved] = useState([]);
   const [meTooResolveStatus, setMeTooResolveStatus] = useState('idle');
   const [meTooProduct, setMeTooProduct] = useState(null);
+  const [outgoingConnection, setOutgoingConnection] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
@@ -84,6 +128,8 @@ export default function MarketplacePage({ companyId }) {
   const meTooBusy = state.duplicateStatus === 'loading';
   const deleteMeTooBusy = state.deleteFetchedStatus === 'loading';
   const resetMeTooBusy = state.resetFetchedStatus === 'loading';
+  const canManageSettings =
+    !isOwnStore && Boolean(String(outgoingConnection?._id || outgoingConnection?.id || '').trim());
 
   const initialLoading =
     state.productsStatus === 'loading' && state.products.length === 0;
@@ -113,10 +159,46 @@ export default function MarketplacePage({ companyId }) {
     setListingTab(LISTING_TAB_ALL);
     setMeTooResolved([]);
     setMeTooResolveStatus('idle');
+    setOutgoingConnection(null);
+    setSettingsOpen(false);
     meTooResolveGenRef.current += 1;
     dispatch(setMarketplaceCompanyId(id));
     dispatch(loadMarketplaceBootstrap({ companyId: id }));
   }, [companyId, dispatch, bootstrapReady, loadedStoreId, loadedStoreSlug]);
+
+  useEffect(() => {
+    if (isOwnStore) {
+      setOutgoingConnection(null);
+      setSettingsOpen(false);
+      return undefined;
+    }
+    if (state.bootstrapStatus !== 'succeeded') return undefined;
+    const storeId = String(state.company?.id || '').trim();
+    const storeSlug = String(state.company?.slug || '').trim();
+    if (!storeId && !storeSlug) {
+      setOutgoingConnection(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    Promise.all([fetchSentStoreRequestsRequest(), fetchReceivedStoreRequestsRequest()])
+      .then(([sent, received]) => {
+        if (cancelled) return;
+        setOutgoingConnection(
+          findApprovedConnection(sent.rows, received.rows, {
+            id: storeId,
+            slug: storeSlug,
+          })
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setOutgoingConnection(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnStore, state.bootstrapStatus, loadedStoreId, loadedStoreSlug]);
 
   useEffect(() => {
     if (isOwnStore && listingTab === LISTING_TAB_ME_TOO) {
@@ -416,15 +498,36 @@ export default function MarketplacePage({ companyId }) {
     [state.products]
   );
 
-  const alreadyMeTooCount = useMemo(
-    () => new Set((state.alreadyMeTooIds || []).map(String).filter(Boolean)).size,
-    [state.alreadyMeTooIds]
-  );
+  const productById = useMemo(() => {
+    const map = new Map();
+    for (const item of state.products || []) {
+      const id = productIdFromRecord(item);
+      if (id) map.set(id, item);
+    }
+    for (const item of meTooResolved || []) {
+      const id = productIdFromRecord(item);
+      if (id && !map.has(id)) map.set(id, item);
+    }
+    return map;
+  }, [state.products, meTooResolved]);
 
   const alreadyMeTooIdSet = useMemo(
     () => new Set((state.alreadyMeTooIds || []).map(String).filter(Boolean)),
     [state.alreadyMeTooIds]
   );
+
+  // Parent listing products only — fetched-product-ids also includes variation rows.
+  const alreadyMeTooCount = useMemo(() => {
+    const ids = [...alreadyMeTooIdSet];
+    if (ids.length === 0) return 0;
+    const listingComplete =
+      state.productsStatus === 'succeeded' && !state.productsHasMore;
+    return ids.filter((id) => {
+      const item = productById.get(id);
+      if (item) return !isMarketplaceChildProduct(item);
+      return !listingComplete;
+    }).length;
+  }, [alreadyMeTooIdSet, productById, state.productsStatus, state.productsHasMore]);
 
   const meTooFromCatalog = useMemo(
     () =>
@@ -445,7 +548,7 @@ export default function MarketplacePage({ companyId }) {
         byId.set(id, item);
       }
     });
-    return [...byId.values()];
+    return excludeChildProducts([...byId.values()]);
   }, [meTooFromCatalog, meTooResolved, state.alreadyMeTooIds]);
 
   const meTooCatalogIdKey = useMemo(
@@ -478,7 +581,12 @@ export default function MarketplacePage({ companyId }) {
     }
 
     const haveFromCatalog = new Set(meTooCatalogIdKey ? meTooCatalogIdKey.split(',') : []);
-    const missing = ids.filter((id) => !haveFromCatalog.has(id));
+    const missing = ids.filter((id) => {
+      if (haveFromCatalog.has(id)) return false;
+      const item = productById.get(id);
+      if (item && isMarketplaceChildProduct(item)) return false;
+      return true;
+    });
     if (missing.length === 0) {
       setMeTooResolveStatus('succeeded');
       return undefined;
@@ -511,7 +619,7 @@ export default function MarketplacePage({ companyId }) {
     return () => {
       cancelled = true;
     };
-  }, [isOwnStore, listingTab, alreadyMeTooIdKey, meTooCatalogIdKey]);
+  }, [isOwnStore, listingTab, alreadyMeTooIdKey, meTooCatalogIdKey, productById]);
 
   const isMeTooTab = !isOwnStore && listingTab === LISTING_TAB_ME_TOO;
 
@@ -743,6 +851,8 @@ export default function MarketplacePage({ companyId }) {
       <CompanyProfileHeader
         company={state.company}
         loading={state.bootstrapStatus === 'loading'}
+        showSettings={canManageSettings}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <div className="bc-layout">
@@ -955,6 +1065,25 @@ export default function MarketplacePage({ companyId }) {
           if (!meTooBusy) setMeTooProduct(null);
         }}
         onConfirm={handleConfirmMeToo}
+      />
+
+      <ConnectedStoreSettingsModal
+        open={settingsOpen && canManageSettings}
+        connection={
+          outgoingConnection
+            ? {
+                ...outgoingConnection,
+                _id: String(outgoingConnection._id || outgoingConnection.id || '').trim(),
+                ...normalizeConnectionSyncSettings(outgoingConnection),
+              }
+            : null
+        }
+        partnerName={state.company?.name || 'store'}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={(nextSettings) => {
+          const sync = normalizeConnectionSyncSettings(nextSettings || {});
+          setOutgoingConnection((prev) => (prev ? { ...prev, ...sync } : prev));
+        }}
       />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />

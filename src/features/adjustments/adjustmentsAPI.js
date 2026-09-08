@@ -96,6 +96,86 @@ export function formatAdjustmentType(value) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/**
+ * Client-side filter: product name/SKU live on populated `product_id`.
+ * Server `?search=` only matches adjustment string/number fields (description / type / status).
+ */
+export function filterAdjustments(rows, searchTerm = '') {
+  const q = String(searchTerm || '').trim().toLowerCase();
+  if (!q || !Array.isArray(rows)) return rows;
+  const needle = q.replace(/\s+/g, ' ');
+
+  return rows.filter((row) => {
+    const p =
+      row?.product_id && typeof row.product_id === 'object' && !Array.isArray(row.product_id)
+        ? row.product_id
+        : null;
+    const hay = [
+      p?.product_name,
+      p?.name,
+      p?.sku,
+      p?.product_code,
+      p?.barcode,
+      row?.description,
+      formatAdjustmentType(row?.type),
+      row?.type,
+      row?.status,
+      row?.quantity,
+    ]
+      .map((v) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' '))
+      .filter(Boolean)
+      .join(' ');
+    return hay.includes(needle);
+  });
+}
+
+export function sortAdjustments(rows, sortBy, sortOrder) {
+  if (!sortBy || !Array.isArray(rows)) return rows;
+  const dir = sortOrder === 'desc' ? -1 : 1;
+  const sorted = [...rows];
+  sorted.sort((a, b) => {
+    let av;
+    let bv;
+    switch (sortBy) {
+      case 'quantity':
+        av = Number(a.quantity) || 0;
+        bv = Number(b.quantity) || 0;
+        break;
+      case 'type':
+        av = String(a.type || '').toLowerCase();
+        bv = String(b.type || '').toLowerCase();
+        break;
+      case 'status':
+        av = String(a.status || '').toLowerCase();
+        bv = String(b.status || '').toLowerCase();
+        break;
+      case 'product':
+        av = getAdjustmentProductName(a).toLowerCase();
+        bv = getAdjustmentProductName(b).toLowerCase();
+        break;
+      case 'createdAt':
+      default:
+        av = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bv = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        break;
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+  return sorted;
+}
+
+export function paginateAdjustments(rows, page = 1, limit = 10) {
+  const total = Array.isArray(rows) ? rows.length : 0;
+  const safeLimit = Math.max(1, Number(limit) || 10);
+  const totalPages = total > 0 ? Math.ceil(total / safeLimit) : 0;
+  const safePage = Math.min(Math.max(1, Number(page) || 1), Math.max(totalPages, 1));
+  const start = (safePage - 1) * safeLimit;
+  const data = Array.isArray(rows) ? rows.slice(start, start + safeLimit) : [];
+  return { data, total, page: safePage, limit: safeLimit, totalPages };
+}
+
 export async function fetchAdjustmentsRequest(params = {}) {
   const token = params.token || getAuthToken();
   if (!token) {
@@ -106,12 +186,13 @@ export async function fetchAdjustmentsRequest(params = {}) {
   headers.Authorization = `Bearer ${token}`;
 
   const queryParams = new URLSearchParams();
-  if (params.page && params.limit) {
+  if (params.skip != null && params.skip !== '') {
+    queryParams.append('skip', String(params.skip));
+  } else if (params.page && params.limit) {
     const skip = (params.page - 1) * params.limit;
     queryParams.append('skip', String(skip));
   }
   if (params.limit) queryParams.append('limit', String(params.limit));
-  if (params.search) queryParams.append('search', String(params.search));
   if (params.sortBy) queryParams.append('sortBy', String(params.sortBy));
   if (params.sortOrder) queryParams.append('sortOrder', String(params.sortOrder));
   queryParams.append(

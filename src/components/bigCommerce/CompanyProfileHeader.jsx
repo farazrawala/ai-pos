@@ -1,6 +1,8 @@
 import {
   FaBoxOpen,
   FaCalendarDays,
+  FaCircleCheck,
+  FaGear,
   FaLayerGroup,
   FaLocationDot,
   FaPhone,
@@ -18,7 +20,12 @@ import {
 const PLACEHOLDER_COVER =
   'linear-gradient(135deg, #0f766e 0%, #134e4a 42%, #1e3a5f 100%)';
 
-export default function CompanyProfileHeader({ company, loading }) {
+export default function CompanyProfileHeader({
+  company,
+  loading,
+  showSettings = false,
+  onOpenSettings,
+}) {
   if (loading && !company) {
     return (
       <section className="bc-profile bc-profile--skeleton" aria-hidden="true">
@@ -71,14 +78,20 @@ export default function CompanyProfileHeader({ company, loading }) {
         </div>
 
         <div className="bc-profile-main">
-          <div className="bc-profile-title-row">
-            <div>
+          <div className="bc-profile-top">
+            <div className="bc-profile-info">
               <div className="bc-company-heading">
                 <h1 className="bc-company-name">{profile.name || 'Company Marketplace'}</h1>
                 <span className="bc-verified-badge">
                   <FaStore aria-hidden="true" />
                   Seller
                 </span>
+                {showSettings ? (
+                  <span className="bc-connected-badge">
+                    <FaCircleCheck aria-hidden="true" />
+                    Connected
+                  </span>
+                ) : null}
               </div>
               {profile.description ? (
                 <p className="bc-company-tagline">{profile.description}</p>
@@ -88,74 +101,95 @@ export default function CompanyProfileHeader({ company, loading }) {
                 </p>
               )}
             </div>
-            {whatsappUrl ? (
-              <a
-                className="bc-btn bc-btn-whatsapp"
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`WhatsApp ${profile.phone}`}
-              >
-                <span className="bc-whatsapp-icon">
-                  <FaWhatsapp aria-hidden="true" />
-                </span>
-                <span className="bc-whatsapp-copy">
-                  <small>Available on WhatsApp</small>
-                  <strong>Chat with store</strong>
-                </span>
-              </a>
+
+            {whatsappUrl || showSettings ? (
+              <div className="bc-profile-actions">
+                {whatsappUrl ? (
+                  <a
+                    className="bc-btn bc-btn-whatsapp"
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`WhatsApp ${profile.phone}`}
+                  >
+                    <span className="bc-whatsapp-icon">
+                      <FaWhatsapp aria-hidden="true" />
+                    </span>
+                    <span className="bc-whatsapp-copy">
+                      <small>Available on WhatsApp</small>
+                      <strong>Chat with store</strong>
+                    </span>
+                  </a>
+                ) : null}
+                {showSettings ? (
+                  <button
+                    type="button"
+                    className="bc-btn bc-btn-settings"
+                    onClick={onOpenSettings}
+                    title="Manage product sync settings"
+                  >
+                    <span className="bc-settings-icon">
+                      <FaGear aria-hidden="true" />
+                    </span>
+                    <span className="bc-settings-copy">
+                      <small>Connected store</small>
+                      <strong>Product settings</strong>
+                    </span>
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
 
           <ul className="bc-profile-meta">
-            {profile.location ? (
+              {profile.location ? (
+                <li>
+                  <span className="bc-meta-icon"><FaLocationDot aria-hidden="true" /></span>
+                  <span>
+                    <span className="bc-meta-label">Location</span>
+                    <strong>{profile.location}</strong>
+                  </span>
+                </li>
+              ) : null}
+              {hasWhatsAppPhone ? (
+                <li>
+                  <span className="bc-meta-icon"><FaPhone aria-hidden="true" /></span>
+                  <span>
+                    <span className="bc-meta-label">Phone</span>
+                    <strong>{profile.phone}</strong>
+                  </span>
+                </li>
+              ) : null}
               <li>
-                <span className="bc-meta-icon"><FaLocationDot aria-hidden="true" /></span>
+                <span className="bc-meta-icon"><FaBoxOpen aria-hidden="true" /></span>
                 <span>
-                  <span className="bc-meta-label">Location</span>
-                  <strong>{profile.location}</strong>
+                  <span className="bc-meta-label">Products</span>
+                  <strong>{Number(profile.totalProducts || 0).toLocaleString()}</strong>
                 </span>
               </li>
-            ) : null}
-            {hasWhatsAppPhone ? (
               <li>
-                <span className="bc-meta-icon"><FaPhone aria-hidden="true" /></span>
+                <span className="bc-meta-icon"><FaLayerGroup aria-hidden="true" /></span>
                 <span>
-                  <span className="bc-meta-label">Phone</span>
-                  <strong>{profile.phone}</strong>
+                  <span className="bc-meta-label">Categories</span>
+                  <strong>{Number(profile.totalCategories || 0).toLocaleString()}</strong>
                 </span>
               </li>
-            ) : null}
-            <li>
-              <span className="bc-meta-icon"><FaBoxOpen aria-hidden="true" /></span>
-              <span>
-                <span className="bc-meta-label">Products</span>
-                <strong>{Number(profile.totalProducts || 0).toLocaleString()}</strong>
-              </span>
-            </li>
-            <li>
-              <span className="bc-meta-icon"><FaLayerGroup aria-hidden="true" /></span>
-              <span>
-                <span className="bc-meta-label">Categories</span>
-                <strong>{Number(profile.totalCategories || 0).toLocaleString()}</strong>
-              </span>
-            </li>
-            <li>
-              <span className="bc-meta-icon"><FaStar aria-hidden="true" /></span>
-              <span>
-                <span className="bc-meta-label">Rating</span>
-                <strong className="bc-stars" title={profile.rating ? `${profile.rating}/5` : 'No rating'}>
-                  {profile.rating != null ? renderStars(profile.rating) : 'Not rated'}
-                </strong>
-              </span>
-            </li>
-            <li>
-              <span className="bc-meta-icon"><FaCalendarDays aria-hidden="true" /></span>
-              <span>
-                <span className="bc-meta-label">Member since</span>
-                <strong>{formatJoinedDate(profile.joinedAt)}</strong>
-              </span>
-            </li>
+              <li>
+                <span className="bc-meta-icon"><FaStar aria-hidden="true" /></span>
+                <span>
+                  <span className="bc-meta-label">Rating</span>
+                  <strong className="bc-stars" title={profile.rating ? `${profile.rating}/5` : 'No rating'}>
+                    {profile.rating != null ? renderStars(profile.rating) : 'Not rated'}
+                  </strong>
+                </span>
+              </li>
+              <li>
+                <span className="bc-meta-icon"><FaCalendarDays aria-hidden="true" /></span>
+                <span>
+                  <span className="bc-meta-label">Member since</span>
+                  <strong>{formatJoinedDate(profile.joinedAt)}</strong>
+                </span>
+              </li>
           </ul>
         </div>
       </div>
