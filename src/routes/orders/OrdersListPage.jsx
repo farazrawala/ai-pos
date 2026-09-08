@@ -604,8 +604,10 @@ const statusBadgeClass = (status) => {
   ) {
     return 'bg-gradient-success';
   }
+  if (s === 'pending' || s === 'pay pending' || s === 'pay_pending') {
+    return 'bg-gradient-pending';
+  }
   if (
-    s === 'pending' ||
     s === 'draft' ||
     s === 'placed' ||
     s === 'processing' ||

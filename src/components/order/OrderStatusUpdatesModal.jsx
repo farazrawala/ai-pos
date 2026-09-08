@@ -36,15 +36,16 @@ const statusBadgeClass = (status) => {
   ) {
     return 'bg-gradient-success';
   }
+  if (['pending', 'pay pending'].includes(s)) {
+    return 'bg-gradient-pending';
+  }
   if (
     [
-      'pending',
       'draft',
       'placed',
       'processing',
       'on hold',
       'on-hold',
-      'pay pending',
       'checkout-draft',
       'auto-draft',
     ].includes(s)

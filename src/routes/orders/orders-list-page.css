@@ -295,3 +295,11 @@
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+/* Pending stands out from orange PLACED and red CANCELLED */
+.badge.bg-gradient-pending,
+button.badge.bg-gradient-pending {
+  background-image: linear-gradient(310deg, #ffc400 0%, #ffe600 100%) !important;
+  background-color: #ffd000 !important;
+  color: #111827 !important;
+}
+
