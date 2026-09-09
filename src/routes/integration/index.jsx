@@ -11,9 +11,13 @@ import {
   setSort,
   clearDeleteStatus,
 } from '../../features/integration/integrationSlice.js';
-import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
+import {
+  pickIntegrationStoreLogoUrl,
+  generateIntegrationTokensCronRequest,
+} from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
+import { toast } from '../../utils/toast.js';
 import ListDataTable from '../../components/list/ListDataTable.jsx';
 import ListSortableTh from '../../components/list/ListSortableTh.jsx';
 import ColumnVisibilityMenu from '../../components/list/ColumnVisibilityMenu.jsx';
@@ -34,9 +38,94 @@ const INTEGRATION_COLUMNS = [
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
   { key: 'url', label: 'URL' },
-  { key: 'createdAt', label: 'Created At' },
+  { key: 'token', label: 'Expiry' },
+  { key: 'dates', label: 'Created / Updated' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
+
+function integrationTimestamp(item, key) {
+  if (!item || typeof item !== 'object') return null;
+  if (key === 'updatedAt') return item.updatedAt ?? item.updated_at ?? null;
+  return item.createdAt ?? item.created_at ?? null;
+}
+
+function unwrapIntegrationDate(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') {
+    if (value.$date != null) return unwrapIntegrationDate(value.$date);
+    if (value.$numberLong != null) return unwrapIntegrationDate(value.$numberLong);
+    if (typeof value.toISOString === 'function') return value.toISOString();
+  }
+  return value;
+}
+
+function integrationTokenExpiry(item) {
+  if (!item || typeof item !== 'object') return null;
+  return unwrapIntegrationDate(
+    item.token_expiry ??
+      item.tokenExpiry ??
+      item.token_expires_at ??
+      item.expires_at ??
+      null
+  );
+}
+
+function parseIntegrationMoment(value) {
+  const raw = unwrapIntegrationDate(value);
+  if (raw == null || raw === '') return null;
+  const asString = String(raw).trim();
+  if (/^\d{10,13}$/.test(asString)) {
+    const n = Number(asString);
+    const ms = asString.length >= 13 ? n : n * 1000;
+    const unix = moment(ms);
+    return unix.isValid() ? unix : null;
+  }
+  const m = moment(raw);
+  return m.isValid() ? m : null;
+}
+
+function formatIntegrationTimestamp(value) {
+  const when = parseIntegrationMoment(value);
+  return when ? when.format('MM-DD-YYYY h:mm a') : '';
+}
+
+function formatIntegrationRelative(value) {
+  const when = parseIntegrationMoment(value);
+  if (!when) return '';
+  const seconds = Math.max(0, moment().diff(when, 'seconds'));
+  if (seconds < 60) return `${Math.max(1, seconds)} sec ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes === 1 ? '1 min ago' : `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days === 1 ? '1 day ago' : `${days} days ago`;
+  return when.fromNow();
+}
+
+/** Remaining time until expiry, e.g. `3 hr 2 min`. */
+function formatIntegrationExpiryRemaining(value) {
+  const when = parseIntegrationMoment(value);
+  if (!when) return '';
+  const remainingMs = when.diff(moment());
+  if (remainingMs <= 0) return 'Expired';
+
+  const duration = moment.duration(remainingMs);
+  const days = Math.floor(duration.asDays());
+  const hours = duration.hours();
+  const mins = duration.minutes();
+  const secs = duration.seconds();
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0) parts.push(`${hours} hr`);
+  if (mins > 0) parts.push(`${mins} min`);
+  if (parts.length === 0) parts.push(`${Math.max(1, secs)} sec`);
+  return parts.join(' ');
+}
+
+function isShopifyStoreType(item) {
+  return String(item?.store_type || item?.storeType || '').toLowerCase() === 'shopify';
+}
 
 const Integration = () => {
   const dispatch = useDispatch();
@@ -55,6 +144,7 @@ const Integration = () => {
   useRequireModuleAccess('integration');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [refreshingTokens, setRefreshingTokens] = useState(false);
   const searchTimeoutRef = useRef(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
@@ -115,6 +205,29 @@ const Integration = () => {
   const handleDelete = async (integrationId, integrationName) => {
     if (window.confirm(`Delete "${integrationName || 'this integration'}"?`)) {
       await dispatch(deleteIntegration(integrationId));
+    }
+  };
+
+  const handleRefreshToken = async () => {
+    if (refreshingTokens) return;
+    setRefreshingTokens(true);
+    try {
+      const result = await generateIntegrationTokensCronRequest();
+      const message =
+        (result && typeof result === 'object' && (result.message || result.msg)) ||
+        'Shopify token refreshed.';
+      toast.success(typeof message === 'string' ? message : 'Shopify token refreshed.');
+      const params = { page: pagination.page, limit: pagination.limit };
+      if (searchTerm) params.search = searchTerm;
+      if (sort.sortBy) {
+        params.sortBy = sort.sortBy;
+        params.sortOrder = sort.sortOrder;
+      }
+      dispatch(fetchIntegrations(params));
+    } catch (err) {
+      toast.error(err?.message || 'Failed to refresh Shopify token.');
+    } finally {
+      setRefreshingTokens(false);
     }
   };
 
@@ -192,7 +305,8 @@ const Integration = () => {
                       {isVisible('email') ? <th>Email</th> : null}
                       {isVisible('phone') ? <th>Phone</th> : null}
                       {isVisible('url') ? <th>URL</th> : null}
-                      {isVisible('createdAt') ? sortableTh('createdAt', 'Created At') : null}
+                      {isVisible('token') ? sortableTh('token_expiry', 'Expiry') : null}
+                      {isVisible('dates') ? sortableTh('createdAt', 'Created / Updated') : null}
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -209,6 +323,16 @@ const Integration = () => {
                         const seriesNumber = (pagination.page - 1) * pagination.limit + index + 1;
                         const logoSrc = pickIntegrationStoreLogoUrl(item);
                         const displayName = integrationNameFromRecord(item);
+                        const created = integrationTimestamp(item, 'createdAt');
+                        const updated = integrationTimestamp(item, 'updatedAt');
+                        const createdLabel = formatIntegrationTimestamp(created);
+                        const updatedAbsolute = formatIntegrationTimestamp(updated);
+                        const updatedLabel = formatIntegrationRelative(updated);
+                        const tokenExpiryAt = integrationTokenExpiry(item);
+                        const tokenExpiryAbsolute = formatIntegrationTimestamp(tokenExpiryAt);
+                        const tokenExpiryLabel = formatIntegrationExpiryRemaining(tokenExpiryAt);
+                        const tokenExpired = tokenExpiryLabel === 'Expired';
+                        const showRefreshUnderExpiry = tokenExpired && isShopifyStoreType(item);
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
@@ -246,11 +370,47 @@ const Integration = () => {
                                 )}
                               </td>
                             ) : null}
-                            {isVisible('createdAt') ? (
-                              <td>
-                                {item.createdAt
-                                  ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                  : '-'}
+                            {isVisible('token') ? (
+                              <td className="text-sm list-col-date" title={tokenExpiryAbsolute || undefined}>
+                                {tokenExpiryLabel ? (
+                                  <div className="d-flex flex-column align-items-start gap-1">
+                                    <span className="text-nowrap">{tokenExpiryLabel}</span>
+                                    {showRefreshUnderExpiry ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-info mb-0"
+                                        onClick={handleRefreshToken}
+                                        disabled={refreshingTokens}
+                                      >
+                                        {refreshingTokens ? 'Refreshing…' : 'Refresh Token'}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  '-'
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('dates') ? (
+                              <td className="text-sm list-col-date">
+                                {createdLabel || updatedLabel ? (
+                                  <div className="oms-dates-cell">
+                                    <div
+                                      className="oms-dates-cell__created text-nowrap"
+                                      title={createdLabel || undefined}
+                                    >
+                                      {createdLabel || '—'}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__updated text-nowrap"
+                                      title={updatedAbsolute || undefined}
+                                    >
+                                      {updatedLabel ? `Updated ${updatedLabel}` : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '-'
+                                )}
                               </td>
                             ) : null}
                             <td>

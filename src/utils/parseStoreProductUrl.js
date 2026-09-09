@@ -25,6 +25,21 @@ export const normalizeStoreUrl = (raw) => {
  * e.g. admin.shopify.com/store/my-shop/... → my-shop
  *      my-shop.myshopify.com → my-shop
  */
+const pickStoreUrl = (integrationOrUrl) => {
+  if (integrationOrUrl && typeof integrationOrUrl === 'object') {
+    return (
+      integrationOrUrl.url ||
+      integrationOrUrl.store_url ||
+      integrationOrUrl.storeUrl ||
+      integrationOrUrl.website ||
+      integrationOrUrl.Website ||
+      integrationOrUrl.URL ||
+      ''
+    );
+  }
+  return integrationOrUrl;
+};
+
 export const extractShopifyStoreHandle = (rawUrl) => {
   const value = String(rawUrl || '').trim();
   if (!value) return '';
@@ -52,6 +67,52 @@ export const extractShopifyStoreHandle = (rawUrl) => {
   if (myshopifyMatch?.[1]) return myshopifyMatch[1].toLowerCase();
 
   return '';
+};
+
+/** Parent + variant ids from sync `refference_id` (`123`, `123:456`, or Shopify GID). */
+export const pickShopifyProductIds = (referenceId) => {
+  const raw = String(referenceId || '').trim();
+  if (!raw) return { productId: '', variantId: '' };
+
+  const gidProduct = raw.match(/gid:\/\/shopify\/Product\/(\d+)/i);
+  const gidVariant = raw.match(/gid:\/\/shopify\/ProductVariant\/(\d+)/i);
+  if (gidProduct?.[1]) {
+    return { productId: gidProduct[1], variantId: gidVariant?.[1] || '' };
+  }
+
+  if (/^\d+:\d+$/.test(raw)) {
+    const [productId, variantId] = raw.split(':');
+    return { productId, variantId };
+  }
+
+  if (/^\d+$/.test(raw)) {
+    return { productId: raw, variantId: '' };
+  }
+
+  return { productId: '', variantId: '' };
+};
+
+/**
+ * Shopify admin product edit URL for the exact connected store.
+ * Prefers admin.shopify.com/store/{handle}/products/{id}.
+ */
+export const buildShopifyProductAdminUrl = (integrationOrUrl, referenceId) => {
+  if (integrationOrUrl && typeof integrationOrUrl === 'object') {
+    const storeType = String(
+      integrationOrUrl.store_type || integrationOrUrl.storeType || ''
+    ).toLowerCase();
+    if (storeType && storeType !== 'shopify') return '';
+  }
+
+  const { productId, variantId } = pickShopifyProductIds(referenceId);
+  if (!productId) return '';
+
+  const storeUrl = pickStoreUrl(integrationOrUrl);
+  const handle = extractShopifyStoreHandle(storeUrl);
+  if (!handle) return '';
+
+  const variantPath = variantId ? `/variants/${encodeURIComponent(variantId)}` : '';
+  return `https://admin.shopify.com/store/${encodeURIComponent(handle)}/products/${encodeURIComponent(productId)}${variantPath}`;
 };
 
 /**

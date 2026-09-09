@@ -107,9 +107,7 @@ const PROCESS_COLUMNS = [
   { key: 'progress', label: 'Progress' },
   { key: 'remarks', label: 'Remarks' },
   { key: 'status', label: 'Status' },
-  { key: 'createdAt', label: 'Created At' },
-  { key: 'updatedAt', label: 'Updated At' },
-  { key: 'duration', label: 'Duration' },
+  { key: 'dates', label: 'Created / Updated' },
   { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
@@ -819,9 +817,7 @@ const ProcessIndex = () => {
                       {isVisible('progress') ? sortableTh('progress', 'Progress') : null}
                       {isVisible('remarks') ? <th className="list-col-remarks">Remarks</th> : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
-                      {isVisible('createdAt') ? sortableTh('createdAt', 'Created At') : null}
-                      {isVisible('updatedAt') ? sortableTh('updatedAt', 'Updated At') : null}
-                      {isVisible('duration') ? <th>Duration</th> : null}
+                      {isVisible('dates') ? sortableTh('createdAt', 'Created / Updated', 'list-col-date') : null}
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -911,25 +907,42 @@ const ProcessIndex = () => {
                                 </span>
                               </td>
                             ) : null}
-                            {isVisible('createdAt') ? (
-                              <td>{formatProcessTimestamp(createdAt)}</td>
-                            ) : null}
-                            {isVisible('updatedAt') ? (
-                              <td
-                                title={
-                                  updatedAt && moment(updatedAt).isValid()
-                                    ? formatProcessTimestamp(updatedAt)
-                                    : undefined
-                                }
-                              >
-                                {updatedAt && moment(updatedAt).isValid()
-                                  ? moment(updatedAt).fromNow()
-                                  : '-'}
-                              </td>
-                            ) : null}
-                            {isVisible('duration') ? (
-                              <td title={duration !== '-' ? 'Updated − created' : undefined}>
-                                {duration}
+                            {isVisible('dates') ? (
+                              <td className="text-sm list-col-date">
+                                {createdAt || updatedAt ? (
+                                  <div className="oms-dates-cell">
+                                    <div
+                                      className="oms-dates-cell__created text-nowrap"
+                                      title={
+                                        createdAt && moment(createdAt).isValid()
+                                          ? formatProcessTimestamp(createdAt)
+                                          : undefined
+                                      }
+                                    >
+                                      {formatProcessTimestamp(createdAt)}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__updated text-nowrap"
+                                      title={
+                                        updatedAt && moment(updatedAt).isValid()
+                                          ? formatProcessTimestamp(updatedAt)
+                                          : undefined
+                                      }
+                                    >
+                                      {updatedAt && moment(updatedAt).isValid()
+                                        ? `Updated ${moment(updatedAt).fromNow()}`
+                                        : '—'}
+                                    </div>
+                                    <div
+                                      className="oms-dates-cell__duration text-nowrap"
+                                      title={duration !== '-' ? 'Updated − created' : undefined}
+                                    >
+                                      {duration !== '-' ? `Duration ${duration}` : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
                               </td>
                             ) : null}
                             <td>

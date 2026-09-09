@@ -563,6 +563,11 @@ body {
   color: #8392ab;
 }
 
+.oms-dates-cell__duration {
+  font-size: 0.72rem;
+  color: #67748e;
+}
+
 .oms-actors-cell {
   display: flex;
   flex-direction: column;
@@ -723,11 +728,20 @@ body {
   flex-shrink: 0;
 }
 
-.list-integration-badge--btn {
+.list-integration-badge--btn,
+.list-integration-badge--link {
   border: 0;
   background: transparent;
   padding: 0;
   line-height: 1;
+}
+
+.list-integration-badge--link {
+  cursor: pointer;
+}
+
+.list-integration-badge--link:hover .list-integration-logo {
+  border-color: rgba(91, 141, 239, 0.55);
 }
 
 .list-integration-logo {

@@ -4,6 +4,7 @@ import {
   storeTypeLabel,
 } from '../../routes/integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
+import { buildShopifyProductAdminUrl } from '../../utils/parseStoreProductUrl.js';
 
 const integrationIdFromRecord = (item) =>
   String(item?._id || item?.id || item?.integration_id || '').trim();
@@ -47,10 +48,40 @@ const integrationTitle = (integration) => {
   return storeType ? `${name} (${storeTypeLabel(storeType)})` : name;
 };
 
-function IntegrationBadge({ integration, onClick }) {
+const pickSyncReferenceId = (item) => {
+  const raw =
+    item?.refference_id ??
+    item?.reference_id ??
+    item?.referenceId ??
+    item?.reffrence_id ??
+    item?.external_id ??
+    item?.externalId ??
+    item?.remote_id ??
+    item?.remoteId ??
+    '';
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object') {
+    const productId = raw.product_id ?? raw.productId ?? raw.id ?? raw._id ?? '';
+    const variantId = raw.variant_id ?? raw.variantId ?? '';
+    const product = String(productId || raw.reference_id || raw.refference_id || '').trim();
+    const variant = String(variantId || '').trim();
+    if (product && variant) return `${product}:${variant}`;
+    return product;
+  }
+  return String(raw).trim();
+};
+
+const isShopifyStoreType = (integration) =>
+  String(integration?.store_type || integration?.storeType || '').toLowerCase() === 'shopify';
+
+function IntegrationBadge({ integration, onClick, href, title: titleOverride }) {
   const [logoFailed, setLogoFailed] = useState(false);
   const logoUrl = pickIntegrationStoreLogoUrl(integration);
-  const title = integrationTitle(integration);
+  const title =
+    titleOverride ||
+    (href
+      ? `Open product in Shopify — ${integrationTitle(integration)}`
+      : integrationTitle(integration));
   const name = integrationNameFromRecord(integration);
   const shortName = name.length > 10 ? `${name.slice(0, 9)}…` : name;
 
@@ -67,6 +98,22 @@ function IntegrationBadge({ integration, onClick }) {
         {shortName}
       </span>
     );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="list-integration-badge list-integration-badge--link"
+        title={title}
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {content}
+      </a>
+    );
+  }
 
   if (typeof onClick === 'function') {
     return (
@@ -124,7 +171,10 @@ export default function ProductIntegrationsCell({
     const key = id || integrationTitle(integration);
     if (seen.has(key)) continue;
     seen.add(key);
-    linkedIntegrations.push(integration || { name: 'Integration', _id: key });
+    linkedIntegrations.push({
+      integration: integration || { name: 'Integration', _id: key },
+      syncRow: row,
+    });
   }
 
   const total = Number(totalIntegrations) || 0;
@@ -152,12 +202,21 @@ export default function ProductIntegrationsCell({
       tabIndex={typeof onClick === 'function' ? 0 : undefined}
     >
       <div className="list-integrations-cell__badges">
-        {linkedIntegrations.map((integration) => {
+        {linkedIntegrations.map(({ integration, syncRow }) => {
           const id = integrationIdFromRecord(integration) || integrationTitle(integration);
+          const referenceId = pickSyncReferenceId(syncRow);
+          const shopifyHref = isShopifyStoreType(integration)
+            ? buildShopifyProductAdminUrl(integration, referenceId)
+            : '';
+          const shopifyTitle = shopifyHref
+            ? `Open in Shopify — ${integrationTitle(integration)} (ID ${referenceId})`
+            : undefined;
           return (
             <IntegrationBadge
               key={id}
               integration={integration}
+              href={shopifyHref || undefined}
+              title={shopifyTitle}
               onClick={
                 typeof onClick === 'function'
                   ? (e) => {

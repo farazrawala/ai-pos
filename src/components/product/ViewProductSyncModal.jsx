@@ -1,20 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import moment from 'moment';
 import AppModal from '../AppModal.jsx';
+import DevApiSourcesFooter from '../common/DevApiSourcesFooter.jsx';
+import { buildApiUrl } from '../../config/apiConfig.js';
+import { DEBUG } from '../../config/env.js';
 import {
   fetchIntegrationByIdRequest,
   fetchIntegrationsRequest,
   fetchStoreProductVariationsRequest,
+  pickIntegrationStoreLogoUrl,
 } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncProductProcessRequest } from '../../features/process/processAPI.js';
 import {
   createSyncProductRequest,
+  deleteSyncProductRequest,
   fetchSyncProductsRequest,
   updateSyncProductRequest,
 } from '../../features/syncProduct/syncProductAPI.js';
-import { parseStoreProductLink } from '../../utils/parseStoreProductUrl.js';
+import { parseStoreProductLink, buildShopifyProductAdminUrl, pickShopifyProductIds } from '../../utils/parseStoreProductUrl.js';
 import { toast } from '../../utils/toast.js';
+import '../common/devApiSources.css';
 import './view-product-sync-modal.css';
+
+const mapLoadStatus = (status) => {
+  if (status === 'loading' || status === true) return 'loading';
+  if (status === 'failed') return 'error';
+  if (status === 'succeeded' || status === false) return 'success';
+  return 'pending';
+};
 
 const integrationIdFromRecord = (item) =>
   item?._id || item?.id || item?.integration_id || '';
@@ -43,6 +56,54 @@ const integrationLabel = (integration) => {
 const syncIdFromRecord = (item) => item?._id || item?.id || '';
 
 const isSyncActive = (item) => String(item?.status || '').toLowerCase() === 'active';
+
+const pickSyncedAt = (item) =>
+  item?.last_synced_at ||
+  item?.lastSyncedAt ||
+  item?.synced_at ||
+  item?.syncedAt ||
+  item?.updatedAt ||
+  item?.updated_at ||
+  item?.createdAt ||
+  item?.created_at ||
+  '';
+
+function ConnectedStoreLogo({ integration, href, title }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoUrl = pickIntegrationStoreLogoUrl(integration);
+
+  if (!logoUrl || logoFailed) return null;
+
+  const img = (
+    <img
+      src={logoUrl}
+      alt=""
+      className="ps-store-logo"
+      onError={() => setLogoFailed(true)}
+    />
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ps-store-logo-link"
+        title={title}
+        aria-label={title}
+      >
+        {img}
+      </a>
+    );
+  }
+
+  return (
+    <span className="ps-store-logo-wrap" title={title}>
+      {img}
+    </span>
+  );
+}
 
 const pickSyncReferenceId = (item) => {
   const raw =
@@ -174,6 +235,10 @@ export default function ViewProductSyncModal({
   const [syncPriceDrafts, setSyncPriceDrafts] = useState({});
   const [savingSyncPriceId, setSavingSyncPriceId] = useState(null);
   const [syncPriceError, setSyncPriceError] = useState(null);
+  const [unlinkingSyncId, setUnlinkingSyncId] = useState(null);
+  const [unlinkError, setUnlinkError] = useState(null);
+  const [syncingNowId, setSyncingNowId] = useState(null);
+  const [syncNowError, setSyncNowError] = useState(null);
 
   const [integrations, setIntegrations] = useState([]);
   const [integrationsStatus, setIntegrationsStatus] = useState('idle');
@@ -209,8 +274,12 @@ export default function ViewProductSyncModal({
     setError(null);
     setToggleError(null);
     setSyncPriceError(null);
+    setUnlinkError(null);
+    setSyncNowError(null);
     setSyncPriceDrafts({});
     setSavingSyncPriceId(null);
+    setUnlinkingSyncId(null);
+    setSyncingNowId(null);
 
     fetchSyncProductsRequest({
       product_id: productId,
@@ -295,7 +364,7 @@ export default function ViewProductSyncModal({
       if (!integrationId) return;
       if (hydratedIntegrationIdsRef.current.has(integrationId)) return;
       const resolved = resolveSyncIntegration(item, integrations);
-      if (pickIntegrationStoreUrl(resolved)) return;
+      if (pickIntegrationStoreUrl(resolved) && pickIntegrationStoreLogoUrl(resolved)) return;
       missingIds.push(integrationId);
     });
 
@@ -615,6 +684,95 @@ export default function ViewProductSyncModal({
     }
   };
 
+  const handleUnlinkStore = async (item) => {
+    const syncId = syncIdFromRecord(item);
+    if (!syncId) return;
+
+    const storeLabel = integrationLabel(item.integration_id);
+    const confirmed = window.confirm(
+      `Unlink this product from "${storeLabel}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setUnlinkingSyncId(syncId);
+    setUnlinkError(null);
+
+    try {
+      await deleteSyncProductRequest(syncId);
+      setList((prev) => prev.filter((row) => syncIdFromRecord(row) !== syncId));
+      toast.success(`Unlinked from ${storeLabel}.`);
+    } catch (err) {
+      setUnlinkError(err?.message || 'Failed to unlink store');
+      console.error('[Sync product module] Failed to unlink store product', {
+        syncId,
+        error: err,
+      });
+    } finally {
+      setUnlinkingSyncId(null);
+    }
+  };
+
+  const handleSyncNow = async (item) => {
+    const syncId = syncIdFromRecord(item);
+    const integrationId = resolveSyncIntegrationId(item);
+    const busyId = syncId || integrationId;
+    if (!productId) {
+      setSyncNowError('Product id is missing.');
+      return;
+    }
+    if (!integrationId) {
+      setSyncNowError('Integration id is missing for this store.');
+      return;
+    }
+
+    setSyncingNowId(busyId);
+    setSyncNowError(null);
+
+    try {
+      await createBulkSyncProductProcessRequest(integrationId, [productId]);
+      const syncedAt = new Date().toISOString();
+      if (syncId) {
+        setList((prev) =>
+          prev.map((row) =>
+            syncIdFromRecord(row) === syncId
+              ? { ...row, last_synced_at: syncedAt, updatedAt: syncedAt }
+              : row
+          )
+        );
+        try {
+          await updateSyncProductRequest(syncId, { last_synced_at: syncedAt });
+        } catch (stampErr) {
+          console.warn('[Sync product module] Failed to stamp last_synced_at', {
+            syncId,
+            error: stampErr,
+          });
+          const currentStatus = String(item?.status || '').trim();
+          if (currentStatus) {
+            try {
+              await updateSyncProductRequest(syncId, { status: currentStatus });
+            } catch (statusErr) {
+              console.warn('[Sync product module] Failed to bump sync timestamp', {
+                syncId,
+                error: statusErr,
+              });
+            }
+          }
+        }
+      }
+      toast.success(`Sync queued for ${integrationLabel(item.integration_id)}.`);
+    } catch (err) {
+      setSyncNowError(err?.message || 'Failed to queue product sync');
+      console.error('[Sync product module] Failed to queue row sync now', {
+        productId,
+        integrationId,
+        syncId,
+        error: err,
+      });
+    } finally {
+      setSyncingNowId(null);
+    }
+  };
+
   const title = productName ? decodeHtml(productName) : 'Product';
   const submitDisabled =
     linkStatus === 'loading' ||
@@ -623,8 +781,128 @@ export default function ViewProductSyncModal({
     !productId ||
     (storeVariations.length > 1 && !selectedStoreVariationId);
 
+  const storeVariationRemoteId = pendingParentRemoteId || parsedLink.productId || '';
+  const apiSources = useMemo(() => {
+    if (!DEBUG) return [];
+
+    const syncListQuery = new URLSearchParams();
+    if (productId) syncListQuery.set('product_id', String(productId));
+    syncListQuery.set('populate', 'product_id,integration_id');
+
+    const storeVariationsUrl =
+      parsedLink.integrationId && storeVariationRemoteId
+        ? buildApiUrl(
+            `integration/store-product-variations/${encodeURIComponent(parsedLink.integrationId)}/${encodeURIComponent(storeVariationRemoteId)}`
+          )
+        : buildApiUrl('integration/store-product-variations/:integrationId/:remoteProductId');
+
+    const updateBusy = Boolean(togglingSyncId || savingSyncPriceId);
+    const unlinkBusy = Boolean(unlinkingSyncId);
+
+    return [
+      {
+        key: 'sync-products',
+        label: 'Sync records',
+        url: buildApiUrl(`sync_product/get-all?${syncListQuery.toString()}`),
+        status: mapLoadStatus(loadStatus),
+        durationMs: null,
+        error: loadStatus === 'failed' ? error : null,
+      },
+      {
+        key: 'integrations',
+        label: 'Active integrations',
+        url: buildApiUrl('integration/get-all-active'),
+        status: mapLoadStatus(integrationsStatus),
+        durationMs: null,
+        error: integrationsStatus === 'failed' ? integrationsError : null,
+      },
+      {
+        key: 'integration-by-id',
+        label: 'Integration by id (store URL)',
+        url: buildApiUrl('integration/get/:id'),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
+        key: 'sync-process',
+        label: 'Queue product sync (POST)',
+        url: buildApiUrl('process/bulk-create'),
+        status: syncingNowId
+          ? 'loading'
+          : mapLoadStatus(syncStatus) !== 'pending'
+            ? mapLoadStatus(syncStatus)
+            : syncNowError
+              ? 'error'
+              : 'pending',
+        durationMs: null,
+        error: syncNowError || (syncStatus === 'failed' ? syncError : null),
+      },
+      {
+        key: 'link-product',
+        label: 'Link store product (POST)',
+        url: buildApiUrl('sync_product/create'),
+        status: mapLoadStatus(linkStatus),
+        durationMs: null,
+        error: linkStatus === 'failed' ? linkError : null,
+      },
+      {
+        key: 'store-variations',
+        label: 'Store product variations',
+        url: storeVariationsUrl,
+        status: mapLoadStatus(storeVariationsStatus),
+        durationMs: null,
+        error: storeVariationsStatus === 'failed' ? linkError : null,
+      },
+      {
+        key: 'update-sync',
+        label: 'Update sync (status / price)',
+        url: buildApiUrl('sync_product/update/:id'),
+        status: updateBusy ? 'loading' : toggleError || syncPriceError ? 'error' : 'pending',
+        durationMs: null,
+        error: toggleError || syncPriceError || null,
+      },
+      {
+        key: 'unlink-product',
+        label: 'Unlink store product (DELETE)',
+        url: unlinkingSyncId
+          ? buildApiUrl(`sync_product/delete/${encodeURIComponent(unlinkingSyncId)}`)
+          : buildApiUrl('sync_product/delete/:id'),
+        status: unlinkBusy ? 'loading' : unlinkError ? 'error' : 'pending',
+        durationMs: null,
+        error: unlinkError,
+      },
+    ];
+  }, [
+    productId,
+    loadStatus,
+    error,
+    integrationsStatus,
+    integrationsError,
+    syncStatus,
+    syncError,
+    linkStatus,
+    linkError,
+    storeVariationsStatus,
+    parsedLink.integrationId,
+    storeVariationRemoteId,
+    togglingSyncId,
+    savingSyncPriceId,
+    toggleError,
+    syncPriceError,
+    unlinkingSyncId,
+    unlinkError,
+    syncingNowId,
+    syncNowError,
+  ]);
+
   const footer = (
     <>
+      <DevApiSourcesFooter
+        sources={apiSources}
+        title="API request URLs"
+        className="ps-modal-api-sources"
+      />
       <span className="ps-footer-note d-none d-sm-inline">
         {loadStatus === 'succeeded' && list.length > 0
           ? `${list.length} connected store${list.length === 1 ? '' : 's'}`
@@ -893,7 +1171,8 @@ export default function ViewProductSyncModal({
             <div>
               <h6 className="ps-step-title">Connected integrations</h6>
               <p className="ps-step-hint">
-                Review sync price, status, and when each store was last linked.
+                Review sync price, status, and when each store was last linked. Sync now to push
+                this product again, or unlink to remove the mapping.
               </p>
             </div>
           </div>
@@ -903,6 +1182,12 @@ export default function ViewProductSyncModal({
             ) : null}
             {syncPriceError ? (
               <div className="alert alert-danger py-2 mb-3">{syncPriceError}</div>
+            ) : null}
+            {unlinkError ? (
+              <div className="alert alert-danger py-2 mb-3">{unlinkError}</div>
+            ) : null}
+            {syncNowError ? (
+              <div className="alert alert-danger py-2 mb-3">{syncNowError}</div>
             ) : null}
 
             {loadStatus === 'loading' && (
@@ -937,6 +1222,7 @@ export default function ViewProductSyncModal({
                     {list.map((item, index) => {
                       const rowId = syncIdFromRecord(item);
                       const active = isSyncActive(item);
+                      const syncedAt = pickSyncedAt(item);
                       const priceValue =
                         syncPriceDrafts[rowId] !== undefined
                           ? syncPriceDrafts[rowId]
@@ -948,25 +1234,76 @@ export default function ViewProductSyncModal({
                         referenceId
                       );
                       const wooProductId = pickWooCommerceProductId(referenceId);
+                      const shopifyAdminUrl = buildShopifyProductAdminUrl(integration, referenceId);
+                      const shopifyProductId = pickShopifyProductIds(referenceId).productId;
+                      const storeAdminUrl = shopifyAdminUrl || wpAdminUrl || '';
+                      const storeLogoTitle = shopifyAdminUrl
+                        ? `Open in Shopify (product ${shopifyProductId})`
+                        : wpAdminUrl
+                          ? `Open in WordPress (post ${wooProductId})`
+                          : integrationLabel(integration || item.integration_id);
                       return (
                         <tr key={rowId || index}>
                           <td>
                             <div className="ps-integration-cell">
-                              <span className="ps-integration-name">
-                                {integrationLabel(item.integration_id)}
-                              </span>
-                              {wpAdminUrl ? (
-                                <a
-                                  href={wpAdminUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="ps-wp-link"
-                                  title={`Open in WordPress (post ${wooProductId})`}
-                                  aria-label="Open in WordPress"
-                                >
-                                  WP
-                                </a>
-                              ) : null}
+                              <div className="ps-integration-row">
+                                <ConnectedStoreLogo
+                                  integration={integration}
+                                  href={storeAdminUrl || undefined}
+                                  title={storeLogoTitle}
+                                />
+                                <span className="ps-integration-name">
+                                  {integrationLabel(integration || item.integration_id)}
+                                </span>
+                                {wpAdminUrl ? (
+                                  <a
+                                    href={wpAdminUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ps-wp-link"
+                                    title={`Open in WordPress (post ${wooProductId})`}
+                                    aria-label="Open in WordPress"
+                                  >
+                                    WP
+                                  </a>
+                                ) : null}
+                                {shopifyAdminUrl ? (
+                                  <a
+                                    href={shopifyAdminUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ps-wp-link"
+                                    title={`Open in Shopify (product ${shopifyProductId})`}
+                                    aria-label="Open in Shopify"
+                                  >
+                                    Shopify
+                                  </a>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                className="ps-unlink-btn"
+                                onClick={() => handleUnlinkStore(item)}
+                                disabled={!rowId || unlinkingSyncId === rowId}
+                                title="Unlink this product from this store"
+                                aria-label={`Unlink from ${integrationLabel(item.integration_id)}`}
+                              >
+                                {unlinkingSyncId === rowId ? (
+                                  <>
+                                    <span
+                                      className="spinner-border spinner-border-sm"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
+                                    Unlinking…
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-unlink" aria-hidden="true" />
+                                    Unlink
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </td>
                           <td className="text-center" style={{ minWidth: '7.5rem' }}>
@@ -1031,15 +1368,48 @@ export default function ViewProductSyncModal({
                               </span>
                             </div>
                           </td>
-                          <td
-                            className="text-end ps-synced-at"
-                            title={
-                              item.createdAt
-                                ? moment(item.createdAt).format('MM-DD-YYYY h:mm a')
-                                : undefined
-                            }
-                          >
-                            {item.createdAt ? moment(item.createdAt).fromNow() : '—'}
+                          <td className="text-end">
+                            <div className="ps-synced-at-cell">
+                              <span
+                                className="ps-synced-at"
+                                title={
+                                  syncedAt
+                                    ? moment(syncedAt).format('MM-DD-YYYY h:mm a')
+                                    : undefined
+                                }
+                              >
+                                {syncedAt ? moment(syncedAt).fromNow() : '—'}
+                              </span>
+                              <button
+                                type="button"
+                                className="ps-sync-now-btn"
+                                onClick={() => handleSyncNow(item)}
+                                disabled={
+                                  !productId ||
+                                  !resolveSyncIntegrationId(item) ||
+                                  syncingNowId === rowId ||
+                                  unlinkingSyncId === rowId
+                                }
+                                title="Queue a sync for this store now"
+                                aria-label={`Sync now to ${integrationLabel(item.integration_id)}`}
+                              >
+                                {syncingNowId === rowId ? (
+                                  <>
+                                    <span
+                                      className="spinner-border spinner-border-sm"
+                                      role="status"
+                                      aria-hidden="true"
+                                    />
+                                    Syncing…
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-sync-alt" aria-hidden="true" />
+                                    Sync now
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

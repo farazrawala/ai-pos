@@ -789,12 +789,17 @@
   object-fit: contain;
   padding: 1.15rem;
   background: #fff;
+  filter: blur(3px);
+  opacity: 0.82;
+  transform: scale(1.04);
 }
 
 .bc-detail-hero .bc-card-img--logo {
   object-fit: contain;
   padding: 2rem;
   background: #fff;
+  filter: blur(3px);
+  opacity: 0.82;
 }
 
 .bc-detail-hero .bc-card-img--empty {

@@ -194,3 +194,47 @@ export const updateSyncProductRequest = async (syncProductId, syncProductData = 
     return { success: true };
   }
 };
+
+/**
+ * Unlink / unsync a product from a store.
+ * DELETE /sync_product/delete/:id
+ */
+export const deleteSyncProductRequest = async (syncProductId) => {
+  const id = String(syncProductId || '').trim();
+  if (!id) throw new Error('Sync product id is required');
+
+  const url = `${BASE_URL}sync_product/delete/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+  } catch (err) {
+    logSyncProductModuleError('deleteSyncProductRequest network error', {
+      url,
+      syncProductId: id,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logSyncProductModuleError('deleteSyncProductRequest failed', {
+      status: response.status,
+      syncProductId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
