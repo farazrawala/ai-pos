@@ -1,3 +1,11 @@
+import { useEffect, useState } from 'react';
+import {
+  FaImage,
+  FaPlus,
+  FaRotateLeft,
+  FaTag,
+  FaTrash,
+} from 'react-icons/fa6';
 import { formatMoney } from '../../utils/formatMoney.js';
 import { DEBUG } from '../../config/env.js';
 import {
@@ -17,7 +25,65 @@ import {
   isOutOfStock,
   isAlreadyMeTooProduct,
   productIdFromRecord,
+  LOW_STOCK_THRESHOLD,
 } from '../../features/bigCommerce/marketplaceUtils.js';
+
+function stockTone(stock) {
+  if (stock == null) return 'unknown';
+  if (isOutOfStock(stock)) return 'out';
+  if (stock > 0 && stock < LOW_STOCK_THRESHOLD) return 'low';
+  return 'in';
+}
+
+function stockLabel(stock) {
+  if (stock == null) return 'Stock —';
+  if (isOutOfStock(stock)) return 'Out of stock';
+  if (stock > 0 && stock < LOW_STOCK_THRESHOLD) return `Low · ${stock}`;
+  return `${stock} in stock`;
+}
+
+/** Product photo, or the source company logo when the product has no image. */
+export function ProductMediaImage({
+  image,
+  placeholderLogoUrl,
+  name,
+  className = 'bc-card-img',
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+    setLogoFailed(false);
+  }, [image, placeholderLogoUrl]);
+
+  const productSrc = image && !imageFailed ? image : '';
+  const logoSrc = placeholderLogoUrl && !logoFailed ? placeholderLogoUrl : '';
+  const src = productSrc || logoSrc;
+  const usingLogo = Boolean(src && !productSrc);
+
+  if (!src) {
+    return (
+      <div className={`${className} bc-card-img--empty`.trim()} aria-hidden="true">
+        <FaImage />
+        <span>No image</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={usingLogo ? '' : name}
+      loading="lazy"
+      className={`${className}${usingLogo ? ' bc-card-img--logo' : ''}`}
+      onError={() => {
+        if (productSrc) setImageFailed(true);
+        else setLogoFailed(true);
+      }}
+    />
+  );
+}
 
 export default function ProductCard({
   product,
@@ -30,7 +96,9 @@ export default function ProductCard({
   deleteMeTooLoading = false,
   resetMeTooLoading = false,
   hideMeToo = false,
+  meTooLocked = false,
   alreadyMeTooIds,
+  placeholderLogoUrl = '',
 }) {
   const id = productIdFromRecord(product);
   const name = getProductName(product);
@@ -53,17 +121,31 @@ export default function ProductCard({
   const showDelete = alreadyMeToo && typeof onDeleteMeToo === 'function';
   const showReset = alreadyMeToo && typeof onResetMeToo === 'function';
   const actionBusy = meTooBusy || deleteBusy || resetBusy;
+  const locked = Boolean(meTooLocked);
+  const manageTitle = locked
+    ? 'Connect to this store first to manage Me too products'
+    : null;
+  const meTooTitle = locked
+    ? 'Connect to this store first to copy products'
+    : alreadyMeToo
+      ? 'Update your catalog selling price'
+      : 'Copy this product to your catalog';
+
+  const metaItems = [
+    sku ? { key: 'sku', label: 'SKU', value: sku } : null,
+    barcode ? { key: 'barcode', label: 'Barcode', value: barcode } : null,
+    brand.name && brand.name !== '—' ? { key: 'brand', label: 'Brand', value: brand.name } : null,
+    { key: 'category', label: 'Category', value: category.name || '—' },
+  ].filter(Boolean);
 
   return (
     <article className={`bc-card bc-card--${viewMode}`}>
       <div className="bc-card-media">
-        {image ? (
-          <img src={image} alt={name} loading="lazy" className="bc-card-img" />
-        ) : (
-          <div className="bc-card-img bc-card-img--empty" aria-hidden="true">
-            No image
-          </div>
-        )}
+        <ProductMediaImage
+          image={image}
+          placeholderLogoUrl={placeholderLogoUrl}
+          name={name}
+        />
         {badges.length > 0 ? (
           <div className="bc-badges">
             {badges.map((b) => (
@@ -81,14 +163,19 @@ export default function ProductCard({
         </h3>
 
         <div className="bc-card-meta">
-          {sku ? <span>SKU: {sku}</span> : null}
-          {barcode ? <span>Barcode: {barcode}</span> : null}
-          {brand.name && brand.name !== '—' ? <span>Brand: {brand.name}</span> : null}
-          <span>Category: {category.name}</span>
+          {metaItems.map((item) => (
+            <span key={item.key} className="bc-card-meta-item">
+              <span className="bc-card-meta-k">{item.label}</span>
+              <span className="bc-card-meta-v">{item.value}</span>
+            </span>
+          ))}
         </div>
 
         {description && viewMode === 'list' ? (
-          <p className="bc-card-desc">{description.slice(0, 140)}{description.length > 140 ? '…' : ''}</p>
+          <p className="bc-card-desc">
+            {description.slice(0, 140)}
+            {description.length > 140 ? '…' : ''}
+          </p>
         ) : null}
 
         <div className="bc-card-foot">
@@ -105,61 +192,65 @@ export default function ProductCard({
               </span>
             ) : null}
           </div>
-          <div className="bc-stock-rating">
-            <span className={`bc-stock ${isOutOfStock(stock) ? 'is-out' : ''}`}>
-              Stock: {stock == null ? '—' : stock}
-            </span>
-          </div>
+          <span className={`bc-stock-pill is-${stockTone(stock)}`}>
+            {stockLabel(stock)}
+          </span>
         </div>
 
         {description && viewMode === 'grid' ? (
           <p className="bc-card-desc bc-card-desc--clamp">{description}</p>
         ) : null}
 
-        <div className={`bc-card-actions${alreadyMeToo ? ' bc-card-actions--catalog' : ''}`}>
+        <div className="bc-card-actions">
           {showMeToo ? (
-            <button
-              type="button"
-              className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-ghost'}`}
-              disabled={actionBusy}
-              onClick={() => onMeToo?.(product)}
-              title={
-                alreadyMeToo
-                  ? 'Update your catalog selling price'
-                  : 'Copy this product to your catalog'
-              }
-            >
-              {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Set price' : 'Me too'}
-            </button>
-          ) : null}
-          {showReset ? (
-            <button
-              type="button"
-              className="bc-btn bc-btn-ghost"
-              disabled={actionBusy}
-              onClick={() => onResetMeToo?.(product)}
-              title="Overwrite your copy from the origin product"
-            >
-              {resetBusy ? 'Resetting…' : 'Reset'}
-            </button>
-          ) : null}
-          {showDelete ? (
-            <button
-              type="button"
-              className="bc-btn bc-btn-danger-ghost"
-              disabled={actionBusy}
-              onClick={() => onDeleteMeToo?.(product)}
-              title="Remove this product from your catalog"
-            >
-              {deleteBusy ? 'Removing…' : 'Delete'}
-            </button>
+            <div className="bc-card-cta">
+              <button
+                type="button"
+                className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-primary'}${
+                  locked ? ' is-locked' : ''
+                }`}
+                disabled={actionBusy && !locked}
+                aria-disabled={locked || actionBusy}
+                onClick={() => onMeToo?.(product)}
+                title={meTooTitle}
+              >
+                {alreadyMeToo ? <FaTag aria-hidden="true" /> : <FaPlus aria-hidden="true" />}
+                {meTooBusy ? 'Copying…' : alreadyMeToo ? 'Set price' : 'Me too'}
+              </button>
+              {showReset ? (
+                <button
+                  type="button"
+                  className={`bc-icon-btn${locked ? ' is-locked' : ''}`}
+                  disabled={actionBusy && !locked}
+                  aria-disabled={locked || actionBusy}
+                  onClick={() => onResetMeToo?.(product)}
+                  title={manageTitle || 'Overwrite your copy from the origin product'}
+                  aria-label={resetBusy ? 'Resetting' : 'Reset from origin'}
+                >
+                  <FaRotateLeft aria-hidden="true" />
+                </button>
+              ) : null}
+              {showDelete ? (
+                <button
+                  type="button"
+                  className={`bc-icon-btn bc-icon-btn--danger${locked ? ' is-locked' : ''}`}
+                  disabled={actionBusy && !locked}
+                  aria-disabled={locked || actionBusy}
+                  onClick={() => onDeleteMeToo?.(product)}
+                  title={manageTitle || 'Remove this product from your catalog'}
+                  aria-label={deleteBusy ? 'Removing' : 'Delete from catalog'}
+                >
+                  <FaTrash aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           ) : null}
           <button
             type="button"
-            className="bc-btn bc-btn-primary"
+            className="bc-btn bc-btn-ghost bc-card-details"
             onClick={() => onViewDetails?.(id, product)}
           >
-            View Details
+            View details
           </button>
         </div>
       </div>
@@ -175,6 +266,10 @@ export function ProductCardSkeleton({ viewMode = 'grid' }) {
         <div className="bc-skeleton bc-skeleton-line w-80" />
         <div className="bc-skeleton bc-skeleton-line w-50" />
         <div className="bc-skeleton bc-skeleton-line w-40" />
+        <div className="bc-card-actions">
+          <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
+          <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
+        </div>
       </div>
     </div>
   );

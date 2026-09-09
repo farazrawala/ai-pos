@@ -21,7 +21,7 @@ import {
   isAlreadyMeTooProduct,
   LOW_STOCK_THRESHOLD,
 } from '../../features/bigCommerce/marketplaceUtils.js';
-import ProductCard from './ProductCard.jsx';
+import ProductCard, { ProductMediaImage } from './ProductCard.jsx';
 
 export default function ProductDetailModal({
   open,
@@ -41,7 +41,9 @@ export default function ProductDetailModal({
   resetMeTooLoading = false,
   resetMeTooProductId = '',
   hideMeToo = false,
+  meTooLocked = false,
   alreadyMeTooIds,
+  placeholderLogoUrl = '',
 }) {
   const [activeImage, setActiveImage] = useState(0);
 
@@ -123,6 +125,12 @@ export default function ProductDetailModal({
     resetMeTooLoading &&
     (!resetMeTooProductId || resetMeTooProductId === productIdFromRecord(product));
   const actionBusy = meTooBusyForProduct || deleteBusyForProduct || resetBusyForProduct;
+  const locked = Boolean(meTooLocked);
+  const meTooTitle = locked
+    ? 'Connect to this store first to copy products'
+    : alreadyMeToo
+      ? 'Update your catalog selling price'
+      : 'Copy this product to your catalog';
 
   const metaItems = [
     sku ? { label: 'SKU', value: sku } : null,
@@ -160,14 +168,13 @@ export default function ProductDetailModal({
           {!hideMeToo ? (
             <button
               type="button"
-              className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-primary'}`}
-              disabled={loading || !product || actionBusy || !onMeToo}
+              className={`bc-btn ${alreadyMeToo ? 'bc-btn-me-too-done' : 'bc-btn-primary'}${
+                locked ? ' is-locked' : ''
+              }`}
+              disabled={(loading || !product || actionBusy || !onMeToo) && !locked}
+              aria-disabled={locked || loading || !product || actionBusy || !onMeToo}
               onClick={() => onMeToo?.(product)}
-              title={
-                alreadyMeToo
-                  ? 'Update your catalog selling price'
-                  : 'Copy this product to your catalog'
-              }
+              title={meTooTitle}
             >
               {meTooBusyForProduct ? 'Copying…' : alreadyMeToo ? 'Set price' : 'Me too'}
             </button>
@@ -175,10 +182,15 @@ export default function ProductDetailModal({
           {!hideMeToo && alreadyMeToo && onResetMeToo ? (
             <button
               type="button"
-              className="bc-btn bc-btn-ghost"
-              disabled={loading || !product || actionBusy}
+              className={`bc-btn bc-btn-ghost${locked ? ' is-locked' : ''}`}
+              disabled={(loading || !product || actionBusy) && !locked}
+              aria-disabled={locked || loading || !product || actionBusy}
               onClick={() => onResetMeToo?.(product)}
-              title="Overwrite your copy from the origin product"
+              title={
+                locked
+                  ? 'Connect to this store first to manage Me too products'
+                  : 'Overwrite your copy from the origin product'
+              }
             >
               {resetBusyForProduct ? 'Resetting…' : 'Reset Me too'}
             </button>
@@ -186,10 +198,15 @@ export default function ProductDetailModal({
           {!hideMeToo && alreadyMeToo && onDeleteMeToo ? (
             <button
               type="button"
-              className="bc-btn bc-btn-danger-ghost"
-              disabled={loading || !product || actionBusy}
+              className={`bc-btn bc-btn-danger-ghost${locked ? ' is-locked' : ''}`}
+              disabled={(loading || !product || actionBusy) && !locked}
+              aria-disabled={locked || loading || !product || actionBusy}
               onClick={() => onDeleteMeToo?.(product)}
-              title="Remove this product from your catalog"
+              title={
+                locked
+                  ? 'Connect to this store first to manage Me too products'
+                  : 'Remove this product from your catalog'
+              }
             >
               {deleteBusyForProduct ? 'Removing…' : 'Delete'}
             </button>
@@ -215,11 +232,11 @@ export default function ProductDetailModal({
         <div className="bc-detail">
           <div className="bc-detail-gallery">
             <div className="bc-detail-hero">
-              {images[activeImage] ? (
-                <img src={images[activeImage]} alt={name} />
-              ) : (
-                <div className="bc-card-img bc-card-img--empty">No image</div>
-              )}
+              <ProductMediaImage
+                image={images[activeImage] || ''}
+                placeholderLogoUrl={placeholderLogoUrl}
+                name={name}
+              />
               {displayBadges.length > 0 ? (
                 <div className="bc-badges">
                   {displayBadges.map((b) => (
@@ -376,6 +393,7 @@ export default function ProductDetailModal({
                     key={productIdFromRecord(item)}
                     product={item}
                     viewMode="grid"
+                    placeholderLogoUrl={placeholderLogoUrl}
                     onViewDetails={(id) => onOpenRelated?.(id)}
                     onMeToo={onMeToo}
                     onDeleteMeToo={onDeleteMeToo}
@@ -390,6 +408,7 @@ export default function ProductDetailModal({
                       resetMeTooLoading && resetMeTooProductId === productIdFromRecord(item)
                     }
                     hideMeToo={hideMeToo}
+                    meTooLocked={meTooLocked}
                     alreadyMeTooIds={alreadyMeTooIds}
                   />
                 ))}

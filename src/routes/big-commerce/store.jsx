@@ -31,7 +31,7 @@ export default function BigCommerceStorePage() {
   }, [company, routeCompanySlug, navigate]);
 
   return (
-    <div className="container-fluid py-4 bc-store-page">
+    <div className="container-fluid py-4 px-3 bc-store-page" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="bc-store-navigation">
         <Link to="/big-commerce" className="bc-store-back">
           <FaArrowLeft aria-hidden="true" />

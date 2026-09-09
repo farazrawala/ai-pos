@@ -53,7 +53,7 @@ export default function MarketplaceFilters({
         <div className="bc-filter-label">Category</div>
         <div className="bc-check-list">
           {categories.length === 0 ? (
-            <p className="bc-muted bc-small">No categories</p>
+            <p className="bc-filter-empty">No categories in this catalog</p>
           ) : (
             categories.map((cat) => {
               const id = entityId(cat);
@@ -77,7 +77,7 @@ export default function MarketplaceFilters({
         <div className="bc-filter-label">Brand</div>
         <div className="bc-check-list">
           {brands.length === 0 ? (
-            <p className="bc-muted bc-small">No brands</p>
+            <p className="bc-filter-empty">No brands in this catalog</p>
           ) : (
             brands.map((brand) => {
               const id = entityId(brand);
@@ -131,12 +131,12 @@ export default function MarketplaceFilters({
 
       <div className="bc-filter-block">
         <div className="bc-filter-label">Stock</div>
-        <div className="bc-radio-list">
+        <div className="bc-radio-list bc-stock-pills">
           {[
             { value: '', label: 'Any' },
-            { value: 'in_stock', label: 'In Stock' },
-            { value: 'out_of_stock', label: 'Out of Stock' },
-            { value: 'low_stock', label: 'Low Stock' },
+            { value: 'in_stock', label: 'In stock' },
+            { value: 'out_of_stock', label: 'Out of stock' },
+            { value: 'low_stock', label: 'Low stock' },
           ].map((opt) => (
             <label key={opt.value || 'any'} className="bc-radio">
               <input

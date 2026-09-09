@@ -1,6 +1,7 @@
 import {
   FaBoxOpen,
   FaCalendarDays,
+  FaChevronRight,
   FaCircleCheck,
   FaGear,
   FaLayerGroup,
@@ -132,9 +133,10 @@ export default function CompanyProfileHeader({
                       <FaGear aria-hidden="true" />
                     </span>
                     <span className="bc-settings-copy">
-                      <small>Connected store</small>
                       <strong>Product settings</strong>
+                      <small>Manage catalog sync</small>
                     </span>
+                    <FaChevronRight className="bc-settings-chevron" aria-hidden="true" />
                   </button>
                 ) : null}
               </div>

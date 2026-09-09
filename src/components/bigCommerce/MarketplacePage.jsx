@@ -115,6 +115,7 @@ export default function MarketplacePage({ companyId }) {
   const [meTooResolveStatus, setMeTooResolveStatus] = useState('idle');
   const [meTooProduct, setMeTooProduct] = useState(null);
   const [outgoingConnection, setOutgoingConnection] = useState(null);
+  const [connectionReady, setConnectionReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
@@ -128,8 +129,11 @@ export default function MarketplacePage({ companyId }) {
   const meTooBusy = state.duplicateStatus === 'loading';
   const deleteMeTooBusy = state.deleteFetchedStatus === 'loading';
   const resetMeTooBusy = state.resetFetchedStatus === 'loading';
-  const canManageSettings =
-    !isOwnStore && Boolean(String(outgoingConnection?._id || outgoingConnection?.id || '').trim());
+  const isConnected = Boolean(
+    String(outgoingConnection?._id || outgoingConnection?.id || '').trim()
+  );
+  const canManageSettings = !isOwnStore && isConnected;
+  const meTooLocked = !isOwnStore && (!connectionReady || !isConnected);
 
   const initialLoading =
     state.productsStatus === 'loading' && state.products.length === 0;
@@ -160,6 +164,7 @@ export default function MarketplacePage({ companyId }) {
     setMeTooResolved([]);
     setMeTooResolveStatus('idle');
     setOutgoingConnection(null);
+    setConnectionReady(false);
     setSettingsOpen(false);
     meTooResolveGenRef.current += 1;
     dispatch(setMarketplaceCompanyId(id));
@@ -169,18 +174,24 @@ export default function MarketplacePage({ companyId }) {
   useEffect(() => {
     if (isOwnStore) {
       setOutgoingConnection(null);
+      setConnectionReady(true);
       setSettingsOpen(false);
       return undefined;
     }
-    if (state.bootstrapStatus !== 'succeeded') return undefined;
+    if (state.bootstrapStatus !== 'succeeded') {
+      setConnectionReady(false);
+      return undefined;
+    }
     const storeId = String(state.company?.id || '').trim();
     const storeSlug = String(state.company?.slug || '').trim();
     if (!storeId && !storeSlug) {
       setOutgoingConnection(null);
+      setConnectionReady(true);
       return undefined;
     }
 
     let cancelled = false;
+    setConnectionReady(false);
     Promise.all([fetchSentStoreRequestsRequest(), fetchReceivedStoreRequestsRequest()])
       .then(([sent, received]) => {
         if (cancelled) return;
@@ -190,9 +201,12 @@ export default function MarketplacePage({ companyId }) {
             slug: storeSlug,
           })
         );
+        setConnectionReady(true);
       })
       .catch(() => {
-        if (!cancelled) setOutgoingConnection(null);
+        if (cancelled) return;
+        setOutgoingConnection(null);
+        setConnectionReady(true);
       });
 
     return () => {
@@ -201,10 +215,17 @@ export default function MarketplacePage({ companyId }) {
   }, [isOwnStore, state.bootstrapStatus, loadedStoreId, loadedStoreSlug]);
 
   useEffect(() => {
-    if (isOwnStore && listingTab === LISTING_TAB_ME_TOO) {
+    if (listingTab !== LISTING_TAB_ME_TOO) return;
+    if (isOwnStore || (connectionReady && !isConnected)) {
       setListingTab(LISTING_TAB_ALL);
     }
-  }, [isOwnStore, listingTab]);
+  }, [isOwnStore, connectionReady, isConnected, listingTab]);
+
+  useEffect(() => {
+    if (meTooLocked && meTooProduct && !meTooBusy) {
+      setMeTooProduct(null);
+    }
+  }, [meTooLocked, meTooProduct, meTooBusy]);
 
   useEffect(() => {
     const sourceId = String(companyId || '').trim();
@@ -401,9 +422,21 @@ export default function MarketplacePage({ companyId }) {
     dispatch,
   ]);
 
+  const denyMeTooUnlessConnected = useCallback(() => {
+    if (isOwnStore) return true;
+    if (!connectionReady) return true;
+    if (isConnected) return false;
+    showToast({
+      message: 'Connect to this store first to use Me too.',
+      variant: 'warning',
+    });
+    return true;
+  }, [isOwnStore, connectionReady, isConnected]);
+
   const handleMeToo = useCallback(
     (item) => {
-      if (isOwnStore || meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+      if (meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+      if (denyMeTooUnlessConnected()) return;
       const id = productIdFromRecord(item);
       if (!id) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -411,12 +444,13 @@ export default function MarketplacePage({ companyId }) {
       }
       setMeTooProduct(item);
     },
-    [isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
+    [denyMeTooUnlessConnected, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
   );
 
   const handleConfirmMeToo = useCallback(
     ({ price, multiplier } = {}) => {
-      if (isOwnStore || meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+      if (meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+      if (denyMeTooUnlessConnected()) return;
       const id = productIdFromRecord(meTooProduct);
       if (!id) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -431,12 +465,20 @@ export default function MarketplacePage({ companyId }) {
         })
       );
     },
-    [dispatch, isOwnStore, meTooBusy, deleteMeTooBusy, resetMeTooBusy, meTooProduct]
+    [
+      dispatch,
+      denyMeTooUnlessConnected,
+      meTooBusy,
+      deleteMeTooBusy,
+      resetMeTooBusy,
+      meTooProduct,
+    ]
   );
 
   const handleDeleteMeToo = useCallback(
     (item) => {
-      if (isOwnStore || deleteMeTooBusy || meTooBusy || resetMeTooBusy) return;
+      if (deleteMeTooBusy || meTooBusy || resetMeTooBusy) return;
+      if (denyMeTooUnlessConnected()) return;
       const sourceId = productIdFromRecord(item);
       if (!sourceId) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -453,7 +495,7 @@ export default function MarketplacePage({ companyId }) {
     },
     [
       dispatch,
-      isOwnStore,
+      denyMeTooUnlessConnected,
       deleteMeTooBusy,
       meTooBusy,
       resetMeTooBusy,
@@ -463,7 +505,8 @@ export default function MarketplacePage({ companyId }) {
 
   const handleResetMeToo = useCallback(
     (item) => {
-      if (isOwnStore || resetMeTooBusy || deleteMeTooBusy || meTooBusy) return;
+      if (resetMeTooBusy || deleteMeTooBusy || meTooBusy) return;
+      if (denyMeTooUnlessConnected()) return;
       const sourceId = productIdFromRecord(item);
       if (!sourceId) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
@@ -484,7 +527,7 @@ export default function MarketplacePage({ companyId }) {
     },
     [
       dispatch,
-      isOwnStore,
+      denyMeTooUnlessConnected,
       resetMeTooBusy,
       deleteMeTooBusy,
       meTooBusy,
@@ -897,7 +940,7 @@ export default function MarketplacePage({ companyId }) {
             onChange={handleListingTabChange}
             allCount={parentTotal}
             meTooCount={alreadyMeTooCount}
-            showMeTooTab={!isOwnStore}
+            showMeTooTab={!isOwnStore && isConnected}
           />
 
           <ProductToolbar
@@ -983,6 +1026,7 @@ export default function MarketplacePage({ companyId }) {
                     onMeToo={isOwnStore ? undefined : handleMeToo}
                     onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
                     onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
+                    meTooLocked={meTooLocked}
                     meTooLoading={
                       meTooBusy &&
                       state.duplicateProductId === productIdFromRecord(product)
@@ -997,6 +1041,7 @@ export default function MarketplacePage({ companyId }) {
                     }
                     hideMeToo={isOwnStore}
                     alreadyMeTooIds={alreadyMeTooIdSet}
+                    placeholderLogoUrl={state.company?.logoUrl || ''}
                   />
                 ))
               : null}
@@ -1047,6 +1092,7 @@ export default function MarketplacePage({ companyId }) {
         onMeToo={isOwnStore ? undefined : handleMeToo}
         onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
         onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
+        meTooLocked={meTooLocked}
         meTooLoading={meTooBusy}
         meTooProductId={state.duplicateProductId}
         deleteMeTooLoading={deleteMeTooBusy}
@@ -1055,6 +1101,7 @@ export default function MarketplacePage({ companyId }) {
         resetMeTooProductId={state.resetFetchedProductId}
         hideMeToo={isOwnStore}
         alreadyMeTooIds={alreadyMeTooIdSet}
+        placeholderLogoUrl={state.company?.logoUrl || ''}
       />
 
       <MeTooPriceModal
