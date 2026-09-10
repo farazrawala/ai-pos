@@ -724,6 +724,35 @@ export function parseBigcommerceSettings(raw) {
   }
 }
 
+function firstFiniteCount(...values) {
+  for (const raw of values) {
+    if (raw == null || raw === '') continue;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
+/** Parent/catalog product count from a listing or profile company row. */
+export function pickCompanyProductCount(company) {
+  if (!company || typeof company !== 'object') return 0;
+  const stats = company.stats && typeof company.stats === 'object' ? company.stats : {};
+  return firstFiniteCount(
+    company.total_products,
+    company.totalProducts,
+    company.product_count,
+    company.products_count,
+    company.productsCount,
+    company.catalog_count,
+    company.catalogCount,
+    company.active_products,
+    company.activeProducts,
+    stats.total_products,
+    stats.totalProducts,
+    stats.product_count
+  );
+}
+
 export function normalizeCompanyProfile(company, stats = {}) {
   if (!company || typeof company !== 'object') {
     return {
@@ -835,7 +864,7 @@ export function normalizeCompanyProfile(company, stats = {}) {
       const n = Number(company.rating ?? company.average_rating);
       return Number.isFinite(n) && n > 0 ? Math.min(5, n) : null;
     })(),
-    totalProducts: stats.totalProducts ?? (Number(company.total_products) || 0),
+    totalProducts: stats.totalProducts ?? pickCompanyProductCount(company),
     totalCategories: stats.totalCategories ?? (Number(company.total_categories) || 0),
     joinedAt: company.createdAt ?? company.created_at ?? company.joined_at ?? null,
   };

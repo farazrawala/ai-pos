@@ -21,6 +21,7 @@ import {
 import {
   cancelStoreRequestRequest,
   fetchMarketplaceCompanyProfileRequest,
+  fetchMarketplaceProductCountRequest,
   fetchSentStoreRequestsRequest,
   normalizeConnectionSyncSettings,
 } from '../../features/bigCommerce/bigCommerceAPI.js';
@@ -113,8 +114,10 @@ export default function BigCommerceListingPage() {
   const [cancellingRequestId, setCancellingRequestId] = useState('');
   const [connectionFilter, setConnectionFilter] = useState('all');
   const [settingsTarget, setSettingsTarget] = useState(null);
+  const [productCounts, setProductCounts] = useState({});
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
+  const productCountsRef = useRef({});
 
   const initialLoading = companiesStatus === 'loading' && companies.length === 0;
   const loadingMore = companiesStatus === 'loadingMore';
@@ -249,6 +252,42 @@ export default function BigCommerceListingPage() {
         .filter((c) => c.id && c.showStoreForListing !== false),
     [companies]
   );
+
+  const listedCompanyIdsKey = useMemo(
+    () => rows.map((company) => company.id).filter(Boolean).join(','),
+    [rows]
+  );
+
+  useEffect(() => {
+    const ids = listedCompanyIdsKey ? listedCompanyIdsKey.split(',') : [];
+    const missing = ids.filter((id) => productCountsRef.current[id] === undefined);
+    if (missing.length === 0) return undefined;
+
+    let cancelled = false;
+
+    Promise.all(
+      missing.map(async (id) => {
+        try {
+          const total = await fetchMarketplaceProductCountRequest(id);
+          return [id, Number.isFinite(Number(total)) ? Number(total) : 0];
+        } catch {
+          return [id, 0];
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      const next = {};
+      entries.forEach(([id, total]) => {
+        productCountsRef.current[id] = total;
+        next[id] = total;
+      });
+      setProductCounts((prev) => ({ ...prev, ...next }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [listedCompanyIdsKey]);
 
   const getOutgoingConnection = useCallback(
     (companyId) => outgoingByCompanyId[String(companyId)] || null,
@@ -576,7 +615,12 @@ export default function BigCommerceListingPage() {
                   !isSelf && outgoingStatus === 'approved' && Boolean(outgoingRequestId);
                 const cancelling =
                   canCancelRequest && cancellingRequestId === outgoingRequestId;
-                const productCount = Number(company.totalProducts || 0);
+                const listedCount = Number(company.totalProducts || 0);
+                const fetchedCount = productCounts[company.id];
+                const productCount =
+                  fetchedCount != null && Number.isFinite(Number(fetchedCount))
+                    ? Number(fetchedCount)
+                    : listedCount;
 
                 return (
                   <article key={company.id} className="bc-company-card">

@@ -104,6 +104,13 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
 
   if (sort.sortBy) queryParams.set('sortBy', sort.sortBy);
   if (sort.sortOrder) queryParams.set('sortOrder', sort.sortOrder);
+  if (
+    params.parents_only === true ||
+    params.parents_only === '1' ||
+    params.parentsOnly === true
+  ) {
+    queryParams.set('parents_only', 'true');
+  }
 
   const storeUrl = `${BASE_URL}big-commerce/get-all-active-ecommerce-products/${encodeURIComponent(companyId)}?${queryParams}`;
 
@@ -166,6 +173,18 @@ export async function fetchMarketplaceProductsRequest(params = {}) {
     skip,
     totalPages: totalPages || (limit > 0 ? Math.ceil(totalCount / limit) : 0),
   };
+}
+
+/** Parent catalog size for a marketplace store card (`parents_only=true`, limit 1). */
+export async function fetchMarketplaceProductCountRequest(companyId) {
+  const result = await fetchMarketplaceProductsRequest({
+    companyId,
+    page: 1,
+    limit: 1,
+    parents_only: true,
+  });
+  const total = Number(result?.total);
+  return Number.isFinite(total) && total >= 0 ? total : 0;
 }
 
 function unwrapProductRecord(body) {
