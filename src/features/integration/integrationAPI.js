@@ -338,6 +338,44 @@ export const updateIntegrationRequest = async (integrationId, integrationData) =
   return patchIntegrationRequest(url, integrationData);
 };
 
+/** Refresh one Shopify integration token (`GET integration/generate-token/:id`). */
+export const generateIntegrationTokenRequest = async (integrationId) => {
+  const id = String(integrationId || '').trim();
+  if (!id) throw new Error('Integration id is required');
+
+  const url = `${BASE_URL}integration/generate-token/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: getHeaders() });
+  } catch (err) {
+    logIntegrationModuleError('generateIntegrationTokenRequest network error', {
+      url,
+      integrationId: id,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('generateIntegrationTokenRequest failed', {
+      status: response.status,
+      integrationId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
 /** Trigger Shopify token refresh cron (`GET integration/generate-tokens-cron`). */
 export const generateIntegrationTokensCronRequest = async () => {
   const url = `${BASE_URL}integration/generate-tokens-cron`;

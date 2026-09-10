@@ -13,7 +13,7 @@ import {
 } from '../../features/integration/integrationSlice.js';
 import {
   pickIntegrationStoreLogoUrl,
-  generateIntegrationTokensCronRequest,
+  generateIntegrationTokenRequest,
 } from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -208,11 +208,16 @@ const Integration = () => {
     }
   };
 
-  const handleRefreshToken = async () => {
+  const handleRefreshToken = async (integrationId) => {
     if (refreshingTokens) return;
+    const id = String(integrationId || '').trim();
+    if (!id) {
+      toast.error('Integration id is missing.');
+      return;
+    }
     setRefreshingTokens(true);
     try {
-      const result = await generateIntegrationTokensCronRequest();
+      const result = await generateIntegrationTokenRequest(id);
       const message =
         (result && typeof result === 'object' && (result.message || result.msg)) ||
         'Shopify token refreshed.';
@@ -380,7 +385,7 @@ const Integration = () => {
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-info mb-0"
-                                      onClick={handleRefreshToken}
+                                        onClick={() => handleRefreshToken(id)}
                                       disabled={refreshingTokens}
                                     >
                                       {refreshingTokens ? 'Refreshing…' : 'Refresh Token'}
