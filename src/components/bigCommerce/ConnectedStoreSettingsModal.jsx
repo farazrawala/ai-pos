@@ -7,6 +7,7 @@ import {
   FaImage,
   FaLink,
   FaToggleOn,
+  FaTruck,
 } from 'react-icons/fa6';
 import AppModal from '../AppModal.jsx';
 import {
@@ -51,6 +52,12 @@ export const CONNECTION_SYNC_SETTING_FIELDS = [
     label: 'Product status',
     hint: 'Sync active and inactive state',
     Icon: FaToggleOn,
+  },
+  {
+    key: 'sync_order_to_vendor',
+    label: 'Sync order to vendor',
+    hint: 'Send customer orders to the vendor store',
+    Icon: FaTruck,
   },
 ];
 

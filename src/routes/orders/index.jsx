@@ -11,6 +11,7 @@ const ORDERS_PAGE_CONFIG = {
   showRowSyncButton: false,
   showIntegrationColumn: false,
   showDeletedTab: true,
+  showBigcommerceTab: true,
   showStatusChangeModal: true,
   showTagsColumn: false,
   showValidateAddressAction: false,

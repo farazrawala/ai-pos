@@ -485,10 +485,12 @@ const integrationFilterLabel = (item) => {
   return storeType ? `${name} (${storeTypeLabel(storeType)})` : name;
 };
 
+const BIGCOMMERCE_ORDER_TYPE = 'bigcommerce';
+
 const ORDER_TYPE_FILTER_OPTIONS = [
   { value: 'offline', label: 'Offline' },
   { value: 'online', label: 'Online' },
-  { value: 'bigcommerce', label: 'BigCommerce' },
+  { value: BIGCOMMERCE_ORDER_TYPE, label: 'BigCommerce' },
   { value: 'website', label: 'Website' },
   { value: 'shop', label: 'Shop' },
 ];
@@ -708,6 +710,7 @@ const getOrderWebsiteStatus = (row) => {
  *     showConfirmationAction?: boolean,
  *     showStatusHistoryAction?: boolean,
  *     showDeletedTab?: boolean,
+ *     showBigcommerceTab?: boolean,
  *     viewReadOnly?: boolean,
  *     listPath?: string,
  *   },
@@ -738,6 +741,7 @@ export default function OrdersListPage({ config }) {
     showConfirmationAction = true,
     showStatusHistoryAction = true,
     showDeletedTab = false,
+    showBigcommerceTab = false,
     viewReadOnly = false,
     topSummaryName = '',
     topTiles = null,
@@ -842,11 +846,20 @@ export default function OrdersListPage({ config }) {
         filters.tag
     )
   );
-  const [showDeleted, setShowDeleted] = useState(false);
+  const [listTab, setListTab] = useState('orders');
   const [integrations, setIntegrations] = useState([]);
   const [integrationsStatus, setIntegrationsStatus] = useState('idle');
   const searchTimeoutRef = useRef(null);
-  const isDeletedView = Boolean(showDeletedTab && showDeleted);
+  const isDeletedView = Boolean(showDeletedTab && listTab === 'deleted');
+  const isBigcommerceView = Boolean(showBigcommerceTab && listTab === 'bigcommerce');
+  const effectiveOrderType = isBigcommerceView
+    ? BIGCOMMERCE_ORDER_TYPE
+    : filters.orderType || '';
+  const listHeading = isDeletedView
+    ? 'Deleted Orders'
+    : isBigcommerceView
+      ? 'Bigcommerce Orders'
+      : pageTitle;
   const canViewOrder = canEdit || isDeletedView || viewReadOnly;
 
   const orderColumns = useMemo(() => {
@@ -914,10 +927,11 @@ export default function OrdersListPage({ config }) {
     filters.startDate,
     filters.endDate,
     filters.integrationId,
-    filters.orderType,
+    effectiveOrderType,
     filters.orderStatus,
     filters.tag,
     isDeletedView,
+    isBigcommerceView,
   ]);
 
   const activeFilterCount =
@@ -960,7 +974,7 @@ export default function OrdersListPage({ config }) {
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
     if (filters.integrationId) params.integrationId = filters.integrationId;
-    if (filters.orderType) params.orderType = filters.orderType;
+    if (effectiveOrderType) params.orderType = effectiveOrderType;
     if (filters.orderStatus) params.orderStatus = filters.orderStatus;
     if (filters.tag) params.tag = filters.tag;
     if (sort.sortBy) {
@@ -981,7 +995,7 @@ export default function OrdersListPage({ config }) {
     filters.startDate,
     filters.endDate,
     filters.integrationId,
-    filters.orderType,
+    effectiveOrderType,
     filters.orderStatus,
     filters.tag,
     sort.sortBy,
@@ -989,9 +1003,9 @@ export default function OrdersListPage({ config }) {
     isDeletedView,
   ]);
 
-  const handleDeletedTabChange = (nextDeleted) => {
-    if (Boolean(nextDeleted) === isDeletedView) return;
-    setShowDeleted(Boolean(nextDeleted));
+  const handleListTabChange = (nextTab) => {
+    if (nextTab === listTab) return;
+    setListTab(nextTab);
     dispatch(setPage(1));
   };
 
@@ -1077,7 +1091,7 @@ export default function OrdersListPage({ config }) {
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
     if (filters.integrationId) params.integrationId = filters.integrationId;
-    if (filters.orderType) params.orderType = filters.orderType;
+    if (effectiveOrderType) params.orderType = effectiveOrderType;
     if (filters.orderStatus) params.orderStatus = filters.orderStatus;
     if (filters.tag) params.tag = filters.tag;
     if (sort.sortBy) {
@@ -1269,7 +1283,7 @@ export default function OrdersListPage({ config }) {
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
     if (filters.integrationId) params.integrationId = filters.integrationId;
-    if (filters.orderType) params.orderType = filters.orderType;
+    if (effectiveOrderType) params.orderType = effectiveOrderType;
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -1288,7 +1302,7 @@ export default function OrdersListPage({ config }) {
     filters.startDate,
     filters.endDate,
     filters.integrationId,
-    filters.orderType,
+    effectiveOrderType,
     sort.sortBy,
     sort.sortOrder,
     isDeletedView,
@@ -1687,7 +1701,7 @@ export default function OrdersListPage({ config }) {
     if (filters.startDate) listQuery.set('startDate', String(filters.startDate));
     if (filters.endDate) listQuery.set('endDate', String(filters.endDate));
     if (filters.integrationId) listQuery.set('integration_id', String(filters.integrationId));
-    if (filters.orderType) listQuery.set('order_type', String(filters.orderType));
+    if (effectiveOrderType) listQuery.set('order_type', String(effectiveOrderType));
     if (filters.orderStatus) listQuery.set('order_status', String(filters.orderStatus));
     if (filters.tag) listQuery.set('tag', String(filters.tag));
     if (sort.sortBy) {
@@ -1704,7 +1718,11 @@ export default function OrdersListPage({ config }) {
     const sources = [
       {
         key: 'orders-list',
-        label: isDeletedView ? 'Deleted orders list' : `${pageTitle} list`,
+        label: isDeletedView
+          ? 'Deleted orders list'
+          : isBigcommerceView
+            ? 'Bigcommerce orders list'
+            : `${pageTitle} list`,
         url: buildApiUrl(`${activeListPath}${qs ? `?${qs}` : ''}`),
         status: mapLoadStatus(status),
         durationMs: null,
@@ -1892,13 +1910,14 @@ export default function OrdersListPage({ config }) {
     pageTitle,
     listPath,
     isDeletedView,
+    isBigcommerceView,
     pagination.page,
     pagination.limit,
     searchTerm,
     filters.startDate,
     filters.endDate,
     filters.integrationId,
-    filters.orderType,
+    effectiveOrderType,
     filters.orderStatus,
     filters.tag,
     sort.sortBy,
@@ -2001,35 +2020,47 @@ export default function OrdersListPage({ config }) {
           <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
             <div className="card-header pb-3">
               <div className="row align-items-center w-100 g-2">
-                <div className="col-lg-4 col-md-5">
-                  <h5 className="mb-1">{isDeletedView ? 'Deleted Orders' : pageTitle}</h5>
+                <div className="col-lg-5 col-md-6">
+                  <h5 className="mb-1">{listHeading}</h5>
                   {pageSubtitle ? (
                     <p className="text-sm text-muted mb-0">{pageSubtitle}</p>
                   ) : DEBUG ? (
                     <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
                   ) : null}
-                  {showDeletedTab ? (
-                    <div className="btn-group btn-group-sm mt-2" role="group" aria-label="Orders list tabs">
+                  {showDeletedTab || showBigcommerceTab ? (
+                    <div className="btn-group btn-group-sm mt-2 flex-wrap" role="group" aria-label="Orders list tabs">
                       <button
                         type="button"
-                        className={`btn mb-0 ${!isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => handleDeletedTabChange(false)}
-                        aria-pressed={!isDeletedView}
+                        className={`btn mb-0 ${listTab === 'orders' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => handleListTabChange('orders')}
+                        aria-pressed={listTab === 'orders'}
                       >
                         Orders
                       </button>
-                      <button
-                        type="button"
-                        className={`btn mb-0 ${isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => handleDeletedTabChange(true)}
-                        aria-pressed={isDeletedView}
-                      >
-                        Deleted Orders
-                      </button>
+                      {showDeletedTab ? (
+                        <button
+                          type="button"
+                          className={`btn mb-0 ${isDeletedView ? 'btn-primary' : 'btn-outline-primary'}`}
+                          onClick={() => handleListTabChange('deleted')}
+                          aria-pressed={isDeletedView}
+                        >
+                          Deleted Orders
+                        </button>
+                      ) : null}
+                      {showBigcommerceTab ? (
+                        <button
+                          type="button"
+                          className={`btn mb-0 ${isBigcommerceView ? 'btn-primary' : 'btn-outline-primary'}`}
+                          onClick={() => handleListTabChange('bigcommerce')}
+                          aria-pressed={isBigcommerceView}
+                        >
+                          Bigcommerce Orders
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
-                <div className="col-lg-8 col-md-7">
+                <div className="col-lg-7 col-md-6">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
                     {canBulkChangeStatus || showTagFilter ? (
                       <div className="d-flex align-items-center gap-2 me-md-auto">
@@ -2133,10 +2164,22 @@ export default function OrdersListPage({ config }) {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="Search orders…"
+                        placeholder={
+                          isDeletedView
+                            ? 'Search deleted orders…'
+                            : isBigcommerceView
+                              ? 'Search Bigcommerce orders…'
+                              : 'Search orders…'
+                        }
                         value={localSearch}
                         onChange={handleSearchChange}
-                        aria-label="Search orders"
+                        aria-label={
+                          isDeletedView
+                            ? 'Search deleted orders'
+                            : isBigcommerceView
+                              ? 'Search Bigcommerce orders'
+                              : 'Search orders'
+                        }
                       />
                     </div>
                     <ColumnVisibilityMenu
@@ -2356,9 +2399,9 @@ export default function OrdersListPage({ config }) {
               <ListDataTable
                 className={`list-data-table--${idPrefix}`}
                 loading={loading}
-                loadingLabel={`Loading ${pageTitle.toLowerCase()}…`}
+                loadingLabel={`Loading ${listHeading.toLowerCase()}…`}
                 error={error}
-                errorPrefix={`Error loading ${pageTitle.toLowerCase()}`}
+                errorPrefix={`Error loading ${listHeading.toLowerCase()}`}
                 onRetry={handleRetryFetch}
                 pagination={pagination}
                 onPageChange={handlePageChange}
@@ -2431,7 +2474,9 @@ export default function OrdersListPage({ config }) {
                         <td colSpan={tableColSpan} className="text-center py-5 text-muted">
                           {isDeletedView
                             ? 'No deleted orders found. Try adjusting your search or date range.'
-                            : 'No orders found. Try adjusting your search or date range.'}
+                            : isBigcommerceView
+                              ? 'No Bigcommerce orders found. Try adjusting your search or date range.'
+                              : 'No orders found. Try adjusting your search or date range.'}
                         </td>
                       </tr>
                     ) : (
