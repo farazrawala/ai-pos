@@ -174,6 +174,8 @@ const DELETED_ORDER_BY_ORDER_ITEM_FALLBACK_PATH = 'order/get-deleted-order-by-or
 /** OMS / non-POS orders (`order_type != offline`: online, bigcommerce, website, …). */
 export const ONLINE_ORDER_BY_ORDER_ITEM_PATH = 'order/get-online-order-by-order-item';
 const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
+/** Vendor catalog sales: line items where the auth company is `origin_company_id`. */
+export const ORDER_ITEM_BY_ORIGIN_COMPANY_PATH = 'order_item/by-origin-company';
 
 export const DEFAULT_ORDER_LIST_PATH = ORDER_BY_ORDER_ITEM_PATH;
 
@@ -1089,6 +1091,84 @@ function parseOrderListResult(result, listParams = {}) {
     page: result.page || listParams.page || 1,
     limit,
     totalPages: Math.ceil(total / limit),
+  };
+}
+
+export function buildOrderItemByOriginCompanyQuery(params = {}) {
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.max(1, Number(params.limit) || 50);
+  const skip =
+    params.skip != null && params.skip !== ''
+      ? Math.max(0, Number(params.skip) || 0)
+      : (page - 1) * limit;
+
+  const query = new URLSearchParams();
+  query.set('skip', String(skip));
+  query.set('limit', String(limit));
+  const search = String(params.search ?? '').trim();
+  if (search) query.set('search', search);
+  query.set(
+    'sortBy',
+    String(
+      params.sortBy != null && String(params.sortBy).trim() !== ''
+        ? params.sortBy
+        : 'createdAt'
+    )
+  );
+  query.set(
+    'sortOrder',
+    String(
+      params.sortOrder != null && String(params.sortOrder).trim() !== ''
+        ? params.sortOrder
+        : 'desc'
+    )
+  );
+  return { query, page, limit, skip };
+}
+
+/**
+ * GET `order_item/by-origin-company?skip=&limit=`
+ * Populated `product_id`, selling `company_id`, `origin_company_id`, and `order_id`.
+ */
+export async function fetchOrderItemsByOriginCompanyRequest(params = {}) {
+  const { query, page, limit, skip } = buildOrderItemByOriginCompanyQuery(params);
+  const queryString = query.toString();
+  const url = `${BASE_URL}${ORDER_ITEM_BY_ORIGIN_COMPANY_PATH}${queryString ? `?${queryString}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      ...getHeaders({ json: false }),
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  const result = await response.json();
+  const data = Array.isArray(result?.data)
+    ? result.data
+    : Array.isArray(result)
+      ? result
+      : [];
+  const total = Number(result?.total);
+  const resolvedLimit = Number(result?.limit) || limit;
+  const resolvedSkip = Number.isFinite(Number(result?.skip)) ? Number(result.skip) : skip;
+  const resolvedTotal = Number.isFinite(total) ? total : data.length;
+  const resolvedPage =
+    resolvedLimit > 0 ? Math.floor(resolvedSkip / resolvedLimit) + 1 : page;
+
+  return {
+    data,
+    total: resolvedTotal,
+    skip: resolvedSkip,
+    limit: resolvedLimit,
+    page: resolvedPage,
+    totalPages: resolvedLimit > 0 ? Math.ceil(resolvedTotal / resolvedLimit) : 0,
+    origin_company_id: result?.origin_company_id ?? result?.originCompanyId ?? '',
   };
 }
 

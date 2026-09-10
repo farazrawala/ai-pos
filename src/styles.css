@@ -700,6 +700,21 @@ body {
   display: block;
 }
 
+.list-data-table--origin-company-order-items .list-col-name-wrap {
+  min-width: 12rem;
+  max-width: 22rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.list-data-table--origin-company-order-items .list-cell-name-wrap {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .list-origin-logo-wrap {
   display: inline-flex;
   cursor: pointer;
