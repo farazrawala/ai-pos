@@ -1,4 +1,5 @@
-import { FaGrip, FaList, FaMagnifyingGlass } from 'react-icons/fa6';
+import { useEffect, useRef } from 'react';
+import { FaGrip, FaList, FaMagnifyingGlass, FaPlus } from 'react-icons/fa6';
 import { PAGE_SIZE_OPTIONS } from '../../features/bigCommerce/marketplaceUtils.js';
 
 export default function ProductToolbar({
@@ -10,7 +11,22 @@ export default function ProductToolbar({
   onViewModeChange,
   pageSize,
   onPageSizeChange,
+  showBulkSelect = false,
+  selectedCount = 0,
+  allSelected = false,
+  someSelected = false,
+  onToggleSelectAll,
+  onBulkMeToo,
+  bulkDisabled = false,
 }) {
+  const selectAllRef = useRef(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = Boolean(someSelected && !allSelected);
+    }
+  }, [someSelected, allSelected]);
+
   return (
     <div className="bc-toolbar">
       <div className="bc-search-wrap">
@@ -31,6 +47,30 @@ export default function ProductToolbar({
         </p>
 
         <div className="bc-toolbar-actions">
+          {showBulkSelect ? (
+            <div className="bc-toolbar-bulk">
+              <label className="bc-check bc-toolbar-select-all">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  disabled={bulkDisabled}
+                  onChange={() => onToggleSelectAll?.()}
+                  aria-label="Select all products"
+                />
+                <span>Select all</span>
+              </label>
+              <button
+                type="button"
+                className="bc-btn bc-btn-primary bc-btn-sm"
+                onClick={() => onBulkMeToo?.()}
+                disabled={bulkDisabled || selectedCount < 1}
+              >
+                <FaPlus aria-hidden="true" />
+                Me too{selectedCount > 0 ? ` (${selectedCount})` : ''}
+              </button>
+            </div>
+          ) : null}
           <div className="bc-view-toggle" role="group" aria-label="View mode">
             <button
               type="button"

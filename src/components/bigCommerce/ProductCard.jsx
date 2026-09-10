@@ -99,6 +99,10 @@ export default function ProductCard({
   meTooLocked = false,
   alreadyMeTooIds,
   placeholderLogoUrl = '',
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  selectDisabled = false,
 }) {
   const id = productIdFromRecord(product);
   const name = getProductName(product);
@@ -139,8 +143,25 @@ export default function ProductCard({
   ].filter(Boolean);
 
   return (
-    <article className={`bc-card bc-card--${viewMode}`}>
+    <article
+      className={`bc-card bc-card--${viewMode}${selected && !alreadyMeToo ? ' is-selected' : ''}`}
+    >
       <div className="bc-card-media">
+        {selectable && !alreadyMeToo ? (
+          <label
+            className={`bc-card-select${selected ? ' is-checked' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              disabled={actionBusy || selectDisabled}
+              onChange={() => onToggleSelect?.(id)}
+              aria-label={selected ? `Deselect ${name}` : `Select ${name}`}
+            />
+          </label>
+        ) : null}
         <ProductMediaImage
           image={image}
           placeholderLogoUrl={placeholderLogoUrl}

@@ -23,26 +23,36 @@ function multiplierLabel(value) {
 export default function MeTooPriceModal({
   open,
   product,
+  products,
   loading = false,
+  progressText = '',
   onClose,
   onConfirm,
 }) {
-  const originPrice = roundMoney(getProductPrice(product));
+  const targets = useMemo(() => {
+    if (Array.isArray(products) && products.length > 0) return products;
+    return product ? [product] : [];
+  }, [products, product]);
+  const isBulk = targets.length > 1;
+  const originPrice = roundMoney(getProductPrice(targets[0]));
   const [mode, setMode] = useState('1.5');
   const [customPrice, setCustomPrice] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setMode(originPrice > 0 ? '1.5' : 'custom');
+    setMode(originPrice > 0 || isBulk ? '1.5' : 'custom');
     setCustomPrice(originPrice > 0 ? String(originPrice) : '');
-  }, [open, originPrice, product]);
+  }, [open, originPrice, isBulk, targets]);
 
   const sellingPrice = useMemo(() => {
     if (mode === 'custom') return roundMoney(customPrice);
     return roundMoney(originPrice * Number(mode));
   }, [mode, customPrice, originPrice]);
 
-  const canConfirm = sellingPrice > 0 && !loading && Boolean(product);
+  const canConfirm =
+    !loading &&
+    targets.length > 0 &&
+    (mode === 'custom' ? sellingPrice > 0 : isBulk || sellingPrice > 0);
 
   const handleConfirm = () => {
     if (!canConfirm) return;
@@ -52,12 +62,21 @@ export default function MeTooPriceModal({
     });
   };
 
+  const titleCount = isBulk ? `Me too · ${targets.length} products` : 'Me too';
+  const subtitle = loading
+    ? progressText || 'Copying…'
+    : isBulk
+      ? `${targets.length} products`
+      : sellingPrice > 0
+        ? formatMoney(sellingPrice)
+        : undefined;
+
   return (
     <AppModal
       open={open}
       onClose={onClose}
-      title="Me too"
-      subtitle={sellingPrice > 0 ? formatMoney(sellingPrice) : undefined}
+      title={titleCount}
+      subtitle={subtitle}
       size="sm"
       ariaLabelledBy="me-too-price-modal-title"
       disableBackdropClose={loading}
@@ -77,7 +96,7 @@ export default function MeTooPriceModal({
             onClick={handleConfirm}
             disabled={!canConfirm}
           >
-            {loading ? 'Copying…' : 'Confirm'}
+            {loading ? progressText || 'Copying…' : isBulk ? `Confirm ${targets.length}` : 'Confirm'}
           </button>
         </>
       }
@@ -89,12 +108,18 @@ export default function MeTooPriceModal({
           handleConfirm();
         }}
       >
-        {product ? (
-          <p className="bc-metoo-price-product">{getProductName(product)}</p>
+        {isBulk ? (
+          <p className="bc-metoo-price-product">
+            {targets.length} products selected. Each copy uses its own vendor price.
+          </p>
+        ) : targets[0] ? (
+          <p className="bc-metoo-price-product">{getProductName(targets[0])}</p>
         ) : null}
         <div className="bc-metoo-price-origin">
           <span className="bc-metoo-price-label">Vendor price</span>
-          <strong className="bc-metoo-price-value">{formatMoney(originPrice)}</strong>
+          <strong className="bc-metoo-price-value">
+            {isBulk ? 'Per product' : formatMoney(originPrice)}
+          </strong>
           <p className="bc-metoo-price-note">Vendor price will not be affected.</p>
         </div>
 
@@ -113,7 +138,7 @@ export default function MeTooPriceModal({
                   disabled={loading}
                 >
                   <span>{multiplierLabel(value)}</span>
-                  <small>{formatMoney(preview)}</small>
+                  <small>{isBulk ? 'Each product' : formatMoney(preview)}</small>
                 </button>
               );
             })}
@@ -125,7 +150,7 @@ export default function MeTooPriceModal({
             disabled={loading}
           >
             <span>Custom</span>
-            <small>Set your price</small>
+            <small>{isBulk ? 'Same price for all' : 'Set your price'}</small>
           </button>
         </fieldset>
 
@@ -148,8 +173,20 @@ export default function MeTooPriceModal({
         ) : null}
 
         <div className="bc-metoo-price-summary">
-          <span>You will add this product at</span>
-          <strong>{sellingPrice > 0 ? formatMoney(sellingPrice) : '—'}</strong>
+          <span>
+            {isBulk ? 'You will add these products at' : 'You will add this product at'}
+          </span>
+          <strong>
+            {mode === 'custom'
+              ? sellingPrice > 0
+                ? formatMoney(sellingPrice)
+                : '—'
+              : isBulk
+                ? multiplierLabel(mode)
+                : sellingPrice > 0
+                  ? formatMoney(sellingPrice)
+                  : '—'}
+          </strong>
         </div>
       </form>
     </AppModal>

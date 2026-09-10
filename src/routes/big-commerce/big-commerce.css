@@ -712,6 +712,26 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.bc-toolbar-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.bc-toolbar-select-all {
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  white-space: nowrap;
+}
+
+.bc-toolbar-bulk .bc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .bc-view-toggle {
@@ -757,6 +777,60 @@
   transform: translateY(-3px);
   border-color: #d5dee8;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+}
+
+.bc-card.is-selected {
+  border-color: var(--bc-accent);
+  box-shadow: 0 0 0 2px rgba(8, 127, 115, 0.2);
+}
+
+.bc-card-select {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  cursor: pointer;
+}
+
+.bc-card-select input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid #c5d0dc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.bc-card-select.is-checked,
+.bc-card-select:has(input:checked) {
+  background: var(--bc-accent);
+  border-color: var(--bc-accent);
+}
+
+.bc-card-select input:checked {
+  background: var(--bc-accent);
+  border-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2 5 8.7 9.5 3.5'/%3E%3C/svg%3E");
+  background-size: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.bc-card-select:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .bc-card-media {

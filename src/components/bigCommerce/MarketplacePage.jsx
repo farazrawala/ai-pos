@@ -30,6 +30,7 @@ import {
 import {
   excludeChildProducts,
   getProductName,
+  getProductPrice,
   isAlreadyMeTooProduct,
   isMarketplaceChildProduct,
   parentProductTotal,
@@ -113,20 +114,24 @@ export default function MarketplacePage({ companyId }) {
   /** Partner products resolved by id for the Already Me too tab (not yet in the scroll list). */
   const [meTooResolved, setMeTooResolved] = useState([]);
   const [meTooResolveStatus, setMeTooResolveStatus] = useState('idle');
-  const [meTooProduct, setMeTooProduct] = useState(null);
+  const [meTooTargets, setMeTooTargets] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkMeTooBusy, setBulkMeTooBusy] = useState(false);
+  const [bulkMeTooProgress, setBulkMeTooProgress] = useState('');
   const [outgoingConnection, setOutgoingConnection] = useState(null);
   const [connectionReady, setConnectionReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
+  const bulkMeTooRef = useRef(false);
 
   const resolvedStoreId = String(state.company?.id || state.companyId || '').trim();
   const isOwnStore =
     Boolean(sessionCompanyId) &&
     (String(sessionCompanyId) === String(companyId || '').trim() ||
       (resolvedStoreId && String(sessionCompanyId) === resolvedStoreId));
-  const meTooBusy = state.duplicateStatus === 'loading';
+  const meTooBusy = state.duplicateStatus === 'loading' || bulkMeTooBusy;
   const deleteMeTooBusy = state.deleteFetchedStatus === 'loading';
   const resetMeTooBusy = state.resetFetchedStatus === 'loading';
   const isConnected = Boolean(
@@ -163,6 +168,8 @@ export default function MarketplacePage({ companyId }) {
     setListingTab(LISTING_TAB_ALL);
     setMeTooResolved([]);
     setMeTooResolveStatus('idle');
+    setMeTooTargets([]);
+    setSelectedIds(new Set());
     setOutgoingConnection(null);
     setConnectionReady(false);
     setSettingsOpen(false);
@@ -222,10 +229,10 @@ export default function MarketplacePage({ companyId }) {
   }, [isOwnStore, connectionReady, isConnected, listingTab]);
 
   useEffect(() => {
-    if (meTooLocked && meTooProduct && !meTooBusy) {
-      setMeTooProduct(null);
+    if (meTooLocked && meTooTargets.length > 0 && !meTooBusy) {
+      setMeTooTargets([]);
     }
-  }, [meTooLocked, meTooProduct, meTooBusy]);
+  }, [meTooLocked, meTooTargets, meTooBusy]);
 
   useEffect(() => {
     const sourceId = String(companyId || '').trim();
@@ -350,6 +357,7 @@ export default function MarketplacePage({ companyId }) {
   }, [dispatch]);
 
   useEffect(() => {
+    if (bulkMeTooRef.current) return;
     if (state.duplicateStatus === 'succeeded') {
       const name = state.duplicateProductName || getProductName(state.selectedProduct) || 'Product';
       showToast({
@@ -359,7 +367,7 @@ export default function MarketplacePage({ companyId }) {
         variant: 'success',
       });
       dispatch(clearDuplicateStatus());
-      setMeTooProduct(null);
+      setMeTooTargets([]);
     } else if (state.duplicateStatus === 'failed' && state.duplicateError) {
       showToast({ message: state.duplicateError, variant: 'error' });
       dispatch(clearDuplicateStatus());
@@ -442,28 +450,103 @@ export default function MarketplacePage({ companyId }) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
         return;
       }
-      setMeTooProduct(item);
+      setMeTooTargets([item]);
     },
     [denyMeTooUnlessConnected, meTooBusy, deleteMeTooBusy, resetMeTooBusy]
   );
 
+  const roundMeTooPrice = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+  };
+
   const handleConfirmMeToo = useCallback(
-    ({ price, multiplier } = {}) => {
+    async ({ price, multiplier } = {}) => {
       if (meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
       if (denyMeTooUnlessConnected()) return;
-      const id = productIdFromRecord(meTooProduct);
-      if (!id) {
+      const targets = Array.isArray(meTooTargets) ? meTooTargets.filter(Boolean) : [];
+      if (targets.length === 0) {
         showToast({ message: 'Product id is missing.', variant: 'error' });
         return;
       }
-      dispatch(
-        duplicateMarketplaceProduct({
-          productId: id,
-          productName: getProductName(meTooProduct) || 'Product',
-          price,
-          multiplier,
-        })
-      );
+
+      if (targets.length === 1) {
+        const id = productIdFromRecord(targets[0]);
+        if (!id) {
+          showToast({ message: 'Product id is missing.', variant: 'error' });
+          return;
+        }
+        dispatch(
+          duplicateMarketplaceProduct({
+            productId: id,
+            productName: getProductName(targets[0]) || 'Product',
+            price,
+            multiplier,
+          })
+        );
+        return;
+      }
+
+      bulkMeTooRef.current = true;
+      setBulkMeTooBusy(true);
+      let copied = 0;
+      let updated = 0;
+      let failed = 0;
+      const finishedIds = [];
+      try {
+        for (let i = 0; i < targets.length; i += 1) {
+          const item = targets[i];
+          const id = productIdFromRecord(item);
+          setBulkMeTooProgress(`Copying ${i + 1} of ${targets.length}…`);
+          if (!id) {
+            failed += 1;
+            continue;
+          }
+          const origin = getProductPrice(item);
+          const itemPrice =
+            multiplier != null && Number(multiplier) > 0
+              ? roundMeTooPrice(origin * Number(multiplier))
+              : roundMeTooPrice(price);
+          try {
+            const result = await dispatch(
+              duplicateMarketplaceProduct({
+                productId: id,
+                productName: getProductName(item) || 'Product',
+                price: itemPrice,
+                multiplier,
+              })
+            ).unwrap();
+            if (result?.alreadyFetched) updated += 1;
+            else copied += 1;
+            finishedIds.push(id);
+          } catch {
+            failed += 1;
+          }
+        }
+      } finally {
+        bulkMeTooRef.current = false;
+        setBulkMeTooBusy(false);
+        setBulkMeTooProgress('');
+        dispatch(clearDuplicateStatus());
+        setMeTooTargets([]);
+        if (finishedIds.length > 0) {
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            finishedIds.forEach((id) => next.delete(id));
+            return next;
+          });
+        }
+      }
+
+      const parts = [];
+      if (copied) parts.push(`${copied} added to your catalog`);
+      if (updated) parts.push(`${updated} price updated`);
+      if (failed) parts.push(`${failed} failed`);
+      showToast({
+        message: parts.join('. ') || 'Me too finished.',
+        variant: failed && !copied && !updated ? 'error' : failed ? 'warning' : 'success',
+      });
     },
     [
       dispatch,
@@ -471,7 +554,7 @@ export default function MarketplacePage({ companyId }) {
       meTooBusy,
       deleteMeTooBusy,
       resetMeTooBusy,
-      meTooProduct,
+      meTooTargets,
     ]
   );
 
@@ -694,6 +777,93 @@ export default function MarketplacePage({ companyId }) {
       return hay.includes(q);
     });
   }, [isMeTooTab, visibleProducts, meTooProducts, searchDraft, alreadyMeTooIdSet]);
+
+  const canSelectProducts = !isOwnStore && !isMeTooTab;
+  const displaySelectableIds = useMemo(
+    () =>
+      displayProducts
+        .filter((item) => !isAlreadyMeTooProduct(item, alreadyMeTooIdSet))
+        .map(productIdFromRecord)
+        .filter(Boolean),
+    [displayProducts, alreadyMeTooIdSet]
+  );
+  const allDisplayedSelected =
+    displaySelectableIds.length > 0 &&
+    displaySelectableIds.every((id) => selectedIds.has(id));
+  const someDisplayedSelected = displaySelectableIds.some((id) => selectedIds.has(id));
+
+  const handleToggleSelect = useCallback(
+    (id) => {
+      const key = String(id || '').trim();
+      if (!key) return;
+      const item = productById.get(key);
+      if (item && isAlreadyMeTooProduct(item, alreadyMeTooIdSet)) return;
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+    },
+    [productById, alreadyMeTooIdSet]
+  );
+
+  useEffect(() => {
+    if (alreadyMeTooIdSet.size === 0) return;
+    setSelectedIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (alreadyMeTooIdSet.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [alreadyMeTooIdSet]);
+
+  const handleToggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const ids = displayProducts
+        .filter((item) => !isAlreadyMeTooProduct(item, alreadyMeTooIdSet))
+        .map(productIdFromRecord)
+        .filter(Boolean);
+      if (ids.length === 0) return prev;
+      const allOn = ids.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allOn) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [displayProducts, alreadyMeTooIdSet]);
+
+  const handleBulkMeToo = useCallback(() => {
+    if (meTooBusy || deleteMeTooBusy || resetMeTooBusy) return;
+    if (denyMeTooUnlessConnected()) return;
+    const targets = [];
+    const seen = new Set();
+    selectedIds.forEach((id) => {
+      const item = productById.get(id);
+      if (!item || seen.has(id)) return;
+      if (isAlreadyMeTooProduct(item, alreadyMeTooIdSet)) return;
+      seen.add(id);
+      targets.push(item);
+    });
+    if (targets.length === 0) {
+      showToast({ message: 'Select at least one product.', variant: 'warning' });
+      return;
+    }
+    setMeTooTargets(targets);
+  }, [
+    denyMeTooUnlessConnected,
+    meTooBusy,
+    deleteMeTooBusy,
+    resetMeTooBusy,
+    selectedIds,
+    productById,
+    alreadyMeTooIdSet,
+  ]);
 
   const priceBounds = useMemo(() => {
     let max = 1000;
@@ -952,6 +1122,13 @@ export default function MarketplacePage({ companyId }) {
             onViewModeChange={(mode) => dispatch(setMarketplaceViewMode(mode))}
             pageSize={state.pagination.limit}
             onPageSizeChange={(limit) => dispatch(setMarketplaceLimit(limit))}
+            showBulkSelect={canSelectProducts && displaySelectableIds.length > 0}
+            selectedCount={selectedIds.size}
+            allSelected={allDisplayedSelected}
+            someSelected={someDisplayedSelected}
+            onToggleSelectAll={handleToggleSelectAll}
+            onBulkMeToo={handleBulkMeToo}
+            bulkDisabled={meTooBusy || deleteMeTooBusy || resetMeTooBusy}
           />
 
           {!isMeTooTab &&
@@ -1042,6 +1219,10 @@ export default function MarketplacePage({ companyId }) {
                     hideMeToo={isOwnStore}
                     alreadyMeTooIds={alreadyMeTooIdSet}
                     placeholderLogoUrl={state.company?.logoUrl || ''}
+                    selectable={canSelectProducts}
+                    selected={selectedIds.has(productIdFromRecord(product))}
+                    onToggleSelect={handleToggleSelect}
+                    selectDisabled={meTooBusy || deleteMeTooBusy || resetMeTooBusy}
                   />
                 ))
               : null}
@@ -1105,11 +1286,13 @@ export default function MarketplacePage({ companyId }) {
       />
 
       <MeTooPriceModal
-        open={Boolean(meTooProduct)}
-        product={meTooProduct}
+        open={meTooTargets.length > 0}
+        product={meTooTargets[0] || null}
+        products={meTooTargets}
         loading={meTooBusy}
+        progressText={bulkMeTooProgress}
         onClose={() => {
-          if (!meTooBusy) setMeTooProduct(null);
+          if (!meTooBusy) setMeTooTargets([]);
         }}
         onConfirm={handleConfirmMeToo}
       />

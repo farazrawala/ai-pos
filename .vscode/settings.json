@@ -51,7 +51,6 @@
   "nuxt.isNuxtApp": false,
   "workbench.colorTheme": "Default Dark Modern",
   "workbench.colorCustomizations": {
-    "activityBar.activeBorder": "#5E72E4",
     "sideBar.background": "#344767",
     "sideBar.foreground": "#E9ECEF",
     "sideBarTitle.foreground": "#FFFFFF",
