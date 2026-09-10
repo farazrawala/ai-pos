@@ -332,7 +332,9 @@ const Integration = () => {
                         const tokenExpiryAbsolute = formatIntegrationTimestamp(tokenExpiryAt);
                         const tokenExpiryLabel = formatIntegrationExpiryRemaining(tokenExpiryAt);
                         const tokenExpired = tokenExpiryLabel === 'Expired';
-                        const showRefreshUnderExpiry = tokenExpired && isShopifyStoreType(item);
+                        const tokenExpiryEmpty = !tokenExpiryLabel;
+                        const showRefreshUnderExpiry =
+                          isShopifyStoreType(item) && (tokenExpired || tokenExpiryEmpty);
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
@@ -372,23 +374,19 @@ const Integration = () => {
                             ) : null}
                             {isVisible('token') ? (
                               <td className="text-sm list-col-date" title={tokenExpiryAbsolute || undefined}>
-                                {tokenExpiryLabel ? (
-                                  <div className="d-flex flex-column align-items-start gap-1">
-                                    <span className="text-nowrap">{tokenExpiryLabel}</span>
-                                    {showRefreshUnderExpiry ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-info mb-0"
-                                        onClick={handleRefreshToken}
-                                        disabled={refreshingTokens}
-                                      >
-                                        {refreshingTokens ? 'Refreshing…' : 'Refresh Token'}
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  '-'
-                                )}
+                                <div className="d-flex flex-column align-items-start gap-1">
+                                  <span className="text-nowrap">{tokenExpiryLabel || '-'}</span>
+                                  {showRefreshUnderExpiry ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-info mb-0"
+                                      onClick={handleRefreshToken}
+                                      disabled={refreshingTokens}
+                                    >
+                                      {refreshingTokens ? 'Refreshing…' : 'Refresh Token'}
+                                    </button>
+                                  ) : null}
+                                </div>
                               </td>
                             ) : null}
                             {isVisible('dates') ? (
