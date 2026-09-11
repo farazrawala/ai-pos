@@ -32,7 +32,7 @@ import {
   variationStatusValue,
 } from '../../components/product/productVariationUtils.js';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
-import { buildApiUrl } from '../../config/apiConfig.js';
+import { buildApiUrl, resolveCategoryMediaUrl } from '../../config/apiConfig.js';
 import { DEBUG } from '../../config/env.js';
 import '../../components/product/product-variations-modal.css';
 import '../../components/common/devApiSources.css';
@@ -44,8 +44,23 @@ import {
   validateProductImageFile,
 } from '../../utils/productImageUpload.js';
 import { PRODUCT_IMPORT_UNITS } from '../../features/products/productImportFields.js';
+import { getProductListingImage } from '../../features/bigCommerce/marketplaceUtils.js';
 
 const isPersistedProductId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? '').trim());
+
+/** Browser URL for a child/variation's own saved image (not the parent fallback). */
+const variationImagePreviewFromChild = (child) => {
+  if (!child || typeof child !== 'object') return '';
+  const fromListing = getProductListingImage(child);
+  if (fromListing) return fromListing;
+  const raw =
+    child.product_image_thumbnail_url ||
+    child.product_image ||
+    child.image ||
+    (Array.isArray(child.multi_images) ? child.multi_images[0] : '') ||
+    '';
+  return resolveCategoryMediaUrl(raw) || '';
+};
 
 const isUnsetBigCommercePrice = (value) => {
   const s = String(value ?? '').trim();
@@ -560,7 +575,7 @@ const ProductEdit = () => {
             height: child.height !== undefined ? child.height.toString() : '',
             status: variationStatusValue(child),
             image: null,
-            imagePreview: null,
+            imagePreview: variationImagePreviewFromChild(child) || null,
             // Store the original child product ID for reference
             childProductId: child._id,
             fetch_from_product_id:
