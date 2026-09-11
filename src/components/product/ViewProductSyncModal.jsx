@@ -222,7 +222,9 @@ export default function ViewProductSyncModal({
   productId,
   productName,
   parentProductId = '',
+  productType = '',
   onClose,
+  onUnlinked,
 }) {
   const isPosVariantChild =
     Boolean(String(parentProductId || '').trim()) || looksLikeVariantName(productName);
@@ -689,8 +691,13 @@ export default function ViewProductSyncModal({
     if (!syncId) return;
 
     const storeLabel = integrationLabel(item.integration_id);
+    const isVariableFamily =
+      String(productType || '').trim().toLowerCase() === 'variable' ||
+      isPosVariantChild;
     const confirmed = window.confirm(
-      `Unlink this product from "${storeLabel}"? This cannot be undone.`
+      isVariableFamily
+        ? `Unlink this product and all of its child variations from "${storeLabel}"? This cannot be undone.`
+        : `Unlink this product from "${storeLabel}"? This cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -698,9 +705,15 @@ export default function ViewProductSyncModal({
     setUnlinkError(null);
 
     try {
-      await deleteSyncProductRequest(syncId);
+      const result = await deleteSyncProductRequest(syncId);
       setList((prev) => prev.filter((row) => syncIdFromRecord(row) !== syncId));
-      toast.success(`Unlinked from ${storeLabel}.`);
+      const unlinkedCount = Number(result?.unlinked_count) || 0;
+      toast.success(
+        unlinkedCount > 1
+          ? `Unlinked from ${storeLabel} (${unlinkedCount} mappings, including child variations).`
+          : `Unlinked from ${storeLabel}.`
+      );
+      if (typeof onUnlinked === 'function') onUnlinked();
     } catch (err) {
       setUnlinkError(err?.message || 'Failed to unlink store');
       console.error('[Sync product module] Failed to unlink store product', {
@@ -1172,7 +1185,8 @@ export default function ViewProductSyncModal({
               <h6 className="ps-step-title">Connected integrations</h6>
               <p className="ps-step-hint">
                 Review sync price, status, and when each store was last linked. Sync now to push
-                this product again, or unlink to remove the mapping.
+                this product again, or unlink to remove the mapping. Unlinking a variable product
+                also unlinks all of its child variations.
               </p>
             </div>
           </div>
@@ -1285,7 +1299,12 @@ export default function ViewProductSyncModal({
                                 className="ps-unlink-btn"
                                 onClick={() => handleUnlinkStore(item)}
                                 disabled={!rowId || unlinkingSyncId === rowId}
-                                title="Unlink this product from this store"
+                                title={
+                                  String(productType || '').trim().toLowerCase() === 'variable' ||
+                                  isPosVariantChild
+                                    ? 'Unlink this product and all child variations from this store'
+                                    : 'Unlink this product from this store'
+                                }
                                 aria-label={`Unlink from ${integrationLabel(item.integration_id)}`}
                               >
                                 {unlinkingSyncId === rowId ? (

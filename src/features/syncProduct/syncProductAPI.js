@@ -195,6 +195,7 @@ export const updateSyncProductRequest = async (syncProductId, syncProductData = 
 /**
  * Unlink / unsync a product from a store.
  * DELETE /sync_product/delete/:id
+ * Variable products also unlink all child variation mappings.
  */
 export const deleteSyncProductRequest = async (syncProductId) => {
   const id = String(syncProductId || '').trim();

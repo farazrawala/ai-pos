@@ -1003,6 +1003,7 @@ const Product = () => {
       id: productId,
       name: item.name || item.product_name || 'Product',
       parentProductId: parentProductIdFromRecord(item),
+      productType: item.product_type || item.productType || '',
     });
   };
 
@@ -1933,7 +1934,9 @@ const Product = () => {
         productId={viewSyncProduct?.id || ''}
         productName={viewSyncProduct?.name || ''}
         parentProductId={viewSyncProduct?.parentProductId || ''}
+        productType={viewSyncProduct?.productType || ''}
         onClose={handleViewSyncModalClose}
+        onUnlinked={reloadCurrentPageSyncRows}
       />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />
