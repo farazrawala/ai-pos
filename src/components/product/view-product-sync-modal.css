@@ -64,6 +64,24 @@
   color: #2a3654;
   margin: 0;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ps-role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #f4f6f9;
+  color: #5e6a80;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid #e6ebf2;
 }
 
 .ps-step-hint {
@@ -136,6 +154,18 @@
 
 .ps-variation-field {
   margin-top: 0.85rem;
+}
+
+.ps-link-all-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.ps-link-all-row .ps-action-btn {
+  min-width: 14rem;
 }
 
 .ps-variation-field .form-label {

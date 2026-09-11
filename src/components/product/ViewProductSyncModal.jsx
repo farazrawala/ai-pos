@@ -13,10 +13,12 @@ import {
 import { createBulkSyncProductProcessRequest } from '../../features/process/processAPI.js';
 import { fetchProductVariationRequest } from '../../features/products/productsAPI.js';
 import {
+  SYNC_ROW_QUERY_PRODUCT_ID,
   createSyncProductRequest,
   deleteSyncProductRequest,
   fetchSyncProductsForProductIdsRequest,
   fetchSyncProductsRequest,
+  productIdFromSyncRow,
   updateSyncProductRequest,
 } from '../../features/syncProduct/syncProductAPI.js';
 import { parseStoreProductLink, buildShopifyProductAdminUrl, pickShopifyProductIds } from '../../utils/parseStoreProductUrl.js';
@@ -249,6 +251,102 @@ const variationOptionLabel = (variation) => {
   return parts.join(' · ');
 };
 
+const productNameFromRecord = (item) =>
+  decodeHtml(item?.product_name ?? item?.name ?? item?.productName ?? '');
+
+const productSkuFromRecord = (item) =>
+  String(item?.sku ?? item?.product_sku ?? item?.productSku ?? '').trim();
+
+const collectFamilyProductsFromVariationPayload = (body) => {
+  const products = [];
+  const seen = new Set();
+  const push = (item) => {
+    if (!item || typeof item !== 'object') return;
+    const id = productIdFromRecord(item);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      products.push({
+        id,
+        name: productNameFromRecord(item),
+        sku: productSkuFromRecord(item),
+        productType: String(item?.product_type ?? item?.productType ?? '')
+          .trim()
+          .toLowerCase(),
+      });
+    }
+    const kids = item.childproducts ?? item.child_products ?? item.variations;
+    if (Array.isArray(kids)) kids.forEach(push);
+  };
+
+  if (Array.isArray(body)) {
+    body.forEach(push);
+    return products;
+  }
+  const record = body?.data ?? body?.product ?? body;
+  if (Array.isArray(record)) {
+    record.forEach(push);
+    return products;
+  }
+  if (record && typeof record === 'object') push(record);
+  return products;
+};
+
+const normalizeMatchKey = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/&amp;/g, '&')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+const extractBracketOption = (name) => {
+  const match = String(name || '').match(/\[([^\]]+)\]/);
+  return match ? normalizeMatchKey(match[1]) : '';
+};
+
+const matchKeysForProduct = (name, sku) => {
+  const keys = [];
+  const bracket = extractBracketOption(name);
+  const skuKey = normalizeMatchKey(sku);
+  const full = normalizeMatchKey(decodeHtml(name));
+  if (bracket) keys.push(bracket);
+  if (skuKey) keys.push(skuKey);
+  if (full) keys.push(full);
+  return keys;
+};
+
+const storeVariationReferenceId = (variation, parentRemoteId) =>
+  String(variation?.reference_id || `${parentRemoteId}:${variation?.id || ''}`).trim();
+
+const matchStoreVariation = (posProduct, storeVariations, usedIds) => {
+  const posKeys = matchKeysForProduct(posProduct?.name, posProduct?.sku);
+  if (!posKeys.length) return null;
+  const posBracket = extractBracketOption(posProduct?.name);
+
+  let best = null;
+  let bestScore = 0;
+  storeVariations.forEach((variation) => {
+    const vid = String(variation?.id || '');
+    if (!vid || usedIds.has(vid)) return;
+    const storeKeys = matchKeysForProduct(variation?.name, variation?.sku);
+    const storeBracket = extractBracketOption(variation?.name);
+    let score = 0;
+    if (posBracket && storeBracket && posBracket === storeBracket) {
+      score = 4;
+    } else {
+      posKeys.forEach((pk) => {
+        if (!pk || !storeKeys.includes(pk)) return;
+        score = Math.max(score, pk === posBracket || pk === storeBracket ? 4 : 3);
+      });
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = variation;
+    }
+  });
+  return bestScore >= 3 ? best : null;
+};
+
 export default function ViewProductSyncModal({
   open,
   productId,
@@ -258,8 +356,11 @@ export default function ViewProductSyncModal({
   onClose,
   onUnlinked,
 }) {
+  const isVariableParent =
+    String(productType || '').trim().toLowerCase() === 'variable';
   const isPosVariantChild =
-    Boolean(String(parentProductId || '').trim()) || looksLikeVariantName(productName);
+    !isVariableParent &&
+    (Boolean(String(parentProductId || '').trim()) || looksLikeVariantName(productName));
 
   const [list, setList] = useState([]);
   const [loadStatus, setLoadStatus] = useState('idle');
@@ -469,6 +570,16 @@ export default function ViewProductSyncModal({
       setSyncError('Please select an integration.');
       return;
     }
+    if (linkUrl.trim() || storeVariations.length > 0) {
+      setSyncError(
+        isVariableParent
+          ? 'This product already exists on Shopify. Do not press Sync. Paste the product URL in step 2 and click Link parent.'
+          : isPosVariantChild
+            ? 'This product already exists on Shopify. Do not press Sync. Paste the product URL in step 2, choose the variation, then click Link variation.'
+            : 'This product already exists on Shopify. Do not press Sync. Paste the product URL in step 2 and click Link.'
+      );
+      return;
+    }
 
     setSyncStatus('loading');
     setSyncError(null);
@@ -492,21 +603,79 @@ export default function ViewProductSyncModal({
     }
   };
 
-  const createLinkMapping = async (referenceId, integration, integrationId) => {
+  const writeLinkMapping = async (targetProductId, referenceId, integrationId) => {
     await createSyncProductRequest({
-      product_id: productId,
+      product_id: targetProductId,
       integration_id: integrationId,
-      refference_id: referenceId,
+      refference_id: String(referenceId || '').trim(),
       status: 'active',
     });
+  };
+
+  const createLinkMapping = async (referenceId, integration, integrationId) => {
+    await writeLinkMapping(productId, referenceId, integrationId);
     setLinkStatus('succeeded');
     setLinkSuccess(
-      `Linked to ${integrationOptionLabel(integration)} (ID ${referenceId}).`
+      isVariableParent
+        ? `Linked parent to ${integrationOptionLabel(integration)} (product ${referenceId}).`
+        : `Linked to ${integrationOptionLabel(integration)} (ID ${referenceId}).`
     );
-    setLinkUrl('');
-    resetVariationPicker();
+    if (!isVariableParent) {
+      setLinkUrl('');
+      resetVariationPicker();
+    }
     loadSyncRecords();
   };
+
+  const loadStoreVariationsForLink = async () => {
+    const result = await fetchStoreProductVariationsRequest(
+      parsedLink.integrationId,
+      parsedLink.productId
+    );
+    const variations = Array.isArray(result?.data) ? result.data : [];
+    setStoreVariations(variations);
+    setStoreVariationsStatus('succeeded');
+    setPendingParentRemoteId(parsedLink.productId);
+    return variations;
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!isPosVariantChild && !isVariableParent) return undefined;
+    if (!parsedLink.productId || !parsedLink.integrationId || parsedLink.variantId) {
+      return undefined;
+    }
+    if (!/^\d{6,}$/.test(String(parsedLink.productId))) return undefined;
+    if (String(pendingParentRemoteId) === String(parsedLink.productId)) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      setStoreVariationsStatus('loading');
+      try {
+        await loadStoreVariationsForLink();
+      } catch (err) {
+        if (cancelled) return;
+        setStoreVariationsStatus('failed');
+        if (isPosVariantChild) {
+          setLinkError(err?.message || 'Failed to fetch store variations');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Load once per pasted Shopify product URL (parent or child).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    isPosVariantChild,
+    isVariableParent,
+    parsedLink.productId,
+    parsedLink.integrationId,
+    parsedLink.variantId,
+    pendingParentRemoteId,
+  ]);
 
   const handleLinkExistingProduct = async () => {
     if (!productId) {
@@ -543,9 +712,38 @@ export default function ViewProductSyncModal({
       return;
     }
 
-    // Product URL without variant → fetch store variations and let user pick
+    // Variable parent: one Shopify product URL → parent mapping only (no variation picker).
+    if (isVariableParent && parsedLink.productId && !selectedStoreVariation) {
+      setLinkStatus('loading');
+      setLinkError(null);
+      setLinkSuccess(null);
+      setSyncError(null);
+      setSyncSuccess(null);
+      try {
+        await createLinkMapping(
+          parsedLink.productId,
+          parsedLink.integration,
+          parsedLink.integrationId
+        );
+      } catch (err) {
+        setLinkStatus('failed');
+        setLinkError(err?.message || 'Failed to link parent to existing store product');
+        console.error('[Sync product module] Failed to link variable parent', {
+          productId,
+          integrationId: parsedLink.integrationId,
+          refference_id: parsedLink.productId,
+          error: err,
+        });
+      }
+      return;
+    }
+
+    // Child: paste parent URL, then pick the Shopify variation from the dropdown.
     const needsVariationPick =
-      parsedLink.productId && !parsedLink.variantId && !selectedStoreVariation;
+      isPosVariantChild &&
+      parsedLink.productId &&
+      !parsedLink.variantId &&
+      !selectedStoreVariation;
 
     if (needsVariationPick) {
       setLinkStatus('loading');
@@ -553,23 +751,19 @@ export default function ViewProductSyncModal({
       setLinkSuccess(null);
       setSyncError(null);
       setSyncSuccess(null);
-      setStoreVariationsStatus('loading');
-      setStoreVariations([]);
-      setSelectedStoreVariationId('');
-      setPendingParentRemoteId(parsedLink.productId);
 
       try {
-        const result = await fetchStoreProductVariationsRequest(
-          parsedLink.integrationId,
-          parsedLink.productId
-        );
-        const variations = Array.isArray(result?.data) ? result.data : [];
-        setStoreVariations(variations);
-        setStoreVariationsStatus('succeeded');
+        let variations = storeVariations;
+        if (
+          !variations.length ||
+          String(pendingParentRemoteId) !== String(parsedLink.productId)
+        ) {
+          setStoreVariationsStatus('loading');
+          variations = await loadStoreVariationsForLink();
+        }
         setLinkStatus('idle');
 
         if (variations.length === 0) {
-          // Simple product — link parent id only
           setLinkStatus('loading');
           await createLinkMapping(
             parsedLink.productId,
@@ -580,20 +774,17 @@ export default function ViewProductSyncModal({
         }
 
         if (variations.length === 1) {
-          // Single remote variant — link automatically as product:variant
           setLinkStatus('loading');
           const only = variations[0];
           await createLinkMapping(
-            String(only.reference_id || `${parsedLink.productId}:${only.id}`),
+            storeVariationReferenceId(only, parsedLink.productId),
             parsedLink.integration,
             parsedLink.integrationId
           );
           return;
         }
 
-        setLinkSuccess(
-          `Found ${variations.length} variation(s). Select the matching one, then click Link variation.`
-        );
+        setLinkSuccess('Select this child’s Shopify variation, then click Link variation.');
       } catch (err) {
         setStoreVariationsStatus('failed');
         setLinkStatus('failed');
@@ -609,8 +800,8 @@ export default function ViewProductSyncModal({
     }
 
     const referenceId = selectedStoreVariation
-      ? String(selectedStoreVariation.reference_id || '').trim()
-      : parsedLink.externalProductId;
+      ? storeVariationReferenceId(selectedStoreVariation, parsedLink.productId)
+      : parsedLink.externalProductId || parsedLink.productId;
 
     if (!referenceId) {
       setLinkError('Select a store variation to link.');
@@ -647,6 +838,176 @@ export default function ViewProductSyncModal({
         productId,
         integrationId: parsedLink.integrationId,
         refference_id: referenceId,
+        error: err,
+      });
+    }
+  };
+
+  const handleLinkAllMatchingVariations = async () => {
+    if (!productId) {
+      setLinkError('Product id is missing.');
+      return;
+    }
+    if (!linkUrl.trim()) {
+      setLinkError('Please paste a store product URL.');
+      return;
+    }
+    if (!parsedLink.productId) {
+      setLinkError(
+        'Could not extract a parent product id from this URL. Paste the Shopify parent product URL, not a variant-only URL.'
+      );
+      return;
+    }
+    if (!parsedLink.integrationId) {
+      setLinkError(
+        'No integration matches this URL domain. Check that the store URL is saved on the integration.'
+      );
+      return;
+    }
+
+    setLinkStatus('loading');
+    setLinkError(null);
+    setLinkSuccess(null);
+    setSyncError(null);
+    setSyncSuccess(null);
+
+    try {
+      let variations = storeVariations;
+      if (!variations.length) {
+        setStoreVariationsStatus('loading');
+        variations = await loadStoreVariationsForLink();
+      }
+
+      if (!variations.length) {
+        await createLinkMapping(
+          parsedLink.productId,
+          parsedLink.integration,
+          parsedLink.integrationId
+        );
+        return;
+      }
+
+      const isVariable = String(productType || '').trim().toLowerCase() === 'variable';
+      const currentId = String(productId || '').trim();
+      const parentHint = String(parentProductId || '').trim();
+      const rootId = (isVariable ? currentId : parentHint) || currentId;
+
+      let family = [];
+      try {
+        const variationBody = await fetchProductVariationRequest(rootId);
+        family = collectFamilyProductsFromVariationPayload(variationBody);
+      } catch (err) {
+        console.warn('[Sync product module] Failed to load POS variations for family link', {
+          rootId,
+          error: err,
+        });
+      }
+
+      if (isVariable && !family.some((item) => item.id === rootId)) {
+        family.unshift({
+          id: rootId,
+          name: decodeHtml(productName),
+          sku: '',
+          productType: 'variable',
+        });
+      }
+      if (currentId && !family.some((item) => item.id === currentId)) {
+        family.push({
+          id: currentId,
+          name: decodeHtml(productName),
+          sku: '',
+          productType: String(productType || '').trim().toLowerCase(),
+        });
+      }
+
+      const parentPos =
+        family.find((item) => item.productType === 'variable') ||
+        (isVariable ? family.find((item) => item.id === currentId) : null) ||
+        family.find((item) => parentHint && item.id === parentHint) ||
+        null;
+      const children = family.filter((item) => {
+        if (parentPos && item.id === parentPos.id) return false;
+        return item.productType !== 'variable';
+      });
+
+      const existingRows = await fetchSyncProductsForProductIdsRequest(
+        family.map((item) => item.id),
+        { populate: 'integration_id' }
+      );
+      const isAlreadyLinked = (posId) =>
+        existingRows.some((row) => {
+          const rowProduct =
+            productIdFromSyncRow(row) || String(row[SYNC_ROW_QUERY_PRODUCT_ID] || '').trim();
+          return (
+            String(rowProduct) === String(posId) &&
+            resolveSyncIntegrationId(row) === String(parsedLink.integrationId)
+          );
+        });
+
+      let linkedCount = 0;
+      let skippedCount = 0;
+      const unmatched = [];
+
+      const canLinkParent =
+        parentPos &&
+        (parentPos.productType === 'variable' || (isVariable && parentPos.id === currentId));
+      if (canLinkParent) {
+        if (!isAlreadyLinked(parentPos.id)) {
+          await writeLinkMapping(parentPos.id, parsedLink.productId, parsedLink.integrationId);
+          linkedCount += 1;
+        } else {
+          skippedCount += 1;
+        }
+      }
+
+      const usedStoreIds = new Set();
+      for (const child of children) {
+        if (isAlreadyLinked(child.id)) {
+          skippedCount += 1;
+          continue;
+        }
+        const match = matchStoreVariation(child, variations, usedStoreIds);
+        if (!match) {
+          unmatched.push(child.name || child.id);
+          continue;
+        }
+        usedStoreIds.add(String(match.id || ''));
+        await writeLinkMapping(
+          child.id,
+          storeVariationReferenceId(match, parsedLink.productId),
+          parsedLink.integrationId
+        );
+        linkedCount += 1;
+      }
+
+      setLinkStatus('succeeded');
+      const unmatchedNote = unmatched.length
+        ? ` Could not match: ${unmatched.join(', ')}.`
+        : '';
+      const skippedNote = skippedCount ? ` ${skippedCount} already linked.` : '';
+      setLinkSuccess(
+        `Linked ${linkedCount} mapping(s) to ${integrationOptionLabel(parsedLink.integration)} (parent + matching children).${skippedNote}${unmatchedNote}`
+      );
+      if (unmatched.length) {
+        setLinkError(
+          `Some children were not matched to a Shopify variation.${unmatchedNote} Link those one by one.`
+        );
+      }
+      setLinkUrl('');
+      resetVariationPicker();
+      loadSyncRecords();
+      toast.success(
+        unmatched.length
+          ? `Linked ${linkedCount} mapping(s). ${unmatched.length} child(ren) still need a manual match.`
+          : `Linked parent and ${Math.max(linkedCount - 1, 0)} child variation(s) to the existing Shopify product.`
+      );
+    } catch (err) {
+      setLinkStatus('failed');
+      setLinkError(err?.message || 'Failed to link parent and child variations');
+      console.error('[Sync product module] Failed to link family to existing store product', {
+        productId,
+        integrationId: parsedLink.integrationId,
+        remoteProductId: parsedLink.productId,
         error: err,
       });
     }
@@ -878,12 +1239,23 @@ export default function ViewProductSyncModal({
   };
 
   const title = productName ? decodeHtml(productName) : 'Product';
+  const variationPickRequired = isPosVariantChild && storeVariations.length > 1;
   const submitDisabled =
     linkStatus === 'loading' ||
-    storeVariationsStatus === 'loading' ||
     !linkUrl.trim() ||
     !productId ||
-    (storeVariations.length > 1 && !selectedStoreVariationId);
+    (isPosVariantChild && storeVariationsStatus === 'loading') ||
+    (variationPickRequired && !selectedStoreVariationId);
+  const primaryLinkLabel = isVariableParent
+    ? 'Link parent'
+    : variationPickRequired || (isPosVariantChild && parsedLink.variantId)
+      ? 'Link variation'
+      : 'Link';
+  const linkStepHint = isVariableParent
+    ? 'Paste the Shopify product URL once (…/products/10608704782635). That links this parent only. Optionally use Link matching children, or open each child and pick a variation.'
+    : isPosVariantChild
+      ? 'Paste the Shopify parent product URL, then choose this child’s variation from the dropdown.'
+      : 'Paste the existing Shopify product URL to link this POS product. This does not create a new store product.';
 
   const storeVariationRemoteId = pendingParentRemoteId || parsedLink.productId || '';
   const apiSources = useMemo(() => {
@@ -1045,7 +1417,8 @@ export default function ViewProductSyncModal({
             <div>
               <h6 className="ps-step-title">Sync this product</h6>
               <p className="ps-step-hint">
-                Push only this product to the selected store integration.
+                Use this only to create a new store product. If it already exists on
+                Shopify, skip Sync and use Link in step 2.
               </p>
             </div>
           </div>
@@ -1133,12 +1506,17 @@ export default function ViewProductSyncModal({
               2
             </span>
             <div>
-              <h6 className="ps-step-title">Link existing store product</h6>
-              <p className="ps-step-hint">
-                {isPosVariantChild
-                  ? 'Paste the parent store product URL (Shopify/WordPress). Variations are loaded so you can pick the matching one.'
-                  : 'Paste a store product URL. If it has variations, you can pick one; otherwise it links the product id.'}
-              </p>
+              <h6 className="ps-step-title">
+                Link existing store product
+                <span className="ps-role-pill">
+                  {isVariableParent
+                    ? 'Variable parent'
+                    : isPosVariantChild
+                      ? 'Child variation'
+                      : 'Single product'}
+                </span>
+              </h6>
+              <p className="ps-step-hint">{linkStepHint}</p>
             </div>
           </div>
           <div className="ps-step-body">
@@ -1163,7 +1541,7 @@ export default function ViewProductSyncModal({
                           resetVariationPicker();
                         }
                       }}
-                      disabled={linkStatus === 'loading' || storeVariationsStatus === 'loading'}
+                      disabled={linkStatus === 'loading'}
                     />
                   </div>
                   <button
@@ -1172,24 +1550,19 @@ export default function ViewProductSyncModal({
                     onClick={handleLinkExistingProduct}
                     disabled={submitDisabled}
                   >
-                    {linkStatus === 'loading' || storeVariationsStatus === 'loading' ? (
+                    {linkStatus === 'loading' ? (
                       <>
                         <span
                           className="spinner-border spinner-border-sm me-2"
                           role="status"
                           aria-hidden="true"
                         />
-                        {storeVariationsStatus === 'loading' ? 'Loading…' : 'Linking…'}
-                      </>
-                    ) : storeVariations.length > 1 ? (
-                      <>
-                        <i className="fas fa-link me-1" aria-hidden="true" />
-                        Link variation
+                        Linking…
                       </>
                     ) : (
                       <>
                         <i className="fas fa-link me-1" aria-hidden="true" />
-                        Link
+                        {primaryLinkLabel}
                       </>
                     )}
                   </button>
@@ -1206,7 +1579,11 @@ export default function ViewProductSyncModal({
                           {parsedLink.externalProductId
                             ? parsedLink.variantId
                               ? ` · Reference ${parsedLink.externalProductId} (product + variant)`
-                              : ` · Product ID ${parsedLink.productId || parsedLink.externalProductId} · will load variations on Link`
+                              : isVariableParent
+                                ? ` · Product ID ${parsedLink.productId || parsedLink.externalProductId} · click Link parent`
+                                : isPosVariantChild
+                                  ? ` · Product ID ${parsedLink.productId || parsedLink.externalProductId} · pick a variation below`
+                                  : ` · Product ID ${parsedLink.productId || parsedLink.externalProductId}`
                             : ' · product id not found in URL'}
                         </span>
                       ) : (
@@ -1223,7 +1600,7 @@ export default function ViewProductSyncModal({
                   </div>
                 ) : null}
 
-                {storeVariations.length > 1 ? (
+                {isPosVariantChild && storeVariations.length > 1 ? (
                   <div className="ps-variation-field">
                     <label htmlFor="viewProductSyncStoreVariation" className="form-label">
                       Store variation <span className="text-danger">*</span>
@@ -1249,6 +1626,42 @@ export default function ViewProductSyncModal({
                         );
                       })}
                     </select>
+                  </div>
+                ) : null}
+
+                {isVariableParent && storeVariations.length > 0 ? (
+                  <div className="ps-link-all-row">
+                    <button
+                      type="button"
+                      className="btn btn-primary ps-action-btn mb-0"
+                      onClick={handleLinkAllMatchingVariations}
+                      disabled={
+                        linkStatus === 'loading' ||
+                        storeVariationsStatus === 'loading' ||
+                        !linkUrl.trim() ||
+                        !productId
+                      }
+                    >
+                      {linkStatus === 'loading' ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          />
+                          Linking…
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-link me-1" aria-hidden="true" />
+                          Link matching children
+                        </>
+                      )}
+                    </button>
+                    <p className="ps-step-hint mb-0">
+                      Optional. Maps every matching child to a Shopify variation from this
+                      same product URL. Does not create a new store product.
+                    </p>
                   </div>
                 ) : null}
               </>
