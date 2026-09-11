@@ -7,6 +7,16 @@ import {
 } from '../../features/bigCommerce/marketplaceUtils.js';
 import ProductDetailView, { ProductDetailActions } from './ProductDetailView.jsx';
 
+function splitProductTitle(name) {
+  const text = String(name || '').trim();
+  if (!text) return { main: 'Product', variant: '' };
+  const parts = text.split(/\s*\|\s*/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { main: parts[0], variant: parts.slice(1).join(' | ') };
+  }
+  return { main: text, variant: '' };
+}
+
 export default function ProductDetailModal({
   open,
   onClose,
@@ -33,6 +43,7 @@ export default function ProductDetailModal({
   onDetailsNavigate,
 }) {
   const name = getProductName(product);
+  const { main: titleMain, variant: titleVariant } = splitProductTitle(name);
   const brand = getProductBrand(product);
   const category = getProductCategory(product);
   const currentHref =
@@ -40,13 +51,18 @@ export default function ProductDetailModal({
     (product && detailsHrefForProduct
       ? detailsHrefForProduct(productIdFromRecord(product))
       : '');
+  const subtitle = loading
+    ? undefined
+    : titleVariant ||
+      (brand.name !== '—' ? brand.name : category.name !== '—' ? category.name : undefined);
 
   return (
     <AppModal
       open={open}
       onClose={onClose}
-      title={loading ? 'Loading product…' : name}
-      subtitle={brand.name !== '—' ? brand.name : category.name !== '—' ? category.name : undefined}
+      className="bc-qv-dialog"
+      title={loading ? 'Loading product…' : titleMain}
+      subtitle={subtitle}
       size="xl"
       footer={
         <ProductDetailActions

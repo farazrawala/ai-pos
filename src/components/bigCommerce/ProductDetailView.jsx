@@ -157,7 +157,8 @@ export function ProductDetailActions({
       : 'Copy this product to your catalog';
 
   return (
-    <>
+    <div className="bc-qv-footer-actions">
+      <div className="bc-qv-footer-start">
       {!hideMeToo ? (
         <button
           type="button"
@@ -204,6 +205,8 @@ export function ProductDetailActions({
           {deleteBusyForProduct ? 'Removing…' : 'Delete'}
         </button>
       ) : null}
+      </div>
+      <div className="bc-qv-footer-end">
       {detailsHref ? (
         <Link to={detailsHref} className="bc-btn bc-btn-ghost" onClick={onClose}>
           View full details
@@ -214,7 +217,8 @@ export function ProductDetailActions({
           {closeLabel}
         </button>
       ) : null}
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -402,6 +406,7 @@ function VariationBlock({
   detailsHrefForProduct,
   onDetailsNavigate,
   layout,
+  selectedSrc = '',
 }) {
   const id = productIdFromRecord(variation);
   const label = getVariationLabel(variation, parentName);
@@ -414,6 +419,7 @@ function VariationBlock({
   const alreadyMeToo = isAlreadyMeTooProduct(variation, alreadyMeTooIds);
   const meTooBusy = Boolean(meTooLoading && meTooProductId === id);
   const image = getProductListingImage(variation, { parent });
+  const selected = Boolean(image && selectedSrc && image === selectedSrc);
   const actionProps = {
     variation,
     hideMeToo,
@@ -471,41 +477,41 @@ function VariationBlock({
   }
 
   return (
-    <div className="bc-pdp-var-row" role="row">
-      <div className="bc-pdp-var-product" role="cell">
+    <div className={`bc-pdp-var-row${selected ? ' is-selected' : ''}`} role="row">
+      <div className={`bc-pdp-var-thumb${selected ? ' is-selected' : ''}`} role="cell">
         <ProductMediaImage
           image={image}
           placeholderLogoUrl={placeholderLogoUrl}
           name={label}
           className="bc-pdp-var-img"
         />
-        <div>
-          <strong>{label}</strong>
-          {attrs.length ? (
-            <div className="bc-pdp-attr-list">
-              {attrs.map((attr, idx) => (
-                <span key={`${attr.label}-${attr.value}-${idx}`} className="bc-pdp-attr">
-                  {attr.label ? `${attr.label}: ${attr.value}` : attr.value}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
       </div>
-      <div role="cell">
+      <div className="bc-pdp-var-product" role="cell">
+        <strong>{label}</strong>
+        {attrs.length ? (
+          <div className="bc-pdp-attr-list">
+            {attrs.map((attr, idx) => (
+              <span key={`${attr.label}-${attr.value}-${idx}`} className="bc-pdp-attr">
+                {attr.label ? `${attr.label}: ${attr.value}` : attr.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="bc-pdp-var-sku" role="cell">
         {sku ? <div className="bc-pdp-code">{sku}</div> : <span className="bc-muted">—</span>}
         {barcode ? <div className="bc-pdp-code bc-pdp-code--sub">{barcode}</div> : null}
       </div>
       <div className="bc-pdp-var-price" role="cell">
         {formatMoney(price)}
       </div>
-      <div role="cell">
+      <div className="bc-pdp-var-stock" role="cell">
         <StockStatus snapshot={snapshot} size="sm" />
       </div>
-      <div role="cell">
+      <div className="bc-pdp-var-catalog" role="cell">
         {!hideMeToo ? <CatalogChip inCatalog={alreadyMeToo} /> : <span className="bc-muted">—</span>}
       </div>
-      <div role="cell">
+      <div className="bc-pdp-var-action" role="cell">
         <VariationActions {...actionProps} />
       </div>
     </div>
@@ -515,7 +521,7 @@ function VariationBlock({
 function ProductDetailSkeleton({ variant = 'modal' }) {
   const isPage = variant === 'page';
   return (
-    <div className={isPage ? 'bc-pdp' : 'bc-detail-loading'} aria-hidden="true">
+    <div className={isPage ? 'bc-pdp' : 'bc-qv-loading'} aria-hidden="true">
       {isPage ? (
         <>
           <div className="bc-skeleton bc-skeleton-line w-50" style={{ height: 18, marginBottom: 18 }} />
@@ -537,11 +543,13 @@ function ProductDetailSkeleton({ variant = 'modal' }) {
         </>
       ) : (
         <>
-          <div className="bc-skeleton bc-detail-skel-media" />
-          <div className="bc-detail-skel-copy">
+          <div className="bc-skeleton bc-qv-skel-media" />
+          <div className="bc-qv-skel-copy">
             <div className="bc-skeleton bc-skeleton-line w-70" />
-            <div className="bc-skeleton bc-skeleton-line w-50" />
             <div className="bc-skeleton bc-skeleton-line w-90" />
+            <div className="bc-skeleton bc-skeleton-line w-80" />
+            <div className="bc-skeleton bc-skeleton-line w-50" />
+            <div className="bc-skeleton bc-skeleton-line w-40" />
           </div>
         </>
       )}
@@ -587,6 +595,7 @@ export default function ProductDetailView({
   const price = getProductPrice(product);
   const compare = getProductComparePrice(product);
   const barcode = getProductBarcode(product);
+  const sku = getProductSku(product);
   const brand = getProductBrand(product);
   const category = getProductCategory(product);
   const description = getProductDescription(product);
@@ -725,6 +734,151 @@ export default function ProductDetailView({
     onDetailsNavigate,
   };
 
+  const infoRows = [
+    ['Product type', productType],
+    ['SKU', sku],
+    ['Barcode', barcode],
+    ['Brand', brand.name],
+    ['Category', category.name],
+    ['Unit', unit],
+  ].filter(([, value]) => value && value !== '—');
+
+  const descriptionBlock = (
+    <section className={isPage ? 'bc-pdp-section bc-pdp-description' : 'bc-qv-block'}>
+      <h3>Description</h3>
+      {description ? (
+        <div className="bc-pdp-description-body bc-detail-description">
+          {description.split(/\n+/).map((para, idx) =>
+            para.trim() ? <p key={`p-${idx}`}>{para.trim()}</p> : null
+          )}
+        </div>
+      ) : (
+        <p className="bc-pdp-description-empty">No description available for this product.</p>
+      )}
+    </section>
+  );
+
+  const variationsSection =
+    isVariable || variations.length > 0 ? (
+      <section className="bc-pdp-section bc-pdp-variations">
+        <div className="bc-pdp-section-head">
+          <h3>
+            <FaLayerGroup aria-hidden="true" /> Product variations
+            {variations.length ? <span className="bc-pill">{variations.length}</span> : null}
+          </h3>
+          {isVariable ? <p>Variable product — stock is tracked on each child SKU.</p> : null}
+        </div>
+
+        {loading && variations.length === 0 ? (
+          <div className="bc-pdp-var-skel">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={`var-load-${idx}`} className="bc-skeleton bc-pdp-var-skel-row" />
+            ))}
+          </div>
+        ) : variations.length > 0 ? (
+          <>
+            <div className="bc-pdp-var-table" role="table" aria-label="Product variations">
+              <div className="bc-pdp-var-head" role="row">
+                <span role="columnheader">Image</span>
+                <span role="columnheader">Variant</span>
+                <span role="columnheader">SKU</span>
+                <span role="columnheader">Price</span>
+                <span role="columnheader">Stock</span>
+                <span role="columnheader">Catalog</span>
+                <span role="columnheader">Action</span>
+              </div>
+              {variations.map((variation, idx) => (
+                <VariationBlock
+                  key={productIdFromRecord(variation) || `var-${idx}`}
+                  variation={variation}
+                  layout="row"
+                  selectedSrc={images[activeImage] || ''}
+                  {...variationShared}
+                />
+              ))}
+            </div>
+            <div className="bc-pdp-var-cards">
+              {variations.map((variation, idx) => (
+                <VariationBlock
+                  key={`card-${productIdFromRecord(variation) || idx}`}
+                  variation={variation}
+                  layout="card"
+                  selectedSrc={images[activeImage] || ''}
+                  {...variationShared}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="bc-pdp-empty">
+            <FaBoxesStacked aria-hidden="true" />
+            <strong>No variations available</strong>
+            <p>This product currently has no child variations.</p>
+          </div>
+        )}
+      </section>
+    ) : null;
+
+  const relatedSection =
+    related.length > 0 ? (
+      <div className="bc-related">
+        <h4>You may also like</h4>
+        <div className="bc-related-grid">
+          {related.map((item) => {
+            const relatedId = productIdFromRecord(item);
+            return (
+              <ProductCard
+                key={relatedId}
+                product={item}
+                viewMode="grid"
+                placeholderLogoUrl={placeholderLogoUrl}
+                onQuickView={onOpenRelated ? (id) => onOpenRelated(id) : undefined}
+                detailsHref={detailsHrefForProduct?.(relatedId) || ''}
+                onDetailsNavigate={onDetailsNavigate}
+                onMeToo={onMeToo}
+                onDeleteMeToo={onDeleteMeToo}
+                onResetMeToo={onResetMeToo}
+                meTooLoading={meTooLoading && meTooProductId === relatedId}
+                deleteMeTooLoading={deleteMeTooLoading && deleteMeTooProductId === relatedId}
+                resetMeTooLoading={resetMeTooLoading && resetMeTooProductId === relatedId}
+                hideMeToo={hideMeToo}
+                meTooLocked={meTooLocked}
+                alreadyMeTooIds={alreadyMeTooIds}
+              />
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
+  const gallery = (galleryClass) => (
+    <div className={galleryClass}>
+      <div className={isPage ? 'bc-detail-hero' : 'bc-qv-hero'}>
+        <ProductMediaImage
+          image={images[activeImage] || ''}
+          placeholderLogoUrl={placeholderLogoUrl}
+          name={name}
+        />
+      </div>
+      {images.length > 1 ? (
+        <div className="bc-thumbs">
+          {images.map((src, idx) => (
+            <button
+              key={src}
+              type="button"
+              className={`bc-thumb ${idx === activeImage ? 'is-active' : ''}`}
+              onClick={() => setActiveImage(idx)}
+              aria-label={`Show image ${idx + 1}`}
+              aria-pressed={idx === activeImage}
+            >
+              <img src={src} alt="" loading="lazy" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   const summaryBody = (
     <>
       <div className="bc-pdp-price-row">
@@ -736,7 +890,6 @@ export default function ProductDetailView({
         </div>
         <StockStatus snapshot={displaySnapshot} />
       </div>
-
       {isVariable || variations.length > 0 ? (
         <div className="bc-pdp-stock-board" aria-label="Variation stock summary">
           <div>
@@ -757,7 +910,6 @@ export default function ProductDetailView({
           Available stock <strong>{displaySnapshot.qty}</strong>
         </p>
       )}
-
       {metaCards.length > 0 ? (
         <div className="bc-pdp-info-grid">
           {metaCards.map((item) => (
@@ -768,112 +920,84 @@ export default function ProductDetailView({
           ))}
         </div>
       ) : null}
-
-      {showInlineActions && isPage ? <ProductPageActions {...actionProps} /> : null}
+      {showInlineActions ? <ProductPageActions {...actionProps} /> : null}
     </>
   );
 
-  return (
-    <div className={isPage ? 'bc-pdp' : 'bc-detail'}>
-      {isPage ? (
-        <header className="bc-pdp-head">
-          <nav className="bc-product-crumb" aria-label="Product breadcrumb">
-            {storeHref ? <Link to={storeHref}>{storeName || 'Store catalog'}</Link> : null}
-            {storeHref ? <span aria-hidden="true">/</span> : null}
-            <span>{name}</span>
-          </nav>
-          <div className="bc-pdp-title-row">
-            <div>
-              <h1 className="bc-product-page-title">{name}</h1>
-            </div>
-            <div className="bc-pdp-head-badges">
-              {!hideMeToo ? <CatalogChip inCatalog={alreadyMeToo} /> : null}
-              <span className={`bc-pdp-chip bc-pdp-chip--${displaySnapshot.key}`}>
-                {displaySnapshot.key === 'in' ? (
-                  <FaCheck aria-hidden="true" />
-                ) : displaySnapshot.key === 'low' ? (
-                  <FaTriangleExclamation aria-hidden="true" />
-                ) : (
-                  <FaXmark aria-hidden="true" />
-                )}
-                {displaySnapshot.label}
-              </span>
-            </div>
-          </div>
-        </header>
-      ) : null}
-
-      {isPage ? (
-        <div className="bc-pdp-hero">
-          <div className="bc-pdp-gallery">
-            <div className="bc-detail-hero">
-              <ProductMediaImage
-                image={images[activeImage] || ''}
-                placeholderLogoUrl={placeholderLogoUrl}
-                name={name}
-              />
-            </div>
-            {images.length > 1 ? (
-              <div className="bc-thumbs">
-                {images.map((src, idx) => (
-                  <button
-                    key={src}
-                    type="button"
-                    className={`bc-thumb ${idx === activeImage ? 'is-active' : ''}`}
-                    onClick={() => setActiveImage(idx)}
-                    aria-label={`Show image ${idx + 1}`}
-                  >
-                    <img src={src} alt="" loading="lazy" />
-                  </button>
-                ))}
+  if (!isPage) {
+    return (
+      <div className="bc-qv">
+        <div className="bc-qv-main">
+          {gallery('bc-qv-gallery')}
+          <div className="bc-qv-info">
+            {descriptionBlock}
+            <section className="bc-qv-block">
+              <h3>Product information</h3>
+              <div className="bc-qv-price-row">
+                <div className="bc-price-block bc-price-block--lg">
+                  <span className="bc-price">{priceRange || formatMoney(price)}</span>
+                  {compare != null && !priceRange ? (
+                    <span className="bc-price-old">{formatMoney(compare)}</span>
+                  ) : null}
+                </div>
+                <div className="bc-qv-status">
+                  <StockStatus snapshot={displaySnapshot} />
+                  {!hideMeToo ? <CatalogChip inCatalog={alreadyMeToo} /> : null}
+                </div>
               </div>
-            ) : null}
+              {infoRows.length ? (
+                <dl className="bc-qv-facts">
+                  {infoRows.map(([label, value]) => (
+                    <div key={label} className="bc-qv-fact">
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </section>
           </div>
-
-          <div className="bc-pdp-summary">{summaryBody}</div>
         </div>
-      ) : (
-        <>
-          <div className="bc-detail-gallery">
-            <div className="bc-detail-hero">
-              <ProductMediaImage
-                image={images[activeImage] || ''}
-                placeholderLogoUrl={placeholderLogoUrl}
-                name={name}
-              />
-            </div>
-            {images.length > 1 ? (
-              <div className="bc-thumbs">
-                {images.map((src, idx) => (
-                  <button
-                    key={src}
-                    type="button"
-                    className={`bc-thumb ${idx === activeImage ? 'is-active' : ''}`}
-                    onClick={() => setActiveImage(idx)}
-                    aria-label={`Show image ${idx + 1}`}
-                  >
-                    <img src={src} alt="" loading="lazy" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="bc-detail-info">{summaryBody}</div>
-        </>
-      )}
+        {variationsSection}
+        {relatedSection}
+      </div>
+    );
+  }
 
-      <section className="bc-pdp-section bc-pdp-description">
-        <h3>Description</h3>
-        {description ? (
-          <div className="bc-pdp-description-body bc-detail-description">
-            {description.split(/\n+/).map((para, idx) =>
-              para.trim() ? <p key={`p-${idx}`}>{para.trim()}</p> : null
-            )}
+  return (
+    <div className="bc-pdp">
+      <header className="bc-pdp-head">
+        <nav className="bc-product-crumb" aria-label="Product breadcrumb">
+          {storeHref ? <Link to={storeHref}>{storeName || 'Store catalog'}</Link> : null}
+          {storeHref ? <span aria-hidden="true">/</span> : null}
+          <span>{name}</span>
+        </nav>
+        <div className="bc-pdp-title-row">
+          <div>
+            <h1 className="bc-product-page-title">{name}</h1>
           </div>
-        ) : (
-          <p className="bc-pdp-description-empty">No description available for this product.</p>
-        )}
-      </section>
+          <div className="bc-pdp-head-badges">
+            {!hideMeToo ? <CatalogChip inCatalog={alreadyMeToo} /> : null}
+            <span className={`bc-pdp-chip bc-pdp-chip--${displaySnapshot.key}`}>
+              {displaySnapshot.key === 'in' ? (
+                <FaCheck aria-hidden="true" />
+              ) : displaySnapshot.key === 'low' ? (
+                <FaTriangleExclamation aria-hidden="true" />
+              ) : (
+                <FaXmark aria-hidden="true" />
+              )}
+              {displaySnapshot.label}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div className="bc-pdp-hero">
+        {gallery('bc-pdp-gallery')}
+        <div className="bc-pdp-summary">{summaryBody}</div>
+      </div>
+
+      {descriptionBlock}
 
       {specs.length > 0 ? (
         <section className="bc-pdp-section bc-pdp-specs">
@@ -889,93 +1013,8 @@ export default function ProductDetailView({
         </section>
       ) : null}
 
-      {isVariable || variations.length > 0 ? (
-        <section className="bc-pdp-section bc-pdp-variations">
-          <div className="bc-pdp-section-head">
-            <h3>
-              <FaLayerGroup aria-hidden="true" /> Product variations
-              {variations.length ? <span className="bc-pill">{variations.length}</span> : null}
-            </h3>
-            {isVariable ? <p>Variable product — stock is tracked on each child SKU.</p> : null}
-          </div>
-
-          {loading && variations.length === 0 ? (
-            <div className="bc-pdp-var-skel">
-              {Array.from({ length: 4 }).map((_, idx) => (
-                <div key={`var-load-${idx}`} className="bc-skeleton bc-pdp-var-skel-row" />
-              ))}
-            </div>
-          ) : variations.length > 0 ? (
-            <>
-              <div className="bc-pdp-var-table" role="table" aria-label="Product variations">
-                <div className="bc-pdp-var-head" role="row">
-                  <span role="columnheader">Product</span>
-                  <span role="columnheader">SKU / Barcode</span>
-                  <span role="columnheader">Price</span>
-                  <span role="columnheader">Stock</span>
-                  <span role="columnheader">Catalog</span>
-                  <span role="columnheader">Action</span>
-                </div>
-                {variations.map((variation, idx) => (
-                  <VariationBlock
-                    key={productIdFromRecord(variation) || `var-${idx}`}
-                    variation={variation}
-                    layout="row"
-                    {...variationShared}
-                  />
-                ))}
-              </div>
-              <div className="bc-pdp-var-cards">
-                {variations.map((variation, idx) => (
-                  <VariationBlock
-                    key={`card-${productIdFromRecord(variation) || idx}`}
-                    variation={variation}
-                    layout="card"
-                    {...variationShared}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="bc-pdp-empty">
-              <FaBoxesStacked aria-hidden="true" />
-              <strong>No variations available</strong>
-              <p>This product currently has no child variations.</p>
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      {related.length > 0 ? (
-        <div className="bc-related">
-          <h4>You may also like</h4>
-          <div className="bc-related-grid">
-            {related.map((item) => {
-              const relatedId = productIdFromRecord(item);
-              return (
-                <ProductCard
-                  key={relatedId}
-                  product={item}
-                  viewMode="grid"
-                  placeholderLogoUrl={placeholderLogoUrl}
-                  onQuickView={onOpenRelated ? (id) => onOpenRelated(id) : undefined}
-                  detailsHref={detailsHrefForProduct?.(relatedId) || ''}
-                  onDetailsNavigate={onDetailsNavigate}
-                  onMeToo={onMeToo}
-                  onDeleteMeToo={onDeleteMeToo}
-                  onResetMeToo={onResetMeToo}
-                  meTooLoading={meTooLoading && meTooProductId === relatedId}
-                  deleteMeTooLoading={deleteMeTooLoading && deleteMeTooProductId === relatedId}
-                  resetMeTooLoading={resetMeTooLoading && resetMeTooProductId === relatedId}
-                  hideMeToo={hideMeToo}
-                  meTooLocked={meTooLocked}
-                  alreadyMeTooIds={alreadyMeTooIds}
-                />
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+      {variationsSection}
+      {relatedSection}
     </div>
   );
 }
