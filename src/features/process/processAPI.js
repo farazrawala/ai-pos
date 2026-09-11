@@ -83,6 +83,8 @@ export const fetchProcessesRequest = async (params = {}) => {
   if (params.progress) queryParams.append('progress', params.progress);
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+  if (params.product_id) queryParams.append('product_id', params.product_id);
+  if (params.action) queryParams.append('action', params.action);
   queryParams.append(
     'populate',
     params.populate || 'integration_id,category_id,product_id,brand_id'

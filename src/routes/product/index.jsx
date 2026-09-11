@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { FaArrowsRotate, FaCloudArrowUp, FaFileImport, FaFilter } from 'react-icons/fa6';
+import { FaArrowsRotate, FaClockRotateLeft, FaCloudArrowUp, FaFileImport, FaFilter } from 'react-icons/fa6';
 import {
   fetchProducts,
   fetchDeletedProducts,
@@ -32,6 +32,7 @@ import ProductWarehouseStockModal from '../../components/product/ProductWarehous
 import FetchProductsModal from '../../components/product/FetchProductsModal.jsx';
 import SyncProductsModal from '../../components/product/SyncProductsModal.jsx';
 import ViewProductSyncModal from '../../components/product/ViewProductSyncModal.jsx';
+import ProductSyncHistoryModal from '../../components/product/ProductSyncHistoryModal.jsx';
 import ProductIntegrationsCell from '../../components/product/ProductIntegrationsCell.jsx';
 import ImportProductsModal from '../../components/product/ImportProductsModal.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
@@ -365,6 +366,7 @@ const Product = () => {
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
   const [importProductsModalOpen, setImportProductsModalOpen] = useState(false);
   const [viewSyncProduct, setViewSyncProduct] = useState(null);
+  const [syncHistoryProduct, setSyncHistoryProduct] = useState(null);
   const [integrations, setIntegrations] = useState([]);
   const [syncRowsByProductId, setSyncRowsByProductId] = useState({});
   const [syncRowsStatus, setSyncRowsStatus] = useState('idle');
@@ -1046,6 +1048,15 @@ const Product = () => {
     });
   };
 
+  const openSyncHistoryModal = (item) => {
+    const productId = productIdFromRecord(item);
+    setSyncHistoryProduct({
+      id: productId,
+      name: item.name || item.product_name || 'Product',
+      productType: item.product_type || item.productType || '',
+    });
+  };
+
   const handleViewSyncModalClose = () => {
     setViewSyncProduct(null);
     reloadCurrentPageSyncRows();
@@ -1559,6 +1570,22 @@ const Product = () => {
                             ? syncRowsByProductId[String(syncParentId)] || []
                             : [];
                         const productSyncRows = ownSyncRows.length ? ownSyncRows : parentSyncRows;
+                        const isRootForHistory =
+                          isVariableProduct(item) ||
+                          !String(parentProductIdFromRecord(item) || '').trim();
+                        const childHasIntegration =
+                          isVariableProduct(item) &&
+                          (Array.isArray(data) ? data : []).some((row) => {
+                            if (String(parentProductIdFromRecord(row)) !== String(productId)) {
+                              return false;
+                            }
+                            const childId = productIdFromRecord(row);
+                            return (syncRowsByProductId[String(childId)] || []).length > 0;
+                          });
+                        const showSyncHistory =
+                          !isDeletedView &&
+                          isRootForHistory &&
+                          (productSyncRows.length > 0 || Boolean(childHasIntegration));
                         const parentProduct = parentId ? productsById.get(parentId) || null : null;
                         const mainImage =
                           getProductListingImage(item, { parent: parentProduct }) || null;
@@ -1908,6 +1935,17 @@ const Product = () => {
                                     >
                                       <NavIcon icon={FaArrowsRotate} size={14} />
                                     </button>
+                                    {showSyncHistory ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-info mb-0 px-2"
+                                        title="Sync status history"
+                                        aria-label="Sync status history"
+                                        onClick={() => openSyncHistoryModal(item)}
+                                      >
+                                        <NavIcon icon={FaClockRotateLeft} size={14} />
+                                      </button>
+                                    ) : null}
                                     {canEdit ? (
                                       <button
                                         type="button"
@@ -1978,6 +2016,15 @@ const Product = () => {
         productType={viewSyncProduct?.productType || ''}
         onClose={handleViewSyncModalClose}
         onUnlinked={reloadCurrentPageSyncRows}
+      />
+
+      <ProductSyncHistoryModal
+        open={Boolean(syncHistoryProduct?.id)}
+        productId={syncHistoryProduct?.id || ''}
+        productName={syncHistoryProduct?.name || ''}
+        productType={syncHistoryProduct?.productType || ''}
+        integrations={integrations}
+        onClose={() => setSyncHistoryProduct(null)}
       />
 
       <ConfirmDialog

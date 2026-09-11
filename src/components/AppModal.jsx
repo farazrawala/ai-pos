@@ -24,6 +24,7 @@ export default function AppModal({
   children,
   footer,
   size = 'md',
+  className = '',
   disableBackdropClose = false,
   ariaLabelledBy,
 }) {
@@ -64,7 +65,7 @@ export default function AppModal({
         aria-hidden="true"
       />
       <div
-        className={`app-modal-dialog ${SIZE_CLASS[size] || ''}`}
+        className={`app-modal-dialog ${SIZE_CLASS[size] || ''} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
