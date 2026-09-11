@@ -11,9 +11,11 @@ import {
   pickIntegrationStoreLogoUrl,
 } from '../../features/integration/integrationAPI.js';
 import { createBulkSyncProductProcessRequest } from '../../features/process/processAPI.js';
+import { fetchProductVariationRequest } from '../../features/products/productsAPI.js';
 import {
   createSyncProductRequest,
   deleteSyncProductRequest,
+  fetchSyncProductsForProductIdsRequest,
   fetchSyncProductsRequest,
   updateSyncProductRequest,
 } from '../../features/syncProduct/syncProductAPI.js';
@@ -206,6 +208,36 @@ const resolveSyncIntegration = (item, integrationsList = []) => {
 };
 
 const looksLikeVariantName = (name) => /\[[^\]]+\]/.test(String(name || ''));
+
+const productIdFromRecord = (item) =>
+  String(item?._id ?? item?.id ?? item?.product_id ?? '').trim();
+
+const collectIdsFromVariationPayload = (body) => {
+  const ids = [];
+  const seen = new Set();
+  const push = (item) => {
+    if (!item || typeof item !== 'object') return;
+    const id = productIdFromRecord(item);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+    const kids = item.childproducts ?? item.child_products ?? item.variations;
+    if (Array.isArray(kids)) kids.forEach(push);
+  };
+
+  if (Array.isArray(body)) {
+    body.forEach(push);
+    return ids;
+  }
+  const record = body?.data ?? body?.product ?? body;
+  if (Array.isArray(record)) {
+    record.forEach(push);
+    return ids;
+  }
+  if (record && typeof record === 'object') push(record);
+  return ids;
+};
 
 const variationOptionLabel = (variation) => {
   const name = decodeHtml(variation?.name || `Variation ${variation?.id || ''}`);
@@ -691,11 +723,11 @@ export default function ViewProductSyncModal({
     if (!syncId) return;
 
     const storeLabel = integrationLabel(item.integration_id);
-    const isVariableFamily =
-      String(productType || '').trim().toLowerCase() === 'variable' ||
-      isPosVariantChild;
+    const integrationId = resolveSyncIntegrationId(item);
+    const isVariable = String(productType || '').trim().toLowerCase() === 'variable';
+    const cascadeChildren = isVariable || isPosVariantChild;
     const confirmed = window.confirm(
-      isVariableFamily
+      cascadeChildren
         ? `Unlink this product and all of its child variations from "${storeLabel}"? This cannot be undone.`
         : `Unlink this product from "${storeLabel}"? This cannot be undone.`
     );
@@ -705,14 +737,73 @@ export default function ViewProductSyncModal({
     setUnlinkError(null);
 
     try {
-      const result = await deleteSyncProductRequest(syncId);
-      setList((prev) => prev.filter((row) => syncIdFromRecord(row) !== syncId));
-      const unlinkedCount = Number(result?.unlinked_count) || 0;
+      const syncIdsToDelete = new Set([String(syncId)]);
+
+      if (cascadeChildren) {
+        const familyIds = new Set();
+        const currentId = String(productId || '').trim();
+        const parentId = String(parentProductId || '').trim();
+        const rootId = isVariable ? currentId : parentId || currentId;
+        if (currentId) familyIds.add(currentId);
+        if (rootId) familyIds.add(rootId);
+
+        if (rootId) {
+          try {
+            const variationBody = await fetchProductVariationRequest(rootId);
+            collectIdsFromVariationPayload(variationBody).forEach((id) => familyIds.add(id));
+          } catch (err) {
+            console.warn('[Sync product module] Failed to load variations for unlink cascade', {
+              rootId,
+              error: err,
+            });
+          }
+        }
+
+        try {
+          const familyRows = await fetchSyncProductsForProductIdsRequest([...familyIds], {
+            populate: 'integration_id',
+            limit: 50,
+          });
+          (Array.isArray(familyRows) ? familyRows : []).forEach((row) => {
+            const rowSyncId = String(syncIdFromRecord(row) || '').trim();
+            if (!rowSyncId) return;
+            const rowIntegrationId = resolveSyncIntegrationId(row);
+            if (integrationId && rowIntegrationId && rowIntegrationId !== integrationId) return;
+            syncIdsToDelete.add(rowSyncId);
+          });
+        } catch (err) {
+          console.warn('[Sync product module] Failed to load family sync rows for unlink', {
+            familyIds: [...familyIds],
+            error: err,
+          });
+        }
+      }
+
+      const deleteIds = [...syncIdsToDelete];
+      const results = await Promise.allSettled(
+        deleteIds.map((id) => deleteSyncProductRequest(id))
+      );
+      const succeededIds = deleteIds.filter((_, index) => results[index].status === 'fulfilled');
+      const failed = results.length - succeededIds.length;
+
+      if (succeededIds.length === 0) {
+        const firstError = results.find((result) => result.status === 'rejected')?.reason;
+        throw firstError instanceof Error
+          ? firstError
+          : new Error(firstError?.message || 'Failed to unlink store');
+      }
+
+      setList((prev) =>
+        prev.filter((row) => !succeededIds.includes(String(syncIdFromRecord(row) || '')))
+      );
       toast.success(
-        unlinkedCount > 1
-          ? `Unlinked from ${storeLabel} (${unlinkedCount} mappings, including child variations).`
+        succeededIds.length > 1
+          ? `Unlinked from ${storeLabel} (${succeededIds.length} mappings, including child variations).`
           : `Unlinked from ${storeLabel}.`
       );
+      if (failed > 0) {
+        toast.warning(`${failed} related mapping(s) could not be unlinked.`);
+      }
       if (typeof onUnlinked === 'function') onUnlinked();
     } catch (err) {
       setUnlinkError(err?.message || 'Failed to unlink store');
@@ -1298,7 +1389,7 @@ export default function ViewProductSyncModal({
                                 type="button"
                                 className="ps-unlink-btn"
                                 onClick={() => handleUnlinkStore(item)}
-                                disabled={!rowId || unlinkingSyncId === rowId}
+                                disabled={!rowId || Boolean(unlinkingSyncId)}
                                 title={
                                   String(productType || '').trim().toLowerCase() === 'variable' ||
                                   isPosVariantChild
