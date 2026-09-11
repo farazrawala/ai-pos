@@ -124,6 +124,7 @@ import IntegrationAdd from './routes/integration/add.jsx';
 import IntegrationEdit from './routes/integration/edit.jsx';
 import BigCommercePage from './routes/big-commerce/index.jsx';
 import BigCommerceStorePage from './routes/big-commerce/store.jsx';
+import BigCommerceProductPage from './routes/big-commerce/product.jsx';
 import BigCommerceRequestsPage from './routes/big-commerce/requests.jsx';
 import CourierIntegration from './routes/courier-integration/index.jsx';
 import CourierIntegrationAdd from './routes/courier-integration/add.jsx';
@@ -227,6 +228,10 @@ const App = () => {
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
           <Route path="/big-commerce" element={<BigCommercePage />} />
           <Route path="/big-commerce/requests" element={<BigCommerceRequestsPage />} />
+          <Route
+            path="/big-commerce/store/:companySlug/product/:productId"
+            element={<BigCommerceProductPage />}
+          />
           <Route path="/big-commerce/store/:companySlug" element={<BigCommerceStorePage />} />
           <Route path="/courier-integration" element={<CourierIntegration />} />
           <Route path="/courier-integration/add" element={<CourierIntegrationAdd />} />
@@ -433,6 +438,10 @@ const AuthenticatedLayout = ({ isAuthenticated }) => {
           <Route path="/integration/edit/:id" element={<IntegrationEdit />} />
           <Route path="/big-commerce" element={<BigCommercePage />} />
           <Route path="/big-commerce/requests" element={<BigCommerceRequestsPage />} />
+          <Route
+            path="/big-commerce/store/:companySlug/product/:productId"
+            element={<BigCommerceProductPage />}
+          />
           <Route path="/big-commerce/store/:companySlug" element={<BigCommerceStorePage />} />
           <Route path="/courier-integration" element={<CourierIntegration />} />
           <Route path="/courier-integration/add" element={<CourierIntegrationAdd />} />

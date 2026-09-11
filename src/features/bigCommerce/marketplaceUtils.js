@@ -885,6 +885,14 @@ export function companyStorePath(company) {
   return key ? `/big-commerce/store/${encodeURIComponent(key)}` : '/big-commerce';
 }
 
+/** Marketplace product details path under a storefront. */
+export function companyProductPath(company, productId) {
+  const store = companyStorePath(company);
+  const id = String(productId || '').trim();
+  if (!id || store === '/big-commerce') return store;
+  return `${store}/product/${encodeURIComponent(id)}`;
+}
+
 export function formatJoinedDate(value) {
   if (!value) return '—';
   const d = new Date(value);

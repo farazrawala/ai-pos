@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { FaSliders } from 'react-icons/fa6';
 import {
@@ -23,14 +24,19 @@ import {
 import {
   ECOMMERCE_PRODUCT_SEARCH_FIELDS,
   fetchMarketplaceProductByIdRequest,
+  fetchMarketplaceProductDetailRequest,
   fetchReceivedStoreRequestsRequest,
+  fetchRelatedProductsRequest,
   fetchSentStoreRequestsRequest,
   normalizeConnectionSyncSettings,
 } from '../../features/bigCommerce/bigCommerceAPI.js';
 import {
+  companyProductPath,
+  companyStorePath,
   excludeChildProducts,
   getProductName,
   getProductPrice,
+  getProductCategory,
   isAlreadyMeTooProduct,
   isMarketplaceChildProduct,
   parentProductTotal,
@@ -50,6 +56,7 @@ import MarketplaceListingTabs from './MarketplaceListingTabs.jsx';
 import ProductToolbar from './ProductToolbar.jsx';
 import ProductCard, { ProductCardSkeleton } from './ProductCard.jsx';
 import ProductDetailModal from './ProductDetailModal.jsx';
+import ProductDetailView from './ProductDetailView.jsx';
 import MeTooPriceModal from './MeTooPriceModal.jsx';
 
 const LISTING_TAB_ALL = 'all';
@@ -104,7 +111,7 @@ function findApprovedConnection(sentRows, receivedRows, store) {
  * Pass `companyId` to load that company's profile + catalog.
  * Product pagination loads more on page scroll.
  */
-export default function MarketplacePage({ companyId }) {
+export default function MarketplacePage({ companyId, productId = '' }) {
   const dispatch = useDispatch();
   const state = useSelector(selectBigCommerce);
   const sessionCompanyId = useSelector(selectCompanyId);
@@ -121,6 +128,11 @@ export default function MarketplacePage({ companyId }) {
   const [outgoingConnection, setOutgoingConnection] = useState(null);
   const [connectionReady, setConnectionReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pageProduct, setPageProduct] = useState(null);
+  const [pageVariations, setPageVariations] = useState([]);
+  const [pageRelated, setPageRelated] = useState([]);
+  const [pageDetailStatus, setPageDetailStatus] = useState('idle');
+  const [pageDetailError, setPageDetailError] = useState('');
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
@@ -250,6 +262,7 @@ export default function MarketplacePage({ companyId }) {
 
   // Debounced search → filters (All products tab only; Me too filters client-side).
   useEffect(() => {
+    if (String(productId || '').trim()) return undefined;
     if (listingTab === LISTING_TAB_ME_TOO) return undefined;
     const t = setTimeout(() => {
       if (searchDraft !== state.filters.search) {
@@ -257,7 +270,7 @@ export default function MarketplacePage({ companyId }) {
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [searchDraft, state.filters.search, dispatch, listingTab]);
+  }, [searchDraft, state.filters.search, dispatch, listingTab, productId]);
 
   const handleListingTabChange = useCallback(
     (tab) => {
@@ -269,8 +282,11 @@ export default function MarketplacePage({ companyId }) {
     [dispatch, searchDraft, state.filters.search]
   );
 
+  const isProductPage = Boolean(String(productId || '').trim());
+
   // Fetch page 1 when filters / company / limit / bootstrap change
   useEffect(() => {
+    if (isProductPage) return;
     if (state.bootstrapStatus === 'idle' || state.bootstrapStatus === 'loading') return;
     dispatch(
       fetchMarketplaceProducts({
@@ -281,12 +297,64 @@ export default function MarketplacePage({ companyId }) {
       })
     );
   }, [
+    isProductPage,
     companyId,
     state.filters,
     state.pagination.limit,
     state.bootstrapStatus,
     dispatch,
   ]);
+
+  useEffect(() => {
+    const id = String(productId || '').trim();
+    if (!id) {
+      setPageProduct(null);
+      setPageVariations([]);
+      setPageRelated([]);
+      setPageDetailStatus('idle');
+      setPageDetailError('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPageProduct(null);
+    setPageVariations([]);
+    setPageRelated([]);
+    setPageDetailStatus('loading');
+    setPageDetailError('');
+
+    fetchMarketplaceProductDetailRequest(id, { catalog: [] })
+      .then(async ({ product, variations }) => {
+        const cat = getProductCategory(product);
+        let related = [];
+        try {
+          related = await fetchRelatedProductsRequest({
+            categoryId: cat.id,
+            excludeId: productIdFromRecord(product) || id,
+            limit: 6,
+          });
+        } catch {
+          related = [];
+        }
+        if (cancelled) return;
+        setPageProduct(product);
+        setPageVariations(variations || []);
+        setPageRelated(related);
+        setPageDetailStatus('succeeded');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPageProduct(null);
+        setPageVariations([]);
+        setPageRelated([]);
+        setPageDetailStatus('failed');
+        setPageDetailError(err?.message || 'Failed to load product');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
 
   const loadNextPage = useCallback(() => {
     if (loadingRef.current) return;
@@ -1059,8 +1127,71 @@ export default function MarketplacePage({ companyId }) {
     state.error,
   ]);
 
+  const storeKey = state.company?.slug || state.company?.id || companyId;
+  const productDetailsHref = useCallback(
+    (id) => {
+      const target = String(id || '').trim();
+      if (!target) return '';
+      if (isProductPage && target === String(productId || '').trim()) return '';
+      return companyProductPath(storeKey, target);
+    },
+    [isProductPage, productId, storeKey]
+  );
+  const handleDetailsNavigate = useCallback(() => {
+    dispatch(closeMarketplaceDetail());
+  }, [dispatch]);
+  const pageProductName = getProductName(pageProduct) || 'Product';
+
   return (
     <div className="bc-marketplace">
+      {isProductPage ? (
+        <section className="bc-product-page">
+          <nav className="bc-product-crumb" aria-label="Product breadcrumb">
+            <Link to={companyStorePath(storeKey)}>
+              {state.company?.name || 'Store catalog'}
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span>
+              {pageDetailStatus === 'loading' && !pageProduct ? 'Loading…' : pageProductName}
+            </span>
+          </nav>
+          {pageDetailStatus === 'failed' ? (
+            <div className="bc-empty">
+              <h3>Product not found</h3>
+              <p>{pageDetailError || 'This product could not be loaded.'}</p>
+              <Link to={companyStorePath(storeKey)} className="bc-btn bc-btn-primary">
+                Back to catalog
+              </Link>
+            </div>
+          ) : (
+            <ProductDetailView
+              product={pageProduct}
+              variations={pageVariations}
+              related={pageRelated}
+              loading={pageDetailStatus === 'loading'}
+              onOpenRelated={(id) => dispatch(openMarketplaceProduct(id))}
+              onMeToo={isOwnStore ? undefined : handleMeToo}
+              onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
+              onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
+              meTooLocked={meTooLocked}
+              meTooLoading={meTooBusy}
+              meTooProductId={state.duplicateProductId}
+              deleteMeTooLoading={deleteMeTooBusy}
+              deleteMeTooProductId={state.deleteFetchedProductId}
+              resetMeTooLoading={resetMeTooBusy}
+              resetMeTooProductId={state.resetFetchedProductId}
+              hideMeToo={isOwnStore}
+              alreadyMeTooIds={alreadyMeTooIdSet}
+              placeholderLogoUrl={state.company?.logoUrl || ''}
+              variant="page"
+              showInlineActions
+              detailsHrefForProduct={productDetailsHref}
+              onDetailsNavigate={handleDetailsNavigate}
+            />
+          )}
+        </section>
+      ) : (
+        <>
       <CompanyProfileHeader
         company={state.company}
         loading={state.bootstrapStatus === 'loading'}
@@ -1197,9 +1328,11 @@ export default function MarketplacePage({ companyId }) {
                     key={product._id || product.id}
                     product={product}
                     viewMode={state.viewMode}
-                    onViewDetails={(id) =>
+                    onQuickView={(id) =>
                       dispatch(openMarketplaceProduct({ productId: id, product }))
                     }
+                    detailsHref={productDetailsHref(productIdFromRecord(product))}
+                    onDetailsNavigate={handleDetailsNavigate}
                     onMeToo={isOwnStore ? undefined : handleMeToo}
                     onDeleteMeToo={isOwnStore ? undefined : handleDeleteMeToo}
                     onResetMeToo={isOwnStore ? undefined : handleResetMeToo}
@@ -1261,6 +1394,8 @@ export default function MarketplacePage({ companyId }) {
           ) : null}
         </section>
       </div>
+        </>
+      )}
 
       <ProductDetailModal
         open={state.detailOpen}
@@ -1283,6 +1418,8 @@ export default function MarketplacePage({ companyId }) {
         hideMeToo={isOwnStore}
         alreadyMeTooIds={alreadyMeTooIdSet}
         placeholderLogoUrl={state.company?.logoUrl || ''}
+        detailsHrefForProduct={productDetailsHref}
+        onDetailsNavigate={handleDetailsNavigate}
       />
 
       <MeTooPriceModal

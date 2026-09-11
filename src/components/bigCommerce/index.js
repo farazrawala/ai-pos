@@ -4,5 +4,6 @@ export { default as MarketplaceFilters } from './MarketplaceFilters.jsx';
 export { default as MarketplaceListingTabs } from './MarketplaceListingTabs.jsx';
 export { default as ProductCard } from './ProductCard.jsx';
 export { default as ProductDetailModal } from './ProductDetailModal.jsx';
+export { default as ProductDetailView } from './ProductDetailView.jsx';
 export { default as MeTooPriceModal } from './MeTooPriceModal.jsx';
 export { default as ProductToolbar } from './ProductToolbar.jsx';

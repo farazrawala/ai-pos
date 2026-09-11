@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FaImage,
   FaPlus,
@@ -88,7 +89,9 @@ export function ProductMediaImage({
 export default function ProductCard({
   product,
   viewMode = 'grid',
-  onViewDetails,
+  onQuickView,
+  detailsHref = '',
+  onDetailsNavigate,
   onMeToo,
   onDeleteMeToo,
   onResetMeToo,
@@ -266,13 +269,28 @@ export default function ProductCard({
               ) : null}
             </div>
           ) : null}
-          <button
-            type="button"
-            className="bc-btn bc-btn-ghost bc-card-details"
-            onClick={() => onViewDetails?.(id, product)}
-          >
-            View details
-          </button>
+          {onQuickView || detailsHref ? (
+            <div className="bc-card-links">
+              {onQuickView ? (
+                <button
+                  type="button"
+                  className="bc-btn bc-btn-ghost bc-card-quick-view"
+                  onClick={() => onQuickView(id, product)}
+                >
+                  Quick view
+                </button>
+              ) : null}
+              {detailsHref ? (
+                <Link
+                  to={detailsHref}
+                  className="bc-btn bc-btn-ghost bc-card-details"
+                  onClick={() => onDetailsNavigate?.()}
+                >
+                  View details
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -289,7 +307,10 @@ export function ProductCardSkeleton({ viewMode = 'grid' }) {
         <div className="bc-skeleton bc-skeleton-line w-40" />
         <div className="bc-card-actions">
           <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
-          <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
+          <div className="bc-card-links">
+            <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
+            <div className="bc-skeleton bc-skeleton-line bc-skeleton-btn" />
+          </div>
         </div>
       </div>
     </div>
