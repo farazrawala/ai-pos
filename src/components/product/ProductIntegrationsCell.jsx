@@ -4,7 +4,7 @@ import {
   storeTypeLabel,
 } from '../../routes/integration/integrationForm.js';
 import { pickIntegrationStoreLogoUrl } from '../../features/integration/integrationAPI.js';
-import { buildShopifyProductAdminUrl } from '../../utils/parseStoreProductUrl.js';
+import { buildShopifyProductAdminUrl, pickShopifyProductIds } from '../../utils/parseStoreProductUrl.js';
 
 const integrationIdFromRecord = (item) =>
   String(item?._id || item?.id || item?.integration_id || '').trim();
@@ -32,7 +32,13 @@ const resolveIntegrationRecord = (syncRow, integrationsList = []) => {
   const integrationId = resolveSyncIntegrationId(syncRow);
 
   const fromList = Array.isArray(integrationsList)
-    ? integrationsList.find((row) => integrationIdFromRecord(row) === integrationId)
+    ? integrationsList.find((row) => {
+        const rowId = integrationIdFromRecord(row);
+        if (integrationId && rowId === integrationId) return true;
+        const populatedName = populated?.store_name || populated?.storeName || populated?.name;
+        const rowName = row?.store_name || row?.storeName || row?.name;
+        return Boolean(populatedName && rowName && populatedName === rowName);
+      })
     : null;
 
   if (fromList || populated) {
@@ -73,6 +79,26 @@ const pickSyncReferenceId = (item) => {
 
 const isShopifyStoreType = (integration) =>
   String(integration?.store_type || integration?.storeType || '').toLowerCase() === 'shopify';
+
+const isInactiveSyncRow = (row) => {
+  const status = String(row?.status ?? '').trim().toLowerCase();
+  return status === 'inactive' || status === 'disabled' || status === 'false' || status === '0' || status === 'no';
+};
+
+const trackingLinesForSync = (syncRow, integration) => {
+  const referenceId = pickSyncReferenceId(syncRow);
+  if (!referenceId) return [];
+
+  if (isShopifyStoreType(integration) || /^\d+(:\d+)?$/.test(referenceId) || /gid:\/\/shopify\//i.test(referenceId)) {
+    const { productId, variantId } = pickShopifyProductIds(referenceId);
+    const lines = [];
+    if (productId) lines.push({ key: 'product', label: 'product', value: productId });
+    if (variantId) lines.push({ key: 'variant', label: 'variant', value: variantId });
+    if (lines.length) return lines;
+  }
+
+  return [{ key: 'ref', label: 'id', value: referenceId }];
+};
 
 function IntegrationBadge({ integration, onClick, href, title: titleOverride }) {
   const [logoFailed, setLogoFailed] = useState(false);
@@ -137,7 +163,7 @@ function IntegrationBadge({ integration, onClick, href, title: titleOverride }) 
 }
 
 /**
- * Shows which store integrations a product is actively synced to (logos, or names as fallback).
+ * Shows which store integrations a product is actively synced to (logos + Shopify ids).
  */
 export default function ProductIntegrationsCell({
   syncRows = [],
@@ -154,21 +180,20 @@ export default function ProductIntegrationsCell({
     );
   }
 
-  const activeRows = (Array.isArray(syncRows) ? syncRows : []).filter(
-    (row) => String(row?.status || '').trim().toLowerCase() === 'active'
-  );
+  const linkedRows = (Array.isArray(syncRows) ? syncRows : []).filter((row) => !isInactiveSyncRow(row));
 
-  if (!activeRows.length) {
+  if (!linkedRows.length) {
     return <span className="text-muted">—</span>;
   }
 
   const seen = new Set();
   const linkedIntegrations = [];
 
-  for (const row of activeRows) {
+  for (const row of linkedRows) {
     const integration = resolveIntegrationRecord(row, integrations);
     const id = integrationIdFromRecord(integration) || resolveSyncIntegrationId(row);
-    const key = id || integrationTitle(integration);
+    const referenceId = pickSyncReferenceId(row);
+    const key = `${id || integrationTitle(integration)}:${referenceId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     linkedIntegrations.push({
@@ -184,23 +209,7 @@ export default function ProductIntegrationsCell({
       : `Synced to ${linkedIntegrations.length} integration${linkedIntegrations.length === 1 ? '' : 's'}`;
 
   return (
-    <div
-      className="list-integrations-cell"
-      title={summary}
-      onClick={typeof onClick === 'function' ? onClick : undefined}
-      onKeyDown={
-        typeof onClick === 'function'
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClick(e);
-              }
-            }
-          : undefined
-      }
-      role={typeof onClick === 'function' ? 'button' : undefined}
-      tabIndex={typeof onClick === 'function' ? 0 : undefined}
-    >
+    <div className="list-integrations-cell" title={summary}>
       <div className="list-integrations-cell__badges">
         {linkedIntegrations.map(({ integration, syncRow }) => {
           const id = integrationIdFromRecord(integration) || integrationTitle(integration);
@@ -208,24 +217,52 @@ export default function ProductIntegrationsCell({
           const shopifyHref = isShopifyStoreType(integration)
             ? buildShopifyProductAdminUrl(integration, referenceId)
             : '';
+          const lines = trackingLinesForSync(syncRow, integration);
           const shopifyTitle = shopifyHref
-            ? `Open in Shopify — ${integrationTitle(integration)} (ID ${referenceId})`
-            : undefined;
+            ? `Open in Shopify — ${integrationTitle(integration)}`
+            : integrationTitle(integration);
           return (
-            <IntegrationBadge
-              key={id}
-              integration={integration}
-              href={shopifyHref || undefined}
-              title={shopifyTitle}
-              onClick={
-                typeof onClick === 'function'
-                  ? (e) => {
-                      e.stopPropagation();
-                      onClick(e);
-                    }
-                  : undefined
-              }
-            />
+            <div key={`${id}:${referenceId}`} className="list-integration-track">
+              <IntegrationBadge
+                integration={integration}
+                href={shopifyHref || undefined}
+                title={shopifyTitle}
+                onClick={
+                  typeof onClick === 'function'
+                    ? (e) => {
+                        e.stopPropagation();
+                        onClick(e);
+                      }
+                    : undefined
+                }
+              />
+              {lines.length ? (
+                <div className="list-integration-ids">
+                  {lines.map((line) => (
+                    <span
+                      key={line.key}
+                      className={`list-integration-id${line.key === 'variant' ? ' list-integration-id--variant' : ''}`}
+                      title={`Shopify ${line.label} ${line.value}`}
+                    >
+                      <span className="list-integration-id__label">{line.label}</span>
+                      {shopifyHref ? (
+                        <a
+                          href={shopifyHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="list-integration-id__value"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {line.value}
+                        </a>
+                      ) : (
+                        <span className="list-integration-id__value">{line.value}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>

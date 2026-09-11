@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
+import { FaTrashCan } from 'react-icons/fa6';
 import ListDataTable from '../list/ListDataTable.jsx';
 import ListSortableTh from '../list/ListSortableTh.jsx';
 import ColumnVisibilityMenu from '../list/ColumnVisibilityMenu.jsx';
@@ -9,10 +10,14 @@ import { formatOrderStatusOptionLabel } from './ChangeOrderStatusModal.jsx';
 import { pickCompanyLogoUrl } from '../../features/company/companyAPI.js';
 import {
   buildOrderItemByOriginCompanyQuery,
+  deleteOrderRequest,
   fetchOrderItemsByOriginCompanyRequest,
   ORDER_ITEM_BY_ORIGIN_COMPANY_PATH,
+  pickOrderDocumentId,
 } from '../../features/orders/ordersAPI.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
+import NavIcon from '../NavIcon.jsx';
+import { toast } from '../../utils/toast.js';
 
 const COLUMNS = [
   { key: 'sno', label: '#', alwaysVisible: true },
@@ -22,6 +27,7 @@ const COLUMNS = [
   { key: 'qty', label: 'Qty' },
   { key: 'status', label: 'Status' },
   { key: 'dates', label: 'Created / Updated' },
+  { key: 'actions', label: 'Actions', alwaysVisible: true },
 ];
 
 function asRecord(value) {
@@ -105,7 +111,11 @@ function buildSourceEntry({ url, status, durationMs = null, error = null }) {
 /**
  * Vendor view of marketplace line items (`GET order_item/by-origin-company`).
  */
-export default function OriginCompanyOrderItemsList({ search = '', onApiSourceChange }) {
+export default function OriginCompanyOrderItemsList({
+  search = '',
+  onApiSourceChange,
+  canDelete = false,
+}) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
@@ -115,6 +125,7 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
   const [totalPages, setTotalPages] = useState(0);
   const [sort, setSort] = useState({ sortBy: 'createdAt', sortOrder: 'desc' });
   const [reloadKey, setReloadKey] = useState(0);
+  const [deletingId, setDeletingId] = useState('');
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     'origin-company-order-items',
@@ -200,6 +211,28 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
     if (totalPages > 0 && page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  const handleDelete = useCallback(async (row) => {
+    const orderId = pickOrderDocumentId(row);
+    if (!orderId) {
+      toast.error('Could not delete: missing order id.');
+      return;
+    }
+    const orderNo = orderNoFromRow(row) || orderId;
+    if (!window.confirm(`Delete order "${orderNo}"? This action cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(orderId);
+    try {
+      await deleteOrderRequest(orderId);
+      toast.success('Order deleted successfully.');
+      setReloadKey((n) => n + 1);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete order.');
+    } finally {
+      setDeletingId('');
+    }
+  }, []);
+
   const handleSort = useCallback((column, isDoubleClick = false) => {
     if (isDoubleClick) {
       setSort({ sortBy: 'createdAt', sortOrder: 'desc' });
@@ -279,6 +312,9 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
                 </th>
               ) : null}
               {isVisible('dates') ? sortableTh('createdAt', 'Created / Updated', 'list-col-date') : null}
+              <th className="text-center list-col-actions">
+                <span className="visually-hidden">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -297,14 +333,16 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
                 const statusVal = orderStatusFromRow(row);
                 const created = row?.createdAt ?? row?.created_at;
                 const updated = row?.updatedAt ?? row?.updated_at;
+                const orderId = pickOrderDocumentId(row);
+                const isDeleting = Boolean(orderId) && deletingId === orderId;
                 return (
                   <tr key={key}>
                     <td className="text-center text-muted text-sm">{seriesNumber}</td>
                     {isVisible('order_no') ? (
-                      <td className="text-sm font-weight-bold text-dark">{orderNo}</td>
+                      <td className="text-sm font-weight-bold text-dark text-center">{orderNo}</td>
                     ) : null}
                     {isVisible('product') ? (
-                      <td className="text-sm list-col-name-wrap">
+                      <td className="text-sm text-center list-col-name-wrap">
                         <div className="list-cell-name-wrap" title={productName}>
                           {productName}
                         </div>
@@ -330,7 +368,7 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
                       </td>
                     ) : null}
                     {isVisible('dates') ? (
-                      <td className="text-sm list-col-date">
+                      <td className="text-sm text-center list-col-date">
                         {created || updated ? (
                           <div className="oms-dates-cell">
                             <div
@@ -355,6 +393,26 @@ export default function OriginCompanyOrderItemsList({ search = '', onApiSourceCh
                         )}
                       </td>
                     ) : null}
+                    <td className="text-center list-col-actions">
+                      <button
+                        type="button"
+                        className="btn btn-link text-danger mb-0 p-1 d-inline-flex align-items-center justify-content-center"
+                        title="Delete"
+                        aria-label={orderNo !== '—' ? `Delete order ${orderNo}` : 'Delete order'}
+                        onClick={() => handleDelete(row)}
+                        disabled={!canDelete || !orderId || isDeleting}
+                      >
+                        {isDeleting ? (
+                          <span
+                            className="spinner-border spinner-border-sm text-danger"
+                            role="status"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <NavIcon icon={FaTrashCan} size={16} className="text-danger" />
+                        )}
+                      </button>
+                    </td>
                   </tr>
                 );
               })

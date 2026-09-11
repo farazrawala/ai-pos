@@ -81,7 +81,10 @@ export const productIdFromSyncRow = (row) => {
   return '';
 };
 
-/** Load sync rows for many products (batch API when supported, otherwise per-product fallback). */
+/** Product id this row was fetched for (list grouping). Not an API field. */
+export const SYNC_ROW_QUERY_PRODUCT_ID = '__queriedProductId';
+
+/** Load sync rows for many products via per-product `product_id` (same filter the sync modal uses). */
 export const fetchSyncProductsForProductIdsRequest = async (productIds = [], options = {}) => {
   const ids = [...new Set(productIds.map((id) => String(id || '').trim()).filter(Boolean))];
   if (!ids.length) return [];
@@ -89,29 +92,23 @@ export const fetchSyncProductsForProductIdsRequest = async (productIds = [], opt
   const populate = options.populate || 'integration_id';
   const perProductLimit = Math.max(Number(options.limit) || 20, 1);
 
-  try {
-    const batch = await fetchSyncProductsRequest({
-      product_ids: ids.join(','),
-      populate,
-      limit: Math.max(ids.length * perProductLimit, 100),
-    });
-    const rows = Array.isArray(batch?.data) ? batch.data : [];
-    if (rows.length) return rows;
-  } catch (err) {
-    console.warn('[Sync product module] Batch fetch failed, falling back per product', err);
-  }
-
   const results = await Promise.all(
-    ids.map((id) =>
-      fetchSyncProductsRequest({
-        product_id: id,
-        populate,
-        limit: perProductLimit,
-      }).catch(() => ({ data: [] }))
-    )
+    ids.map(async (id) => {
+      try {
+        const result = await fetchSyncProductsRequest({
+          product_id: id,
+          populate,
+          limit: perProductLimit,
+        });
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        return rows.map((row) => ({ ...row, [SYNC_ROW_QUERY_PRODUCT_ID]: id }));
+      } catch {
+        return [];
+      }
+    })
   );
 
-  return results.flatMap((result) => (Array.isArray(result?.data) ? result.data : []));
+  return results.flat();
 };
 
 export const createSyncProductRequest = async (syncProductData = {}) => {

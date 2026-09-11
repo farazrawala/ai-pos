@@ -76,8 +76,8 @@ export const pickShopifyProductIds = (referenceId) => {
 
   const gidProduct = raw.match(/gid:\/\/shopify\/Product\/(\d+)/i);
   const gidVariant = raw.match(/gid:\/\/shopify\/ProductVariant\/(\d+)/i);
-  if (gidProduct?.[1]) {
-    return { productId: gidProduct[1], variantId: gidVariant?.[1] || '' };
+  if (gidProduct?.[1] || gidVariant?.[1]) {
+    return { productId: gidProduct?.[1] || '', variantId: gidVariant?.[1] || '' };
   }
 
   if (/^\d+:\d+$/.test(raw)) {

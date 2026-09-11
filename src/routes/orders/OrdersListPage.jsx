@@ -2421,6 +2421,7 @@ export default function OrdersListPage({ config }) {
                 <OriginCompanyOrderItemsList
                   search={searchTerm}
                   onApiSourceChange={setOriginItemsSource}
+                  canDelete={canDelete}
                 />
               ) : (
               <ListDataTable

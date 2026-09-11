@@ -48,10 +48,14 @@ import {
   PRODUCTS_LIST_POPULATE,
   updateProductRequest,
 } from '../../features/products/productsAPI.js';
-import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
+import {
+  fetchIntegrationsRequest,
+  hydrateIntegrationLogos,
+} from '../../features/integration/integrationAPI.js';
 import {
   fetchSyncProductsForProductIdsRequest,
   productIdFromSyncRow,
+  SYNC_ROW_QUERY_PRODUCT_ID,
 } from '../../features/syncProduct/syncProductAPI.js';
 import { fetchCategoriesRequest } from '../../features/categories/categoriesAPI.js';
 import {
@@ -318,11 +322,16 @@ const getProductCategoryNames = (item, categoriesLookup = []) => {
 
 const groupSyncRowsByProductId = (rows = []) => {
   const grouped = {};
+  const add = (pid, row) => {
+    const key = String(pid || '').trim();
+    if (!key) return;
+    if (!grouped[key]) grouped[key] = [];
+    if (grouped[key].includes(row)) return;
+    grouped[key].push(row);
+  };
   for (const row of rows) {
-    const pid = productIdFromSyncRow(row);
-    if (!pid) continue;
-    if (!grouped[pid]) grouped[pid] = [];
-    grouped[pid].push(row);
+    add(row?.[SYNC_ROW_QUERY_PRODUCT_ID], row);
+    add(productIdFromSyncRow(row), row);
   }
   return grouped;
 };
@@ -446,7 +455,9 @@ const Product = () => {
       try {
         const result = await fetchIntegrationsRequest({ limit: 500 });
         if (cancelled) return;
-        setIntegrations(Array.isArray(result?.data) ? result.data : []);
+        const list = Array.isArray(result?.data) ? result.data : [];
+        const hydrated = await hydrateIntegrationLogos(list);
+        if (!cancelled) setIntegrations(hydrated);
       } catch {
         if (!cancelled) setIntegrations([]);
       }
@@ -456,13 +467,18 @@ const Product = () => {
     };
   }, []);
 
-  const pageProductIds = useMemo(
-    () =>
-      (Array.isArray(data) ? data : [])
-        .map((item) => productIdFromRecord(item))
-        .filter(Boolean),
-    [data]
-  );
+  const pageProductIds = useMemo(() => {
+    const ids = [];
+    (Array.isArray(data) ? data : []).forEach((item) => {
+      const id = String(productIdFromRecord(item) || '').trim();
+      const parentId = String(parentProductIdFromRecord(item) || '').trim();
+      if (id) ids.push(id);
+      if (parentId && parentId !== id) ids.push(parentId);
+    });
+    return [...new Set(ids)];
+  }, [data]);
+
+  const pageProductIdsKey = pageProductIds.join(',');
 
   useEffect(() => {
     let cancelled = false;
@@ -474,7 +490,10 @@ const Product = () => {
         }
         return;
       }
-      const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
+      const ids = pageProductIdsKey
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
       if (!ids.length) {
         if (!cancelled) {
           setSyncRowsByProductId({});
@@ -483,7 +502,7 @@ const Product = () => {
         return;
       }
 
-      if (!cancelled) setSyncRowsStatus('loading');
+      setSyncRowsStatus((prev) => (prev === 'succeeded' ? prev : 'loading'));
       try {
         const rows = await fetchSyncProductsForProductIdsRequest(ids, {
           populate: 'integration_id',
@@ -501,7 +520,7 @@ const Product = () => {
     return () => {
       cancelled = true;
     };
-  }, [pageProductIds, isDeletedView]);
+  }, [pageProductIdsKey, isDeletedView]);
 
   const reloadCurrentPageSyncRows = useCallback(() => {
     const ids = [...new Set(pageProductIds.map((id) => String(id).trim()).filter(Boolean))];
@@ -511,7 +530,7 @@ const Product = () => {
       return;
     }
 
-    setSyncRowsStatus('loading');
+    setSyncRowsStatus((prev) => (prev === 'succeeded' ? prev : 'loading'));
     fetchSyncProductsForProductIdsRequest(ids, { populate: 'integration_id' })
       .then((rows) => {
         setSyncRowsByProductId(groupSyncRowsByProductId(rows));
@@ -1493,6 +1512,13 @@ const Product = () => {
                         const productName = item.name || item.product_name || 'Product';
                         const categoryNames = getProductCategoryNames(item, categories);
                         const parentId = getParentProductId(item);
+                        const syncParentId = parentProductIdFromRecord(item);
+                        const ownSyncRows = syncRowsByProductId[String(productId)] || [];
+                        const parentSyncRows =
+                          syncParentId && String(syncParentId) !== String(productId)
+                            ? syncRowsByProductId[String(syncParentId)] || []
+                            : [];
+                        const productSyncRows = ownSyncRows.length ? ownSyncRows : parentSyncRows;
                         const parentProduct = parentId ? productsById.get(parentId) || null : null;
                         const mainImage =
                           getProductListingImage(item, { parent: parentProduct }) || null;
@@ -1739,7 +1765,7 @@ const Product = () => {
                             {isVisible('integration') ? (
                               <td className="text-sm list-col-integrations">
                                 <ProductIntegrationsCell
-                                  syncRows={syncRowsByProductId[String(productId)] || []}
+                                  syncRows={productSyncRows}
                                   integrations={integrations}
                                   totalIntegrations={integrations.length}
                                   loading={syncRowsStatus === 'loading'}

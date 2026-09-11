@@ -171,11 +171,34 @@ const patchIntegrationRequest = async (url, integrationData) => {
   return extractIntegrationRecord(result) ?? result;
 };
 
+const unwrapIntegrationImageValue = (raw) => {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'string' || typeof raw === 'number') return String(raw).trim();
+  if (typeof File !== 'undefined' && raw instanceof File) return '';
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return '';
+  if (Array.isArray(raw)) return unwrapIntegrationImageValue(raw[0]);
+  if (typeof raw !== 'object') return '';
+  const nested =
+    raw.url ??
+    raw.path ??
+    raw.src ??
+    raw.image ??
+    raw.filename ??
+    raw.file ??
+    raw.secure_url ??
+    raw.secureUrl ??
+    raw.location ??
+    '';
+  if (nested && typeof nested === 'object') return unwrapIntegrationImageValue(nested);
+  return nested != null && nested !== '' ? String(nested).trim() : '';
+};
+
 export const pickIntegrationStoreLogoUrl = (record) => {
   if (!record || typeof record !== 'object') return '';
   const raw =
     record.image ?? record.store_logo ?? record.storeLogo ?? record.logo ?? '';
-  return resolveCategoryMediaUrl(raw);
+  const unwrapped = unwrapIntegrationImageValue(raw);
+  return resolveCategoryMediaUrl(unwrapped || raw);
 };
 
 const parsePaginatedResponse = (result, params = {}) => {
@@ -278,6 +301,40 @@ export const fetchIntegrationByIdRequest = async (integrationId) => {
 
   const result = await response.json();
   return extractIntegrationRecord(result) ?? result;
+};
+
+const integrationRecordId = (item) =>
+  String(item?._id || item?.id || item?.integration_id || '').trim();
+
+/** List endpoints often omit `image`; fill logos from get-by-id like the sync modal. */
+export const hydrateIntegrationLogos = async (records = []) => {
+  const list = Array.isArray(records) ? records : [];
+  const missing = list.filter((row) => !pickIntegrationStoreLogoUrl(row));
+  if (!missing.length) return list;
+
+  const fetched = await Promise.all(
+    missing.map(async (row) => {
+      const id = integrationRecordId(row);
+      if (!id) return null;
+      try {
+        const result = await fetchIntegrationByIdRequest(id);
+        return result && typeof result === 'object' ? result : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const byId = new Map(
+    list.map((row) => [integrationRecordId(row), row]).filter(([id]) => Boolean(id))
+  );
+  fetched.forEach((row) => {
+    if (!row || typeof row !== 'object') return;
+    const id = integrationRecordId(row);
+    if (!id) return;
+    byId.set(id, { ...(byId.get(id) || {}), ...row });
+  });
+  return Array.from(byId.values());
 };
 
 /** List remote store variations for a parent product (WooCommerce / Shopify). */
