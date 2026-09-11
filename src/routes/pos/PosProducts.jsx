@@ -73,15 +73,37 @@ function looksLikeBarcode(value) {
 }
 
 const POS_HIDE_LOW_STOCK_STORAGE_KEY = 'pos.hideLowStock';
-/** Empty POS grid (no search). Typed search stays smaller. */
-const POS_PRODUCT_BROWSE_LIMIT = 200;
+/** POS catalog page size for browse (empty search) and typed search. */
+const POS_PRODUCT_BROWSE_LIMIT = 50;
 const POS_PRODUCT_SEARCH_LIMIT = 50;
 
-function limitPosBrowseRows(rows, query) {
+function posCatalogPageSize(query) {
+  return String(query ?? '').trim() ? POS_PRODUCT_SEARCH_LIMIT : POS_PRODUCT_BROWSE_LIMIT;
+}
+
+function slicePosCatalogPage(rows, page, pageSize) {
   const list = Array.isArray(rows) ? rows : [];
-  if (String(query ?? '').trim()) return list;
-  if (list.length <= POS_PRODUCT_BROWSE_LIMIT) return list;
-  return list.slice(0, POS_PRODUCT_BROWSE_LIMIT);
+  const size = Math.max(1, Number(pageSize) || POS_PRODUCT_BROWSE_LIMIT);
+  const safePage = Math.max(1, Number(page) || 1);
+  return list.slice(0, safePage * size);
+}
+
+function posStatusQueryParams(statusFilter) {
+  if (statusFilter === 'all') return { includeInactive: true };
+  if (statusFilter === 'inactive') return { status: 'inactive' };
+  return { status: 'active' };
+}
+
+function apiListHasMore(result, pageSize) {
+  const limit = Number(result?.limit) || pageSize || POS_PRODUCT_BROWSE_LIMIT;
+  const page = Number(result?.page) || 1;
+  const totalPages = Number(result?.totalPages);
+  const total = Number(result?.total);
+  const received = Array.isArray(result?.data) ? result.data.length : 0;
+  if (received === 0) return false;
+  if (Number.isFinite(totalPages) && totalPages > 0) return page < totalPages;
+  if (Number.isFinite(total) && total >= 0) return page * limit < total;
+  return received >= limit;
 }
 
 /** Load "Remove stock with less than 1" preference from localStorage cache. */
@@ -312,7 +334,12 @@ const PosProducts = ({
   const [hideLowStock, setHideLowStock] = useState(readStoredHideLowStock);
   const [statusFilter, setStatusFilter] = useState('active');
   const [continuousScanOpen, setContinuousScanOpen] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [catalogReadyForMore, setCatalogReadyForMore] = useState(false);
   const searchInputRef = useRef(null);
+  const productGridRef = useRef(null);
+  const loadMoreSentinelRef = useRef(null);
   /** Latest search text — scanners fire Enter before React state catches up. */
   const productQueryRef = useRef(productQuery);
   /** Prevents double-Enter / overlapping async scans from adding the same (or stale) item twice. */
@@ -320,6 +347,12 @@ const PosProducts = ({
   const scannerBurstRef = useRef({ count: 0, lastAt: 0 });
   const autoScanTimerRef = useRef(null);
   const loadProductsGenRef = useRef(0);
+  const catalogPageRef = useRef(1);
+  const catalogSourceRef = useRef('api');
+  const catalogAllCachedRef = useRef([]);
+  const hasMoreProductsRef = useRef(false);
+  const loadMoreInFlightRef = useRef(false);
+  const catalogReadyForMoreRef = useRef(false);
 
   useEffect(() => {
     productQueryRef.current = productQuery;
@@ -336,6 +369,28 @@ const PosProducts = ({
     return () => clearTimeout(t);
   }, [productQuery]);
 
+  const markCatalogReady = useCallback((hasMore) => {
+    const more = Boolean(hasMore);
+    hasMoreProductsRef.current = more;
+    setHasMoreProducts(more);
+    catalogReadyForMoreRef.current = true;
+    setCatalogReadyForMore(true);
+  }, []);
+
+  const applyCachedCatalogPage = useCallback((rows, query) => {
+    const all = flattenWithNestedChildren(rows);
+    const pageSize = posCatalogPageSize(query);
+    catalogAllCachedRef.current = all;
+    catalogSourceRef.current = 'cache';
+    catalogPageRef.current = 1;
+    const first = slicePosCatalogPage(all, 1, pageSize);
+    setProducts(first);
+    const more = first.length < all.length;
+    hasMoreProductsRef.current = more;
+    setHasMoreProducts(more);
+    return first;
+  }, []);
+
   const loadProductsFromCache = useCallback(async () => {
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
     const cached = await searchProducts({
@@ -345,28 +400,36 @@ const PosProducts = ({
     });
     const totalCached = await countProducts();
     if (totalCached === 0) {
+      catalogAllCachedRef.current = [];
+      catalogSourceRef.current = 'cache';
+      catalogPageRef.current = 1;
       setProducts([]);
+      markCatalogReady(false);
       setProductsError(OFFLINE_CATALOG_EMPTY_MESSAGE);
       setProductsStatus('failed');
       return false;
     }
-    setProducts(limitPosBrowseRows(flattenWithNestedChildren(cached), debouncedQuery));
+    applyCachedCatalogPage(cached, debouncedQuery);
+    markCatalogReady(hasMoreProductsRef.current);
     setProductsError(null);
     setProductsStatus('succeeded');
     return true;
-  }, [debouncedQuery, categoryFilter, statusFilter]);
+  }, [debouncedQuery, categoryFilter, statusFilter, applyCachedCatalogPage, markCatalogReady]);
 
   const loadProducts = useCallback(async () => {
     const loadGen = ++loadProductsGenRef.current;
     const stillCurrent = () => loadGen === loadProductsGenRef.current;
+    catalogReadyForMoreRef.current = false;
+    loadMoreInFlightRef.current = false;
+    hasMoreProductsRef.current = false;
+    setHasMoreProducts(false);
+    setLoadingMoreProducts(false);
+    setCatalogReadyForMore(false);
     setProductsError(null);
+    if (productGridRef.current) productGridRef.current.scrollTop = 0;
     const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
-    const statusParams =
-      statusFilter === 'all'
-        ? { includeInactive: true }
-        : statusFilter === 'inactive'
-          ? { status: 'inactive' }
-          : { status: 'active' };
+    const statusParams = posStatusQueryParams(statusFilter);
+    const pageSize = posCatalogPageSize(debouncedQuery);
 
     if (!isOnline) {
       setProductsStatus('loading');
@@ -385,17 +448,22 @@ const PosProducts = ({
         status: statusFilter,
       });
       const totalCached = await countProducts();
-      cachedRows = limitPosBrowseRows(flattenWithNestedChildren(cached), debouncedQuery);
       if (totalCached > 0) {
         hadCache = true;
         if (!stillCurrent()) return;
-        setProducts(cachedRows);
+        cachedRows = applyCachedCatalogPage(cached, debouncedQuery);
         setProductsError(null);
         setProductsStatus('succeeded');
-        if (debouncedQuery) return;
+        if (debouncedQuery) {
+          markCatalogReady(hasMoreProductsRef.current);
+          return;
+        }
         try {
           const stale = await isMasterSyncStale();
-          if (!stale) return;
+          if (!stale) {
+            markCatalogReady(hasMoreProductsRef.current);
+            return;
+          }
         } catch {
           /* fall through to a browse-only network refresh */
         }
@@ -407,51 +475,158 @@ const PosProducts = ({
       setProductsStatus('loading');
     }
 
+    catalogReadyForMoreRef.current = false;
     try {
       const result = await fetchProductActiveRequest({
         search: debouncedQuery || undefined,
         searchFields: POS_PRODUCT_SEARCH_FIELDS,
         page: 1,
-        limit: debouncedQuery ? POS_PRODUCT_SEARCH_LIMIT : POS_PRODUCT_BROWSE_LIMIT,
+        limit: pageSize,
         ...(categoryId ? { categoryId } : {}),
         ...statusParams,
       });
-      const arr = limitPosBrowseRows(
-        await fetchMissingVariationChildren(
-          Array.isArray(result?.data) ? result.data : [],
-          { categoryId, statusParams }
-        ),
-        debouncedQuery
-      );
+      const raw = Array.isArray(result?.data) ? result.data : [];
+      const arr = await fetchMissingVariationChildren(raw, { categoryId, statusParams });
       if (!stillCurrent()) return;
+      catalogSourceRef.current = 'api';
+      catalogAllCachedRef.current = [];
+      catalogPageRef.current = 1;
       setProducts(arr);
       setProductsError(null);
       setProductsStatus('succeeded');
+      markCatalogReady(apiListHasMore({ ...result, data: raw }, pageSize));
       upsertProducts(arr).catch((cacheErr) => {
         console.warn('[POS] Failed to cache products', cacheErr);
       });
     } catch (err) {
       console.warn('[POS] Failed to load products from API, trying offline cache', err);
       if (!stillCurrent()) return;
-      if (hadCache && !debouncedQuery) return;
+      if (hadCache && !debouncedQuery) {
+        markCatalogReady(hasMoreProductsRef.current);
+        return;
+      }
       if (hadCache && cachedRows.length > 0) {
         setProducts(cachedRows);
         setProductsError(null);
         setProductsStatus('succeeded');
+        markCatalogReady(hasMoreProductsRef.current);
         return;
       }
       const usedCache = await loadProductsFromCache();
       if (!usedCache) {
         setProducts([]);
+        markCatalogReady(false);
         setProductsError(err?.message || 'Could not load products');
         setProductsStatus('failed');
       }
     }
-  }, [debouncedQuery, categoryFilter, statusFilter, isOnline, loadProductsFromCache]);
+  }, [
+    debouncedQuery,
+    categoryFilter,
+    statusFilter,
+    isOnline,
+    loadProductsFromCache,
+    applyCachedCatalogPage,
+    markCatalogReady,
+  ]);
 
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (!catalogReadyForMoreRef.current) return;
+    if (!hasMoreProductsRef.current || loadMoreInFlightRef.current) return;
+    if (productsStatus === 'loading') return;
+
+    const loadGen = loadProductsGenRef.current;
+    const stillCurrent = () => loadGen === loadProductsGenRef.current;
+    const pageSize = posCatalogPageSize(debouncedQuery);
+    const nextPage = catalogPageRef.current + 1;
+
+    loadMoreInFlightRef.current = true;
+    setLoadingMoreProducts(true);
+
+    try {
+      if (catalogSourceRef.current === 'cache') {
+        const all = Array.isArray(catalogAllCachedRef.current) ? catalogAllCachedRef.current : [];
+        const nextRows = slicePosCatalogPage(all, nextPage, pageSize);
+        if (!stillCurrent()) return;
+        catalogPageRef.current = nextPage;
+        setProducts(nextRows);
+        markCatalogReady(nextRows.length < all.length);
+        return;
+      }
+
+      if (!isOnline) {
+        markCatalogReady(false);
+        return;
+      }
+
+      const categoryId = categoryFilter !== 'All' ? categoryFilter : undefined;
+      const statusParams = posStatusQueryParams(statusFilter);
+      const result = await fetchProductActiveRequest({
+        search: debouncedQuery || undefined,
+        searchFields: POS_PRODUCT_SEARCH_FIELDS,
+        page: nextPage,
+        limit: pageSize,
+        ...(categoryId ? { categoryId } : {}),
+        ...statusParams,
+      });
+      const raw = Array.isArray(result?.data) ? result.data : [];
+      const arr = await fetchMissingVariationChildren(raw, { categoryId, statusParams });
+      if (!stillCurrent()) return;
+      catalogPageRef.current = nextPage;
+      setProducts((prev) => mergeProductRows([...prev, ...arr]));
+      markCatalogReady(apiListHasMore({ ...result, data: raw }, pageSize));
+      if (arr.length) {
+        upsertProducts(arr).catch((cacheErr) => {
+          console.warn('[POS] Failed to cache products', cacheErr);
+        });
+      }
+    } catch (err) {
+      console.warn('[POS] Failed to load more products', err);
+    } finally {
+      if (stillCurrent()) {
+        loadMoreInFlightRef.current = false;
+        setLoadingMoreProducts(false);
+      }
+    }
+  }, [
+    productsStatus,
+    debouncedQuery,
+    categoryFilter,
+    statusFilter,
+    isOnline,
+    markCatalogReady,
+  ]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    const grid = productGridRef.current;
+    if (!sentinel || !catalogReadyForMore || !hasMoreProducts || loadingMoreProducts || productsStatus === 'loading') {
+      return undefined;
+    }
+
+    const style = grid ? window.getComputedStyle(grid) : null;
+    const overflowY = style?.overflowY || '';
+    const constrained =
+      grid &&
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      style?.maxHeight !== 'none' &&
+      style?.maxHeight !== '0px';
+    const root = constrained ? grid : null;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        loadMoreProducts();
+      },
+      { root, rootMargin: '160px 0px', threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [catalogReadyForMore, hasMoreProducts, loadingMoreProducts, productsStatus, products.length, loadMoreProducts]);
 
   const handleRetryProducts = useCallback(() => {
     loadProducts();
@@ -984,8 +1159,8 @@ const PosProducts = ({
             <p className="pos-panel-header__debug mb-0">
               <code>
                 {debouncedQuery
-                  ? `IndexedDB catalog search=${JSON.stringify(debouncedQuery)} status=${statusFilter}`
-                  : `catalog/API browse limit=${POS_PRODUCT_BROWSE_LIMIT} status=${statusFilter}`}
+                  ? `IndexedDB catalog search=${JSON.stringify(debouncedQuery)} status=${statusFilter} page=${catalogPageRef.current} hasMore=${hasMoreProducts}`
+                  : `catalog/API browse limit=${POS_PRODUCT_BROWSE_LIMIT} page=${catalogPageRef.current} hasMore=${hasMoreProducts} status=${statusFilter}`}
               </code>
             </p>
           ) : null}
@@ -1058,7 +1233,7 @@ const PosProducts = ({
             </label>
           </div>
 
-          <div className="pos-product-grid flex-grow-1">
+          <div className="pos-product-grid flex-grow-1" ref={productGridRef}>
             {productsStatus === 'loading' && products.length === 0 && (
               <div className="text-center text-muted py-5">
                 <span
@@ -1091,7 +1266,9 @@ const PosProducts = ({
             {!(productsStatus === 'loading' && products.length === 0) &&
               !productsError &&
               !isRetryingProducts &&
-              visibleProducts.length === 0 && (
+              visibleProducts.length === 0 &&
+              !hasMoreProducts &&
+              !loadingMoreProducts && (
               <div className="text-center text-muted py-5">
                 No products found
                 {hideLowStock &&
@@ -1189,6 +1366,24 @@ const PosProducts = ({
                 })}
               </div>
             )}
+            {!(productsStatus === 'loading' && products.length === 0) && hasMoreProducts ? (
+              <div
+                ref={loadMoreSentinelRef}
+                className="pos-product-grid__more"
+                aria-live="polite"
+              >
+                {loadingMoreProducts ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                    Loading more…
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="pos-footer-actions d-none d-lg-flex">

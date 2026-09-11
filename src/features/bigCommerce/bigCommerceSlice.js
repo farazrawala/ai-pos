@@ -147,6 +147,7 @@ export const openMarketplaceProduct = createAsyncThunk(
       const { product, variations } = await fetchMarketplaceProductDetailRequest(productId, {
         seed,
         catalog: list,
+        companyId: getState()?.bigCommerce?.companyId || '',
       });
       const cat = getProductCategory(product);
       const related = await fetchRelatedProductsRequest({

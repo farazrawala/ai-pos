@@ -208,14 +208,26 @@ export async function fetchMarketplaceProductByIdRequest(productId) {
  * Same source as product edit (`get-product-variation` → `childproducts`), with
  * marketplace list siblings as fallback when the tenant variation API is unavailable.
  */
+function flattenCatalogRows(list) {
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    out.push(item);
+    getProductVariations(item).forEach((kid) => {
+      if (kid && typeof kid === 'object') out.push(kid);
+    });
+  });
+  return out;
+}
+
 export async function fetchMarketplaceProductDetailRequest(
   productId,
-  { seed, catalog = [] } = {}
+  { seed, catalog = [], companyId = '' } = {}
 ) {
   const id = String(productId || '').trim();
   const seedProduct =
     seed && typeof seed === 'object' && !Array.isArray(seed) ? seed : null;
-  const catalogList = Array.isArray(catalog) ? catalog : [];
+  const catalogList = flattenCatalogRows(catalog);
 
   let product = null;
   let variations = [];
@@ -250,17 +262,67 @@ export async function fetchMarketplaceProductDetailRequest(
     throw new Error('Product not found');
   }
 
-  variations = collectMarketplaceVariations(
-    {
-      ...(seedProduct || {}),
-      ...product,
-      childproducts: variations.length ? variations : getProductVariations(product),
-    },
-    catalogList
-  );
+  const mergeParent = (extraList = []) =>
+    collectMarketplaceVariations(
+      {
+        ...(seedProduct || {}),
+        ...product,
+        childproducts: variations.length ? variations : getProductVariations(product),
+      },
+      [...catalogList, ...flattenCatalogRows(extraList)]
+    );
+
+  variations = mergeParent();
 
   if (variations.length === 0 && seedProduct) {
     variations = collectMarketplaceVariations(seedProduct, catalogList);
+  }
+
+  // Partner catalogs often omit nested childproducts; recover siblings from the
+  // existing marketplace listing (search matches parent id / name / parent_product_id).
+  const storeKey = String(companyId || '').trim();
+  if (variations.length === 0 && storeKey && id) {
+    try {
+      const extra = await fetchMarketplaceProductsRequest({
+        companyId: storeKey,
+        search: id,
+        page: 1,
+        limit: 100,
+      });
+      const extraList = Array.isArray(extra?.data) ? extra.data : [];
+      const listingParent =
+        extraList.find((item) => productIdFromRecord(item) === id) || null;
+      if (listingParent) {
+        product = {
+          ...listingParent,
+          ...product,
+          childproducts: [
+            ...getProductVariations(listingParent),
+            ...getProductVariations(product),
+          ],
+        };
+      }
+      variations = mergeParent(extraList);
+    } catch {
+      // Listing fallback is best-effort.
+    }
+  }
+
+  if (variations.length === 0 && storeKey) {
+    const name = String(product?.product_name ?? product?.name ?? '').trim();
+    if (name) {
+      try {
+        const extra = await fetchMarketplaceProductsRequest({
+          companyId: storeKey,
+          search: name,
+          page: 1,
+          limit: 100,
+        });
+        variations = mergeParent(extra?.data || []);
+      } catch {
+        // Name search fallback is best-effort.
+      }
+    }
   }
 
   return {

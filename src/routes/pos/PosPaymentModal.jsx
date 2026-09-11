@@ -279,11 +279,13 @@ const PosPaymentModal = ({ orderTotal = 0, saving = false, onPayNow, onPayNowPri
             </h5>
             <button
               type="button"
-              className="btn-close"
+              className="pos-payment-modal__close"
               data-bs-dismiss="modal"
               aria-label="Close"
               disabled={busy}
-            />
+            >
+              <i className="fas fa-times" aria-hidden="true" />
+            </button>
           </div>
           <div className="modal-body px-4 pb-4 pt-3">
             <p className="text-center pos-pay-hero mb-4">PKR {total.toFixed(2)}</p>

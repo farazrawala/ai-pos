@@ -133,10 +133,13 @@ export default function MarketplacePage({ companyId, productId = '' }) {
   const [pageRelated, setPageRelated] = useState([]);
   const [pageDetailStatus, setPageDetailStatus] = useState('idle');
   const [pageDetailError, setPageDetailError] = useState('');
+  const [pageDetailRetry, setPageDetailRetry] = useState(0);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const meTooResolveGenRef = useRef(0);
   const bulkMeTooRef = useRef(false);
+  const productsRef = useRef(state.products);
+  productsRef.current = state.products;
 
   const resolvedStoreId = String(state.company?.id || state.companyId || '').trim();
   const isOwnStore =
@@ -323,7 +326,12 @@ export default function MarketplacePage({ companyId, productId = '' }) {
     setPageDetailStatus('loading');
     setPageDetailError('');
 
-    fetchMarketplaceProductDetailRequest(id, { catalog: [] })
+    fetchMarketplaceProductDetailRequest(id, {
+      seed:
+        (productsRef.current || []).find((item) => productIdFromRecord(item) === id) || null,
+      catalog: productsRef.current,
+      companyId: String(companyId || state.company?.id || '').trim(),
+    })
       .then(async ({ product, variations }) => {
         const cat = getProductCategory(product);
         let related = [];
@@ -354,7 +362,7 @@ export default function MarketplacePage({ companyId, productId = '' }) {
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, companyId, pageDetailRetry, state.company?.id]);
 
   const loadNextPage = useCallback(() => {
     if (loadingRef.current) return;
@@ -1140,28 +1148,27 @@ export default function MarketplacePage({ companyId, productId = '' }) {
   const handleDetailsNavigate = useCallback(() => {
     dispatch(closeMarketplaceDetail());
   }, [dispatch]);
-  const pageProductName = getProductName(pageProduct) || 'Product';
 
   return (
     <div className="bc-marketplace">
       {isProductPage ? (
         <section className="bc-product-page">
-          <nav className="bc-product-crumb" aria-label="Product breadcrumb">
-            <Link to={companyStorePath(storeKey)}>
-              {state.company?.name || 'Store catalog'}
-            </Link>
-            <span aria-hidden="true">/</span>
-            <span>
-              {pageDetailStatus === 'loading' && !pageProduct ? 'Loading…' : pageProductName}
-            </span>
-          </nav>
           {pageDetailStatus === 'failed' ? (
-            <div className="bc-empty">
-              <h3>Product not found</h3>
+            <div className="bc-pdp-error">
+              <h3>Unable to load product details</h3>
               <p>{pageDetailError || 'This product could not be loaded.'}</p>
-              <Link to={companyStorePath(storeKey)} className="bc-btn bc-btn-primary">
-                Back to catalog
-              </Link>
+              <div className="bc-pdp-error-actions">
+                <button
+                  type="button"
+                  className="bc-btn bc-btn-primary"
+                  onClick={() => setPageDetailRetry((n) => n + 1)}
+                >
+                  Retry
+                </button>
+                <Link to={companyStorePath(storeKey)} className="bc-btn bc-btn-ghost">
+                  Back to catalog
+                </Link>
+              </div>
             </div>
           ) : (
             <ProductDetailView
@@ -1187,6 +1194,8 @@ export default function MarketplacePage({ companyId, productId = '' }) {
               showInlineActions
               detailsHrefForProduct={productDetailsHref}
               onDetailsNavigate={handleDetailsNavigate}
+              storeName={state.company?.name || ''}
+              storeHref={companyStorePath(storeKey)}
             />
           )}
         </section>
