@@ -43,6 +43,7 @@ import { formatMoney } from '../../utils/formatMoney.js';
 import {
   fetchAllProductsForExportRequest,
   fetchProductVariationRequest,
+  deleteProductRequest,
   PRODUCT_DELETED_LIST_PATH,
   PRODUCT_LIST_SEARCH_FIELDS,
   PRODUCTS_LIST_POPULATE,
@@ -64,6 +65,7 @@ import {
 } from '../../features/products/productExportMapper.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import { toast } from '../../utils/toast.js';
+import ConfirmDialog from '../../components/support/ConfirmDialog.jsx';
 
 const mapLoadStatus = (status) => {
   if (status === 'loading' || status === true) return 'loading';
@@ -373,6 +375,8 @@ const Product = () => {
   const [statusFilter, setStatusFilter] = useState('active');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
   const isDeletedView = showDeleted;
 
   const activeFilterCount =
@@ -834,23 +838,58 @@ const Product = () => {
     }
   };
 
-  // Handle delete product
-  const handleDelete = async (product, productId, productName) => {
-    const productNameDisplay = productName || 'this product';
-    const listChildCount = (Array.isArray(data) ? data : []).filter(
-      (item) => String(parentProductIdFromRecord(item)) === String(productId)
-    ).length;
-    const looksVariable = isVariableProduct(product) || listChildCount > 0;
-    const confirmMessage = looksVariable
-      ? `Are you sure you want to delete "${productNameDisplay}"? All of its variations will also be deleted. This cannot be undone.`
-      : `Are you sure you want to delete "${productNameDisplay}"? This action cannot be undone.`;
-    if (window.confirm(confirmMessage)) {
-      try {
-        await dispatch(deleteProduct(productId)).unwrap();
-        dispatch(fetchProducts(buildListParams()));
-      } catch (error) {
-        console.error('Delete error:', error);
+  const handleDeleteClick = (product, productId, productName) => {
+    if (!productId || deletingProduct) return;
+    const listChildIds = (Array.isArray(data) ? data : [])
+      .filter((item) => String(parentProductIdFromRecord(item)) === String(productId))
+      .map((item) => String(productIdFromRecord(item)))
+      .filter((id) => id && id !== String(productId));
+    const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
+    setPendingDelete({
+      product,
+      productId: String(productId),
+      productName: productName || 'this product',
+      looksVariable,
+      listChildIds,
+    });
+  };
+
+  const handleCancelDelete = () => {
+    if (deletingProduct) return;
+    setPendingDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete?.productId || deletingProduct) return;
+    const { product, productId, listChildIds, looksVariable } = pendingDelete;
+
+    setDeletingProduct(true);
+    try {
+      let childIds = collectVariationIds(product);
+      if (looksVariable && childIds.length === 0) {
+        try {
+          const result = await fetchProductVariationRequest(productId);
+          const detail = result?.data ?? result;
+          childIds = collectVariationIds(detail);
+        } catch (err) {
+          console.error('Failed to load variations for delete cascade:', err);
+        }
       }
+
+      childIds = [...new Set([...childIds, ...(listChildIds || [])])].filter(
+        (id) => String(id) !== String(productId)
+      );
+
+      await dispatch(deleteProduct(productId)).unwrap();
+      if (childIds.length) {
+        await Promise.allSettled(childIds.map((id) => deleteProductRequest(id)));
+      }
+      setPendingDelete(null);
+      dispatch(fetchProducts(buildListParams()));
+    } catch (error) {
+      console.error('Delete error:', error);
+    } finally {
+      setDeletingProduct(false);
     }
   };
 
@@ -1882,10 +1921,12 @@ const Product = () => {
                                       <button
                                         type="button"
                                         className="btn btn-sm btn-outline-danger mb-0"
-                                        onClick={() => handleDelete(item, productId, productName)}
-                                        disabled={deleteStatus === 'loading'}
+                                        onClick={() => handleDeleteClick(item, productId, productName)}
+                                        disabled={deletingProduct}
                                       >
-                                        {deleteStatus === 'loading' ? 'Deleting…' : 'Delete'}
+                                        {deletingProduct && pendingDelete?.productId === String(productId)
+                                          ? 'Deleting…'
+                                          : 'Delete'}
                                       </button>
                                     ) : null}
                                   </>
@@ -1937,6 +1978,26 @@ const Product = () => {
         productType={viewSyncProduct?.productType || ''}
         onClose={handleViewSyncModalClose}
         onUnlinked={reloadCurrentPageSyncRows}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Delete product"
+        message={
+          pendingDelete?.looksVariable
+            ? `Delete "${pendingDelete.productName}"? All of its variations${
+                pendingDelete.listChildIds?.length
+                  ? ` (${pendingDelete.listChildIds.length})`
+                  : ''
+              } will also be deleted. This cannot be undone.`
+            : `Delete "${pendingDelete?.productName || 'this product'}"? This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deletingProduct}
+        onConfirm={handleConfirmDelete}
+        onClose={handleCancelDelete}
       />
 
       <DevApiSourcesFooter sources={apiSources} className="mt-3" />
