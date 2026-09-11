@@ -328,6 +328,17 @@
   min-width: 0;
 }
 
+.bc-profile-meta-settings {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bc-profile-meta-settings .bc-btn-settings {
+  width: 100%;
+  min-height: 100%;
+}
+
 .bc-profile-meta strong {
   color: var(--bc-text);
   font-weight: 700;
@@ -1805,21 +1816,6 @@ a.bc-btn {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-}
-
-.bc-pdp-meta-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.7rem;
-  margin: 0;
-  color: var(--bc-muted);
-  font-size: 0.8rem;
-}
-
-.bc-pdp-meta-line span + span::before {
-  content: '·';
-  margin-right: 0.7rem;
-  color: #c5ced9;
 }
 
 .bc-pdp-head-badges {

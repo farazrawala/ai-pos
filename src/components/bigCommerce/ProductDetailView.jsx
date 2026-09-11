@@ -586,7 +586,6 @@ export default function ProductDetailView({
   const images = getProductImages(product);
   const price = getProductPrice(product);
   const compare = getProductComparePrice(product);
-  const sku = getProductSku(product);
   const barcode = getProductBarcode(product);
   const brand = getProductBrand(product);
   const category = getProductCategory(product);
@@ -594,7 +593,6 @@ export default function ProductDetailView({
   const unit = productUnit(product);
   const productType = productTypeLabel(product);
   const isVariable = productType.toLowerCase() === 'variable';
-  const productId = productIdFromRecord(product);
 
   const variations = useMemo(() => {
     if (Array.isArray(variationsProp) && variationsProp.length > 0) return variationsProp;
@@ -644,13 +642,13 @@ export default function ProductDetailView({
     const push = (label, value) => {
       if (value == null || value === '') return;
       if (typeof value === 'number' && !Number.isFinite(value)) return;
+      if (/^sku$/i.test(String(label).trim())) return;
       const text = String(value).trim();
       if (!text || text === '—') return;
       rows.push([label, text]);
     };
     push('Unit', unit);
     push('Product type', productType);
-    push('SKU', sku);
     push('Barcode', barcode);
     push('Category', category.name);
     push('Brand', brand.name);
@@ -665,7 +663,7 @@ export default function ProductDetailView({
       });
     }
     return rows;
-  }, [product, unit, productType, sku, barcode, category.name, brand.name]);
+  }, [product, unit, productType, barcode, category.name, brand.name]);
 
   const priceRange = useMemo(() => {
     if (!variations.length) return null;
@@ -683,7 +681,6 @@ export default function ProductDetailView({
   }, [variations]);
 
   const metaCards = [
-    sku ? { label: 'SKU', value: sku } : null,
     barcode ? { label: 'Barcode', value: barcode } : null,
     productType ? { label: 'Type', value: productType } : null,
     unit ? { label: 'Unit', value: unit } : null,
@@ -788,12 +785,6 @@ export default function ProductDetailView({
           <div className="bc-pdp-title-row">
             <div>
               <h1 className="bc-product-page-title">{name}</h1>
-              <p className="bc-pdp-meta-line">
-                <span>Marketplace product</span>
-                {productId ? <span>ID {productId}</span> : null}
-                {sku ? <span>SKU {sku}</span> : null}
-                {category.name && category.name !== '—' ? <span>{category.name}</span> : null}
-              </p>
             </div>
             <div className="bc-pdp-head-badges">
               {!hideMeToo ? <CatalogChip inCatalog={alreadyMeToo} /> : null}

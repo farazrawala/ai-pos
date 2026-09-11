@@ -7,14 +7,12 @@ import {
   FaLayerGroup,
   FaLocationDot,
   FaPhone,
-  FaStar,
   FaStore,
   FaWhatsapp,
 } from 'react-icons/fa6';
 import {
   buildWhatsAppUrl,
   formatJoinedDate,
-  renderStars,
   toWhatsAppPhoneDigits,
 } from '../../features/bigCommerce/marketplaceUtils.js';
 
@@ -103,42 +101,23 @@ export default function CompanyProfileHeader({
               )}
             </div>
 
-            {whatsappUrl || showSettings ? (
+            {whatsappUrl ? (
               <div className="bc-profile-actions">
-                {whatsappUrl ? (
-                  <a
-                    className="bc-btn bc-btn-whatsapp"
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`WhatsApp ${profile.phone}`}
-                  >
-                    <span className="bc-whatsapp-icon">
-                      <FaWhatsapp aria-hidden="true" />
-                    </span>
-                    <span className="bc-whatsapp-copy">
-                      <small>Available on WhatsApp</small>
-                      <strong>Chat with store</strong>
-                    </span>
-                  </a>
-                ) : null}
-                {showSettings ? (
-                  <button
-                    type="button"
-                    className="bc-btn bc-btn-settings"
-                    onClick={onOpenSettings}
-                    title="Manage product sync settings"
-                  >
-                    <span className="bc-settings-icon">
-                      <FaGear aria-hidden="true" />
-                    </span>
-                    <span className="bc-settings-copy">
-                      <strong>Product settings</strong>
-                      <small>Manage catalog sync</small>
-                    </span>
-                    <FaChevronRight className="bc-settings-chevron" aria-hidden="true" />
-                  </button>
-                ) : null}
+                <a
+                  className="bc-btn bc-btn-whatsapp"
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`WhatsApp ${profile.phone}`}
+                >
+                  <span className="bc-whatsapp-icon">
+                    <FaWhatsapp aria-hidden="true" />
+                  </span>
+                  <span className="bc-whatsapp-copy">
+                    <small>Available on WhatsApp</small>
+                    <strong>Chat with store</strong>
+                  </span>
+                </a>
               </div>
             ) : null}
           </div>
@@ -176,15 +155,25 @@ export default function CompanyProfileHeader({
                   <strong>{Number(profile.totalCategories || 0).toLocaleString()}</strong>
                 </span>
               </li>
-              <li>
-                <span className="bc-meta-icon"><FaStar aria-hidden="true" /></span>
-                <span>
-                  <span className="bc-meta-label">Rating</span>
-                  <strong className="bc-stars" title={profile.rating ? `${profile.rating}/5` : 'No rating'}>
-                    {profile.rating != null ? renderStars(profile.rating) : 'Not rated'}
-                  </strong>
-                </span>
-              </li>
+              {showSettings ? (
+                <li className="bc-profile-meta-settings">
+                  <button
+                    type="button"
+                    className="bc-btn bc-btn-settings"
+                    onClick={onOpenSettings}
+                    title="Manage product sync settings"
+                  >
+                    <span className="bc-settings-icon">
+                      <FaGear aria-hidden="true" />
+                    </span>
+                    <span className="bc-settings-copy">
+                      <strong>Product settings</strong>
+                      <small>Manage catalog sync</small>
+                    </span>
+                    <FaChevronRight className="bc-settings-chevron" aria-hidden="true" />
+                  </button>
+                </li>
+              ) : null}
               <li>
                 <span className="bc-meta-icon"><FaCalendarDays aria-hidden="true" /></span>
                 <span>
