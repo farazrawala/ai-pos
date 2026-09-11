@@ -26,7 +26,6 @@ import {
   getProductStock,
   getProductVariations,
   getVariationLabel,
-  formatProductDescriptionHtml,
   productIdFromRecord,
   isOutOfStock,
   isAlreadyMeTooProduct,
@@ -591,7 +590,7 @@ export default function ProductDetailView({
   const barcode = getProductBarcode(product);
   const brand = getProductBrand(product);
   const category = getProductCategory(product);
-  const description = formatProductDescriptionHtml(getProductDescription(product));
+  const description = getProductDescription(product);
   const unit = productUnit(product);
   const productType = productTypeLabel(product);
   const isVariable = productType.toLowerCase() === 'variable';
@@ -774,17 +773,6 @@ export default function ProductDetailView({
       ) : null}
 
       {showInlineActions && isPage ? <ProductPageActions {...actionProps} /> : null}
-
-      {description ? (
-        <div className="bc-pdp-section">
-          <h3>About this product</h3>
-          <div className="bc-detail-description">
-            {description.split(/\n+/).map((para, idx) =>
-              para.trim() ? <p key={`p-${idx}`}>{para.trim()}</p> : null
-            )}
-          </div>
-        </div>
-      ) : null}
     </>
   );
 
@@ -882,6 +870,19 @@ export default function ProductDetailView({
           <div className="bc-detail-info">{summaryBody}</div>
         </>
       )}
+
+      <section className="bc-pdp-section bc-pdp-description">
+        <h3>Description</h3>
+        {description ? (
+          <div className="bc-pdp-description-body bc-detail-description">
+            {description.split(/\n+/).map((para, idx) =>
+              para.trim() ? <p key={`p-${idx}`}>{para.trim()}</p> : null
+            )}
+          </div>
+        ) : (
+          <p className="bc-pdp-description-empty">No description available for this product.</p>
+        )}
+      </section>
 
       {specs.length > 0 ? (
         <section className="bc-pdp-section bc-pdp-specs">

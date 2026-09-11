@@ -324,13 +324,35 @@ export function getProductRating(item) {
   return Math.min(5, Math.max(0, n));
 }
 
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return value;
+  }
+  return '';
+}
+
 export function getProductDescription(item) {
+  if (!item || typeof item !== 'object') return '';
   return formatProductDescriptionHtml(
-    item?.short_description ??
-      item?.description ??
-      item?.product_description ??
-      item?.details ??
-      ''
+    firstNonEmptyText(
+      item.product_description,
+      item.productDescription,
+      item.description,
+      item.long_description,
+      item.longDescription,
+      item.html_description,
+      item.htmlDescription,
+      item.body_html,
+      item.bodyHtml,
+      item.details,
+      item.product_details,
+      item.productDetails,
+      item.short_description,
+      item.shortDescription,
+      item.about
+    )
   );
 }
 

@@ -21,6 +21,7 @@ import {
   attachSiblingChildren,
   collectMarketplaceVariations,
   productIdFromRecord,
+  getProductDescription,
 } from './marketplaceUtils.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
@@ -220,6 +221,29 @@ function flattenCatalogRows(list) {
   return out;
 }
 
+function withPreservedDescription(primary, ...fallbacks) {
+  if (!primary || typeof primary !== 'object') return primary;
+  if (getProductDescription(primary)) return primary;
+  for (const fallback of fallbacks) {
+    if (!fallback || typeof fallback !== 'object') continue;
+    if (!getProductDescription(fallback)) continue;
+    return {
+      ...primary,
+      product_description:
+        fallback.product_description ||
+        fallback.productDescription ||
+        fallback.description ||
+        fallback.long_description ||
+        fallback.details ||
+        fallback.short_description ||
+        primary.product_description,
+      description: fallback.description || primary.description,
+      short_description: fallback.short_description || primary.short_description,
+    };
+  }
+  return primary;
+}
+
 export async function fetchMarketplaceProductDetailRequest(
   productId,
   { seed, catalog = [], companyId = '' } = {}
@@ -293,14 +317,18 @@ export async function fetchMarketplaceProductDetailRequest(
       const listingParent =
         extraList.find((item) => productIdFromRecord(item) === id) || null;
       if (listingParent) {
-        product = {
-          ...listingParent,
-          ...product,
-          childproducts: [
-            ...getProductVariations(listingParent),
-            ...getProductVariations(product),
-          ],
-        };
+        product = withPreservedDescription(
+          {
+            ...listingParent,
+            ...product,
+            childproducts: [
+              ...getProductVariations(listingParent),
+              ...getProductVariations(product),
+            ],
+          },
+          listingParent,
+          seedProduct
+        );
       }
       variations = mergeParent(extraList);
     } catch {
@@ -326,11 +354,15 @@ export async function fetchMarketplaceProductDetailRequest(
   }
 
   return {
-    product: {
-      ...(seedProduct || {}),
-      ...product,
-      childproducts: variations,
-    },
+    product: withPreservedDescription(
+      {
+        ...(seedProduct || {}),
+        ...product,
+        childproducts: variations,
+      },
+      seedProduct,
+      product
+    ),
     variations,
   };
 }

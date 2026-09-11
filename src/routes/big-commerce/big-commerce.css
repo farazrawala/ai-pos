@@ -2080,8 +2080,17 @@ a.bc-btn {
   cursor: not-allowed;
 }
 
-.bc-pdp-section {
-  min-width: 0;
+.bc-pdp-description-body {
+  border: 1px solid var(--bc-border);
+  border-radius: 12px;
+  padding: 0.95rem 1.05rem;
+  background: #fff;
+}
+
+.bc-pdp-description-empty {
+  margin: 0;
+  color: var(--bc-muted);
+  font-size: 0.9rem;
 }
 
 .bc-pdp-section h3,
