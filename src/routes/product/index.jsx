@@ -372,7 +372,7 @@ const Product = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesStatus, setCategoriesStatus] = useState('idle');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -381,7 +381,7 @@ const Product = () => {
 
   const activeFilterCount =
     (categoryFilter ? 1 : 0) +
-    (!isDeletedView && statusFilter !== 'active' ? 1 : 0) +
+    (!isDeletedView && statusFilter !== 'all' ? 1 : 0) +
     (typeFilter !== 'all' ? 1 : 0);
 
   // Get product permissions
@@ -596,7 +596,7 @@ const Product = () => {
 
   const handleClearProductFilters = useCallback(() => {
     setCategoryFilter('');
-    setStatusFilter('active');
+    setStatusFilter('all');
     setTypeFilter('all');
     dispatch(setPage(1));
   }, [dispatch]);
@@ -1380,9 +1380,9 @@ const Product = () => {
                         onChange={handleStatusFilterChange}
                         aria-label="Filter by status"
                       >
+                        <option value="all">All</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
-                        <option value="all">All</option>
                       </select>
                     </div>
                     ) : null}
