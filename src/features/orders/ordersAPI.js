@@ -176,6 +176,13 @@ export const ONLINE_ORDER_BY_ORDER_ITEM_PATH = 'order/get-online-order-by-order-
 const ORDER_BY_ORDER_NO_PATH = 'order/get-order-by-order-no';
 /** Vendor catalog sales: line items where the auth company is `origin_company_id`. */
 export const ORDER_ITEM_BY_ORIGIN_COMPANY_PATH = 'order_item/by-origin-company';
+/** Hide / unhide one origin-company line (`hide_by_vendor`) for the authenticated vendor. */
+export const ORDER_ITEM_HIDE_PATH = 'order_item/hide';
+/** Mark one origin-company line delivered (`mark_as_delivered_by_vendor`) for the authenticated vendor. */
+export const ORDER_ITEM_MARK_AS_DELIVERED_PATH = 'order_item/mark-as-delivered';
+/** Bulk mark origin-company lines delivered. Max 200 ids per request. */
+export const ORDER_ITEM_BULK_MARK_AS_DELIVERED_PATH = 'order_item/bulk-mark-as-delivered';
+export const ORDER_ITEM_BULK_MARK_AS_DELIVERED_MAX_IDS = 200;
 
 export const DEFAULT_ORDER_LIST_PATH = ORDER_BY_ORDER_ITEM_PATH;
 
@@ -1123,12 +1130,59 @@ export function buildOrderItemByOriginCompanyQuery(params = {}) {
         : 'desc'
     )
   );
+  const includeHidden =
+    params.includeHidden === true ||
+    params.includeHidden === 1 ||
+    params.includeHidden === '1' ||
+    params.include_hidden === true ||
+    params.include_hidden === 1 ||
+    params.include_hidden === '1';
+  if (includeHidden) query.set('include_hidden', '1');
+  const companyId = String(
+    params.companyId ??
+      params.company_id ??
+      params.buyerCompanyId ??
+      params.buyer_company_id ??
+      params.destinationCompanyId ??
+      ''
+  ).trim();
+  if (companyId) query.set('company_id', companyId);
+
+  const deliveredRaw =
+    params.deliveredFilter ??
+    params.delivered ??
+    params.mark_as_delivered_by_vendor ??
+    params.markAsDeliveredByVendor;
+  if (deliveredRaw != null && deliveredRaw !== '') {
+    const deliveredKey = String(deliveredRaw).trim().toLowerCase();
+    if (
+      deliveredKey === 'delivered' ||
+      deliveredKey === 'true' ||
+      deliveredKey === '1' ||
+      deliveredRaw === true
+    ) {
+      query.set('mark_as_delivered_by_vendor', 'true');
+    } else if (
+      deliveredKey === 'undelivered' ||
+      deliveredKey === 'false' ||
+      deliveredKey === '0' ||
+      deliveredRaw === false
+    ) {
+      query.set('mark_as_delivered_by_vendor', 'false');
+    }
+  }
   return { query, page, limit, skip };
 }
 
 /**
  * GET `order_item/by-origin-company?skip=&limit=`
+ * Always scoped to the authenticated company as `origin_company_id`.
+ * Optional `company_id` (alias `buyer_company_id`) filters to the selling / buyer company on the line.
+ * Hidden vendor lines (`hide_by_vendor`) are excluded unless `include_hidden=1`.
+ * Optional `mark_as_delivered_by_vendor=true|false` filters delivered / undelivered vendor lines.
+ * Omit the param to return both. `false` also includes rows where the field is missing.
  * Populated `product_id`, selling `company_id`, `origin_company_id`, and `order_id`.
+ * An invalid `company_id` returns HTTP 400.
  */
 export async function fetchOrderItemsByOriginCompanyRequest(params = {}) {
   const { query, page, limit, skip } = buildOrderItemByOriginCompanyQuery(params);
@@ -1145,7 +1199,11 @@ export async function fetchOrderItemsByOriginCompanyRequest(params = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(await getErrorMessageFromResponse(response));
+    const message = await getErrorMessageFromResponse(response);
+    if (response.status === 400) {
+      throw new Error(message || 'Invalid buyer company id.');
+    }
+    throw new Error(message);
   }
 
   const result = await response.json();
@@ -2362,6 +2420,172 @@ export async function updatePosOrderRequest(orderId, payload = {}) {
   }
 
   return result;
+}
+
+/**
+ * PATCH `order_item/hide/:id` — set `hide_by_vendor` for the authenticated vendor
+ * (item must belong to the logged-in company’s `origin_company_id`).
+ * Sends `{ hide_by_vendor: true|false }`. POST is used if PATCH returns 405.
+ */
+export async function hideOrderItemByVendorRequest(orderItemId, hideByVendor = true) {
+  const id = String(orderItemId ?? '').trim();
+  if (!id) {
+    throw new Error('Order item id is required');
+  }
+
+  const hide = hideByVendor !== false;
+  const url = `${BASE_URL}${ORDER_ITEM_HIDE_PATH}/${encodeURIComponent(id)}`;
+  const init = {
+    headers: getHeaders(),
+    body: JSON.stringify({ hide_by_vendor: hide }),
+  };
+
+  let response = await fetch(url, { ...init, method: 'PATCH' });
+  if (response.status === 405) {
+    response = await fetch(url, { ...init, method: 'POST' });
+  }
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : hide
+          ? 'Could not hide order item'
+          : 'Could not unhide order item';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+/**
+ * PATCH `order_item/mark-as-delivered/:id` — set `mark_as_delivered_by_vendor`
+ * for the authenticated vendor. Sends `{ mark_as_delivered_by_vendor: true|false }`.
+ * POST is used if PATCH returns 405.
+ */
+export async function markOrderItemAsDeliveredRequest(orderItemId, markAsDelivered = true) {
+  const id = String(orderItemId ?? '').trim();
+  if (!id) {
+    throw new Error('Order item id is required');
+  }
+
+  const delivered = markAsDelivered !== false;
+  const url = `${BASE_URL}${ORDER_ITEM_MARK_AS_DELIVERED_PATH}/${encodeURIComponent(id)}`;
+  const init = {
+    headers: getHeaders(),
+    body: JSON.stringify({ mark_as_delivered_by_vendor: delivered }),
+  };
+
+  let response = await fetch(url, { ...init, method: 'PATCH' });
+  if (response.status === 405) {
+    response = await fetch(url, { ...init, method: 'POST' });
+  }
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : delivered
+          ? 'Could not mark order item as delivered'
+          : 'Could not unmark order item as delivered';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+/**
+ * PATCH `order_item/bulk-mark-as-delivered` — `{ ids, mark_as_delivered_by_vendor }`.
+ * `ids` can also be sent as `order_item_ids`. Flag defaults to true. PUT/POST if PATCH returns 405.
+ * Chunks to 200 ids per request.
+ */
+export async function bulkMarkOrderItemsAsDeliveredRequest(orderItemIds, markAsDelivered = true) {
+  const seen = new Set();
+  const ids = [];
+  for (const raw of Array.isArray(orderItemIds) ? orderItemIds : [orderItemIds]) {
+    const id = String(raw ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+
+  if (ids.length === 0) {
+    throw new Error('Select at least one order item.');
+  }
+
+  const delivered = markAsDelivered !== false;
+  const url = `${BASE_URL}${ORDER_ITEM_BULK_MARK_AS_DELIVERED_PATH}`;
+
+  const sendChunk = async (chunk) => {
+    const init = {
+      headers: getHeaders(),
+      body: JSON.stringify({
+        ids: chunk,
+        mark_as_delivered_by_vendor: delivered,
+      }),
+    };
+
+    let response = await fetch(url, { ...init, method: 'PATCH' });
+    if (response.status === 405) {
+      response = await fetch(url, { ...init, method: 'PUT' });
+    }
+    if (response.status === 405) {
+      response = await fetch(url, { ...init, method: 'POST' });
+    }
+
+    if (!response.ok) {
+      throw new Error(await getErrorMessageFromResponse(response));
+    }
+
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      return { success: true };
+    }
+
+    if (result && result.success === false) {
+      const msg =
+        typeof result.message === 'string' && result.message.trim() !== ''
+          ? result.message
+          : delivered
+            ? 'Could not mark order items as delivered'
+            : 'Could not unmark order items as delivered';
+      throw new Error(msg);
+    }
+
+    return result;
+  };
+
+  const results = [];
+  for (let i = 0; i < ids.length; i += ORDER_ITEM_BULK_MARK_AS_DELIVERED_MAX_IDS) {
+    const chunk = ids.slice(i, i + ORDER_ITEM_BULK_MARK_AS_DELIVERED_MAX_IDS);
+    results.push(await sendChunk(chunk));
+  }
+
+  return results.length === 1 ? results[0] : { success: true, results };
 }
 
 const ORDER_DELETE_PATH = 'order/order_delete';

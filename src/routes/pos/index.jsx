@@ -92,6 +92,11 @@ import {
 } from '../../offline/repositories/customersRepo.js';
 import { getMeta, setMeta } from '../../offline/repositories/metaRepo.js';
 import { toast, boldQuotedNamesInMessage } from '../../utils/toast.js';
+import {
+  loadCachedCartSession,
+  persistCartSession,
+  readStoredCartSession,
+} from '../../utils/posCartSession.js';
 import { formatPosOrderErrorMessage } from '../../utils/posOrderErrors.js';
 import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
@@ -324,103 +329,6 @@ async function loadCachedPosLayout(companyId) {
     /* ignore */
   }
   return fromLocal;
-}
-
-const POS_CART_SESSION_STORAGE_KEY = 'pos.cartSession';
-const POS_CART_SESSION_META_KEY = 'pos_cart_session';
-
-function posCartSessionLocalStorageKey(companyId, userId) {
-  const company = String(companyId || '').trim();
-  const user = String(userId || '').trim();
-  if (company && user) return `${POS_CART_SESSION_STORAGE_KEY}.${company}.${user}`;
-  if (company) return `${POS_CART_SESSION_STORAGE_KEY}.${company}`;
-  return POS_CART_SESSION_STORAGE_KEY;
-}
-
-function posCartSessionMetaKey(companyId, userId) {
-  const company = String(companyId || '').trim();
-  const user = String(userId || '').trim();
-  if (company && user) return `${POS_CART_SESSION_META_KEY}.${company}.${user}`;
-  if (company) return `${POS_CART_SESSION_META_KEY}.${company}`;
-  return POS_CART_SESSION_META_KEY;
-}
-
-function normalizeStoredCartLines(lines) {
-  if (!Array.isArray(lines)) return [];
-  return lines.filter(
-    (line) => line && typeof line === 'object' && String(line.productId || '').trim()
-  );
-}
-
-function normalizeCartSession(raw) {
-  if (!raw || typeof raw !== 'object') {
-    return {
-      cartLines: [],
-      selectedCustomerId: '',
-      shipping: '',
-      orderDateTime: '',
-      extraDiscount: '',
-      extraDiscountPercent: '',
-      activeDraftId: null,
-    };
-  }
-  const activeDraftId =
-    raw.activeDraftId != null && String(raw.activeDraftId).trim() !== ''
-      ? String(raw.activeDraftId)
-      : null;
-  return {
-    cartLines: normalizeStoredCartLines(raw.cartLines),
-    selectedCustomerId:
-      raw.selectedCustomerId != null && String(raw.selectedCustomerId).trim() !== ''
-        ? String(raw.selectedCustomerId)
-        : '',
-    shipping: raw.shipping != null ? String(raw.shipping) : '',
-    orderDateTime: raw.orderDateTime != null ? String(raw.orderDateTime) : '',
-    extraDiscount: raw.extraDiscount != null ? String(raw.extraDiscount) : '',
-    extraDiscountPercent: raw.extraDiscountPercent != null ? String(raw.extraDiscountPercent) : '',
-    activeDraftId,
-  };
-}
-
-function readStoredCartSession(companyId, userId) {
-  const scoped = readLocalStorageJson(posCartSessionLocalStorageKey(companyId, userId));
-  if (scoped) return normalizeCartSession(scoped);
-  return null;
-}
-
-function persistCartSession(session, companyId, userId) {
-  const next = normalizeCartSession(session);
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage.setItem(
-        posCartSessionLocalStorageKey(companyId, userId),
-        JSON.stringify(next)
-      );
-    } catch {
-      /* ignore quota / private mode */
-    }
-  }
-  setMeta(posCartSessionMetaKey(companyId, userId), next).catch((err) => {
-    console.warn('[POS] Could not cache cart session offline', err);
-  });
-  return next;
-}
-
-/** Prefer localStorage; fall back to offline meta cache. */
-async function loadCachedCartSession(companyId, userId) {
-  const fromLocal = readStoredCartSession(companyId, userId);
-  if (fromLocal) return fromLocal;
-  try {
-    const fromMeta = await getMeta(posCartSessionMetaKey(companyId, userId));
-    if (fromMeta) {
-      const normalized = normalizeCartSession(fromMeta);
-      persistCartSession(normalized, companyId, userId);
-      return normalized;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
 }
 
 /** Value for `<input type="datetime-local">` (local wall clock). */

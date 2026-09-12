@@ -58,6 +58,8 @@ import {
   DELETED_ORDER_BY_ORDER_ITEM_PATH,
   DEFAULT_ORDER_LIST_PATH,
   ORDER_ITEM_BY_ORIGIN_COMPANY_PATH,
+  ORDER_ITEM_MARK_AS_DELIVERED_PATH,
+  ORDER_ITEM_BULK_MARK_AS_DELIVERED_PATH,
   ORDER_STATUS_UPDATE_LIST_PATH,
   ORDER_MERGE_PATH,
   ORDER_UPDATE_TAGS_PATH,
@@ -1865,14 +1867,33 @@ export default function OrdersListPage({ config }) {
       error: null,
     });
 
-    sources.push({
-      key: 'order-delete',
-      label: 'Delete order',
-      url: buildApiUrl('order/order_delete/:orderId'),
-      status: mapLoadStatus(deleteStatus),
-      durationMs: null,
-      error: null,
-    });
+    if (isBigcommerceView) {
+      sources.push({
+        key: 'order-item-mark-as-delivered',
+        label: 'Mark order item delivered (vendor)',
+        url: buildApiUrl(`${ORDER_ITEM_MARK_AS_DELIVERED_PATH}/:id`),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      });
+      sources.push({
+        key: 'order-item-bulk-mark-as-delivered',
+        label: 'Bulk mark order items delivered (vendor)',
+        url: buildApiUrl(ORDER_ITEM_BULK_MARK_AS_DELIVERED_PATH),
+        status: 'pending',
+        durationMs: null,
+        error: null,
+      });
+    } else {
+      sources.push({
+        key: 'order-delete',
+        label: 'Delete order',
+        url: buildApiUrl('order/order_delete/:orderId'),
+        status: mapLoadStatus(deleteStatus),
+        durationMs: null,
+        error: null,
+      });
+    }
 
     sources.push(
       {
