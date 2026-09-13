@@ -5,7 +5,15 @@ import { createAdjustment } from '../../features/adjustments/adjustmentsSlice.js
 import { ADJUSTMENT_TYPE_OPTIONS } from '../../features/adjustments/adjustmentsAPI.js';
 import { fetchProductActiveRequest, updateProductRequest } from '../../features/products/productsAPI.js';
 import { fetchStockByProductRequest } from '../../features/stockMovement/stockMovementAPI.js';
-import { getWarehouseIdFromCompany } from '../../features/company/companyAPI.js';
+import {
+  fetchWarehouseInventoryRequest,
+  getInventoryQuantity,
+} from '../../features/warehouseInventory/warehouseInventoryAPI.js';
+import {
+  getWarehouseFromCompany,
+  getWarehouseIdFromCompany,
+} from '../../features/company/companyAPI.js';
+import { API_BASE_URL } from '../../config/apiConfig.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { formatMoney } from '../../utils/formatMoney.js';
 import { toast } from '../../utils/toast.js';
@@ -136,7 +144,11 @@ function warehouseNameFromStock(stockPayload, warehouseId = '') {
   const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
   for (const row of warehouses) {
     if (pickWarehouseId(row?.warehouse_id ?? row?.warehouseId) !== wid) continue;
-    return String(row?.warehouse_name ?? row?.name ?? '').trim();
+    const fromObj =
+      row?.warehouse_id && typeof row.warehouse_id === 'object'
+        ? String(row.warehouse_id.name ?? row.warehouse_id.warehouse_name ?? '').trim()
+        : '';
+    return fromObj || String(row?.warehouse_name ?? row?.name ?? '').trim();
   }
   return '';
 }
@@ -144,6 +156,88 @@ function warehouseNameFromStock(stockPayload, warehouseId = '') {
 function formatStockQty(n) {
   if (n == null || !Number.isFinite(n)) return '—';
   return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/**
+ * Prefer company warehouse when it has stock; otherwise the warehouse with the most available qty.
+ */
+function resolveAdjustmentWarehouse(stockPayload, preferredWarehouseId = '', preferredWarehouseName = '') {
+  const root = unwrapStockPayload(stockPayload);
+  const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
+  const preferredId = String(preferredWarehouseId || '').trim();
+  const preferredName = String(preferredWarehouseName || '').trim().toLowerCase();
+
+  let best = null;
+  for (const row of warehouses) {
+    const id = pickWarehouseId(row?.warehouse_id ?? row?.warehouseId);
+    if (!id) continue;
+    const qty = warehouseRowQty(row);
+    if (qty == null) continue;
+    const fromObj =
+      row?.warehouse_id && typeof row.warehouse_id === 'object'
+        ? String(row.warehouse_id.name ?? row.warehouse_id.warehouse_name ?? '').trim()
+        : '';
+    const name = fromObj || String(row?.warehouse_name ?? row?.name ?? '').trim();
+    const candidate = { id, qty, name };
+    if (preferredId && id === preferredId) return candidate;
+    if (preferredName && name.toLowerCase() === preferredName) return candidate;
+    if (!best || candidate.qty > best.qty) best = candidate;
+  }
+
+  if (preferredId) {
+    return {
+      id: preferredId,
+      qty: parseCurrentStockQty(stockPayload, preferredId),
+      name: preferredWarehouseName || warehouseNameFromStock(stockPayload, preferredId),
+    };
+  }
+  return best;
+}
+
+function inventoryRowWarehouseId(row) {
+  return pickWarehouseId(row?.warehouse_id ?? row?.warehouseId ?? row?.warehouse);
+}
+
+function findWarehouseInventoryRow(rows, warehouseId = '') {
+  const wid = String(warehouseId || '').trim();
+  if (!wid || !Array.isArray(rows)) return null;
+  for (const row of rows) {
+    if (inventoryRowWarehouseId(row) === wid) return row;
+  }
+  return null;
+}
+
+/** Align warehouse_inventory.quantity with stock-by-product available before remove. */
+async function syncWarehouseInventoryQuantity(inventoryId, quantity) {
+  const id = String(inventoryId || '').trim();
+  if (!id) return false;
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty < 0) return false;
+
+  const token =
+    typeof window !== 'undefined' ? String(window.localStorage.getItem('authToken') || '') : '';
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const base = String(API_BASE_URL || '').replace(/\/+$/, '');
+  const paths = [
+    `${base}/warehouse_inventory/update_record/${encodeURIComponent(id)}`,
+    `${base}/warehouse_inventory/update/${encodeURIComponent(id)}`,
+  ];
+
+  for (const url of paths) {
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ quantity: qty }),
+      });
+      if (response.ok) return true;
+    } catch {
+      /* try next path */
+    }
+  }
+  return false;
 }
 
 /** Build IN/OUT lines that bring each warehouse net qty to 0. */
@@ -190,6 +284,10 @@ const AdjustmentAdd = () => {
     () => getWarehouseIdFromCompany(authCompany),
     [authCompany]
   );
+  const defaultWarehouseName = useMemo(() => {
+    const wh = getWarehouseFromCompany(authCompany);
+    return String(wh?.name ?? wh?.warehouse_name ?? '').trim();
+  }, [authCompany]);
 
   const [form, setForm] = useState({
     product_id: '',
@@ -210,6 +308,7 @@ const AdjustmentAdd = () => {
   const [productSearchError, setProductSearchError] = useState('');
   const [currentStock, setCurrentStock] = useState(null);
   const [stockWarehouseLabel, setStockWarehouseLabel] = useState('');
+  const [adjustmentWarehouseId, setAdjustmentWarehouseId] = useState('');
   const [stockLoading, setStockLoading] = useState(false);
 
   useEffect(() => {
@@ -246,6 +345,7 @@ const AdjustmentAdd = () => {
     if (!productId) {
       setCurrentStock(null);
       setStockWarehouseLabel('');
+      setAdjustmentWarehouseId('');
       setStockLoading(false);
       return undefined;
     }
@@ -254,17 +354,32 @@ const AdjustmentAdd = () => {
     setStockLoading(true);
     setCurrentStock(null);
     setStockWarehouseLabel('');
+    setAdjustmentWarehouseId('');
 
     (async () => {
       try {
         const payload = await fetchStockByProductRequest(productId);
         if (cancelled) return;
-        setCurrentStock(parseCurrentStockQty(payload, defaultWarehouseId));
-        setStockWarehouseLabel(warehouseNameFromStock(payload, defaultWarehouseId));
+        const resolved = resolveAdjustmentWarehouse(
+          payload,
+          defaultWarehouseId,
+          defaultWarehouseName
+        );
+        const wid = String(resolved?.id || defaultWarehouseId || '').trim();
+        const qty =
+          resolved?.qty != null && Number.isFinite(resolved.qty)
+            ? resolved.qty
+            : parseCurrentStockQty(payload, wid);
+        setAdjustmentWarehouseId(wid);
+        setCurrentStock(qty);
+        setStockWarehouseLabel(
+          resolved?.name || warehouseNameFromStock(payload, wid) || defaultWarehouseName
+        );
       } catch {
         if (!cancelled) {
           setCurrentStock(null);
           setStockWarehouseLabel('');
+          setAdjustmentWarehouseId('');
         }
       } finally {
         if (!cancelled) setStockLoading(false);
@@ -274,7 +389,7 @@ const AdjustmentAdd = () => {
     return () => {
       cancelled = true;
     };
-  }, [form.product_id, defaultWarehouseId]);
+  }, [form.product_id, defaultWarehouseId, defaultWarehouseName]);
 
   const missingCost = useMemo(() => {
     if (!form.product_id) return false;
@@ -447,20 +562,56 @@ const AdjustmentAdd = () => {
 
     const qty = parseAdjustmentQty(form.quantity);
     const type = String(form.type || '').trim().toLowerCase();
+    const warehouseId = String(adjustmentWarehouseId || defaultWarehouseId || '').trim();
+    const movementAvailable =
+      currentStock != null && Number.isFinite(currentStock) ? currentStock : null;
+
     if (
       (type === 'remove' || type === 'out') &&
-      currentStock != null &&
-      Number.isFinite(currentStock) &&
-      qty > currentStock
+      movementAvailable != null &&
+      qty > movementAvailable
     ) {
       toast.error(
-        `Insufficient warehouse inventory quantity (need ${formatStockQty(qty)}, available ${formatStockQty(currentStock)})`
+        `Insufficient warehouse inventory quantity (need ${formatStockQty(qty)}, available ${formatStockQty(movementAvailable)})`
       );
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Adjustment save validates warehouse_inventory.quantity, which can drift below
+      // stock-by-product available. Align the inventory row to movement available first.
+      if ((type === 'remove' || type === 'out') && warehouseId && movementAvailable != null) {
+        try {
+          const invResult = await fetchWarehouseInventoryRequest({
+            product_id: form.product_id.trim(),
+          });
+          const invRow = findWarehouseInventoryRow(invResult?.rawData, warehouseId);
+          const invQty = invRow ? getInventoryQuantity(invRow) : null;
+          const inventoryId = String(invRow?._id ?? invRow?.id ?? '').trim();
+          if (
+            inventoryId &&
+            invQty != null &&
+            Number.isFinite(invQty) &&
+            invQty + 1e-9 < movementAvailable
+          ) {
+            const synced = await syncWarehouseInventoryQuantity(inventoryId, movementAvailable);
+            if (!synced) {
+              console.warn(
+                '[Adjustment] Could not sync warehouse_inventory qty to stock-by-product available',
+                { inventoryId, invQty, movementAvailable }
+              );
+            }
+          }
+        } catch (syncErr) {
+          console.warn('[Adjustment] Warehouse inventory sync skipped', syncErr);
+        }
+      }
+
+      const unitCostRaw = Number(form.wholesalePrice);
+      const unit_cost =
+        Number.isFinite(unitCostRaw) && unitCostRaw > 0 ? unitCostRaw : undefined;
+
       await dispatch(
         createAdjustment({
           adjustmentFields: {
@@ -468,7 +619,8 @@ const AdjustmentAdd = () => {
             quantity: qty,
             type: form.type.trim(),
             description: form.description.trim(),
-            ...(defaultWarehouseId ? { warehouse_id: defaultWarehouseId } : {}),
+            ...(warehouseId ? { warehouse_id: warehouseId } : {}),
+            ...(unit_cost != null ? { unit_cost } : {}),
           },
         })
       ).unwrap();
