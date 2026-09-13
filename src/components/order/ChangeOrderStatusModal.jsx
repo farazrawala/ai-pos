@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { updateOrderStatusRequest } from '../../features/orders/ordersAPI.js';
 import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
 import { orderStatusBadgeClass } from './orderStatusBadge.js';
+import {
+  mapPosOrderStatusToWebsiteStatus,
+  POS_TO_WEBSITE_STATUS,
+} from '../../features/orders/orderWebsiteStatus.js';
+
+export { mapPosOrderStatusToWebsiteStatus, POS_TO_WEBSITE_STATUS };
 
 /** Matches backend `order_status` enum. */
 export const OMS_ORDER_STATUS_OPTIONS = [
@@ -126,6 +132,7 @@ export default function ChangeOrderStatusModal({
         orderId,
         orderNo,
         orderStatus: savedStatus,
+        orderWebsiteStatus: mapPosOrderStatusToWebsiteStatus(savedStatus),
         previousStatus: result?.data?.previous_status,
         stockAction: result?.data?.stock_action,
         storeSyncQueued,

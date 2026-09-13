@@ -106,6 +106,52 @@
   vertical-align: middle !important;
 }
 
+.oms-order-no-link {
+  color: var(--app-theme, #5e72e4);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.oms-order-no-link:hover {
+  color: var(--app-theme, #5e72e4);
+  text-decoration: underline;
+}
+
+.oms-store-order-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--app-theme, #5e72e4);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.oms-store-order-link:hover {
+  color: var(--app-theme, #5e72e4);
+  text-decoration: none;
+}
+
+.oms-store-order-link__hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.38rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.oms-store-order-link--shopify .oms-store-order-link__hint {
+  background: #e3f3d8;
+  color: #3d5c0a;
+}
+
 .oms-customer-cell__name {
   font-size: 0.875rem;
   line-height: 1.3;

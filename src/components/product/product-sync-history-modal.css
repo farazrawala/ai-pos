@@ -374,6 +374,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.psh-meta-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .psh-meta-grid--block {
   grid-template-columns: 1fr;
 }
@@ -396,6 +400,16 @@
   font-size: 0.8125rem;
   color: #334155;
   min-width: 0;
+  overflow: hidden;
+}
+
+.psh-url {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 .psh-id {
@@ -674,7 +688,8 @@ a.psh-id-value:hover {
   }
 
   .psh-meta-grid,
-  .psh-meta-grid--compact {
+  .psh-meta-grid--compact,
+  .psh-meta-grid--3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -701,7 +716,8 @@ a.psh-id-value:hover {
 
   .psh-summary-stats,
   .psh-meta-grid,
-  .psh-meta-grid--compact {
+  .psh-meta-grid--compact,
+  .psh-meta-grid--3 {
     grid-template-columns: 1fr;
   }
 

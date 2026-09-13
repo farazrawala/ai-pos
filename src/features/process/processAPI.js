@@ -84,10 +84,11 @@ export const fetchProcessesRequest = async (params = {}) => {
   if (params.sortBy) queryParams.append('sortBy', params.sortBy);
   if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
   if (params.product_id) queryParams.append('product_id', params.product_id);
+  if (params.order_id) queryParams.append('order_id', params.order_id);
   if (params.action) queryParams.append('action', params.action);
   queryParams.append(
     'populate',
-    params.populate || 'integration_id,category_id,product_id,brand_id'
+    params.populate || 'integration_id,category_id,product_id,brand_id,order_id'
   );
 
   const queryString = queryParams.toString();

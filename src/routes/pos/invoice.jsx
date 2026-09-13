@@ -2449,7 +2449,7 @@ const PosInvoice = () => {
                       className="form-control form-control-sm"
                       rows={5}
                       placeholder="Add a note…"
-                      defaultValue={data.note}
+                      value={data.note}
                       readOnly
                     />
                     {canUpdateInvoice ? (

@@ -115,6 +115,46 @@ export const buildShopifyProductAdminUrl = (integrationOrUrl, referenceId) => {
   return `https://admin.shopify.com/store/${encodeURIComponent(handle)}/products/${encodeURIComponent(productId)}${variantPath}`;
 };
 
+/** Numeric Shopify order id from a GID, `shopify:order:123`, `#1001`, or digits. */
+export const pickShopifyOrderId = (referenceId) => {
+  const raw = String(referenceId || '').trim();
+  if (!raw) return '';
+
+  const gid = raw.match(/gid:\/\/shopify\/Order\/(\d+)/i);
+  if (gid?.[1]) return gid[1];
+
+  const tagged = raw.match(/(?:^|:)(?:shopify:)?order:(.+)$/i);
+  if (tagged?.[1] && tagged[1] !== raw) {
+    return pickShopifyOrderId(tagged[1]);
+  }
+
+  const hashed = raw.replace(/^#/, '').trim();
+  if (/^\d+$/.test(hashed)) return hashed;
+  return '';
+};
+
+/**
+ * Shopify admin order URL for the connected store.
+ * Uses admin.shopify.com/store/{handle}/orders/{id}.
+ */
+export const buildShopifyOrderAdminUrl = (integrationOrUrl, orderRef) => {
+  if (integrationOrUrl && typeof integrationOrUrl === 'object') {
+    const storeType = String(
+      integrationOrUrl.store_type || integrationOrUrl.storeType || ''
+    ).toLowerCase();
+    if (storeType && storeType !== 'shopify') return '';
+  }
+
+  const orderId = pickShopifyOrderId(orderRef);
+  if (!orderId) return '';
+
+  const storeUrl = pickStoreUrl(integrationOrUrl);
+  const handle = extractShopifyStoreHandle(storeUrl);
+  if (!handle) return '';
+
+  return `https://admin.shopify.com/store/${encodeURIComponent(handle)}/orders/${encodeURIComponent(orderId)}`;
+};
+
 /**
  * Parse product / variant ids from a store URL.
  * Shopify variants become productId:variantId (matches sync_product refference_id).

@@ -34,6 +34,7 @@ import {
   pickShopifyProductIds,
 } from '../../utils/parseStoreProductUrl.js';
 import { resolveCategoryMediaUrl } from '../../config/apiConfig.js';
+import { withBase } from '../../config/appBase.js';
 import { toast } from '../../utils/toast.js';
 import './product-sync-history-modal.css';
 
@@ -319,7 +320,7 @@ async function copyValue(value) {
   }
 }
 
-function CopyableId({ value, href, title }) {
+function CopyableId({ value, href, title, openLabel = 'Open' }) {
   const [copied, setCopied] = useState(false);
   const text = String(value || '').trim();
   if (!text) return <span className="psh-id-empty">—</span>;
@@ -357,8 +358,8 @@ function CopyableId({ value, href, title }) {
           target="_blank"
           rel="noopener noreferrer"
           className="psh-ext-icon"
-          title="Open in Shopify"
-          aria-label="Open in Shopify"
+          title={openLabel}
+          aria-label={openLabel}
           onClick={(event) => event.stopPropagation()}
         >
           <NavIcon icon={FaArrowUpRightFromSquare} size={10} />
@@ -554,14 +555,22 @@ function MappingCard({
         ) : null}
         <MetaItem label="Shopify Product">
           {shopifyIds.productId ? (
-            <CopyableId value={shopifyIds.productId} href={productUrl || undefined} />
+            <CopyableId
+              value={shopifyIds.productId}
+              href={productUrl || undefined}
+              openLabel="Open in Shopify"
+            />
           ) : (
             <span className="psh-id-empty">—</span>
           )}
         </MetaItem>
         <MetaItem label="Shopify Variant">
           {shopifyIds.variantId ? (
-            <CopyableId value={shopifyIds.variantId} href={variantUrl || undefined} />
+            <CopyableId
+              value={shopifyIds.variantId}
+              href={variantUrl || undefined}
+              openLabel="Open in Shopify"
+            />
           ) : (
             <span className="psh-id-empty">{variantDisplay}</span>
           )}
@@ -1086,6 +1095,19 @@ export default function ProductSyncHistoryModal({
                     const description = logDescription(item);
                     const expanded = openLogId === id;
                     const tags = Array.isArray(item.tags) ? item.tags : [];
+                    const referenceId = refId(
+                      item.reference_id ?? item.referenceId ?? item.refference_id
+                    );
+                    const referenceType = String(
+                      item.reference_type ?? item.referenceType ?? ''
+                    )
+                      .trim()
+                      .toLowerCase();
+                    const referenceName = familyNames[referenceId] || '';
+                    const referenceHref =
+                      referenceType === 'product' && referenceId
+                        ? withBase(`/products/edit/${referenceId}`)
+                        : '';
                     return (
                       <article key={id || index} className="psh-card">
                         <header className="psh-card-head">
@@ -1109,13 +1131,26 @@ export default function ProductSyncHistoryModal({
                             ))}
                           </div>
                         ) : null}
-                        <dl className="psh-meta-grid">
+                        <dl className="psh-meta-grid psh-meta-grid--3">
                           <MetaItem label="Log ID">
                             <CopyableId value={id} />
                           </MetaItem>
-                          <MetaItem label="URL">{item.url || '—'}</MetaItem>
+                          <MetaItem label="URL">
+                            <span className="psh-url" title={item.url || ''}>
+                              {item.url || '—'}
+                            </span>
+                          </MetaItem>
                           <MetaItem label="Reference">
-                            {item.reference_id || item.referenceId || '—'}
+                            <CopyableId
+                              value={referenceId}
+                              href={referenceHref || undefined}
+                              title={
+                                referenceName
+                                  ? `${referenceName} (${referenceId})`
+                                  : referenceId
+                              }
+                              openLabel="Open product"
+                            />
                           </MetaItem>
                         </dl>
                         {item.description || item.details || item.meta ? (

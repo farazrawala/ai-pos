@@ -45,6 +45,24 @@ export const formatOrderAddressNote = (order) => {
   return parts.length ? `Address: ${parts.join(', ')}` : '';
 };
 
+function isStoreOrderRef(value) {
+  return /^(shopify|woocommerce):order:/i.test(String(value || '').trim());
+}
+
+/** Shopify/Woo note (`note`) or stored description; address text is fallback only. */
+export const pickOrderInvoiceNote = (order) => {
+  if (!order || typeof order !== 'object') return '';
+  const stored = String(order.note ?? order.notes ?? '').trim();
+  if (stored) return stored;
+  const desc = String(order.description ?? '').trim();
+  if (desc && !isStoreOrderRef(desc)) return desc;
+  const orderType = String(order.order_type || order.orderType || '').toLowerCase();
+  if (orderType === 'website' || orderType === 'online' || orderType === 'shop') {
+    return '';
+  }
+  return formatOrderAddressNote(order);
+};
+
 const paymentMethodIdFromOrder = (order) => {
   if (!order || typeof order !== 'object') return '';
   const rawPayAccount = order.payment_method_accounts_id;
@@ -259,7 +277,7 @@ export function mapOrderToInvoiceView(order, options = {}) {
     },
     paymentStatus: order.status || order.order_status || '—',
     paymentMethod: resolvePaymentMethodLabel(order, [], '', company),
-    note: formatOrderAddressNote(order),
+    note: pickOrderInvoiceNote(order),
     authorizedPerson: { name: '—', title: 'Authorized signatory' },
     creditRows: [],
     publicToken,

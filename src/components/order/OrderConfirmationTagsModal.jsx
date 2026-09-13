@@ -5,6 +5,7 @@ import {
   FaWhatsapp,
   FaPhone,
   FaCircleCheck,
+  FaLocationDot,
 } from 'react-icons/fa6';
 import { updateOrderTagsRequest } from '../../features/orders/ordersAPI.js';
 import NavIcon from '../NavIcon.jsx';
@@ -30,6 +31,11 @@ export const ORDER_CONFIRMATION_TAG_OPTIONS = [
     value: 'confirmed_by_call',
     label: 'Confirmed by call',
     icon: FaPhone,
+  },
+  {
+    value: 'incomplete_address',
+    label: 'Incomplete address',
+    icon: FaLocationDot,
   },
 ];
 
@@ -75,7 +81,7 @@ export const normalizeOrderTags = (raw) => {
   return [];
 };
 
-/** Keep non-confirmation tags (e.g. incomplete_address) and apply selected confirmation tags. */
+/** Keep other order tags and apply the selected confirmation-modal tags. */
 const mergeConfirmationTags = (currentTags, selectedConfirmationTags) => {
   const other = normalizeOrderTags(currentTags).filter(
     (tag) => !ORDER_CONFIRMATION_TAG_VALUES.includes(tag)
@@ -179,7 +185,7 @@ export default function OrderConfirmationTagsModal({
                     {orderNo || 'Order'}
                   </h5>
                   <p className="text-xs text-secondary mb-0">
-                    Select how this order was confirmed. You can choose more than one.
+                    Select confirmation tags for this order. You can choose more than one.
                   </p>
                 </div>
               </div>

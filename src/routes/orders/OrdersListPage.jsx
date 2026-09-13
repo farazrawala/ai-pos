@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import {
   FaCloudArrowUp,
@@ -31,6 +31,7 @@ import {
   FaTrash,
   FaCopy,
   FaBarcode,
+  FaArrowUpRightFromSquare,
 } from 'react-icons/fa6';
 import {
   fetchOrders,
@@ -85,6 +86,7 @@ import TrackingStatusModal from '../../components/order/TrackingStatusModal.jsx'
 import ChangeOrderStatusModal, {
   OMS_ORDER_STATUS_OPTIONS,
   formatOrderStatusOptionLabel,
+  mapPosOrderStatusToWebsiteStatus,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
 import { orderStatusBadgeClass } from '../../components/order/orderStatusBadge.js';
 import OrderStatusUpdatesModal from '../../components/order/OrderStatusUpdatesModal.jsx';
@@ -111,6 +113,7 @@ import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js
 import { DEBUG } from '../../config/env.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
+import { buildShopifyOrderAdminUrl } from '../../utils/parseStoreProductUrl.js';
 import { toast } from '../../utils/toast.js';
 import { exportRowsToCsv, exportRowsToExcel, exportRowsToPdf } from '../../utils/listExport.js';
 import {
@@ -256,6 +259,18 @@ const buildWooCommerceOrderAdminUrl = (integration, integrationOrderId) => {
   return `${baseUrl}/wp-admin/admin.php?page=wc-orders&action=edit&id=${encodeURIComponent(orderId)}`;
 };
 
+const pickShopifyOrderRef = (row, integrationOrderId) => {
+  const description = String(
+    row?.description ??
+      row?.order_id?.description ??
+      (typeof row?.order_id === 'object' ? row.order_id?.description : '') ??
+      ''
+  ).trim();
+  const fromDescription = description.match(/shopify:order:(.+)$/i)?.[1]?.trim();
+  if (fromDescription) return fromDescription;
+  return String(integrationOrderId || '').trim();
+};
+
 function isShopOrder(orderType, integrationOrderId) {
   if (
     String(orderType || '')
@@ -286,7 +301,8 @@ const companyDisplayName = (company) => {
 function OrderIntegrationMergedCell({
   integration,
   integrationOrderId,
-  wooOrderAdminUrl,
+  storeOrderAdminUrl,
+  storeOrderAdminLabel,
   orderType = '',
   companyLogoUrl = '',
   companyName = '',
@@ -297,7 +313,7 @@ function OrderIntegrationMergedCell({
   if (isShop) {
     const shopTitle = companyName || 'Shop order';
     return (
-      <div className="d-flex flex-column align-items-start gap-1 min-width-0 oms-integration-shop">
+      <div className="d-flex flex-column align-items-center gap-1 min-width-0 oms-integration-shop">
         {companyLogoUrl && !logoFailed ? (
           <img
             src={companyLogoUrl}
@@ -339,15 +355,26 @@ function OrderIntegrationMergedCell({
     : displayName;
 
   const orderIdNode = hasOrderId ? (
-    wooOrderAdminUrl ? (
+    storeOrderAdminUrl ? (
       <a
-        href={wooOrderAdminUrl}
+        href={storeOrderAdminUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-primary font-weight-bold text-decoration-none text-nowrap"
-        title={`Open WooCommerce order ${integrationOrderId}`}
+        className={`oms-store-order-link${
+          storeOrderAdminLabel === 'Shopify' ? ' oms-store-order-link--shopify' : ''
+        }`}
+        title={`Open ${storeOrderAdminLabel || 'store'} order edit${
+          integrationOrderId ? ` #${String(integrationOrderId).replace(/^#/, '')}` : ''
+        }`}
       >
-        {integrationOrderId}
+        <span className="oms-store-order-link__hint">
+          {storeOrderAdminLabel === 'Shopify'
+            ? 'Shopify edit'
+            : storeOrderAdminLabel === 'WooCommerce'
+              ? 'Woo edit'
+              : 'Edit'}
+        </span>
+        <NavIcon icon={FaArrowUpRightFromSquare} size={10} />
       </a>
     ) : (
       <span className="font-weight-bold text-nowrap" title={String(integrationOrderId)}>
@@ -382,7 +409,7 @@ function OrderIntegrationMergedCell({
   }
 
   return (
-    <div className="d-flex flex-column align-items-start gap-1 min-width-0">
+    <div className="d-flex flex-column align-items-center gap-1 min-width-0 oms-integration-cell">
       {identityNode}
       {orderIdNode}
     </div>
@@ -678,11 +705,14 @@ const orderTagBadgeClass = (tag) => {
   const s = String(tag || '')
     .trim()
     .toLowerCase();
+  if (s === 'incomplete_address') return 'bg-gradient-danger';
   if (s.startsWith('confirmed_by_')) return 'bg-gradient-success';
   return 'bg-gradient-secondary';
 };
 
-const getOrderWebsiteStatus = (row) => {
+const getOrderWebsiteStatus = (row, override = '') => {
+  const fromOverride = String(override || '').trim();
+  if (fromOverride) return fromOverride;
   const raw = row?.order_website_status ?? row?.orderWebsiteStatus ?? '';
   const s = String(raw ?? '').trim();
   return s || '';
@@ -787,6 +817,7 @@ export default function OrdersListPage({ config }) {
     open: false,
     orderId: '',
     orderNo: '',
+    currentStatus: '',
   });
   const [orderHistoryModal, setOrderHistoryModal] = useState({
     open: false,
@@ -816,6 +847,7 @@ export default function OrdersListPage({ config }) {
   });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
+  const [websiteStatusOverrides, setWebsiteStatusOverrides] = useState({});
   const [tagsOverrides, setTagsOverrides] = useState({});
   const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
     open: false,
@@ -1164,31 +1196,39 @@ export default function OrdersListPage({ config }) {
     />
   );
 
-  const handleOpenInvoice = async (row) => {
-    const rowKey = String(row._id || row.id || row.order_no || row.orderNo || '');
-    setEditLoadingId(rowKey);
-    try {
+  const buildOrderViewLocation = useCallback(
+    (row) => {
       const invoiceId = pickInvoiceRouteId(row);
-
-      if (!invoiceId) {
-        console.error(`[${logLabel}] open invoice: could not resolve invoice id`, { row });
-        window.alert('Could not open invoice: missing order / invoice reference.');
-        return;
-      }
-
+      if (!invoiceId) return null;
       const path = posInvoiceRoutePath(invoiceId);
       const readOnly = viewReadOnly || isDeletedView;
       const query = new URLSearchParams();
       if (readOnly) query.set('readonly', '1');
       if (isDeletedView) query.set('deleted', '1');
       const qs = query.toString();
-      navigate(qs ? `${path}?${qs}` : path, {
+      return {
+        to: qs ? `${path}?${qs}` : path,
         state: {
           readonly: readOnly,
           deleted: isDeletedView,
           orderRow: row,
         },
-      });
+      };
+    },
+    [isDeletedView, viewReadOnly]
+  );
+
+  const handleOpenInvoice = async (row) => {
+    const rowKey = String(row._id || row.id || row.order_no || row.orderNo || '');
+    setEditLoadingId(rowKey);
+    try {
+      const location = buildOrderViewLocation(row);
+      if (!location) {
+        console.error(`[${logLabel}] open invoice: could not resolve invoice id`, { row });
+        window.alert('Could not open invoice: missing order / invoice reference.');
+        return;
+      }
+      navigate(location.to, { state: location.state });
     } catch (err) {
       console.error(`[${logLabel}] open invoice failed`, err);
       window.alert(err?.message || 'Failed to load order for this line.');
@@ -1345,6 +1385,7 @@ export default function OrdersListPage({ config }) {
   const handleStatusUpdated = ({
     orderId,
     orderStatus,
+    orderWebsiteStatus = null,
     storeSyncQueued = false,
     storeSyncError = null,
   } = {}) => {
@@ -1352,6 +1393,13 @@ export default function OrdersListPage({ config }) {
       setStatusOverrides((prev) => ({
         ...prev,
         [String(orderId)]: orderStatus,
+      }));
+    }
+    const websiteStatus = mapPosOrderStatusToWebsiteStatus(orderStatus);
+    if (orderId && websiteStatus) {
+      setWebsiteStatusOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: websiteStatus,
       }));
     }
     if (storeSyncError) {
@@ -1462,7 +1510,8 @@ export default function OrdersListPage({ config }) {
               .toLowerCase()
               .replace(/-/g, '_')
               .replace(/\s+/g, '_') || nextStatus;
-          succeeded.push({ id: ids[index], status: saved });
+          const websiteStatus = mapPosOrderStatusToWebsiteStatus(saved);
+          succeeded.push({ id: ids[index], status: saved, websiteStatus });
         } else {
           failCount += 1;
         }
@@ -1473,6 +1522,13 @@ export default function OrdersListPage({ config }) {
           const next = { ...prev };
           succeeded.forEach(({ id, status }) => {
             next[String(id)] = status;
+          });
+          return next;
+        });
+        setWebsiteStatusOverrides((prev) => {
+          const next = { ...prev };
+          succeeded.forEach(({ id, websiteStatus }) => {
+            if (websiteStatus) next[String(id)] = websiteStatus;
           });
           return next;
         });
@@ -1814,6 +1870,22 @@ export default function OrdersListPage({ config }) {
           key: 'order-status-updates',
           label: 'Order status updates',
           url: buildApiUrl(`${ORDER_STATUS_UPDATE_LIST_PATH}?order_id=:orderId`),
+          status: statusHistoryModal.open ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'order-status-history-logs',
+          label: 'Order status history (audit logs)',
+          url: buildApiUrl('logs/get-all-active?reference_type=order&reference_id=:orderId'),
+          status: statusHistoryModal.open ? 'loading' : 'pending',
+          durationMs: null,
+          error: null,
+        },
+        {
+          key: 'order-status-history-process',
+          label: 'Order status history (process jobs)',
+          url: buildApiUrl('process/get-all?order_id=:orderId'),
           status: statusHistoryModal.open ? 'loading' : 'pending',
           durationMs: null,
           error: null,
@@ -2534,6 +2606,8 @@ export default function OrdersListPage({ config }) {
                         const key = item._id || item.id || index;
                         const orderId = pickOrderDocumentId(item);
                         const orderNo = item.order_no || item.orderNo || '—';
+                        const orderViewLocation =
+                          canViewOrder && orderNo !== '—' ? buildOrderViewLocation(item) : null;
                         const integrationOrderId =
                           item.integration_order_id || item.integrationOrderId || '—';
                         const integrationRecord = getOrderIntegrationRecord(item);
@@ -2541,6 +2615,16 @@ export default function OrdersListPage({ config }) {
                           integrationRecord,
                           integrationOrderId
                         );
+                        const shopifyOrderAdminUrl = buildShopifyOrderAdminUrl(
+                          integrationRecord,
+                          pickShopifyOrderRef(item, integrationOrderId)
+                        );
+                        const storeOrderAdminUrl = shopifyOrderAdminUrl || wooOrderAdminUrl;
+                        const storeOrderAdminLabel = shopifyOrderAdminUrl
+                          ? 'Shopify'
+                          : wooOrderAdminUrl
+                            ? 'WooCommerce'
+                            : '';
                         const statusVal = (() => {
                           const override = orderId ? statusOverrides[String(orderId)] : '';
                           return override || orderDisplayStatus(item);
@@ -2548,7 +2632,11 @@ export default function OrdersListPage({ config }) {
                         const canChangeStatus =
                           showStatusChangeModal && !isDeletedView && !viewReadOnly && (canEdit || canCreate);
                         const websiteStatus = showWebsiteStatusColumn
-                          ? getOrderWebsiteStatus(item)
+                          ? mapPosOrderStatusToWebsiteStatus(statusVal) ||
+                            getOrderWebsiteStatus(
+                              item,
+                              orderId ? websiteStatusOverrides[String(orderId)] : '',
+                            )
                           : '';
                         const onlineChannel = isOnlineOrder(item);
                         const orderType = getOrderType(item);
@@ -2602,26 +2690,30 @@ export default function OrdersListPage({ config }) {
                               </td>
                             ) : null}
                             <td className="text-sm font-weight-bold text-dark">
-                              {canViewOrder && orderNo !== '—' ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none"
-                                  disabled={isRowLoading}
-                                  onClick={() => handleOpenInvoice(item)}
-                                  title="View order details"
-                                >
-                                  {isRowLoading ? 'Opening…' : orderNo}
-                                </button>
+                              {orderViewLocation ? (
+                                isRowLoading ? (
+                                  <span className="text-muted">Opening…</span>
+                                ) : (
+                                  <Link
+                                    to={orderViewLocation.to}
+                                    state={orderViewLocation.state}
+                                    className="oms-order-no-link"
+                                    title="View order"
+                                  >
+                                    {orderNo}
+                                  </Link>
+                                )
                               ) : (
                                 orderNo
                               )}
                             </td>
                             {showIntegrationColumn && isVisible('integration') ? (
-                              <td className="text-sm">
+                              <td className="text-sm text-center">
                                 <OrderIntegrationMergedCell
                                   integration={integrationRecord}
                                   integrationOrderId={integrationOrderId}
-                                  wooOrderAdminUrl={wooOrderAdminUrl}
+                                  storeOrderAdminUrl={storeOrderAdminUrl}
+                                  storeOrderAdminLabel={storeOrderAdminLabel}
                                   orderType={orderType}
                                   companyLogoUrl={shopCompanyLogoUrl}
                                   companyName={shopCompanyName}
@@ -2999,14 +3091,15 @@ export default function OrdersListPage({ config }) {
                                 {showStatusHistoryAction && showStatusChangeModal ? (
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
-                                    title="Status history"
-                                    aria-label="Status history"
+                                    className="btn btn-sm btn-outline-info mb-0 px-2"
+                                    title="Order status history"
+                                    aria-label="Order status history"
                                     onClick={() =>
                                       setStatusHistoryModal({
                                         open: true,
                                         orderId: orderId || '',
                                         orderNo: orderNo !== '—' ? orderNo : '',
+                                        currentStatus: statusVal || '',
                                       })
                                     }
                                     disabled={!orderId}
@@ -3157,8 +3250,14 @@ export default function OrdersListPage({ config }) {
             open={statusHistoryModal.open}
             orderId={statusHistoryModal.orderId}
             orderNo={statusHistoryModal.orderNo}
+            currentStatus={statusHistoryModal.currentStatus}
             onClose={() =>
-              setStatusHistoryModal({ open: false, orderId: '', orderNo: '' })
+              setStatusHistoryModal({
+                open: false,
+                orderId: '',
+                orderNo: '',
+                currentStatus: '',
+              })
             }
           />
         </>

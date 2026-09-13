@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import moment from 'moment';
-import { FaCartShopping, FaCircleCheck, FaTruck } from 'react-icons/fa6';
+import { FaCartShopping, FaCircleCheck, FaPrint, FaTruck } from 'react-icons/fa6';
 import ListDataTable from '../list/ListDataTable.jsx';
 import ListSortableTh from '../list/ListSortableTh.jsx';
 import ColumnVisibilityMenu from '../list/ColumnVisibilityMenu.jsx';
@@ -83,6 +83,106 @@ function productDisplayName(row) {
     ? String(product.product_name ?? product.productName ?? product.name ?? '').trim()
     : '';
   return fromProduct || String(row?.name ?? '').trim();
+}
+
+function productSku(row) {
+  const product = asRecord(row?.product_id);
+  return String(
+    product?.sku ?? product?.product_code ?? product?.productCode ?? row?.sku ?? ''
+  ).trim();
+}
+
+function escapePrintHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatPrintQty(qty) {
+  if (!Number.isFinite(qty)) return '1';
+  return Number.isInteger(qty) ? String(qty) : String(Math.round(qty * 100) / 100);
+}
+
+function printOriginItemsOnPaper(lines, { companyName = '', printedAt = '' } = {}) {
+  if (typeof window === 'undefined') return false;
+
+  const totalQty = lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
+  const rowsHtml = lines
+    .map(
+      (line, index) => `<tr>
+        <td>${index + 1}</td>
+        <td>${escapePrintHtml(line.orderNo || '—')}</td>
+        <td>${escapePrintHtml(line.productName || '—')}</td>
+        <td>${escapePrintHtml(line.sku || '—')}</td>
+        <td>${escapePrintHtml(line.companyName || '—')}</td>
+        <td class="qty">${escapePrintHtml(formatPrintQty(line.qty))}</td>
+      </tr>`
+    )
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Order items</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 16px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .meta { font-size: 12px; color: #444; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+    td.qty, th.qty { text-align: right; white-space: nowrap; font-weight: 700; }
+    tfoot td { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Bigcommerce order items</h1>
+  <div class="meta">
+    ${escapePrintHtml(companyName || 'Origin company')}
+    ${printedAt ? ` · Printed ${escapePrintHtml(printedAt)}` : ''}
+    · ${lines.length} line${lines.length === 1 ? '' : 's'}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Order no</th>
+        <th>Product</th>
+        <th>SKU</th>
+        <th>Company</th>
+        <th class="qty">Qty</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">Total qty</td>
+        <td class="qty">${escapePrintHtml(formatPrintQty(totalQty))}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <script>window.addEventListener('load', function () { window.focus(); window.print(); });</script>
+</body>
+</html>`;
+
+  const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const popup = window.open(blobUrl, '_blank', 'width=920,height=1100');
+  if (!popup) {
+    URL.revokeObjectURL(blobUrl);
+    return false;
+  }
+  popup.addEventListener('load', () => {
+    try {
+      URL.revokeObjectURL(blobUrl);
+    } catch (_) {
+      /* ignore */
+    }
+  });
+  return true;
 }
 
 function orderNoFromRow(row) {
@@ -606,6 +706,30 @@ export default function OriginCompanyOrderItemsList({
     });
   }, [allPageSelected, rows, selectablePageIds]);
 
+  const handlePrintSelected = useCallback(() => {
+    const selectedRows = Array.from(selectedById.values());
+    if (selectedRows.length === 0) {
+      toast.warning('Select at least one item to print.');
+      return;
+    }
+
+    const lines = selectedRows.map((row) => ({
+      orderNo: orderNoFromRow(row) || '—',
+      productName: productDisplayName(row) || '—',
+      sku: productSku(row),
+      companyName: companyDisplayName(row?.company_id ?? row?.companyId),
+      qty: parseLineQty(row),
+    }));
+
+    const opened = printOriginItemsOnPaper(lines, {
+      companyName: companyDisplayName(authCompany) || 'Origin company',
+      printedAt: moment().format('DD MMM YYYY h:mm a'),
+    });
+    if (!opened) {
+      toast.error('Allow pop-ups to print the selected items.');
+    }
+  }, [authCompany, selectedById]);
+
   const handleAddSelectedToCart = useCallback(() => {
     if (addingToCart) return;
     const selectedRows = Array.from(selectedById.values());
@@ -805,6 +929,20 @@ export default function OriginCompanyOrderItemsList({
   return (
     <div>
       <div className="d-flex justify-content-end align-items-center flex-wrap gap-2 px-3 pb-2">
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-dark mb-0 d-inline-flex align-items-center"
+          onClick={handlePrintSelected}
+          disabled={selectedCount === 0}
+          title={
+            selectedCount === 0
+              ? 'Select one or more items to print on paper'
+              : `Print ${selectedCount} selected item${selectedCount === 1 ? '' : 's'} on paper`
+          }
+        >
+          <NavIcon icon={FaPrint} className="me-1" size={14} />
+          {selectedCount > 0 ? `Print (${selectedCount})` : 'Print'}
+        </button>
         <button
           type="button"
           className="btn btn-sm btn-success mb-0 d-inline-flex align-items-center"

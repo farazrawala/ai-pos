@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 import { createOrderSaveError } from '../../utils/posOrderErrors.js';
 import { fetchAccountByIdRequest, fetchPublicAccountByIdRequest } from '../accounts/accountsAPI.js';
 import { posElapsedMs, posMsToSec, posLogTimingSummary } from '../../utils/posTimingDebug.js';
+import { mapPosOrderStatusToWebsiteStatus } from './orderWebsiteStatus.js';
 
 const BASE_URL = `${API_BASE_URL}/`;
 
@@ -1703,11 +1704,17 @@ export async function updateOrderStatusRequest(orderId, payload = {}) {
     throw new Error('order_status is required');
   }
 
-  /** @type {{ order_status: string, from_status?: string }} */
+  /** @type {{ order_status: string, from_status?: string, order_website_status?: string }} */
   const body = { order_status: orderStatus };
   const fromStatus = String(payload?.from_status ?? '').trim();
   if (fromStatus) {
     body.from_status = fromStatus;
+  }
+  const websiteStatus =
+    String(payload?.order_website_status ?? '').trim() ||
+    mapPosOrderStatusToWebsiteStatus(orderStatus);
+  if (websiteStatus) {
+    body.order_website_status = websiteStatus;
   }
 
   const response = await fetch(

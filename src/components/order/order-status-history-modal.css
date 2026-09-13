@@ -1,0 +1,191 @@
+.osh-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.35rem;
+}
+
+.osh-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.osh-step {
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  gap: 0.85rem;
+}
+
+.osh-rail {
+  position: relative;
+}
+
+.osh-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-top: 1.35rem;
+  border-radius: 50%;
+  background: var(--app-theme, #5e72e4);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-theme, #5e72e4) 16%, #fff);
+  flex-shrink: 0;
+}
+
+.osh-rail::after {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 2.2rem;
+  bottom: -0.15rem;
+  width: 2px;
+  background: #e8edf3;
+}
+
+.osh-step:last-child .osh-rail::after {
+  display: none;
+}
+
+.osh-fromto {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.osh-fromto-arrow {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.osh-initial {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+}
+
+.osh-log-human {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.osh-log-block {
+  border: 1px solid #e8edf3;
+  border-radius: 0.7rem;
+  overflow: hidden;
+  background: #fbfcfd;
+}
+
+.osh-log-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #eef2f6;
+  background: #fff;
+}
+
+.osh-log-block-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.osh-log-block-sub {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.osh-log-table {
+  width: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.osh-log-table th {
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  border-bottom: 1px solid #eef2f6;
+  padding: 0.45rem 0.75rem;
+  background: #fff;
+}
+
+.osh-log-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  color: #334155;
+}
+
+.osh-log-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.osh-log-table tr.is-changed td {
+  background: #fffbeb;
+}
+
+.osh-log-table tr.is-added td {
+  background: #f0fdf4;
+}
+
+.osh-log-table tr.is-removed td {
+  background: #fef2f2;
+}
+
+.osh-log-field {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.osh-log-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #f59e0b;
+  vertical-align: middle;
+}
+
+.osh-log-value {
+  word-break: break-word;
+}
+
+.osh-log-value--muted {
+  color: #94a3b8;
+}
+
+.osh-log-value--id {
+  font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.72rem;
+  background: #f1f5f9;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+}
+
+.osh-log-product-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+@media (max-width: 576px) {
+  .osh-step {
+    grid-template-columns: 0.9rem minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+}
