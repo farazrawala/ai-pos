@@ -92,6 +92,16 @@ function productSku(row) {
   ).trim();
 }
 
+/** Prefer product barcode, then SKU / product code for print barcodes. */
+function productBarcodeValue(row) {
+  const product = asRecord(row?.product_id);
+  const fromProduct = String(
+    product?.barcode ?? row?.barcode ?? ''
+  ).trim();
+  if (fromProduct) return fromProduct;
+  return productSku(row);
+}
+
 function escapePrintHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -115,8 +125,7 @@ function printOriginItemsOnPaper(lines, { companyName = '', printedAt = '' } = {
         <td>${index + 1}</td>
         <td>${escapePrintHtml(line.orderNo || '—')}</td>
         <td>${escapePrintHtml(line.productName || '—')}</td>
-        <td>${escapePrintHtml(line.sku || '—')}</td>
-        <td>${escapePrintHtml(line.companyName || '—')}</td>
+        <td class="barcode">${escapePrintHtml(line.barcode || '—')}</td>
         <td class="qty">${escapePrintHtml(formatPrintQty(line.qty))}</td>
       </tr>`
     )
@@ -136,6 +145,7 @@ function printOriginItemsOnPaper(lines, { companyName = '', printedAt = '' } = {
     th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
     td.qty, th.qty { text-align: right; white-space: nowrap; font-weight: 700; }
+    td.barcode { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
     tfoot td { font-weight: 700; }
   </style>
 </head>
@@ -152,15 +162,14 @@ function printOriginItemsOnPaper(lines, { companyName = '', printedAt = '' } = {
         <th>#</th>
         <th>Order no</th>
         <th>Product</th>
-        <th>SKU</th>
-        <th>Company</th>
+        <th>Barcode</th>
         <th class="qty">Qty</th>
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
     <tfoot>
       <tr>
-        <td colspan="5">Total qty</td>
+        <td colspan="4">Total qty</td>
         <td class="qty">${escapePrintHtml(formatPrintQty(totalQty))}</td>
       </tr>
     </tfoot>
@@ -716,8 +725,7 @@ export default function OriginCompanyOrderItemsList({
     const lines = selectedRows.map((row) => ({
       orderNo: orderNoFromRow(row) || '—',
       productName: productDisplayName(row) || '—',
-      sku: productSku(row),
-      companyName: companyDisplayName(row?.company_id ?? row?.companyId),
+      barcode: productBarcodeValue(row),
       qty: parseLineQty(row),
     }));
 

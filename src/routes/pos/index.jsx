@@ -183,10 +183,27 @@ const POS_LAYOUT_MAX_ORDER_WIDTH = 72;
 const POS_LAYOUT_MIN_PRODUCT_COLS = 2;
 const POS_LAYOUT_MAX_PRODUCT_COLS = 6;
 const POS_LAYOUT_DEFAULT_PRODUCT_COLS = 4;
+/** How often the POS downloads a fresh product catalog. */
+const POS_CATALOG_REFRESH_5M = '5m';
+const POS_CATALOG_REFRESH_10M = '10m';
+const POS_CATALOG_REFRESH_1H = '1h';
+const POS_CATALOG_REFRESH_AFTER_SAVE = 'after_save';
+const POS_CATALOG_REFRESH_OPTIONS = [
+  { value: POS_CATALOG_REFRESH_1H, label: 'Every 1 hour' },
+  { value: POS_CATALOG_REFRESH_10M, label: 'Every 10 minutes' },
+  { value: POS_CATALOG_REFRESH_5M, label: 'Every 5 minutes' },
+  { value: POS_CATALOG_REFRESH_AFTER_SAVE, label: 'After every save order' },
+];
+const POS_CATALOG_REFRESH_MS = {
+  [POS_CATALOG_REFRESH_5M]: 5 * 60 * 1000,
+  [POS_CATALOG_REFRESH_10M]: 10 * 60 * 1000,
+  [POS_CATALOG_REFRESH_1H]: 60 * 60 * 1000,
+};
 const POS_LAYOUT_DEFAULT = {
   orderWidth: POS_LAYOUT_DEFAULT_ORDER_WIDTH,
   swapped: false,
   productCols: POS_LAYOUT_DEFAULT_PRODUCT_COLS,
+  catalogRefresh: POS_CATALOG_REFRESH_1H,
 };
 
 function isPosCartAmountOrder(order) {
@@ -241,12 +258,25 @@ function clampProductCols(value) {
   return Math.min(POS_LAYOUT_MAX_PRODUCT_COLS, Math.max(POS_LAYOUT_MIN_PRODUCT_COLS, n));
 }
 
+function normalizeCatalogRefresh(value) {
+  const v = String(value || '').trim();
+  if (POS_CATALOG_REFRESH_OPTIONS.some((opt) => opt.value === v)) return v;
+  return POS_LAYOUT_DEFAULT.catalogRefresh;
+}
+
+function catalogRefreshIntervalMs(mode) {
+  return POS_CATALOG_REFRESH_MS[normalizeCatalogRefresh(mode)] || null;
+}
+
 function normalizePosLayout(raw) {
   if (!raw || typeof raw !== 'object') return { ...POS_LAYOUT_DEFAULT };
   return {
     orderWidth: clampOrderPanelWidth(raw.orderWidth ?? POS_LAYOUT_DEFAULT_ORDER_WIDTH),
     swapped: Boolean(raw.swapped),
     productCols: clampProductCols(raw.productCols ?? POS_LAYOUT_DEFAULT_PRODUCT_COLS),
+    catalogRefresh: normalizeCatalogRefresh(
+      raw.catalogRefresh ?? raw.catalog_refresh ?? POS_LAYOUT_DEFAULT.catalogRefresh
+    ),
   };
 }
 
@@ -271,7 +301,7 @@ function readLocalStorageJson(key) {
   }
 }
 
-/** Load POS panel width / swap preference from localStorage cache. */
+/** Load POS panel width / swap / catalog-refresh preference from localStorage cache. */
 function readStoredPosLayout(companyId) {
   const scopedKey = posLayoutLocalStorageKey(companyId);
   const scoped = readLocalStorageJson(scopedKey);
@@ -292,16 +322,16 @@ function readStoredPosLayout(companyId) {
   return { ...POS_LAYOUT_DEFAULT };
 }
 
-/** Persist POS layout to localStorage + offline IndexedDB meta cache. */
+/** Persist POS layout to localStorage (browser cache) + offline IndexedDB meta. */
 function persistPosLayout(layout, companyId) {
   const next = normalizePosLayout(layout);
   if (typeof window !== 'undefined') {
     try {
-      window.localStorage.setItem(posLayoutLocalStorageKey(companyId), JSON.stringify(next));
-      // Keep legacy key in sync for older builds / missing company id.
-      if (!String(companyId || '').trim()) {
-        window.localStorage.setItem(POS_LAYOUT_STORAGE_KEY, JSON.stringify(next));
-      }
+      const scopedKey = posLayoutLocalStorageKey(companyId);
+      const payload = JSON.stringify(next);
+      window.localStorage.setItem(scopedKey, payload);
+      // Always mirror to the unscoped key so settings survive company-id timing gaps.
+      window.localStorage.setItem(POS_LAYOUT_STORAGE_KEY, payload);
     } catch {
       /* ignore quota / private mode */
     }
@@ -317,18 +347,19 @@ async function loadCachedPosLayout(companyId) {
   const fromLocal = readStoredPosLayout(companyId);
   const hasScopedLocal = Boolean(readLocalStorageJson(posLayoutLocalStorageKey(companyId)));
   const hasLegacyLocal = Boolean(readLocalStorageJson(POS_LAYOUT_STORAGE_KEY));
-  if (hasScopedLocal || hasLegacyLocal) return fromLocal;
+  if (hasScopedLocal || hasLegacyLocal) {
+    // Re-write normalized shape so new fields (e.g. catalogRefresh) land in cache.
+    return persistPosLayout(fromLocal, companyId);
+  }
   try {
     const fromMeta = await getMeta(posLayoutMetaKey(companyId));
     if (fromMeta) {
-      const normalized = normalizePosLayout(fromMeta);
-      persistPosLayout(normalized, companyId);
-      return normalized;
+      return persistPosLayout(fromMeta, companyId);
     }
   } catch {
     /* ignore */
   }
-  return fromLocal;
+  return persistPosLayout(fromLocal, companyId);
 }
 
 /** Value for `<input type="datetime-local">` (local wall clock). */
@@ -1025,6 +1056,8 @@ const Pos = () => {
   cartDisplayOrderRef.current = cartDisplayOrder;
   const posLayoutCompanyIdRef = useRef(companyId);
   posLayoutCompanyIdRef.current = companyId;
+  /** Ignores stale async layout hydrates after the user edits settings. */
+  const posLayoutHydrateGenRef = useRef(0);
   const cartSessionScopeRef = useRef(`${companyId}:${userId}`);
   const cartSessionHydratedScopeRef = useRef(
     initialCartSession != null ? `${companyId}:${userId}` : ''
@@ -1049,11 +1082,26 @@ const Pos = () => {
   const [paymentPreparing, setPaymentPreparing] = useState(false);
   const [masterSyncRunning, setMasterSyncRunning] = useState(false);
   const [masterSyncProgress, setMasterSyncProgress] = useState(null);
+  /** Bumped after a catalog download so the product grid reloads from cache. */
+  const [catalogEpoch, setCatalogEpoch] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    loadCachedPosLayout(companyId).then((layout) => {
-      if (!cancelled) setPosLayout(layout);
+    const cid = String(companyId || '').trim();
+    const gen = ++posLayoutHydrateGenRef.current;
+    loadCachedPosLayout(cid).then((layout) => {
+      if (cancelled || gen !== posLayoutHydrateGenRef.current) return;
+      setPosLayout((prev) => {
+        const hasScoped = Boolean(readLocalStorageJson(posLayoutLocalStorageKey(cid)));
+        const hasLegacy = Boolean(readLocalStorageJson(POS_LAYOUT_STORAGE_KEY));
+        // Company id just became available and scoped cache is empty: keep in-memory
+        // prefs (already mirrored to legacy localStorage) and write them under the
+        // company key instead of resetting to defaults.
+        if (cid && !hasScoped && hasLegacy) {
+          return persistPosLayout(prev, cid);
+        }
+        return layout;
+      });
     });
     return () => {
       cancelled = true;
@@ -1163,6 +1211,9 @@ const Pos = () => {
           force,
           onProgress: setMasterSyncProgress,
         });
+        if (summary) {
+          setCatalogEpoch((n) => n + 1);
+        }
         if (showSuccessToast) {
           toast.success('Catalog downloaded for offline use');
         }
@@ -1183,27 +1234,43 @@ const Pos = () => {
     runPosMasterSync({ force: true, showSuccessToast: true });
   }, [runPosMasterSync]);
 
+  const refreshCatalogQuietly = useCallback(() => {
+    if (!isOnline || !companyId) return;
+    runPosMasterSync({ force: false, showSuccessToast: false }).catch(() => {});
+  }, [isOnline, companyId, runPosMasterSync]);
+
   useEffect(() => {
     if (!isOnline || !companyId) return undefined;
 
+    const mode = normalizeCatalogRefresh(posLayout.catalogRefresh);
+    const intervalMs = catalogRefreshIntervalMs(mode);
+    if (!intervalMs) return undefined;
+
     let cancelled = false;
 
-    (async () => {
+    const runScheduledSync = async ({ onlyIfStale = false } = {}) => {
       try {
-        const stale = await isMasterSyncStale();
-        if (!stale || cancelled) return;
+        if (onlyIfStale) {
+          const stale = await isMasterSyncStale(intervalMs);
+          if (!stale || cancelled) return;
+        }
+        if (cancelled) return;
         setMasterSyncRunning(true);
-        await runMasterSync({
+        const summary = await runMasterSync({
           companyId,
           warehouseId: defaultWarehouseId,
           companyRecord: authCompany,
+          force: false,
           onProgress: (progress) => {
             if (!cancelled) setMasterSyncProgress(progress);
           },
         });
+        if (!cancelled && summary) {
+          setCatalogEpoch((n) => n + 1);
+        }
       } catch (err) {
         if (!cancelled) {
-          console.warn('[POS] Background master sync failed', err);
+          console.warn('[POS] Scheduled catalog refresh failed', err);
         }
       } finally {
         if (!cancelled) {
@@ -1211,12 +1278,24 @@ const Pos = () => {
           setMasterSyncProgress(null);
         }
       }
-    })();
+    };
+
+    runScheduledSync({ onlyIfStale: true });
+    const timerId = window.setInterval(() => {
+      runScheduledSync({ onlyIfStale: false });
+    }, intervalMs);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timerId);
     };
-  }, [isOnline, companyId, defaultWarehouseId, authCompany]);
+  }, [
+    isOnline,
+    companyId,
+    defaultWarehouseId,
+    authCompany,
+    posLayout.catalogRefresh,
+  ]);
 
   useEffect(() => {
     if (!isOnline || !companyId) return undefined;
@@ -1620,6 +1699,7 @@ const Pos = () => {
   }, [setCartOrderMode]);
 
   const updatePosLayout = useCallback((patch) => {
+    posLayoutHydrateGenRef.current += 1;
     setPosLayout((prev) => {
       const next = {
         orderWidth: clampOrderPanelWidth(
@@ -1628,6 +1708,9 @@ const Pos = () => {
         swapped: patch.swapped !== undefined ? Boolean(patch.swapped) : prev.swapped,
         productCols: clampProductCols(
           patch.productCols !== undefined ? patch.productCols : prev.productCols
+        ),
+        catalogRefresh: normalizeCatalogRefresh(
+          patch.catalogRefresh !== undefined ? patch.catalogRefresh : prev.catalogRefresh
         ),
       };
       persistPosLayout(next, posLayoutCompanyIdRef.current);
@@ -1649,7 +1732,15 @@ const Pos = () => {
     [updatePosLayout]
   );
 
+  const handleCatalogRefreshChange = useCallback(
+    (e) => {
+      updatePosLayout({ catalogRefresh: e.target.value });
+    },
+    [updatePosLayout]
+  );
+
   const handleSwapPanels = useCallback(() => {
+    posLayoutHydrateGenRef.current += 1;
     setPosLayout((prev) => {
       const next = { ...prev, swapped: !prev.swapped };
       persistPosLayout(next, posLayoutCompanyIdRef.current);
@@ -1658,11 +1749,13 @@ const Pos = () => {
   }, []);
 
   const handleResetPosLayout = useCallback(() => {
+    posLayoutHydrateGenRef.current += 1;
     const next = persistPosLayout({ ...POS_LAYOUT_DEFAULT }, posLayoutCompanyIdRef.current);
     setPosLayout(next);
   }, []);
 
   const closeLayoutSettings = useCallback(() => {
+    posLayoutHydrateGenRef.current += 1;
     setPosLayout((prev) => {
       persistPosLayout(prev, posLayoutCompanyIdRef.current);
       return prev;
@@ -2477,6 +2570,9 @@ const Pos = () => {
           showToast('successToast', 'Order saved successfully.');
         }
         clearCartAfterSale();
+        if (normalizeCatalogRefresh(posLayout.catalogRefresh) === POS_CATALOG_REFRESH_AFTER_SAVE) {
+          refreshCatalogQuietly();
+        }
         console.log('[POS] Pay Now complete — cart cleared', {
           sec: posMsToSec(posElapsedMs(tAll)),
           ms: posElapsedMs(tAll),
@@ -2500,7 +2596,7 @@ const Pos = () => {
         setOrderSaving(false);
       }
     },
-    [savePosOrder, clearCartAfterSale, cartLines]
+    [savePosOrder, clearCartAfterSale, cartLines, posLayout.catalogRefresh, refreshCatalogQuietly]
   );
 
   const handlePaymentCompletePrint = useCallback(
@@ -2615,6 +2711,9 @@ const Pos = () => {
           );
         }
         clearCartAfterSale();
+        if (normalizeCatalogRefresh(posLayout.catalogRefresh) === POS_CATALOG_REFRESH_AFTER_SAVE) {
+          refreshCatalogQuietly();
+        }
         return true;
       } catch (e) {
         console.error('[POS] Failed to save order for print', e);
@@ -2644,6 +2743,8 @@ const Pos = () => {
       printerSettings,
       defaultPrinterSettings,
       companyBrand,
+      posLayout.catalogRefresh,
+      refreshCatalogQuietly,
       authUser,
       authUserName,
       authCompany,
@@ -2786,7 +2887,7 @@ const Pos = () => {
         open={layoutSettingsOpen}
         onClose={closeLayoutSettings}
         title="Layout settings"
-        subtitle="Resize panels, swap sides, and change product card size."
+        subtitle="Resize panels, swap sides, change product card size, and catalog refresh."
         size="sm"
         footer={
           <>
@@ -2852,6 +2953,30 @@ const Pos = () => {
           <div className="pos-layout-settings__meta">
             <span>Bigger cards</span>
             <span>Smaller cards</span>
+          </div>
+
+          <label className="pos-layout-settings__label" htmlFor="posCatalogRefresh">
+            <span>Refresh catalog</span>
+          </label>
+          <select
+            id="posCatalogRefresh"
+            className="form-select form-select-sm pos-layout-settings__select"
+            value={posLayout.catalogRefresh}
+            onChange={handleCatalogRefreshChange}
+            aria-label="When to refresh catalog"
+          >
+            {POS_CATALOG_REFRESH_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <div className="pos-layout-settings__meta">
+            <span>
+              {posLayout.catalogRefresh === POS_CATALOG_REFRESH_AFTER_SAVE
+                ? 'Downloads after each completed sale'
+                : 'Downloads on a timer while POS is open'}
+            </span>
           </div>
 
           <button type="button" className="pos-layout-settings__swap" onClick={handleSwapPanels}>
@@ -3526,6 +3651,7 @@ const Pos = () => {
           cartLines={cartLines}
           columnClassName="pos-layout-col pos-layout-col--products"
           productCols={posLayout.productCols}
+          catalogEpoch={catalogEpoch}
         />
       </div>
 

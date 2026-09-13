@@ -325,6 +325,7 @@ const PosProducts = ({
   columnClassName = 'col-lg-6 col-xl-7',
   columnStyle,
   productCols = 4,
+  catalogEpoch = 0,
 }) => {
   const isOnline = useOnlineStatus();
   const [products, setProducts] = useState([]);
@@ -533,6 +534,13 @@ const PosProducts = ({
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  const loadProductsRef = useRef(loadProducts);
+  loadProductsRef.current = loadProducts;
+  useEffect(() => {
+    if (!catalogEpoch) return;
+    loadProductsRef.current();
+  }, [catalogEpoch]);
 
   const loadMoreProducts = useCallback(async () => {
     if (!catalogReadyForMoreRef.current) return;

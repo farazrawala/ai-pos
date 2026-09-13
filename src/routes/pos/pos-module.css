@@ -163,6 +163,11 @@
   color: #94a3b8;
 }
 
+.pos-layout-settings__select {
+  width: 100%;
+  margin: 0 0 0.45rem;
+}
+
 .pos-layout-settings__swap {
   display: inline-flex;
   align-items: center;
