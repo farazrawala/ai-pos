@@ -114,7 +114,7 @@ export default function StockTransferForm({ show, onClose, onSuccess }) {
   const validate = () => {
     const next = {};
     if (!String(form.product_id).trim()) next.product_id = 'Product is required';
-    const qtyNum = parseInt(String(form.qty).replace(/,/g, ''), 10);
+    const qtyNum = Number.parseFloat(String(form.qty).replace(/,/g, ''));
     if (!Number.isFinite(qtyNum) || qtyNum <= 0) next.qty = 'Enter a valid quantity';
     if (!String(form.from_warehouse_id).trim()) next.from_warehouse_id = 'From warehouse is required';
     if (!String(form.to_warehouse_id).trim()) next.to_warehouse_id = 'To warehouse is required';
@@ -134,9 +134,10 @@ export default function StockTransferForm({ show, onClose, onSuccess }) {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
+      const qtyNum = Number.parseFloat(String(form.qty).replace(/,/g, ''));
       await stockTransferRequest({
         product_id: form.product_id,
-        qty: parseInt(String(form.qty).replace(/,/g, ''), 10),
+        qty: qtyNum,
         from_warehouse_id: form.from_warehouse_id,
         to_warehouse_id: form.to_warehouse_id,
       });
@@ -194,7 +195,7 @@ export default function StockTransferForm({ show, onClose, onSuccess }) {
               </div>
               <div className="mb-3">
                 <label className="form-label" htmlFor="stock-transfer-qty">Qty <span className="text-danger">*</span></label>
-                <input id="stock-transfer-qty" type="number" min={1} step={1} className={`form-control form-control-sm ${errors.qty ? 'is-invalid' : ''}`} value={form.qty} onChange={(e) => setForm((prev) => ({ ...prev, qty: e.target.value }))} disabled={isSubmitting} />
+                <input id="stock-transfer-qty" type="number" min="0.01" step="0.01" className={`form-control form-control-sm ${errors.qty ? 'is-invalid' : ''}`} value={form.qty} onChange={(e) => setForm((prev) => ({ ...prev, qty: e.target.value }))} disabled={isSubmitting} />
                 {errors.qty && <div className="invalid-feedback">{errors.qty}</div>}
               </div>
               <div className="mb-3">

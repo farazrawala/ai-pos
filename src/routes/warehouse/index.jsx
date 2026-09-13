@@ -5,12 +5,10 @@ import moment from 'moment';
 import {
   fetchWarehouses,
   updateWarehouse,
-  deleteWarehouse,
   setSearch,
   setPage,
   setLimit,
   setSort,
-  clearDeleteStatus,
   clearUpdateStatus,
 } from '../../features/warehouse/warehouseSlice.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
@@ -30,11 +28,9 @@ const Warehouse = () => {
     pagination,
     search: searchTerm,
     sort,
-    deleteStatus,
-    deleteError,
     updateError,
   } = useSelector((state) => state.warehouse);
-  const { canView, canCreate, canEdit, canDelete } = usePermissions('warehouse');
+  const { canCreate, canEdit } = usePermissions('warehouse');
   useRequireModuleAccess('warehouse');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
@@ -120,18 +116,6 @@ const Warehouse = () => {
       setTogglingWarehouseId(null);
     }
   };
-
-  const handleDelete = async (warehouseId, warehouseName) => {
-    if (window.confirm(`Delete "${warehouseName || 'this warehouse'}"?`)) {
-      await dispatch(deleteWarehouse(warehouseId));
-    }
-  };
-
-  useEffect(() => {
-    if (deleteStatus === 'succeeded') {
-      setTimeout(() => dispatch(clearDeleteStatus()), 3000);
-    }
-  }, [deleteStatus, dispatch]);
 
   useEffect(() => {
     if (updateError) {
@@ -341,15 +325,6 @@ const Warehouse = () => {
                                     Edit
                                   </button>
                                 )}
-                                {canDelete && (
-                                  <button
-                                    className="btn btn-sm btn-danger mb-0"
-                                    onClick={() => handleDelete(id, item.name)}
-                                    disabled={deleteStatus === 'loading'}
-                                  >
-                                    Delete
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </tr>
@@ -359,9 +334,9 @@ const Warehouse = () => {
                   </tbody>
                 </table>
               </ListDataTable>
-              {(deleteError || updateError) && (
+              {updateError && (
                 <div className="alert alert-danger mx-3 mb-3" role="alert">
-                  {deleteError || updateError}
+                  {updateError}
                 </div>
               )}
             </div>

@@ -196,21 +196,6 @@ const WarehouseEdit = () => {
                     disabled={isSubmitting}
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="form-label" htmlFor="warehouse-edit-status">
-                    Status
-                  </label>
-                  <select
-                    id="warehouse-edit-status"
-                    className="form-select"
-                    value={form.status}
-                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                    disabled={isSubmitting}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
                 {(errors.submit || updateError) && (
                   <div className="alert alert-danger py-2">{errors.submit || updateError}</div>
                 )}

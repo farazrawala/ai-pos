@@ -149,21 +149,6 @@ const WarehouseAdd = () => {
                     }
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="form-label" htmlFor="warehouse-add-status">
-                    Status
-                  </label>
-                  <select
-                    id="warehouse-add-status"
-                    className="form-select"
-                    value={form.status}
-                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                    disabled={isSubmitting}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
                 {errors.submit && <div className="alert alert-danger py-2">{errors.submit}</div>}
                 <div className="d-flex justify-content-end gap-2">
                   <button
