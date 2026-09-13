@@ -84,28 +84,61 @@ function unwrapStockPayload(stockPayload) {
     : stockPayload;
 }
 
-/** Total on-hand qty from stock-by-product response. */
-function parseCurrentStockQty(stockPayload) {
+function warehouseRowQty(row) {
+  const n = Number(row?.available_qty ?? row?.net_qty ?? row?.quantity ?? row?.qty);
+  return Number.isFinite(n) ? roundAdjustmentQty(n) : null;
+}
+
+/**
+ * On-hand qty from stock-by-product.
+ * When `warehouseId` is set, prefer that warehouse’s available qty (matches adjustment save).
+ */
+function parseCurrentStockQty(stockPayload, warehouseId = '') {
   const root = unwrapStockPayload(stockPayload);
   if (!root || typeof root !== 'object') return null;
+
+  const wid = String(warehouseId || '').trim();
+  const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
+
+  if (wid && warehouses.length > 0) {
+    for (const row of warehouses) {
+      const rowWid = pickWarehouseId(row?.warehouse_id ?? row?.warehouseId);
+      if (rowWid !== wid) continue;
+      const n = warehouseRowQty(row);
+      if (n != null) return n;
+    }
+    // Default warehouse has no row yet → nothing available there.
+    return 0;
+  }
 
   for (const key of ['available_qty', 'net_qty', 'quantity', 'qty']) {
     const n = Number(root?.[key]);
     if (Number.isFinite(n)) return roundAdjustmentQty(n);
   }
 
-  const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
   if (warehouses.length === 0) return null;
 
   let total = 0;
   let has = false;
   for (const row of warehouses) {
-    const n = Number(row?.available_qty ?? row?.net_qty ?? row?.quantity ?? row?.qty);
-    if (!Number.isFinite(n)) continue;
+    const n = warehouseRowQty(row);
+    if (n == null) continue;
     total += n;
     has = true;
   }
   return has ? roundAdjustmentQty(total) : null;
+}
+
+function warehouseNameFromStock(stockPayload, warehouseId = '') {
+  const root = unwrapStockPayload(stockPayload);
+  const wid = String(warehouseId || '').trim();
+  if (!wid || !root) return '';
+  const warehouses = Array.isArray(root?.warehouses) ? root.warehouses : [];
+  for (const row of warehouses) {
+    if (pickWarehouseId(row?.warehouse_id ?? row?.warehouseId) !== wid) continue;
+    return String(row?.warehouse_name ?? row?.name ?? '').trim();
+  }
+  return '';
 }
 
 function formatStockQty(n) {
@@ -176,6 +209,7 @@ const AdjustmentAdd = () => {
   const [productSearchLoading, setProductSearchLoading] = useState(false);
   const [productSearchError, setProductSearchError] = useState('');
   const [currentStock, setCurrentStock] = useState(null);
+  const [stockWarehouseLabel, setStockWarehouseLabel] = useState('');
   const [stockLoading, setStockLoading] = useState(false);
 
   useEffect(() => {
@@ -211,6 +245,7 @@ const AdjustmentAdd = () => {
     const productId = String(form.product_id || '').trim();
     if (!productId) {
       setCurrentStock(null);
+      setStockWarehouseLabel('');
       setStockLoading(false);
       return undefined;
     }
@@ -218,13 +253,19 @@ const AdjustmentAdd = () => {
     let cancelled = false;
     setStockLoading(true);
     setCurrentStock(null);
+    setStockWarehouseLabel('');
 
     (async () => {
       try {
         const payload = await fetchStockByProductRequest(productId);
-        if (!cancelled) setCurrentStock(parseCurrentStockQty(payload));
+        if (cancelled) return;
+        setCurrentStock(parseCurrentStockQty(payload, defaultWarehouseId));
+        setStockWarehouseLabel(warehouseNameFromStock(payload, defaultWarehouseId));
       } catch {
-        if (!cancelled) setCurrentStock(null);
+        if (!cancelled) {
+          setCurrentStock(null);
+          setStockWarehouseLabel('');
+        }
       } finally {
         if (!cancelled) setStockLoading(false);
       }
@@ -233,7 +274,7 @@ const AdjustmentAdd = () => {
     return () => {
       cancelled = true;
     };
-  }, [form.product_id]);
+  }, [form.product_id, defaultWarehouseId]);
 
   const missingCost = useMemo(() => {
     if (!form.product_id) return false;
@@ -404,9 +445,22 @@ const AdjustmentAdd = () => {
       return;
     }
 
+    const qty = parseAdjustmentQty(form.quantity);
+    const type = String(form.type || '').trim().toLowerCase();
+    if (
+      (type === 'remove' || type === 'out') &&
+      currentStock != null &&
+      Number.isFinite(currentStock) &&
+      qty > currentStock
+    ) {
+      toast.error(
+        `Insufficient warehouse inventory quantity (need ${formatStockQty(qty)}, available ${formatStockQty(currentStock)})`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const qty = parseAdjustmentQty(form.quantity);
       await dispatch(
         createAdjustment({
           adjustmentFields: {
@@ -414,6 +468,7 @@ const AdjustmentAdd = () => {
             quantity: qty,
             type: form.type.trim(),
             description: form.description.trim(),
+            ...(defaultWarehouseId ? { warehouse_id: defaultWarehouseId } : {}),
           },
         })
       ).unwrap();
@@ -473,7 +528,8 @@ const AdjustmentAdd = () => {
                         <p className="adj-form-selected-meta">{selectedMetaParts.join(' · ')}</p>
                       ) : null}
                       <p className="adj-form-selected-meta">
-                        Current stock:{' '}
+                        Current stock
+                        {stockWarehouseLabel ? ` (${stockWarehouseLabel})` : ''}:{' '}
                         {stockLoading ? (
                           <span className="text-muted">Loading…</span>
                         ) : currentStock != null ? (
