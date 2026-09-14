@@ -555,6 +555,46 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
 };
 
 /**
+ * Cancel an active courier shipment for an order.
+ * POST /courier/cancel/:orderId
+ */
+export const cancelCourierShipmentRequest = async (orderId) => {
+  const id = String(orderId || '').trim();
+  if (!id) throw new Error('Order id is required');
+
+  const response = await fetch(`${BASE_URL}courier/cancel/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({}),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      extractCourierShipmentErrorMessage(
+        payload,
+        `Failed to cancel shipment (HTTP ${response.status})`
+      ) || `Failed to cancel shipment (HTTP ${response.status})`;
+    const err = new Error(message);
+    err.payload = payload;
+    err.status = response.status;
+    throw err;
+  }
+
+  if (payload?.success === false || payload?.ok === false) {
+    const message =
+      extractCourierShipmentErrorMessage(payload, 'Failed to cancel shipment') ||
+      'Failed to cancel shipment';
+    const err = new Error(message);
+    err.payload = payload;
+    throw err;
+  }
+
+  return payload;
+};
+
+/**
  * TCS CNPrint label types (Swagger printtype on /ecom/api/print/label).
  * @see https://devconnect.tcscourier.com/ecom/index.html
  */

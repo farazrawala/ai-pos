@@ -25,6 +25,8 @@ const CourierIntegrationAdd = () => {
     password: '',
     token: '',
     account_no: '',
+    pickup_address: '',
+    return_address: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -138,6 +140,12 @@ const CourierIntegrationAdd = () => {
           password: form.password,
           ...(form.token.trim() ? { token: form.token.trim() } : {}),
           ...(form.account_no.trim() ? { account_no: form.account_no.trim() } : {}),
+          ...(form.pickup_address.trim()
+            ? { pickup_address: form.pickup_address.trim() }
+            : {}),
+          ...(form.return_address.trim()
+            ? { return_address: form.return_address.trim() }
+            : {}),
           status: form.status,
         })
       ).unwrap();
@@ -356,6 +364,38 @@ const CourierIntegrationAdd = () => {
                   {errors.account_no ? (
                     <div className="invalid-feedback d-block">{errors.account_no}</div>
                   ) : null}
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-pickup-address">
+                    Pickup Address
+                  </label>
+                  <textarea
+                    id="courier-pickup-address"
+                    className="form-control"
+                    rows={2}
+                    value={form.pickup_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, pickup_address: e.target.value }))
+                    }
+                    disabled={formBusy}
+                    placeholder="Full pickup address"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-return-address">
+                    Return Address
+                  </label>
+                  <textarea
+                    id="courier-return-address"
+                    className="form-control"
+                    rows={2}
+                    value={form.return_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, return_address: e.target.value }))
+                    }
+                    disabled={formBusy}
+                    placeholder="Full return address"
+                  />
                 </div>
                 <div className="mb-4">
                   <label className="form-label" htmlFor="courier-status">

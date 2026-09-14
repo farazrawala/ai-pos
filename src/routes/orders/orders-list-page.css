@@ -334,6 +334,17 @@
   white-space: nowrap;
 }
 
+.oms-tracking-cancel {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.oms-tracking-cancel:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
 .oms-integration-shop__logo {
   object-fit: contain;
   background: #fff;

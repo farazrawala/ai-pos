@@ -34,6 +34,8 @@ const CourierIntegrationEdit = () => {
     password: '',
     token: '',
     account_no: '',
+    pickup_address: '',
+    return_address: '',
     status: 'active',
   });
   const [errors, setErrors] = useState({});
@@ -56,15 +58,20 @@ const CourierIntegrationEdit = () => {
 
   useEffect(() => {
     if (!currentCourier) return;
+    const row = currentCourier?.data && typeof currentCourier.data === 'object'
+      ? currentCourier.data
+      : currentCourier;
     setForm({
-      name: currentCourier.name || '',
-      type: currentCourier.type || 'tcs',
-      url: currentCourier.url || '',
-      login: currentCourier.login || '',
+      name: row.name || '',
+      type: row.type || 'tcs',
+      url: row.url || '',
+      login: row.login || '',
       password: '',
       token: '',
-      account_no: currentCourier.account_no || '',
-      status: currentCourier.status || 'active',
+      account_no: row.account_no || row.accountNo || '',
+      pickup_address: row.pickup_address || row.pickupAddress || '',
+      return_address: row.return_address || row.returnAddress || '',
+      status: row.status || 'active',
     });
   }, [currentCourier]);
 
@@ -132,6 +139,8 @@ const CourierIntegrationEdit = () => {
       url: form.url.trim(),
       login: form.login.trim(),
       account_no: form.account_no.trim(),
+      pickup_address: form.pickup_address.trim(),
+      return_address: form.return_address.trim(),
       status: form.status,
     };
     if (form.password.trim()) {
@@ -374,6 +383,38 @@ const CourierIntegrationEdit = () => {
                   {errors.account_no ? (
                     <div className="invalid-feedback d-block">{errors.account_no}</div>
                   ) : null}
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-edit-pickup-address">
+                    Pickup Address
+                  </label>
+                  <textarea
+                    id="courier-edit-pickup-address"
+                    className="form-control"
+                    rows={2}
+                    value={form.pickup_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, pickup_address: e.target.value }))
+                    }
+                    disabled={formBusy}
+                    placeholder="Full pickup address"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="courier-edit-return-address">
+                    Return Address
+                  </label>
+                  <textarea
+                    id="courier-edit-return-address"
+                    className="form-control"
+                    rows={2}
+                    value={form.return_address}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, return_address: e.target.value }))
+                    }
+                    disabled={formBusy}
+                    placeholder="Full return address"
+                  />
                 </div>
                 <div className="mb-4">
                   <label className="form-label" htmlFor="courier-edit-status">

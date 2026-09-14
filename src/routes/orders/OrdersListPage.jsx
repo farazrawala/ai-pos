@@ -107,6 +107,7 @@ import {
 } from '../../features/process/processAPI.js';
 import {
   resolveOrderTrackingInfo,
+  cancelCourierShipmentRequest,
   TCS_TRACKING_DETAIL_URL,
 } from '../../features/courier/courierAPI.js';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
@@ -653,6 +654,36 @@ const trackingStatusBadgeClass = (status) => {
   return 'bg-gradient-secondary';
 };
 
+/** Whether a booked shipment can still be cancelled via courier API. */
+const canCancelShipmentStatus = (status) => {
+  const s = String(status || '')
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return true;
+  if (
+    s.includes('cancel') ||
+    s === 'delivered' ||
+    s === 'completed' ||
+    s.includes('return') ||
+    s === 'rto' ||
+    s === 'rto received'
+  ) {
+    return false;
+  }
+  return true;
+};
+
+const isCancelledShipmentStatus = (status) => {
+  const s = String(status || '')
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return s.includes('cancel');
+};
+
 const courierProviderBadgeClass = (provider) => {
   const key = String(provider || '')
     .trim()
@@ -850,6 +881,7 @@ export default function OrdersListPage({ config }) {
   const [statusOverrides, setStatusOverrides] = useState({});
   const [websiteStatusOverrides, setWebsiteStatusOverrides] = useState({});
   const [tagsOverrides, setTagsOverrides] = useState({});
+  const [cancellingShipmentOrderId, setCancellingShipmentOrderId] = useState('');
   const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
     open: false,
     orderId: '',
@@ -1697,6 +1729,43 @@ export default function OrdersListPage({ config }) {
     });
   };
 
+  const handleCancelShipment = async ({ orderId, orderNo, trackingId, provider } = {}) => {
+    const id = String(orderId || '').trim();
+    if (!id) {
+      toast.error('Missing order id.');
+      return;
+    }
+    const label = orderNo || id.slice(-6);
+    const cn = String(trackingId || '').trim();
+    const courier = String(provider || '').trim();
+    const confirmMsg = cn
+      ? `Cancel ${courier ? `${courier} ` : ''}shipment ${cn} for ${label}?`
+      : `Cancel courier shipment for ${label}?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setCancellingShipmentOrderId(id);
+    try {
+      await cancelCourierShipmentRequest(id);
+      setShipmentOverrides((prev) => ({
+        ...prev,
+        [id]: {
+          ...(prev[id] || {}),
+          tracking_id: cn || prev[id]?.tracking_id || '',
+          tracking_number: cn || prev[id]?.tracking_number || '',
+          tracking_status: 'cancelled',
+          trackingStatus: 'cancelled',
+          ...(courier ? { courier, provider: courier } : {}),
+        },
+      }));
+      toast.success(cn ? `Shipment ${cn} cancelled.` : 'Shipment cancelled.');
+      refreshOrderList();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to cancel shipment.');
+    } finally {
+      setCancellingShipmentOrderId('');
+    }
+  };
+
   const handleShipmentCreated = ({ orderId, provider, courierCompany, result } = {}) => {
     const trackingId = result?.tracking_id || result?.tracking_number || '';
     const trackingUrl = result?.tracking_url || '';
@@ -1997,6 +2066,14 @@ export default function OrdersListPage({ config }) {
         error: null,
       },
       {
+        key: 'cancel-shipment',
+        label: 'Cancel shipment',
+        url: buildApiUrl('courier/cancel/:orderId'),
+        status: cancellingShipmentOrderId ? 'loading' : 'pending',
+        durationMs: null,
+        error: null,
+      },
+      {
         key: 'courier-label',
         label: 'Print courier label',
         url: buildApiUrl('courier/label/:orderId'),
@@ -2059,6 +2136,7 @@ export default function OrdersListPage({ config }) {
     shipmentModal.open,
     parcelBarcodeModal.open,
     trackingStatusModal.open,
+    cancellingShipmentOrderId,
     exporting,
   ]);
 
@@ -2991,6 +3069,41 @@ export default function OrdersListPage({ config }) {
                                       >
                                         {formatWebsiteStatusLabel(trackingInfo.trackingStatus)}
                                       </span>
+                                    ) : null}
+                                    {isCancelledShipmentStatus(trackingInfo.trackingStatus) &&
+                                    hasOrderItems ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-primary mb-0 px-2"
+                                        title="Book a new shipment"
+                                        disabled={!orderId}
+                                        onClick={() => handleOpenShipmentModal(orderId, orderNo)}
+                                      >
+                                        Add tracking
+                                      </button>
+                                    ) : trackingInfo.trackingId &&
+                                      canCancelShipmentStatus(trackingInfo.trackingStatus) ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-link btn-sm text-danger p-0 mb-0 oms-tracking-cancel"
+                                        title="Cancel shipping with courier"
+                                        disabled={
+                                          !orderId ||
+                                          cancellingShipmentOrderId === String(orderId)
+                                        }
+                                        onClick={() =>
+                                          handleCancelShipment({
+                                            orderId,
+                                            orderNo,
+                                            trackingId: trackingInfo.trackingId,
+                                            provider: trackingInfo.provider,
+                                          })
+                                        }
+                                      >
+                                        {cancellingShipmentOrderId === String(orderId)
+                                          ? 'Cancelling…'
+                                          : 'Cancel shipping'}
+                                      </button>
                                     ) : null}
                                   </div>
                                 ) : hasOrderItems ? (
