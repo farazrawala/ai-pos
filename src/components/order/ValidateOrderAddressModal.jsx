@@ -21,19 +21,11 @@ const ADDRESS_PART_FIELDS = [
   { key: 'country', label: 'Country' },
 ];
 
-/** OMS requires these parsed fields before an address can be saved. */
-const REQUIRED_ADDRESS_FIELDS = ['house'];
-
 const normalizeFieldKey = (value) =>
   String(value || '')
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
-
-const fieldHasValue = (result, key) => {
-  const raw = result?.[key];
-  return raw != null && String(raw).trim() !== '' && String(raw).trim() !== '—';
-};
 
 const truthyFlag = (value) =>
   value === true || String(value ?? '').trim().toLowerCase() === 'true';
@@ -108,27 +100,9 @@ export function parseAddressPartsFromText(addressText) {
   return { house, street, area: '', city, zip, country };
 }
 
-const getMissingRequiredFields = (result, apiMissingFields = [], addressText = '') => {
-  const detectedHouse = extractHouseNumberFromAddress(addressText);
-  const missingFromApi = new Set(
-    (Array.isArray(apiMissingFields) ? apiMissingFields : [])
-      .map((item) => normalizeFieldKey(item))
-      .filter(Boolean)
-  );
-
-  return REQUIRED_ADDRESS_FIELDS.filter((key) => {
-    if (key === 'house') {
-      // Only accept a real extracted house/flat number — API hasHouseNumber
-      // used to be true just because the ZIP had digits.
-      if (fieldHasValue(result, 'house') || detectedHouse) return false;
-      return true;
-    }
-    if (missingFromApi.has(key) || missingFromApi.has(`${key}_no`) || missingFromApi.has(`${key}_number`)) {
-      return true;
-    }
-    return !fieldHasValue(result, key);
-  });
-};
+/** House missing from the address text itself (warning only — does not rewrite saves). */
+const isHouseMissingFromAddress = (addressText = '') =>
+  !extractHouseNumberFromAddress(addressText);
 
 /** Common shorthand / misspellings → preferred form (Pakistan addresses). */
 const ADDRESS_TOKEN_REPLACEMENTS = [
@@ -495,21 +469,15 @@ export default function ValidateOrderAddressModal({
         ? 'local'
         : '';
 
-  const addressForHouseCheck = String(draftAddress || suggestedAddress || '').trim();
+  const addressForHouseCheck = String(draftAddress || '').trim();
   const parsedParts = parseAddressPartsFromText(addressForHouseCheck);
   const detectedHouse = extractHouseNumberFromAddress(addressForHouseCheck);
-  const googleHouse = String(googleSuggestion?.house || '').trim();
-  const missingRequiredFields = getMissingRequiredFields(
-    {
-      ...(result || {}),
-      house: googleHouse || result?.house,
-    },
-    missingFields,
-    addressForHouseCheck
-  );
-  const houseMissing = missingRequiredFields.includes('house');
-  // House number is mandatory — accept API house OR local detection (Flat no / House / Plot…).
-  const isValid = !houseMissing && (apiSaysValid || Boolean(detectedHouse || googleHouse));
+  // Only treat house as present when it exists in the editable address text.
+  // Do not use stale Google/API house values — those were re-injecting flat nos on save.
+  const houseMissing = isHouseMissingFromAddress(addressForHouseCheck);
+  const missingRequiredFields = houseMissing ? ['house'] : [];
+  // Advisory status only — save still sends the exact textarea value.
+  const isValid = !houseMissing && (apiSaysValid || Boolean(detectedHouse));
 
   const pickPart = (...candidates) => {
     for (const value of candidates) {
@@ -522,7 +490,7 @@ export default function ValidateOrderAddressModal({
 
   const displayResult = {
     ...(result || {}),
-    house: pickPart(googleSuggestion?.house, result?.house, detectedHouse, parsedParts.house),
+    house: pickPart(detectedHouse, parsedParts.house),
     street: pickPart(
       googleSuggestion?.street,
       result?.street,
@@ -568,12 +536,11 @@ export default function ValidateOrderAddressModal({
         const key = normalizeFieldKey(item);
         return key !== 'house' && key !== 'house_no' && key !== 'house_number';
       });
-  const requiredSuggestions = missingRequiredFields.map((key) => {
-    if (key === 'house') {
-      return 'House / building number is required (e.g. Flat no 104, House 12). Add it before updating.';
-    }
-    return `${key.replace(/_/g, ' ')} is required before this address can be saved.`;
-  });
+  const requiredSuggestions = houseMissing
+    ? [
+        'House / building number is recommended (e.g. Flat no 104, House 12). You can still save without it.',
+      ]
+    : [];
   const allSuggestions = [
     ...new Set([
       ...requiredSuggestions,
@@ -586,30 +553,25 @@ export default function ValidateOrderAddressModal({
     ]),
   ];
 
-  const canSaveAddress =
-    Boolean(String(orderId || '').trim() && String(draftAddress || '').trim()) &&
-    missingRequiredFields.length === 0;
+  // Save whatever is in the delivery address field — do not rewrite it.
+  const canSaveAddress = Boolean(
+    String(orderId || '').trim() && String(draftAddress || '').trim()
+  );
   const canUpdateAddress = canSaveAddress;
-  const updateBlockedReason = houseMissing
-    ? 'House / building number is required before this address can be updated.'
-    : missingRequiredFields.length
-      ? `Missing required fields: ${missingRequiredFields.join(', ')}.`
+  const updateBlockedReason = !String(orderId || '').trim()
+    ? 'Missing order id.'
+    : !String(draftAddress || '').trim()
+      ? 'Address is required before this address can be updated.'
       : '';
 
-  const buildStreetAddress = (sourceAddress, validation) => {
-    const fromParts = [validation?.house, validation?.street, validation?.area]
-      .map((part) => String(part ?? '').trim())
-      .filter(Boolean)
-      .join(', ');
-    if (fromParts) return fromParts;
-    return String(sourceAddress || '').trim();
-  };
-
-  const buildUpdatePayload = (sourceAddress, preferFullText = false) => {
+  const buildUpdatePayload = (sourceAddress) => {
     const validation = displayResult || result || {};
-    const nextAddress = preferFullText
-      ? String(sourceAddress || '').trim()
-      : buildStreetAddress(sourceAddress, validation) || String(sourceAddress || '').trim();
+    const nextAddress = String(sourceAddress || '').trim();
+
+    // Soft API warnings must not block an explicit user save.
+    const shouldValidate =
+      Boolean(apiSaysValid) && !houseMissing && visibleMissingFields.length === 0;
+
     return {
       address: nextAddress,
       city: String(
@@ -625,11 +587,11 @@ export default function ValidateOrderAddressModal({
       name: String(name || '').trim(),
       phone: String(phone || '').trim(),
       email: String(email || '').trim(),
-      validate: true,
+      validate: shouldValidate,
     };
   };
 
-  const handleUpdateAddress = async ({ addressOverride = '', preferFullText = false } = {}) => {
+  const handleUpdateAddress = async ({ addressOverride = '' } = {}) => {
     const id = String(orderId || '').trim();
     if (!id) {
       setError('Missing order id.');
@@ -642,21 +604,11 @@ export default function ValidateOrderAddressModal({
       return;
     }
 
-    if (missingRequiredFields.length > 0) {
-      setError(
-        houseMissing
-          ? 'House / building number is required. Add it to the address, then re-validate before updating.'
-          : `Missing required fields: ${missingRequiredFields.join(', ')}.`
-      );
-      return;
-    }
-
     setSaveStatus('loading');
     setError(null);
 
     try {
-      if (addressOverride) setDraftAddress(addressOverride);
-      const payload = buildUpdatePayload(sourceAddress, preferFullText || Boolean(addressOverride));
+      const payload = buildUpdatePayload(sourceAddress);
       const saved = await updateOrderAddressRequest(id, payload);
       const quality = pickValidationPayload(saved);
       if (quality && (quality.house != null || quality.isValid != null || quality.is_valid != null)) {
@@ -682,11 +634,6 @@ export default function ValidateOrderAddressModal({
     }
   };
 
-  const handleUpdateSuggestion = () => {
-    if (!suggestedAddress) return;
-    handleUpdateAddress({ addressOverride: suggestedAddress, preferFullText: true });
-  };
-
   const handleApplySuggestion = () => {
     if (!suggestedAddress) return;
     setDraftAddress(suggestedAddress);
@@ -697,7 +644,6 @@ export default function ValidateOrderAddressModal({
     Boolean(suggestedAddress) &&
     suggestedAddress.toLowerCase() !== String(draftAddress || '').trim().toLowerCase();
 
-  const primarySaveUsesSuggestion = draftDiffersFromSuggestion && canSaveAddress;
   const missingLabels = [
     ...(houseMissing ? ['House / flat no.'] : []),
     ...visibleMissingFields.map((item) => String(item).replace(/_/g, ' ')),
@@ -819,7 +765,7 @@ export default function ValidateOrderAddressModal({
                           icon={isValid ? FaCircleCheck : FaTriangleExclamation}
                           size={11}
                         />
-                        {isValid ? 'Ready to save' : houseMissing ? 'House no. needed' : 'Needs review'}
+                        {isValid ? 'Ready to save' : houseMissing ? 'No house no.' : 'Needs review'}
                       </span>
                       {score != null && score !== '' ? (
                         <span className="voa-status__pill">Score {formatScore(score)}</span>
@@ -879,8 +825,9 @@ export default function ValidateOrderAddressModal({
 
                     {houseMissing ? (
                       <p className="voa-note">
-                        Add a house or flat number (e.g. <strong>Flat no 104</strong> or{' '}
-                        <strong>House 12</strong>), then check the address again before saving.
+                        No house or flat number found. You can still save this address, or add one
+                        (e.g. <strong>Flat no 104</strong> or <strong>House 12</strong>) and check
+                        again.
                       </p>
                     ) : null}
 
@@ -964,7 +911,9 @@ export default function ValidateOrderAddressModal({
                 <p className="voa-footer-hint mb-0">{updateBlockedReason}</p>
               ) : missingLabels.length > 0 ? (
                 <p className="voa-footer-hint mb-0">
-                  Still needed: {missingLabels.join(', ')}
+                  {houseMissing && visibleMissingFields.length === 0
+                    ? `Recommended: ${missingLabels.join(', ')}`
+                    : `Still needed: ${missingLabels.join(', ')}`}
                 </p>
               ) : (
                 <p className="voa-footer-hint mb-0" />
@@ -977,27 +926,15 @@ export default function ValidateOrderAddressModal({
               >
                 Cancel
               </button>
-              {primarySaveUsesSuggestion ? (
-                <button
-                  type="button"
-                  className="btn btn-primary mb-0"
-                  onClick={handleUpdateSuggestion}
-                  disabled={isBusy || !orderId}
-                  title="Save the suggested address to this order"
-                >
-                  {isSaving ? 'Saving…' : 'Save suggested address'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary mb-0"
-                  onClick={() => handleUpdateAddress()}
-                  disabled={isBusy || !canUpdateAddress}
-                  title={updateBlockedReason || 'Save address to this order'}
-                >
-                  {isSaving ? 'Saving…' : 'Save address'}
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn-primary mb-0"
+                onClick={() => handleUpdateAddress()}
+                disabled={isBusy || !canUpdateAddress}
+                title={updateBlockedReason || 'Save the delivery address exactly as shown'}
+              >
+                {isSaving ? 'Saving…' : 'Save address'}
+              </button>
             </div>
           </div>
         </div>
