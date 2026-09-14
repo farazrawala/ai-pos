@@ -3,14 +3,18 @@ import { FaLocationDot, FaCircleCheck, FaTriangleExclamation } from 'react-icons
 import {
   validateOrderAddressRequest,
   updateOrderAddressRequest,
+  updateOrderTagsRequest,
 } from '../../features/orders/ordersAPI.js';
 import {
   suggestAddressWithGoogle,
   attachPlacesAutocomplete,
 } from '../../utils/googleAddressSuggest.js';
+import { normalizeOrderTags } from './OrderConfirmationTagsModal.jsx';
 import NavIcon from '../NavIcon.jsx';
 import './customerOrderHistoryModal.css';
 import './validateOrderAddressModal.css';
+
+const INCOMPLETE_ADDRESS_TAG = 'incomplete_address';
 
 const ADDRESS_PART_FIELDS = [
   { key: 'house', label: 'House' },
@@ -236,6 +240,7 @@ export function suggestAddressImprovements(addressText) {
 
 /**
  * Validate address modal + PATCH /order/update-address/:id on update.
+ * When save has no address warnings, also clears `incomplete_address` tag.
  */
 export default function ValidateOrderAddressModal({
   open,
@@ -249,6 +254,7 @@ export default function ValidateOrderAddressModal({
   state = '',
   zip = '',
   country = '',
+  currentTags = [],
   onClose,
   onSaved,
 }) {
@@ -564,13 +570,18 @@ export default function ValidateOrderAddressModal({
       ? 'Address is required before this address can be updated.'
       : '';
 
+  // No house/flat warning → treat address as complete enough to drop incomplete_address.
+  // Soft API hints like area/postalCode alone should not keep the tag forever.
+  const addressHasNoWarnings = !houseMissing;
+
   const buildUpdatePayload = (sourceAddress) => {
     const validation = displayResult || result || {};
     const nextAddress = String(sourceAddress || '').trim();
 
-    // Soft API warnings must not block an explicit user save.
+    // Only ask backend to re-validate when nothing soft is still flagged
+    // (validate:true with missing area/postalCode can reject the save).
     const shouldValidate =
-      Boolean(apiSaysValid) && !houseMissing && visibleMissingFields.length === 0;
+      addressHasNoWarnings && visibleMissingFields.length === 0;
 
     return {
       address: nextAddress,
@@ -589,6 +600,23 @@ export default function ValidateOrderAddressModal({
       email: String(email || '').trim(),
       validate: shouldValidate,
     };
+  };
+
+  const clearIncompleteAddressTag = async (id) => {
+    const existing = normalizeOrderTags(currentTags);
+    if (!existing.some((tag) => tag.toLowerCase() === INCOMPLETE_ADDRESS_TAG)) {
+      return existing;
+    }
+    const nextTags = existing.filter(
+      (tag) => tag.toLowerCase() !== INCOMPLETE_ADDRESS_TAG
+    );
+    const tagResult = await updateOrderTagsRequest(id, { tags: nextTags });
+    return normalizeOrderTags(
+      tagResult?.data?.order?.tags ??
+        tagResult?.data?.tags ??
+        tagResult?.tags ??
+        nextTags
+    );
   };
 
   const handleUpdateAddress = async ({ addressOverride = '' } = {}) => {
@@ -616,6 +644,21 @@ export default function ValidateOrderAddressModal({
       }
       setDraftAddress(payload.address);
       setValidatedAddress(payload.address);
+
+      let nextTags = normalizeOrderTags(currentTags);
+      if (addressHasNoWarnings) {
+        try {
+          nextTags = await clearIncompleteAddressTag(id);
+        } catch (tagErr) {
+          setSaveStatus('failed');
+          setError(
+            tagErr?.message ||
+              'Address saved, but failed to remove incomplete address tag.'
+          );
+          return;
+        }
+      }
+
       setSaveStatus('succeeded');
       onSaved?.({
         orderId: id,
@@ -625,6 +668,8 @@ export default function ValidateOrderAddressModal({
         state: payload.state,
         zip: payload.zip,
         country: payload.country,
+        tags: nextTags,
+        clearedIncompleteTag: addressHasNoWarnings,
         result: saved,
       });
       onClose?.();

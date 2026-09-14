@@ -844,6 +844,7 @@ export default function OrdersListPage({ config }) {
     state: '',
     zip: '',
     country: '',
+    tags: [],
   });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
@@ -1450,11 +1451,22 @@ export default function OrdersListPage({ config }) {
       state: String(row?.state || '').trim(),
       zip: String(row?.zip || row?.postal_code || '').trim(),
       country: String(row?.country || '').trim(),
+      tags: getOrderTags(row, orderId),
     });
   };
 
-  const handleAddressUpdated = () => {
-    toast.success('Address updated.');
+  const handleAddressUpdated = ({ orderId, tags, clearedIncompleteTag } = {}) => {
+    if (orderId && Array.isArray(tags)) {
+      setTagsOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: normalizeOrderTags(tags),
+      }));
+    }
+    toast.success(
+      clearedIncompleteTag
+        ? 'Address updated. Incomplete address tag removed.'
+        : 'Address updated.'
+    );
     refreshOrderList();
   };
 
@@ -3304,6 +3316,7 @@ export default function OrdersListPage({ config }) {
         state={validateAddressModal.state}
         zip={validateAddressModal.zip}
         country={validateAddressModal.country}
+        currentTags={validateAddressModal.tags}
         onClose={() =>
           setValidateAddressModal({
             open: false,
@@ -3317,6 +3330,7 @@ export default function OrdersListPage({ config }) {
             state: '',
             zip: '',
             country: '',
+            tags: [],
           })
         }
         onSaved={handleAddressUpdated}
