@@ -1,6 +1,6 @@
 {
   "name": "ai-pos",
-  "version": "1.0.330",
+  "version": "1.0.331",
   "private": true,
   "type": "module",
   "scripts": {
@@ -42,6 +42,7 @@
     "lucide-react": "^1.32.0",
     "moment": "^2.30.1",
     "multiselect-react-dropdown": "^2.0.25",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

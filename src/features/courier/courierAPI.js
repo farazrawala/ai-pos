@@ -699,50 +699,107 @@ export const openCourierLabelForPrint = (label = {}) => {
 
   if (url && /^https?:\/\//i.test(String(url))) {
     const win = window.open(String(url), '_blank', 'noopener,noreferrer');
-    if (!win) throw new Error('Popup blocked — allow popups to open the TCS label.');
+    if (!win) throw new Error('Popup blocked — allow popups to open the courier label.');
     return { mode: 'url', url: String(url) };
   }
 
   if (b64) {
-    const clean = String(b64).replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
-    if (!clean || clean.length < 32) {
-      throw new Error('TCS returned an empty label PDF. Try another print layout (e.g. 6×4).');
-    }
-
-    let bytes;
-    try {
-      const binary = atob(clean);
-      bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    } catch {
-      throw new Error('TCS label PDF could not be decoded. Try again or use another printtype.');
-    }
-
-    // PDF magic header — reject blank/corrupt blobs that render as empty pages
-    const head = String.fromCharCode(...bytes.slice(0, 5));
-    if (head !== '%PDF-') {
-      throw new Error(
-        'TCS label response was not a valid PDF (blank page). Try Shipment Label 6×4 or Single copy.'
-      );
-    }
-
-    const blob = new Blob([bytes], { type: contentType || 'application/pdf' });
-    if (blob.size < 100) {
-      throw new Error('TCS label PDF is empty. Check the consignment number and try again.');
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
-    const win = window.open(objectUrl, '_blank', 'noopener,noreferrer');
-    if (!win) {
-      URL.revokeObjectURL(objectUrl);
-      throw new Error('Popup blocked — allow popups to open the TCS label.');
-    }
-    // Give the PDF viewer time to load before revoking
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
-    return { mode: 'blob', url: objectUrl, bytes: bytes.length };
+    const bytes = decodeLabelBase64ToBytes(b64);
+    return openPdfBytesInNewTab(bytes, contentType);
   }
 
-  throw new Error('No TCS label PDF returned from the courier API.');
+  throw new Error('No courier label PDF returned from the courier API.');
+};
+
+const decodeLabelBase64ToBytes = (b64) => {
+  const clean = String(b64 || '').replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+  if (!clean || clean.length < 32) {
+    throw new Error('Courier returned an empty label PDF. Try another print layout (e.g. 6×4).');
+  }
+
+  let bytes;
+  try {
+    const binary = atob(clean);
+    bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  } catch {
+    throw new Error('Courier label PDF could not be decoded. Try again or use another printtype.');
+  }
+
+  const head = String.fromCharCode(...bytes.slice(0, 5));
+  if (head !== '%PDF-') {
+    throw new Error(
+      'Courier label response was not a valid PDF (blank page). Try Shipment Label 6×4 or Single copy.'
+    );
+  }
+  if (bytes.length < 100) {
+    throw new Error('Courier label PDF is empty. Check the consignment number and try again.');
+  }
+  return bytes;
+};
+
+const openPdfBytesInNewTab = (bytes, contentType = 'application/pdf') => {
+  const blob = new Blob([bytes], { type: contentType || 'application/pdf' });
+  if (blob.size < 100) {
+    throw new Error('Courier label PDF is empty. Check the consignment number and try again.');
+  }
+  const objectUrl = URL.createObjectURL(blob);
+  const win = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error('Popup blocked — allow popups to open the courier label.');
+  }
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+  return { mode: 'blob', url: objectUrl, bytes: bytes.length };
+};
+
+/** Resolve a label payload to raw PDF bytes (fetch remote URL when needed). */
+export const courierLabelToPdfBytes = async (label = {}) => {
+  const b64 = label.label_base64 || label.labelBase64 || '';
+  if (b64) return decodeLabelBase64ToBytes(b64);
+
+  const url = label.label_url || label.labelUrl || '';
+  if (url && /^https?:\/\//i.test(String(url))) {
+    const response = await fetch(String(url), { method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`Failed to download label PDF (HTTP ${response.status})`);
+    }
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const head = String.fromCharCode(...bytes.slice(0, 5));
+    if (head !== '%PDF-') {
+      throw new Error('Downloaded label was not a valid PDF.');
+    }
+    return bytes;
+  }
+
+  throw new Error('No courier label PDF returned from the courier API.');
+};
+
+/**
+ * Merge one or more courier label PDFs and open a single tab.
+ * Avoids popup blockers and keeps bulk print in one document.
+ */
+export const openCourierLabelsForPrint = async (labels = []) => {
+  const list = (Array.isArray(labels) ? labels : [labels]).filter(Boolean);
+  if (!list.length) throw new Error('No courier label PDF returned from the courier API.');
+
+  if (list.length === 1) {
+    return openCourierLabelForPrint(list[0]);
+  }
+
+  const { PDFDocument } = await import('pdf-lib');
+  const merged = await PDFDocument.create();
+
+  for (let i = 0; i < list.length; i += 1) {
+    const bytes = await courierLabelToPdfBytes(list[i]);
+    const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+  }
+
+  const mergedBytes = await merged.save();
+  return openPdfBytesInNewTab(mergedBytes, 'application/pdf');
 };
 
 /** Pull tracking id / url / courier from create-shipment API payloads. */

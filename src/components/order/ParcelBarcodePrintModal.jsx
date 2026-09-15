@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   TCS_LABEL_PRINT_TYPES,
   fetchCourierLabelRequest,
-  openCourierLabelForPrint,
+  openCourierLabelsForPrint,
 } from '../../features/courier/courierAPI.js';
 
 /**
  * Print official courier label PDF (TCS CNPrint / PostEx airway bill).
  * Pass `orders` for bulk print; otherwise uses single order props.
+ * Bulk prints are merged into one PDF / one browser tab.
  */
 export default function ParcelBarcodePrintModal({
   open,
@@ -78,14 +79,14 @@ export default function ParcelBarcodePrintModal({
     setProgress('');
 
     const failures = [];
-    let opened = 0;
+    const labels = [];
 
     try {
       for (let i = 0; i < orderList.length; i += 1) {
         const order = orderList[i];
         if (isBulk) {
           setProgress(
-            `Printing ${i + 1} of ${orderList.length}` +
+            `Fetching ${i + 1} of ${orderList.length}` +
               (order.orderNo ? ` (${order.orderNo})` : '') +
               '…'
           );
@@ -96,8 +97,7 @@ export default function ParcelBarcodePrintModal({
             shipperDetails,
             accounttype: 1,
           });
-          openCourierLabelForPrint(label);
-          opened += 1;
+          labels.push(label);
         } catch (err) {
           failures.push({
             orderNo: order.orderNo || order.orderId,
@@ -107,13 +107,16 @@ export default function ParcelBarcodePrintModal({
         }
       }
 
-      setProgress('');
-      if (!opened) {
+      if (!labels.length) {
+        setProgress('');
         setStatus('failed');
         setError(failures[0]?.message || 'Failed to fetch courier label PDF');
         return;
       }
 
+      if (isBulk) setProgress(`Merging ${labels.length} labels…`);
+      await openCourierLabelsForPrint(labels);
+      setProgress('');
       setStatus('succeeded');
       if (failures.length) {
         setError(
@@ -163,7 +166,9 @@ export default function ParcelBarcodePrintModal({
             </div>
             <div className="modal-body">
               <p className="text-sm text-muted mb-3">
-                Official courier consignment label (PDF) — stick on the parcel.
+                {isBulk
+                  ? 'Official courier labels are merged into one PDF (single tab).'
+                  : 'Official courier consignment label (PDF) — stick on the parcel.'}
               </p>
 
               {isBulk ? (
@@ -265,7 +270,7 @@ export default function ParcelBarcodePrintModal({
               {status === 'succeeded' ? (
                 <div className="alert alert-success py-2 mt-3 mb-0">
                   {isBulk
-                    ? 'Labels opened. Print from each PDF window and stick on the parcels.'
+                    ? 'Merged labels opened in one tab. Print from that PDF window.'
                     : 'Label opened. Print from the PDF window and stick it on the parcel.'}
                 </div>
               ) : null}
@@ -292,7 +297,7 @@ export default function ParcelBarcodePrintModal({
                       role="status"
                       aria-hidden="true"
                     />
-                    Fetching PDF…
+                    {isBulk ? 'Preparing…' : 'Fetching PDF…'}
                   </>
                 ) : isBulk ? (
                   `Print ${orderList.length} labels`
