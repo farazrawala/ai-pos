@@ -66,10 +66,27 @@ const pickupAddressLabel = (item) => {
   return id || 'Pickup address';
 };
 
+const pickDefaultCodAmount = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return '';
+  return String(n);
+};
+
 /**
- * Select a saved courier integration and create a shipment for an order.
+ * Select a saved courier integration and create a shipment for one or more orders.
+ * Pass `orders` for bulk booking; otherwise uses single `orderId` / `orderNo`.
  */
-export default function CreateShipmentModal({ open, orderId, orderNo, onClose, onSaved }) {
+export default function CreateShipmentModal({
+  open,
+  orderId,
+  orderNo,
+  orderTotal = '',
+  suggestCod = false,
+  city = '',
+  orders = null,
+  onClose,
+  onSaved,
+}) {
   const [couriers, setCouriers] = useState([]);
   const [couriersStatus, setCouriersStatus] = useState('idle');
   const [couriersError, setCouriersError] = useState(null);
@@ -77,12 +94,43 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   const [saveStatus, setSaveStatus] = useState('idle');
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(null);
+  const [saveProgress, setSaveProgress] = useState('');
   const [bookingOptions, setBookingOptions] = useState(null);
   const [bookingOptionsStatus, setBookingOptionsStatus] = useState('idle');
   const [bookingOptionsError, setBookingOptionsError] = useState(null);
   const [courierCompany, setCourierCompany] = useState('');
   const [courierOption, setCourierOption] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
+  const [isCod, setIsCod] = useState(false);
+  const [codAmount, setCodAmount] = useState('');
+
+  const orderList = useMemo(() => {
+    if (Array.isArray(orders) && orders.length > 0) {
+      return orders
+        .map((item) => ({
+          orderId: String(item?.orderId || item?.id || '').trim(),
+          orderNo: String(item?.orderNo || item?.order_no || '').trim(),
+          orderTotal: item?.orderTotal ?? item?.order_total ?? '',
+          suggestCod: Boolean(item?.suggestCod),
+          city: String(item?.city || '').trim(),
+        }))
+        .filter((item) => item.orderId);
+    }
+    const id = String(orderId || '').trim();
+    if (!id) return [];
+    return [
+      {
+        orderId: id,
+        orderNo: String(orderNo || '').trim(),
+        orderTotal,
+        suggestCod: Boolean(suggestCod),
+        city: String(city || '').trim(),
+      },
+    ];
+  }, [orders, orderId, orderNo, orderTotal, suggestCod, city]);
+
+  const isBulk = orderList.length > 1;
+  const primaryOrder = orderList[0] || null;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -92,6 +140,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     setCouriersError(null);
     setSaveError(null);
     setSaveSuccess(null);
+    setSaveProgress('');
     setSaveStatus('idle');
     setSelectedCourierId('');
     setCouriers([]);
@@ -101,6 +150,11 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     setCourierCompany('');
     setCourierOption('');
     setPickupLocation('');
+    const defaultAmount = pickDefaultCodAmount(primaryOrder?.orderTotal ?? orderTotal);
+    // PostEx bookings are COD by default — pre-check when we have an amount,
+    // otherwise still pre-check so the user must enter/confirm the amount.
+    setIsCod(true);
+    setCodAmount(defaultAmount);
 
     fetchCouriersRequest({ limit: 500 })
       .then((result) => {
@@ -123,7 +177,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
     return () => {
       cancelled = true;
     };
-  }, [open, orderId]);
+  }, [open, orderList, primaryOrder?.orderTotal, orderTotal, suggestCod]);
 
   const selectedCourier = useMemo(
     () => couriers.find((item) => String(pickCourierId(item)) === String(selectedCourierId)),
@@ -215,7 +269,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
   };
 
   const handleSave = async () => {
-    if (!orderId) {
+    if (!orderList.length) {
       setSaveError('Missing order id.');
       return;
     }
@@ -260,9 +314,19 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
           ).trim();
     const courierId = pickCourierId(selected);
 
+    if (isCod && !isBulk) {
+      const amount = Number(codAmount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        setSaveError('Enter a valid COD total amount.');
+        setSaveStatus('failed');
+        return;
+      }
+    }
+
     setSaveStatus('loading');
     setSaveError(null);
     setSaveSuccess(null);
+    setSaveProgress('');
 
     try {
       // Backend builds PostEx payload from the courier record — persist 001 on the courier first.
@@ -280,118 +344,204 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
         }
       }
 
-      const result = await createCourierShipmentRequest(orderId, {
-        provider,
-        courierId,
-        ...(pickupCode
-          ? {
-              account_no: pickupCode,
-              pickupAddressCode: pickupCode,
-              storeAddressCode: isPostex ? pickupCode : undefined,
-            }
-          : {}),
-        ...(isFlagshipSelected
-          ? {
-              courier_company: courierCompany,
-              courier_option: courierOption,
-              pickuplocation: pickupLocation,
-            }
-          : {}),
-      });
-      if (result?.queued) {
-        throw new Error(
-          result.message ||
-            'Shipment was queued but no tracking id was returned. Check courier credentials and try again.'
-        );
-      }
+      const successes = [];
+      const failures = [];
 
-      const trackingId = result?.tracking_id || result?.tracking_number || '';
-      const apiSaysSuccess =
-        result?.success === true ||
-        isSuccessMessage(result?.message) ||
-        isSuccessMessage(result?.status);
+      for (let i = 0; i < orderList.length; i += 1) {
+        const order = orderList[i];
+        if (isBulk) {
+          setSaveProgress(
+            `Booking ${i + 1} of ${orderList.length}` +
+              (order.orderNo ? ` (${order.orderNo})` : '') +
+              '…'
+          );
+        }
 
-      if (!trackingId && !apiSaysSuccess) {
-        throw new Error(
-          extractCourierShipmentErrorMessage(
+        const orderCodAmount = isBulk
+          ? Number(pickDefaultCodAmount(order.orderTotal) || 0)
+          : Number(codAmount);
+        const orderIsCod = isCod && (!isBulk || Number.isFinite(orderCodAmount));
+
+        try {
+          const result = await createCourierShipmentRequest(order.orderId, {
+            provider,
+            courierId,
+            isCod: orderIsCod,
+            codAmount: orderIsCod ? orderCodAmount : 0,
+            ...(order.city ? { city: order.city } : {}),
+            ...(pickupCode
+              ? {
+                  account_no: pickupCode,
+                  pickupAddressCode: pickupCode,
+                  storeAddressCode: isPostex ? pickupCode : undefined,
+                }
+              : {}),
+            ...(isFlagshipSelected
+              ? {
+                  courier_company: courierCompany,
+                  courier_option: courierOption,
+                  pickuplocation: pickupLocation,
+                }
+              : {}),
+          });
+          if (result?.queued) {
+            throw new Error(
+              result.message ||
+                'Shipment was queued but no tracking id was returned. Check courier credentials and try again.'
+            );
+          }
+
+          const trackingId = result?.tracking_id || result?.tracking_number || '';
+          const apiSaysSuccess =
+            result?.success === true ||
+            isSuccessMessage(result?.message) ||
+            isSuccessMessage(result?.status);
+
+          if (!trackingId && !apiSaysSuccess) {
+            throw new Error(
+              extractCourierShipmentErrorMessage(
+                result,
+                'Courier booking succeeded without a tracking id. Check the courier API response.'
+              )
+            );
+          }
+
+          successes.push({
+            orderId: order.orderId,
+            orderNo: order.orderNo,
+            provider: result?.courier || provider,
+            courierCompany: isFlagshipSelected ? courierCompany : '',
             result,
-            'Courier booking succeeded without a tracking id. Check the courier API response.'
-          )
-        );
+          });
+        } catch (err) {
+          const payload = err?.payload || err?.data || err?.response || null;
+          if (
+            err?.code === 'COURIER_COMPANY_REQUIRED' ||
+            payload?.code === 'COURIER_COMPANY_REQUIRED'
+          ) {
+            applyCompanyRequiredPayload(payload || {});
+            setSaveStatus('idle');
+            setSaveProgress('');
+            setSaveError(
+              payload?.message ||
+                err?.message ||
+                'Select a courier company to book with.'
+            );
+            return;
+          }
+
+          let msg =
+            extractCourierShipmentErrorMessage(payload, '') ||
+            err?.message ||
+            'Failed to create shipment';
+
+          if (
+            /405|not allowed|method not allowed/i.test(msg) &&
+            String(selected?.type || '').toLowerCase() === 'postex'
+          ) {
+            msg = postexUrlFixMessage(selected?.url);
+          } else if (
+            isPostexAuthFailure(msg) &&
+            String(selected?.type || '').toLowerCase() === 'postex'
+          ) {
+            msg = postexAuthFixMessage();
+          } else if (
+            /pickup address code|store address code/i.test(msg) &&
+            String(selected?.type || '').toLowerCase() === 'postex'
+          ) {
+            msg =
+              `${msg} Frontend sent pickup/store code 001 and saved account_no=001 on the courier. ` +
+              'If this persists, the backend courier/create handler is not mapping account_no → ' +
+              'PostEx pickupAddressCode/storeAddressCode.';
+          } else if (
+            /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo/i.test(msg) &&
+            isFlagshipCourier(selected)
+          ) {
+            msg =
+              'Flagship host could not be reached (DNS). Set the courier API URL to ' +
+              'https://partners.flaship.pk, put the Flaship API key in Token, save, then retry.';
+          }
+
+          if (isSuccessMessage(msg)) {
+            successes.push({
+              orderId: order.orderId,
+              orderNo: order.orderNo,
+              provider,
+              courierCompany: isFlagshipSelected ? courierCompany : '',
+              result: { message: msg, courier: provider },
+            });
+          } else {
+            failures.push({
+              orderId: order.orderId,
+              orderNo: order.orderNo,
+              message: msg,
+            });
+            if (!isBulk) {
+              setSaveStatus('failed');
+              setSaveProgress('');
+              setSaveError(msg);
+              return;
+            }
+          }
+        }
       }
 
-      const successText = trackingId
-        ? `Shipment created. Tracking ID: ${trackingId}`
-        : isSuccessMessage(result?.message)
-          ? 'SUCCESS'
-          : result?.message || 'Shipment created successfully.';
+      setSaveProgress('');
 
-      setSaveStatus('succeeded');
-      setSaveSuccess(successText);
-      onSaved?.({
-        orderId,
-        provider: result?.courier || provider,
-        courierCompany: isFlagshipSelected ? courierCompany : '',
-        result,
-      });
-      window.setTimeout(() => onClose?.(), 900);
-    } catch (err) {
-      const payload = err?.payload || err?.data || err?.response || null;
-      if (
-        err?.code === 'COURIER_COMPANY_REQUIRED' ||
-        payload?.code === 'COURIER_COMPANY_REQUIRED'
-      ) {
-        applyCompanyRequiredPayload(payload || {});
-        setSaveStatus('idle');
+      if (!successes.length) {
+        setSaveStatus('failed');
         setSaveError(
-          payload?.message ||
-            err?.message ||
-            'Select a courier company to book with.'
+          failures[0]?.message ||
+            `Failed to create shipment for ${orderList.length} order${orderList.length === 1 ? '' : 's'}.`
         );
         return;
       }
 
+      const successText = isBulk
+        ? `Created ${successes.length} of ${orderList.length} shipment${orderList.length === 1 ? '' : 's'}` +
+          (failures.length ? ` (${failures.length} failed)` : '') +
+          '.'
+        : (() => {
+            const trackingId =
+              successes[0]?.result?.tracking_id || successes[0]?.result?.tracking_number || '';
+            return trackingId
+              ? `Shipment created. Tracking ID: ${trackingId}`
+              : isSuccessMessage(successes[0]?.result?.message)
+                ? 'SUCCESS'
+                : successes[0]?.result?.message || 'Shipment created successfully.';
+          })();
+
+      setSaveStatus('succeeded');
+      setSaveSuccess(successText);
+      if (failures.length && isBulk) {
+        setSaveError(
+          failures
+            .map(
+              (item) =>
+                `${item.orderNo || item.orderId}: ${item.message}`
+            )
+            .join('\n')
+        );
+      }
+
+      if (isBulk) {
+        onSaved?.({
+          bulk: true,
+          results: successes,
+          failCount: failures.length,
+        });
+      } else {
+        onSaved?.(successes[0]);
+      }
+      window.setTimeout(() => onClose?.(), failures.length && isBulk ? 1800 : 900);
+    } catch (err) {
+      const payload = err?.payload || err?.data || err?.response || null;
       let msg =
         extractCourierShipmentErrorMessage(payload, '') ||
         err?.message ||
         'Failed to create shipment';
-
-      if (
-        /405|not allowed|method not allowed/i.test(msg) &&
-        String(selected?.type || '').toLowerCase() === 'postex'
-      ) {
-        msg = postexUrlFixMessage(selected?.url);
-      } else if (
-        isPostexAuthFailure(msg) &&
-        String(selected?.type || '').toLowerCase() === 'postex'
-      ) {
-        msg = postexAuthFixMessage();
-      } else if (
-        /pickup address code|store address code/i.test(msg) &&
-        String(selected?.type || '').toLowerCase() === 'postex'
-      ) {
-        msg =
-          `${msg} Frontend sent pickup/store code 001 and saved account_no=001 on the courier. ` +
-          'If this persists, the backend courier/create handler is not mapping account_no → ' +
-          'PostEx pickupAddressCode/storeAddressCode.';
-      } else if (
-        /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo/i.test(msg) &&
-        isFlagshipCourier(selected)
-      ) {
-        msg =
-          'Flagship host could not be reached (DNS). Set the courier API URL to ' +
-          'https://partners.flaship.pk, put the Flaship API key in Token, save, then retry.';
-      }
-
-      // Provider sometimes returns "SUCCESS" as the only message — show green, not red.
-      if (isSuccessMessage(msg)) {
-        setSaveStatus('succeeded');
-        setSaveSuccess('SUCCESS');
-        onSaved?.({ orderId, provider, result: { message: msg, courier: provider } });
-        window.setTimeout(() => onClose?.(), 900);
-        return;
-      }
       setSaveStatus('failed');
+      setSaveProgress('');
       setSaveError(msg);
     }
   };
@@ -400,7 +550,11 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
 
   const isSaving = saveStatus === 'loading';
   const isLoadingCouriers = couriersStatus === 'loading';
-  const titleOrder = orderNo && orderNo !== '—' ? orderNo : orderId || 'order';
+  const titleOrder = isBulk
+    ? `${orderList.length} orders`
+    : primaryOrder?.orderNo && primaryOrder.orderNo !== '—'
+      ? primaryOrder.orderNo
+      : primaryOrder?.orderId || 'order';
   const selectedCourierEditId = selectedCourier ? pickCourierId(selectedCourier) : '';
 
   return (
@@ -417,7 +571,7 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="createShipmentModalLabel">
-                Add tracking
+                {isBulk ? 'Add tracking (bulk)' : 'Add tracking'}
               </h5>
               <button
                 type="button"
@@ -429,9 +583,20 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
             </div>
             <div className="modal-body">
               <p className="text-sm text-muted mb-3">
-                Select a courier to create a shipment for order{' '}
+                Select a courier to create {isBulk ? 'shipments for' : 'a shipment for order'}{' '}
                 <span className="font-weight-bold text-dark">{titleOrder}</span>.
               </p>
+
+              {isBulk ? (
+                <div className="border rounded p-2 mb-3 bg-light small" style={{ maxHeight: 120, overflowY: 'auto' }}>
+                  {orderList.map((order) => (
+                    <div key={order.orderId} className="d-flex justify-content-between gap-2">
+                      <span className="fw-semibold">{order.orderNo || order.orderId}</span>
+                      <span className="text-muted text-truncate">{order.orderId}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="mb-0">
                 <label htmlFor="createShipmentProvider" className="form-label">
@@ -470,6 +635,58 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                   </p>
                 )}
               </div>
+
+              <div className="form-check mt-3 mb-0">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="createShipmentIsCod"
+                  checked={isCod}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsCod(checked);
+                    if (checked && !String(codAmount).trim()) {
+                      setCodAmount(pickDefaultCodAmount(primaryOrder?.orderTotal ?? orderTotal));
+                    }
+                    if (saveError) setSaveError(null);
+                  }}
+                  disabled={isSaving}
+                />
+                <label className="form-check-label" htmlFor="createShipmentIsCod">
+                  COD (cash on delivery)
+                </label>
+              </div>
+
+              {isCod && !isBulk ? (
+                <div className="mt-3 mb-0">
+                  <label className="form-label" htmlFor="createShipmentCodAmount">
+                    Total amount <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="createShipmentCodAmount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="form-control"
+                    value={codAmount}
+                    onChange={(e) => {
+                      setCodAmount(e.target.value);
+                      if (saveError) setSaveError(null);
+                    }}
+                    disabled={isSaving}
+                    placeholder="e.g. 126.00"
+                  />
+                  <p className="text-xs text-muted mb-0 mt-1">
+                    Sent to the courier as collectable COD amount on the label.
+                  </p>
+                </div>
+              ) : null}
+
+              {isCod && isBulk ? (
+                <p className="text-xs text-muted mb-0 mt-2">
+                  COD amount will use each order&apos;s total.
+                </p>
+              ) : null}
 
               {isFlagship && bookingOptionsStatus === 'loading' ? (
                 <p className="text-xs text-muted mb-0 mt-3">
@@ -572,6 +789,9 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                 </div>
               ) : null}
 
+              {saveProgress ? (
+                <p className="text-xs text-muted mb-0 mt-3">{saveProgress}</p>
+              ) : null}
               {couriersError ? (
                 <div className="alert alert-danger py-2 mt-3 mb-0">{couriersError}</div>
               ) : null}
@@ -627,8 +847,10 @@ export default function CreateShipmentModal({ open, orderId, orderNo, onClose, o
                       role="status"
                       aria-hidden="true"
                     />
-                    Creating…
+                    {isBulk ? 'Creating…' : 'Creating…'}
                   </>
+                ) : isBulk ? (
+                  `Create ${orderList.length} shipments`
                 ) : (
                   'Create shipment'
                 )}

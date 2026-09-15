@@ -471,6 +471,17 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
     typeof options === 'object'
       ? options?.pickuplocation || options?.pickup_location || options?.pickupLocation || ''
       : '';
+  const isCod =
+    typeof options === 'object'
+      ? options?.isCod === true ||
+        options?.isCod === 'true' ||
+        options?.is_cod === true ||
+        options?.cod === true
+      : false;
+  const codAmount =
+    typeof options === 'object'
+      ? options?.codAmount ?? options?.cod_amount ?? options?.amount ?? options?.total_amount
+      : undefined;
 
   const body = {
     // Book immediately — do not accept a queue ack without a tracking number.
@@ -510,6 +521,32 @@ export const createCourierShipmentRequest = async (orderId, options = {}) => {
     const loc = String(pickupLocation).trim();
     body.pickuplocation = loc;
     body.pickup_location = loc;
+  }
+  body.isCod = Boolean(isCod);
+  body.is_cod = Boolean(isCod);
+  if (isCod && codAmount != null && codAmount !== '') {
+    body.codAmount = Number(codAmount);
+    body.cod_amount = Number(codAmount);
+  } else {
+    body.codAmount = 0;
+    body.cod_amount = 0;
+  }
+
+  const city =
+    typeof options === 'object'
+      ? options?.city ||
+        options?.destinationCity ||
+        options?.destination_city ||
+        options?.cityName ||
+        options?.city_name ||
+        ''
+      : '';
+  if (city) {
+    const cityName = String(city).trim();
+    body.city = cityName;
+    body.destinationCity = cityName;
+    body.destination_city = cityName;
+    body.cityName = cityName;
   }
 
   const response = await fetch(`${BASE_URL}courier/create/${encodeURIComponent(orderId)}`, {
@@ -624,6 +661,12 @@ export const fetchCourierLabelRequest = async (orderId, options = {}) => {
   }
   if (options.accounttype != null && options.accounttype !== '') {
     query.set('accounttype', String(options.accounttype));
+  }
+  if (options.isCod === true || options.isCod === 'true' || options.isCod === 1) {
+    query.set('isCod', 'true');
+    if (options.codAmount != null && options.codAmount !== '') {
+      query.set('codAmount', String(options.codAmount));
+    }
   }
 
   const qs = query.toString();

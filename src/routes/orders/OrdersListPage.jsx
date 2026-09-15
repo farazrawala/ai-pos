@@ -32,6 +32,8 @@ import {
   FaCopy,
   FaBarcode,
   FaArrowUpRightFromSquare,
+  FaPrint,
+  FaCodeMerge,
 } from 'react-icons/fa6';
 import {
   fetchOrders,
@@ -203,6 +205,37 @@ const getOrderItemsTotalDisplay = (row) => {
   const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
   if (!Number.isFinite(n)) return String(raw);
   return n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+/** Remaining balance (COD collect amount) and order total for label print prefills. */
+const pickOrderLabelAmounts = (row) => {
+  if (!row || typeof row !== 'object') return { orderTotal: '', suggestCod: false };
+  const pickPositive = (...vals) => {
+    for (const v of vals) {
+      if (v == null || v === '') continue;
+      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
+  };
+  const total = pickPositive(
+    row.total_amount,
+    row.totalAmount,
+    row.order_items_total,
+    row.orderItemsTotal,
+    row.items_total,
+    row.itemsTotal,
+    row.total,
+    row.grand_total
+  );
+  if (!(total > 0)) return { orderTotal: '', suggestCod: false };
+  const received = Number(row.amount_received ?? row.payment_made ?? row.paymentMade ?? 0);
+  const remaining = Math.max(0, total - (Number.isFinite(received) ? received : 0));
+  const suggestCod = remaining > 0 || total > 0;
+  return {
+    orderTotal: String(remaining > 0 ? remaining : total),
+    suggestCod,
+  };
 };
 
 const orderDisplayStatus = (row) => {
@@ -836,7 +869,15 @@ export default function OrdersListPage({ config }) {
   const [editLoadingId, setEditLoadingId] = useState('');
   const [fetchOrdersModalOpen, setFetchOrdersModalOpen] = useState(false);
   const [syncOrdersModalOpen, setSyncOrdersModalOpen] = useState(false);
-  const [shipmentModal, setShipmentModal] = useState({ open: false, orderId: '', orderNo: '' });
+  const [shipmentModal, setShipmentModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
+    orderTotal: '',
+    suggestCod: false,
+    city: '',
+    orders: null,
+  });
   const [statusModal, setStatusModal] = useState({
     open: false,
     orderId: '',
@@ -890,6 +931,9 @@ export default function OrdersListPage({ config }) {
     provider: '',
     customerName: '',
     city: '',
+    orderTotal: '',
+    suggestCod: false,
+    orders: null,
   });
   const [trackingStatusModal, setTrackingStatusModal] = useState({
     open: false,
@@ -1389,12 +1433,164 @@ export default function OrdersListPage({ config }) {
     isBigcommerceView,
   ]);
 
-  const handleOpenShipmentModal = (orderId, orderNo) => {
+  const handleOpenShipmentModal = (orderId, orderNo, orderRow = null) => {
     if (!orderId) {
       toast.error('Could not add tracking: missing order id.');
       return;
     }
-    setShipmentModal({ open: true, orderId: String(orderId), orderNo: orderNo || '' });
+    const amounts = pickOrderLabelAmounts(orderRow);
+    setShipmentModal({
+      open: true,
+      orderId: String(orderId),
+      orderNo: orderNo || '',
+      orderTotal: amounts.orderTotal,
+      suggestCod: amounts.suggestCod,
+      city: String(orderRow?.city || '').trim(),
+      orders: null,
+    });
+  };
+
+  const getSelectedOrderRows = () => {
+    const ids = new Set(Array.from(selectedOrderIds).map((id) => String(id)));
+    if (!ids.size) return [];
+    return (Array.isArray(data) ? data : []).filter((row) =>
+      ids.has(String(pickOrderDocumentId(row) || ''))
+    );
+  };
+
+  const handleBulkAddTracking = () => {
+    const rows = getSelectedOrderRows();
+    if (!rows.length) {
+      toast.error('Select one or more orders to add tracking.');
+      return;
+    }
+
+    const eligible = [];
+    let skippedWithTracking = 0;
+    for (const row of rows) {
+      const orderId = pickOrderDocumentId(row);
+      if (!orderId) continue;
+      const trackingInfo = resolveOrderTrackingInfo(
+        row,
+        shipmentOverrides[String(orderId)] || null
+      );
+      const hasActiveTracking =
+        Boolean(String(trackingInfo?.trackingId || '').trim()) &&
+        !isCancelledShipmentStatus(trackingInfo?.trackingStatus);
+      if (hasActiveTracking) {
+        skippedWithTracking += 1;
+        continue;
+      }
+      const orderNo = row?.order_no || row?.orderNo || '';
+      const amounts = pickOrderLabelAmounts(row);
+      eligible.push({
+        orderId: String(orderId),
+        orderNo: orderNo || '',
+        orderTotal: amounts.orderTotal,
+        suggestCod: amounts.suggestCod,
+        city: String(row?.city || '').trim(),
+      });
+    }
+
+    if (!eligible.length) {
+      toast.error(
+        skippedWithTracking
+          ? 'Selected orders already have tracking. Use Print labels instead.'
+          : 'No eligible orders to add tracking.'
+      );
+      return;
+    }
+
+    if (skippedWithTracking) {
+      toast.info(
+        `Skipping ${skippedWithTracking} order${skippedWithTracking === 1 ? '' : 's'} that already have tracking.`
+      );
+    }
+
+    if (eligible.length === 1) {
+      setShipmentModal({
+        open: true,
+        orderId: eligible[0].orderId,
+        orderNo: eligible[0].orderNo,
+        orderTotal: eligible[0].orderTotal,
+        suggestCod: eligible[0].suggestCod,
+        city: eligible[0].city || '',
+        orders: null,
+      });
+      return;
+    }
+
+    setShipmentModal({
+      open: true,
+      orderId: '',
+      orderNo: '',
+      orderTotal: '',
+      suggestCod: false,
+      city: '',
+      orders: eligible,
+    });
+  };
+
+  const handleBulkPrintLabels = () => {
+    const rows = getSelectedOrderRows();
+    if (!rows.length) {
+      toast.error('Select one or more orders to print labels.');
+      return;
+    }
+
+    const printable = [];
+    for (const row of rows) {
+      const orderId = pickOrderDocumentId(row);
+      if (!orderId) continue;
+      const trackingInfo = resolveOrderTrackingInfo(
+        row,
+        shipmentOverrides[String(orderId)] || null
+      );
+      const trackingId = String(trackingInfo?.trackingId || '').trim();
+      if (!trackingId) continue;
+      printable.push({
+        orderId: String(orderId),
+        trackingId,
+        orderNo: row?.order_no || row?.orderNo || '',
+        provider: trackingInfo?.provider || '',
+        customerName: row?.name || '',
+        city: row?.city || '',
+      });
+    }
+
+    if (!printable.length) {
+      toast.error('No selected orders have a tracking number to print.');
+      return;
+    }
+
+    if (printable.length === 1) {
+      setParcelBarcodeModal({
+        open: true,
+        orderId: printable[0].orderId,
+        trackingId: printable[0].trackingId,
+        orderNo: printable[0].orderNo,
+        provider: printable[0].provider,
+        customerName: printable[0].customerName,
+        city: printable[0].city,
+        orderTotal: '',
+        suggestCod: false,
+        orders: null,
+      });
+      return;
+    }
+
+    setParcelBarcodeModal({
+      open: true,
+      orderId: '',
+      trackingId: '',
+      orderNo: '',
+      provider: '',
+      customerName: '',
+      city: '',
+      orderTotal: '',
+      suggestCod: false,
+      orders: printable,
+    });
   };
 
   const handleOpenStatusModal = (row) => {
@@ -1674,6 +1870,8 @@ export default function OrdersListPage({ config }) {
     provider,
     customerName,
     city,
+    orderTotal,
+    suggestCod,
   } = {}) => {
     const cn = String(trackingId || '').trim();
     const oid = String(orderId || '').trim();
@@ -1689,6 +1887,9 @@ export default function OrdersListPage({ config }) {
       provider: provider || '',
       customerName: customerName || '',
       city: city || '',
+      orderTotal: orderTotal != null && orderTotal !== '' ? String(orderTotal) : '',
+      suggestCod: Boolean(suggestCod),
+      orders: null,
     });
   };
 
@@ -1766,7 +1967,73 @@ export default function OrdersListPage({ config }) {
     }
   };
 
-  const handleShipmentCreated = ({ orderId, provider, courierCompany, result } = {}) => {
+  const handleShipmentCreated = ({ orderId, provider, courierCompany, result, bulk, results, failCount } = {}) => {
+    if (bulk && Array.isArray(results)) {
+      const printable = [];
+      const overrides = {};
+      results.forEach((item) => {
+        const id = String(item?.orderId || '').trim();
+        const trackingId = item?.result?.tracking_id || item?.result?.tracking_number || '';
+        const trackingUrl = item?.result?.tracking_url || '';
+        const courier = item?.result?.courier || item?.provider || provider || '';
+        const carrier = String(
+          item?.courierCompany || item?.result?.courier_company || item?.result?.courierCompany || ''
+        ).trim();
+        if (!id || !trackingId) return;
+        overrides[id] = {
+          tracking_id: trackingId,
+          tracking_number: trackingId,
+          tracking_url: trackingUrl,
+          courier,
+          provider: courier,
+          ...(carrier ? { courier_company: carrier, courierCompany: carrier } : {}),
+        };
+        const orderRow = Array.isArray(data)
+          ? data.find((row) => String(pickOrderDocumentId(row)) === id)
+          : null;
+        printable.push({
+          orderId: id,
+          trackingId,
+          orderNo: item?.orderNo || orderRow?.order_no || orderRow?.orderNo || '',
+          provider: courier,
+          customerName: orderRow?.name || '',
+          city: orderRow?.city || '',
+        });
+      });
+      if (Object.keys(overrides).length) {
+        setShipmentOverrides((prev) => ({ ...prev, ...overrides }));
+      }
+
+      const ok = results.length;
+      if (failCount) {
+        toast.warning(
+          `Created ${ok} shipment${ok === 1 ? '' : 's'}; ${failCount} failed.`
+        );
+      } else {
+        toast.success(`Created ${ok} shipment${ok === 1 ? '' : 's'}.`);
+      }
+
+      if (printable.length === 1) {
+        handleOpenParcelBarcode(printable[0]);
+      } else if (printable.length > 1) {
+        setParcelBarcodeModal({
+          open: true,
+          orderId: '',
+          trackingId: '',
+          orderNo: '',
+          provider: '',
+          customerName: '',
+          city: '',
+          orderTotal: '',
+          suggestCod: false,
+          orders: printable,
+        });
+      }
+
+      refreshOrderList();
+      return;
+    }
+
     const trackingId = result?.tracking_id || result?.tracking_number || '';
     const trackingUrl = result?.tracking_url || '';
     const courier = result?.courier || provider || '';
@@ -1815,6 +2082,7 @@ export default function OrdersListPage({ config }) {
         provider: courier,
         customerName: orderRow?.name || '',
         city: orderRow?.city || '',
+        ...pickOrderLabelAmounts(orderRow),
       });
     }
 
@@ -2262,101 +2530,6 @@ export default function OrdersListPage({ config }) {
                 </div>
                 <div className="col-lg-7 col-md-6">
                   <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    {(!isBigcommerceView && (canBulkChangeStatus || showTagFilter)) ? (
-                      <div className="d-flex align-items-center gap-2 me-md-auto">
-                        {canBulkChangeStatus ? (
-                          <select
-                            id={`${idPrefix}-bulk-status`}
-                            className="form-select form-select-sm"
-                            style={{ minWidth: '180px', maxWidth: '220px' }}
-                            value={bulkStatusValue}
-                            disabled={
-                              selectedOrderIds.size === 0 ||
-                              bulkStatusUpdating ||
-                              mergeOrdersUpdating
-                            }
-                            onChange={handleBulkStatusChange}
-                            aria-label="Change status of selected orders"
-                            title={
-                              selectedOrderIds.size === 0
-                                ? 'Select one or more orders to change status'
-                                : `Change status for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
-                            }
-                          >
-                            <option value="">
-                              {bulkStatusUpdating
-                                ? 'Updating…'
-                                : selectedOrderIds.size > 0
-                                  ? `Set status (${selectedOrderIds.size})`
-                                  : 'Change status…'}
-                            </option>
-                            {OMS_ORDER_STATUS_OPTIONS.map((status) => (
-                              <option key={status} value={status}>
-                                {formatOrderStatusOptionLabel(status)}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-                        {showTagFilter ? (
-                          <select
-                            id={`${idPrefix}-tag-filter`}
-                            className="form-select form-select-sm"
-                            style={{ minWidth: '180px', maxWidth: '240px' }}
-                            value={filters.tag || ''}
-                            onChange={handleTagFilterChange}
-                            aria-label="Filter orders by tag"
-                            title="Filter by tag"
-                          >
-                            <option value="">All tags</option>
-                            {ORDER_TAG_VALUES.map((tag) => (
-                              <option key={tag} value={tag}>
-                                {formatOrderTagLabel(tag)}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-                        {canBulkChangeStatus && selectedOrderIds.size > 0 ? (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary mb-0"
-                            onClick={clearOrderSelection}
-                            disabled={bulkStatusUpdating || mergeOrdersUpdating}
-                          >
-                            Clear
-                          </button>
-                        ) : null}
-                        {canBulkChangeStatus ? (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-primary mb-0"
-                            onClick={handleMergeOrders}
-                            disabled={
-                              selectedOrderIds.size < 2 ||
-                              bulkStatusUpdating ||
-                              mergeOrdersUpdating
-                            }
-                            title={
-                              selectedOrderIds.size < 2
-                                ? 'Select two or more orders to merge'
-                                : `Merge ${selectedOrderIds.size} selected orders (last selected is kept)`
-                            }
-                          >
-                            {mergeOrdersUpdating ? (
-                              <>
-                                <span
-                                  className="spinner-border spinner-border-sm me-1"
-                                  role="status"
-                                  aria-hidden="true"
-                                />
-                                Merging…
-                              </>
-                            ) : (
-                              `Merge${selectedOrderIds.size > 1 ? ` (${selectedOrderIds.size})` : ''}`
-                            )}
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
                     <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
@@ -2434,6 +2607,156 @@ export default function OrdersListPage({ config }) {
                   </div>
                 </div>
               </div>
+
+              {!isBigcommerceView && (canBulkChangeStatus || showTagFilter) ? (
+                <div className="oms-bulk-toolbar">
+                  <div className="oms-bulk-toolbar__filters">
+                    {canBulkChangeStatus ? (
+                      <select
+                        id={`${idPrefix}-bulk-status`}
+                        className="form-select form-select-sm oms-bulk-toolbar__select"
+                        value={bulkStatusValue}
+                        disabled={
+                          selectedOrderIds.size === 0 ||
+                          bulkStatusUpdating ||
+                          mergeOrdersUpdating
+                        }
+                        onChange={handleBulkStatusChange}
+                        aria-label="Change status of selected orders"
+                        title={
+                          selectedOrderIds.size === 0
+                            ? 'Select one or more orders to change status'
+                            : `Change status for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
+                        }
+                      >
+                        <option value="">
+                          {bulkStatusUpdating
+                            ? 'Updating…'
+                            : selectedOrderIds.size > 0
+                              ? `Set status (${selectedOrderIds.size})`
+                              : 'Change status…'}
+                        </option>
+                        {OMS_ORDER_STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {formatOrderStatusOptionLabel(status)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                    {showTagFilter ? (
+                      <select
+                        id={`${idPrefix}-tag-filter`}
+                        className="form-select form-select-sm oms-bulk-toolbar__select"
+                        value={filters.tag || ''}
+                        onChange={handleTagFilterChange}
+                        aria-label="Filter orders by tag"
+                        title="Filter by tag"
+                      >
+                        <option value="">All tags</option>
+                        {ORDER_TAG_VALUES.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {formatOrderTagLabel(tag)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                  </div>
+
+                  {canBulkChangeStatus ? (
+                    <div className="oms-bulk-toolbar__actions">
+                      {selectedOrderIds.size > 0 ? (
+                        <span className="oms-bulk-toolbar__count">
+                          <strong>{selectedOrderIds.size}</strong> selected
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0 ms-2 mb-0 oms-bulk-toolbar__clear"
+                            onClick={clearOrderSelection}
+                            disabled={bulkStatusUpdating || mergeOrdersUpdating}
+                          >
+                            Clear
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="oms-bulk-toolbar__hint">Select orders for bulk actions</span>
+                      )}
+
+                      <div className="btn-group btn-group-sm" role="group" aria-label="Bulk order actions">
+                        <button
+                          type="button"
+                          className="btn btn-outline-dark mb-0"
+                          onClick={handleMergeOrders}
+                          disabled={
+                            selectedOrderIds.size < 2 ||
+                            bulkStatusUpdating ||
+                            mergeOrdersUpdating
+                          }
+                          title={
+                            selectedOrderIds.size < 2
+                              ? 'Select two or more orders to merge'
+                              : `Merge ${selectedOrderIds.size} selected orders (last selected is kept)`
+                          }
+                        >
+                          {mergeOrdersUpdating ? (
+                            <>
+                              <span
+                                className="spinner-border spinner-border-sm me-1"
+                                role="status"
+                                aria-hidden="true"
+                              />
+                              Merging…
+                            </>
+                          ) : (
+                            <>
+                              <NavIcon icon={FaCodeMerge} className="me-1" size={13} />
+                              Merge
+                            </>
+                          )}
+                        </button>
+                        {showTrackingColumn ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-outline-dark mb-0"
+                              onClick={handleBulkAddTracking}
+                              disabled={
+                                selectedOrderIds.size === 0 ||
+                                bulkStatusUpdating ||
+                                mergeOrdersUpdating
+                              }
+                              title={
+                                selectedOrderIds.size === 0
+                                  ? 'Select one or more orders to add tracking'
+                                  : `Add tracking for ${selectedOrderIds.size} selected order${selectedOrderIds.size === 1 ? '' : 's'}`
+                              }
+                            >
+                              <NavIcon icon={FaTruck} className="me-1" size={13} />
+                              Add tracking
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline-dark mb-0"
+                              onClick={handleBulkPrintLabels}
+                              disabled={
+                                selectedOrderIds.size === 0 ||
+                                bulkStatusUpdating ||
+                                mergeOrdersUpdating
+                              }
+                              title={
+                                selectedOrderIds.size === 0
+                                  ? 'Select one or more orders to print labels'
+                                  : 'Print labels for selected orders with tracking'
+                              }
+                            >
+                              <NavIcon icon={FaPrint} className="me-1" size={13} />
+                              Print labels
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {showFilters && !isBigcommerceView ? (
               <div className="card-body pt-0 px-3 pb-0">
@@ -2755,12 +3078,13 @@ export default function OrdersListPage({ config }) {
                             ? itemsCountRaw
                             : parseInt(String(itemsCountRaw ?? ''), 10);
                         const hasOrderItems = Number.isFinite(itemsCount) && itemsCount > 0;
-                        const trackingInfo = showTrackingColumn
-                          ? resolveOrderTrackingInfo(
-                              item,
-                              orderId ? shipmentOverrides[String(orderId)] : null
-                            )
-                          : null;
+                        const trackingInfo = resolveOrderTrackingInfo(
+                          item,
+                          orderId ? shipmentOverrides[String(orderId)] : null
+                        );
+                        const hasTrackingNo = Boolean(
+                          String(trackingInfo?.trackingId || '').trim()
+                        );
                         const orderCompany = getOrderCompanyRecord(item) || authCompany;
                         const shopCompanyLogoUrl = pickCompanyLogoUrl(orderCompany);
                         const shopCompanyName = companyDisplayName(orderCompany);
@@ -3052,6 +3376,7 @@ export default function OrdersListPage({ config }) {
                                                 customerName:
                                                   customerName !== '—' ? customerName : '',
                                                 city: item.city || '',
+                                                ...pickOrderLabelAmounts(item),
                                               })
                                             }
                                           >
@@ -3077,7 +3402,7 @@ export default function OrdersListPage({ config }) {
                                         className="btn btn-sm btn-outline-primary mb-0 px-2"
                                         title="Book a new shipment"
                                         disabled={!orderId}
-                                        onClick={() => handleOpenShipmentModal(orderId, orderNo)}
+                                        onClick={() => handleOpenShipmentModal(orderId, orderNo, item)}
                                       >
                                         Add tracking
                                       </button>
@@ -3112,7 +3437,7 @@ export default function OrdersListPage({ config }) {
                                     className="btn btn-sm btn-outline-primary mb-0 px-2"
                                     title="Add tracking"
                                     disabled={!orderId}
-                                    onClick={() => handleOpenShipmentModal(orderId, orderNo)}
+                                    onClick={() => handleOpenShipmentModal(orderId, orderNo, item)}
                                   >
                                     Add tracking
                                   </button>
@@ -3198,13 +3523,20 @@ export default function OrdersListPage({ config }) {
                                 {showConfirmationAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
-                                    className={`btn btn-sm mb-0 px-2 ${
-                                      ORDER_CONFIRMATION_TAG_VALUES.some((tag) =>
-                                        getOrderTags(item, orderId).includes(tag)
-                                      )
-                                        ? 'btn-outline-success'
-                                        : 'btn-outline-secondary'
-                                    }`}
+                                    className={`btn btn-sm mb-0 px-2 ${(() => {
+                                      const tags = getOrderTags(item, orderId);
+                                      if (tags.includes('incomplete_address')) {
+                                        return 'btn-outline-danger';
+                                      }
+                                      if (
+                                        ORDER_CONFIRMATION_TAG_VALUES.some((tag) =>
+                                          tags.includes(tag)
+                                        )
+                                      ) {
+                                        return 'btn-outline-success';
+                                      }
+                                      return 'btn-outline-secondary';
+                                    })()}`}
                                     title="Confirmation"
                                     aria-label="Confirmation"
                                     onClick={() => handleOpenConfirmationModal(item)}
@@ -3236,8 +3568,16 @@ export default function OrdersListPage({ config }) {
                                   <>
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-success mb-0 px-2"
-                                      title="Push order tracking (POS → store)"
+                                      className={`btn btn-sm mb-0 px-2 ${
+                                        hasTrackingNo
+                                          ? 'btn-outline-success'
+                                          : 'btn-outline-secondary'
+                                      }`}
+                                      title={
+                                        hasTrackingNo
+                                          ? 'Push order tracking (POS → store)'
+                                          : 'Add a tracking number before pushing'
+                                      }
                                       aria-label="Push order tracking"
                                       onClick={() =>
                                         handleQueueOrderAction(
@@ -3247,7 +3587,7 @@ export default function OrdersListPage({ config }) {
                                           'push_order_tracking'
                                         )
                                       }
-                                      disabled={!orderId || isQueueingOrder}
+                                      disabled={!orderId || isQueueingOrder || !hasTrackingNo}
                                     >
                                       {isPushingTracking ? (
                                         <span
@@ -3455,7 +3795,21 @@ export default function OrdersListPage({ config }) {
             open={shipmentModal.open}
             orderId={shipmentModal.orderId}
             orderNo={shipmentModal.orderNo}
-            onClose={() => setShipmentModal({ open: false, orderId: '', orderNo: '' })}
+            orderTotal={shipmentModal.orderTotal}
+            suggestCod={shipmentModal.suggestCod}
+            city={shipmentModal.city}
+            orders={shipmentModal.orders}
+            onClose={() =>
+              setShipmentModal({
+                open: false,
+                orderId: '',
+                orderNo: '',
+                orderTotal: '',
+                suggestCod: false,
+                city: '',
+                orders: null,
+              })
+            }
             onSaved={handleShipmentCreated}
           />
           <ParcelBarcodePrintModal
@@ -3466,6 +3820,7 @@ export default function OrdersListPage({ config }) {
             provider={parcelBarcodeModal.provider}
             customerName={parcelBarcodeModal.customerName}
             city={parcelBarcodeModal.city}
+            orders={parcelBarcodeModal.orders}
             onClose={() =>
               setParcelBarcodeModal({
                 open: false,
@@ -3475,6 +3830,9 @@ export default function OrdersListPage({ config }) {
                 provider: '',
                 customerName: '',
                 city: '',
+                orderTotal: '',
+                suggestCod: false,
+                orders: null,
               })
             }
           />

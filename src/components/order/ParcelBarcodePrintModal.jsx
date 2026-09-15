@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   TCS_LABEL_PRINT_TYPES,
   fetchCourierLabelRequest,
@@ -6,8 +6,8 @@ import {
 } from '../../features/courier/courierAPI.js';
 
 /**
- * Print official TCS CN label (CNPrint PDF via backend → TCS /ecom/api/print/label).
- * @see https://devconnect.tcscourier.com/ecom/index.html
+ * Print official courier label PDF (TCS CNPrint / PostEx airway bill).
+ * Pass `orders` for bulk print; otherwise uses single order props.
  */
 export default function ParcelBarcodePrintModal({
   open,
@@ -18,38 +18,122 @@ export default function ParcelBarcodePrintModal({
   provider = '',
   customerName = '',
   city = '',
+  orders = null,
 }) {
   const [printtype, setPrinttype] = useState(6);
-  const [shipperDetails, setShipperDetails] = useState(false);
+  const [shipperDetails, setShipperDetails] = useState(true);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState('');
 
-  const cn = String(trackingId || '').trim();
-  const oid = String(orderId || '').trim();
+  const orderList = useMemo(() => {
+    if (Array.isArray(orders) && orders.length > 0) {
+      return orders
+        .map((item) => ({
+          orderId: String(item?.orderId || item?.id || '').trim(),
+          trackingId: String(item?.trackingId || item?.tracking_id || '').trim(),
+          orderNo: String(item?.orderNo || item?.order_no || '').trim(),
+          provider: String(item?.provider || item?.courier || '').trim(),
+          customerName: String(item?.customerName || item?.name || '').trim(),
+          city: String(item?.city || '').trim(),
+        }))
+        .filter((item) => item.orderId);
+    }
+    const id = String(orderId || '').trim();
+    if (!id) return [];
+    return [
+      {
+        orderId: id,
+        trackingId: String(trackingId || '').trim(),
+        orderNo: String(orderNo || '').trim(),
+        provider: String(provider || '').trim(),
+        customerName: String(customerName || '').trim(),
+        city: String(city || '').trim(),
+      },
+    ];
+  }, [orders, orderId, trackingId, orderNo, provider, customerName, city]);
+
+  const isBulk = orderList.length > 1;
+  const primary = orderList[0] || null;
   const isLoading = status === 'loading';
+  const courierLabel = String(primary?.provider || 'TCS').trim() || 'TCS';
+  const isPostex = /postex/i.test(courierLabel);
+  const hasAnyTcs = orderList.some((item) => !/postex/i.test(String(item.provider || '')));
+
+  useEffect(() => {
+    if (!open) return;
+    setStatus('idle');
+    setError('');
+    setProgress('');
+    setShipperDetails(true);
+  }, [open, orderList]);
 
   const handlePrint = async () => {
-    if (!oid) {
-      setError('Missing order id — book a shipment first, then print the TCS label.');
+    if (!orderList.length) {
+      setError('Missing order id — book a shipment first, then print the label.');
       return;
     }
     setStatus('loading');
     setError('');
+    setProgress('');
+
+    const failures = [];
+    let opened = 0;
+
     try {
-      const label = await fetchCourierLabelRequest(oid, {
-        printtype,
-        shipperDetails,
-        accounttype: 1,
-      });
-      openCourierLabelForPrint(label);
+      for (let i = 0; i < orderList.length; i += 1) {
+        const order = orderList[i];
+        if (isBulk) {
+          setProgress(
+            `Printing ${i + 1} of ${orderList.length}` +
+              (order.orderNo ? ` (${order.orderNo})` : '') +
+              '…'
+          );
+        }
+        try {
+          const label = await fetchCourierLabelRequest(order.orderId, {
+            printtype,
+            shipperDetails,
+            accounttype: 1,
+          });
+          openCourierLabelForPrint(label);
+          opened += 1;
+        } catch (err) {
+          failures.push({
+            orderNo: order.orderNo || order.orderId,
+            message: err?.message || 'Failed to fetch courier label PDF',
+          });
+          if (!isBulk) throw err;
+        }
+      }
+
+      setProgress('');
+      if (!opened) {
+        setStatus('failed');
+        setError(failures[0]?.message || 'Failed to fetch courier label PDF');
+        return;
+      }
+
       setStatus('succeeded');
+      if (failures.length) {
+        setError(
+          failures.map((item) => `${item.orderNo}: ${item.message}`).join('\n')
+        );
+      }
     } catch (err) {
       setStatus('failed');
-      setError(err?.message || 'Failed to fetch TCS label PDF');
+      setProgress('');
+      setError(err?.message || 'Failed to fetch courier label PDF');
     }
   };
 
   if (!open) return null;
+
+  const titleCourier = isBulk
+    ? 'labels'
+    : isPostex
+      ? 'PostEx'
+      : courierLabel;
 
   return (
     <>
@@ -65,7 +149,9 @@ export default function ParcelBarcodePrintModal({
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="parcelBarcodeModalLabel">
-                Print TCS label
+                {isBulk
+                  ? `Print labels (${orderList.length})`
+                  : `Print ${titleCourier} label`}
               </h5>
               <button
                 type="button"
@@ -77,55 +163,81 @@ export default function ParcelBarcodePrintModal({
             </div>
             <div className="modal-body">
               <p className="text-sm text-muted mb-3">
-                Official TCS consignment label (CNPrint PDF) — stick on the parcel.
+                Official courier consignment label (PDF) — stick on the parcel.
               </p>
 
-              <div className="border rounded p-3 mb-3 bg-light">
-                <div className="d-flex justify-content-between gap-2 small mb-2">
-                  <div>
-                    <div className="text-muted">CN / Tracking</div>
-                    <div className="fw-bold font-monospace">{cn || '—'}</div>
-                  </div>
-                  <div className="text-end">
-                    <div className="text-muted">Order</div>
-                    <div className="fw-bold">{orderNo || '—'}</div>
-                  </div>
-                </div>
-                <div className="d-flex justify-content-between gap-2 small">
-                  <div>
-                    <div className="text-muted">Courier</div>
-                    <div className="fw-semibold">{provider || 'TCS'}</div>
-                  </div>
-                  <div className="text-end">
-                    <div className="text-muted">Destination</div>
-                    <div className="fw-semibold text-uppercase">{city || customerName || '—'}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <label className="form-label" htmlFor="tcsPrintType">
-                  Label layout <span className="text-danger">*</span>
-                </label>
-                <select
-                  id="tcsPrintType"
-                  className="form-select"
-                  value={printtype}
-                  onChange={(e) => setPrinttype(Number(e.target.value))}
-                  disabled={isLoading}
+              {isBulk ? (
+                <div
+                  className="border rounded p-2 mb-3 bg-light small"
+                  style={{ maxHeight: 140, overflowY: 'auto' }}
                 >
-                  {TCS_LABEL_PRINT_TYPES.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
+                  {orderList.map((order) => (
+                    <div
+                      key={order.orderId}
+                      className="d-flex justify-content-between gap-2 mb-1"
+                    >
+                      <span className="fw-semibold">
+                        {order.orderNo || order.orderId}
+                      </span>
+                      <span className="font-monospace text-muted">
+                        {order.trackingId || '—'}
+                      </span>
+                    </div>
                   ))}
-                </select>
-                <p className="text-xs text-muted mb-0 mt-1">
-                  From TCS CNPrint API (
-                  <code>printtype</code>
-                  ). Use <strong>6×4</strong> or <strong>Shipment Label</strong> for parcels.
-                </p>
-              </div>
+                </div>
+              ) : (
+                <div className="border rounded p-3 mb-3 bg-light">
+                  <div className="d-flex justify-content-between gap-2 small mb-2">
+                    <div>
+                      <div className="text-muted">CN / Tracking</div>
+                      <div className="fw-bold font-monospace">
+                        {primary?.trackingId || '—'}
+                      </div>
+                    </div>
+                    <div className="text-end">
+                      <div className="text-muted">Order</div>
+                      <div className="fw-bold">{primary?.orderNo || '—'}</div>
+                    </div>
+                  </div>
+                  <div className="d-flex justify-content-between gap-2 small">
+                    <div>
+                      <div className="text-muted">Courier</div>
+                      <div className="fw-semibold">{courierLabel}</div>
+                    </div>
+                    <div className="text-end">
+                      <div className="text-muted">Destination</div>
+                      <div className="fw-semibold text-uppercase">
+                        {primary?.city || primary?.customerName || '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(!isBulk && !isPostex) || (isBulk && hasAnyTcs) ? (
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="tcsPrintType">
+                    Label layout <span className="text-danger">*</span>
+                  </label>
+                  <select
+                    id="tcsPrintType"
+                    className="form-select"
+                    value={printtype}
+                    onChange={(e) => setPrinttype(Number(e.target.value))}
+                    disabled={isLoading}
+                  >
+                    {TCS_LABEL_PRINT_TYPES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted mb-0 mt-1">
+                    From TCS CNPrint API (<code>printtype</code>). Use <strong>6×4</strong> or{' '}
+                    <strong>Shipment Label</strong> for parcels.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="form-check mb-0">
                 <input
@@ -141,10 +253,20 @@ export default function ParcelBarcodePrintModal({
                 </label>
               </div>
 
-              {error ? <div className="alert alert-danger py-2 mt-3 mb-0">{error}</div> : null}
+              {progress ? <p className="text-xs text-muted mb-0 mt-3">{progress}</p> : null}
+              {error ? (
+                <div
+                  className="alert alert-danger py-2 mt-3 mb-0"
+                  style={{ whiteSpace: 'pre-wrap' }}
+                >
+                  {error}
+                </div>
+              ) : null}
               {status === 'succeeded' ? (
                 <div className="alert alert-success py-2 mt-3 mb-0">
-                  TCS label opened. Print from the PDF window and stick it on the parcel.
+                  {isBulk
+                    ? 'Labels opened. Print from each PDF window and stick on the parcels.'
+                    : 'Label opened. Print from the PDF window and stick it on the parcel.'}
                 </div>
               ) : null}
             </div>
@@ -161,7 +283,7 @@ export default function ParcelBarcodePrintModal({
                 type="button"
                 className="btn btn-primary mb-0"
                 onClick={handlePrint}
-                disabled={isLoading || !oid}
+                disabled={isLoading || !orderList.length}
               >
                 {isLoading ? (
                   <>
@@ -170,10 +292,12 @@ export default function ParcelBarcodePrintModal({
                       role="status"
                       aria-hidden="true"
                     />
-                    Fetching TCS PDF…
+                    Fetching PDF…
                   </>
+                ) : isBulk ? (
+                  `Print ${orderList.length} labels`
                 ) : (
-                  'Print TCS label'
+                  `Print ${isPostex ? 'PostEx' : courierLabel} label`
                 )}
               </button>
             </div>
