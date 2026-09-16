@@ -98,7 +98,14 @@ import OrderConfirmationTagsModal, {
   ORDER_CONFIRMATION_TAG_VALUES,
 } from '../../components/order/OrderConfirmationTagsModal.jsx';
 import ValidateOrderAddressModal from '../../components/order/ValidateOrderAddressModal.jsx';
+import OrderNotesModal, {
+  OrderNotesIconButton,
+} from '../../components/order/OrderNotesModal.jsx';
 import OriginCompanyOrderItemsList from '../../components/order/OriginCompanyOrderItemsList.jsx';
+import OrderItemsHoverPopup from '../../components/order/OrderItemsHoverPopup.jsx';
+import OrderAddressHoverPopup, {
+  getOrderStreetAddress,
+} from '../../components/order/OrderAddressHoverPopup.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { fetchIntegrationsRequest } from '../../features/integration/integrationAPI.js';
@@ -388,28 +395,35 @@ function OrderIntegrationMergedCell({
     ? `${displayName} (${storeTypeLabel(storeType)})`
     : displayName;
 
+  const storeOrderNoDisplay = hasOrderId
+    ? `#${String(integrationOrderId).replace(/^#/, '')}`
+    : '';
+
   const orderIdNode = hasOrderId ? (
     storeOrderAdminUrl ? (
-      <a
-        href={storeOrderAdminUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`oms-store-order-link${
-          storeOrderAdminLabel === 'Shopify' ? ' oms-store-order-link--shopify' : ''
-        }`}
-        title={`Open ${storeOrderAdminLabel || 'store'} order edit${
-          integrationOrderId ? ` #${String(integrationOrderId).replace(/^#/, '')}` : ''
-        }`}
-      >
-        <span className="oms-store-order-link__hint">
-          {storeOrderAdminLabel === 'Shopify'
-            ? 'Shopify edit'
-            : storeOrderAdminLabel === 'WooCommerce'
-              ? 'Woo edit'
-              : 'Edit'}
+      <div className="d-flex flex-column align-items-center gap-0 min-width-0 oms-store-order-block">
+        <a
+          href={storeOrderAdminUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`oms-store-order-link${
+            storeOrderAdminLabel === 'Shopify' ? ' oms-store-order-link--shopify' : ''
+          }`}
+          title={`Open ${storeOrderAdminLabel || 'store'} order edit ${storeOrderNoDisplay}`.trim()}
+        >
+          <span className="oms-store-order-link__hint">
+            {storeOrderAdminLabel === 'Shopify'
+              ? 'Shopify edit'
+              : storeOrderAdminLabel === 'WooCommerce'
+                ? 'Woo edit'
+                : 'Edit'}
+          </span>
+          <NavIcon icon={FaArrowUpRightFromSquare} size={10} />
+        </a>
+        <span className="oms-store-order-no" title={storeOrderNoDisplay}>
+          {storeOrderNoDisplay}
         </span>
-        <NavIcon icon={FaArrowUpRightFromSquare} size={10} />
-      </a>
+      </div>
     ) : (
       <span className="font-weight-bold text-nowrap" title={String(integrationOrderId)}>
         {integrationOrderId}
@@ -507,11 +521,10 @@ const ORDER_COLUMNS = [
   { key: 'order_no', label: 'Order no', alwaysVisible: true },
   { key: 'integration', label: 'Integration' },
   { key: 'name', label: 'Customer' },
+  { key: 'address', label: 'Address' },
   { key: 'items_total', label: 'Items / Total' },
   { key: 'status', label: 'Status' },
   { key: 'tags', label: 'Tags' },
-  { key: 'order_website_status', label: 'Website status' },
-  { key: 'channel', label: 'Order type' },
   { key: 'tracking', label: 'Tracking' },
   { key: 'dates', label: 'Created / Updated' },
   { key: 'actors', label: 'Created / Updated by' },
@@ -890,6 +903,8 @@ export default function OrdersListPage({ config }) {
     orderId: '',
     orderNo: '',
     currentStatus: '',
+    integrationOrderId: '',
+    websiteOrderLabel: '',
   });
   const [orderHistoryModal, setOrderHistoryModal] = useState({
     open: false,
@@ -918,10 +933,17 @@ export default function OrdersListPage({ config }) {
     country: '',
     tags: [],
   });
+  const [notesModal, setNotesModal] = useState({
+    open: false,
+    orderId: '',
+    orderNo: '',
+    note: '',
+  });
   const [shipmentOverrides, setShipmentOverrides] = useState({});
   const [statusOverrides, setStatusOverrides] = useState({});
   const [websiteStatusOverrides, setWebsiteStatusOverrides] = useState({});
   const [tagsOverrides, setTagsOverrides] = useState({});
+  const [notesOverrides, setNotesOverrides] = useState({});
   const [cancellingShipmentOrderId, setCancellingShipmentOrderId] = useState('');
   const [parcelBarcodeModal, setParcelBarcodeModal] = useState({
     open: false,
@@ -977,10 +999,14 @@ export default function OrdersListPage({ config }) {
     let cols = ORDER_COLUMNS;
     if (!showIntegrationColumn) cols = cols.filter((col) => col.key !== 'integration');
     if (!showTrackingColumn) cols = cols.filter((col) => col.key !== 'tracking');
-    if (!showWebsiteStatusColumn) cols = cols.filter((col) => col.key !== 'order_website_status');
     if (!showTagsColumn) cols = cols.filter((col) => col.key !== 'tags');
+    if (showWebsiteStatusColumn) {
+      cols = cols.map((col) =>
+        col.key === 'status' ? { ...col, label: 'Status / Website' } : col
+      );
+    }
     return cols;
-  }, [showIntegrationColumn, showTrackingColumn, showWebsiteStatusColumn, showTagsColumn]);
+  }, [showIntegrationColumn, showTrackingColumn, showTagsColumn, showWebsiteStatusColumn]);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
     permissionModule,
@@ -1706,6 +1732,38 @@ export default function OrdersListPage({ config }) {
       }));
     }
     toast.success('Confirmation tags updated.');
+    refreshOrderList();
+  };
+
+  const getOrderNote = (row, orderId) => {
+    const override = orderId ? notesOverrides[String(orderId)] : null;
+    if (override != null) return String(override);
+    return String(row?.note ?? row?.notes ?? '').trim();
+  };
+
+  const handleOpenNotesModal = (row) => {
+    const orderId = pickOrderDocumentId(row);
+    if (!orderId) {
+      toast.error('Missing order id.');
+      return;
+    }
+    const orderNo = row?.order_no || row?.orderNo || '';
+    setNotesModal({
+      open: true,
+      orderId: String(orderId),
+      orderNo: orderNo || '',
+      note: getOrderNote(row, orderId),
+    });
+  };
+
+  const handleNotesUpdated = ({ orderId, note } = {}) => {
+    if (orderId) {
+      setNotesOverrides((prev) => ({
+        ...prev,
+        [String(orderId)]: String(note ?? ''),
+      }));
+    }
+    toast.success('Notes saved.');
     refreshOrderList();
   };
 
@@ -2969,21 +3027,21 @@ export default function OrdersListPage({ config }) {
                       {isVisible('name')
                         ? sortableTh('name', 'Customer', 'list-col-truncate')
                         : null}
+                      {isVisible('address')
+                        ? sortableTh('address', 'Address', 'list-col-truncate')
+                        : null}
                       {isVisible('items_total')
                         ? sortableTh('order_items_total', 'Items / Total', 'list-col-amount')
                         : null}
-                      {isVisible('status') ? sortableTh('order_status', 'Status') : null}
+                      {isVisible('status')
+                        ? sortableTh(
+                            'order_status',
+                            showWebsiteStatusColumn ? 'Status / Website' : 'Status'
+                          )
+                        : null}
                       {isVisible('tags') ? (
                         <th className="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                           Tags
-                        </th>
-                      ) : null}
-                      {showWebsiteStatusColumn && isVisible('order_website_status')
-                        ? sortableTh('order_website_status', 'Website status')
-                        : null}
-                      {isVisible('channel') ? (
-                        <th className="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
-                          Order type
                         </th>
                       ) : null}
                       {showTrackingColumn && isVisible('tracking') ? (
@@ -3071,6 +3129,7 @@ export default function OrdersListPage({ config }) {
                         const customerName = item.name || '—';
                         const email = item.email || '—';
                         const phone = item.phone || '—';
+                        const orderNote = getOrderNote(item, orderId);
                         const total = getOrderItemsTotalDisplay(item);
                         const itemsCountRaw = getNoOfItemsDisplay(item);
                         const itemsCount =
@@ -3104,22 +3163,38 @@ export default function OrdersListPage({ config }) {
                               </td>
                             ) : null}
                             <td className="text-sm font-weight-bold text-dark">
-                              {orderViewLocation ? (
-                                isRowLoading ? (
-                                  <span className="text-muted">Opening…</span>
+                              <div className="oms-order-no-cell">
+                                {orderViewLocation ? (
+                                  isRowLoading ? (
+                                    <span className="text-muted">Opening…</span>
+                                  ) : (
+                                    <Link
+                                      to={orderViewLocation.to}
+                                      state={orderViewLocation.state}
+                                      className="oms-order-no-link"
+                                      title="View order"
+                                    >
+                                      {orderNo}
+                                    </Link>
+                                  )
                                 ) : (
-                                  <Link
-                                    to={orderViewLocation.to}
-                                    state={orderViewLocation.state}
-                                    className="oms-order-no-link"
-                                    title="View order"
+                                  <span className="oms-order-no-text">{orderNo}</span>
+                                )}
+                                {orderType ? (
+                                  <span
+                                    className={`badge text-xxs oms-order-no-cell__type ${orderTypeBadgeClass(orderType)}`}
+                                    title={orderType}
                                   >
-                                    {orderNo}
-                                  </Link>
-                                )
-                              ) : (
-                                orderNo
-                              )}
+                                    {formatOrderTypeLabel(orderType)}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`badge text-xxs oms-order-no-cell__type ${channelBadgeClass(onlineChannel)}`}
+                                  >
+                                    {onlineChannel ? 'Online' : 'Offline'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             {showIntegrationColumn && isVisible('integration') ? (
                               <td className="text-sm text-center">
@@ -3201,8 +3276,24 @@ export default function OrdersListPage({ config }) {
                                         {phone}
                                       </div>
                                     ) : null}
+                                    <OrderNotesIconButton
+                                      hasNotes={Boolean(orderNote)}
+                                      disabled={!orderId || viewReadOnly || isDeletedView}
+                                      title={orderNote ? 'View / edit notes' : 'Add notes'}
+                                      onClick={() => handleOpenNotesModal(item)}
+                                    />
                                   </div>
                                 </div>
+                              </td>
+                            ) : null}
+                            {isVisible('address') ? (
+                              <td className="text-sm list-col-address">
+                                <OrderAddressHoverPopup order={item}>
+                                  {getOrderStreetAddress(item) ||
+                                    String(item.city || '').trim() ||
+                                    String(item.state || '').trim() ||
+                                    '—'}
+                                </OrderAddressHoverPopup>
                               </td>
                             ) : null}
                             {isVisible('items_total') ? (
@@ -3212,28 +3303,68 @@ export default function OrdersListPage({ config }) {
                                     {total !== '—' ? `PKR ${total}` : '—'}
                                   </div>
                                   <div className="oms-items-total-cell__items text-nowrap">
-                                    {getNoOfItemsDisplay(item)} items
+                                    {hasOrderItems ? (
+                                      <OrderItemsHoverPopup
+                                        order={item}
+                                        itemsCount={itemsCount}
+                                        deleted={isDeletedView}
+                                      >
+                                        {itemsCount} items
+                                      </OrderItemsHoverPopup>
+                                    ) : (
+                                      <>{getNoOfItemsDisplay(item)} items</>
+                                    )}
                                   </div>
                                 </div>
                               </td>
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                {canChangeStatus && orderId ? (
-                                  <button
-                                    type="button"
-                                    className={`badge text-xxs border-0 ${statusBadgeClass(statusVal)}`}
-                                    style={{ cursor: 'pointer' }}
-                                    title="Change status"
-                                    onClick={() => handleOpenStatusModal(item)}
-                                  >
-                                    {String(statusVal)}
-                                  </button>
-                                ) : (
-                                  <span className={`badge text-xxs ${statusBadgeClass(statusVal)}`}>
-                                    {String(statusVal)}
-                                  </span>
-                                )}
+                                <div
+                                  className={`oms-status-stack${
+                                    showWebsiteStatusColumn ? ' oms-status-stack--paired' : ''
+                                  }`}
+                                >
+                                  <div className="oms-status-stack__row oms-status-stack__row--pos">
+                                    <span className="oms-status-stack__tag" title="POS status">
+                                      POS
+                                    </span>
+                                    {canChangeStatus && orderId ? (
+                                      <button
+                                        type="button"
+                                        className={`badge text-xxs border-0 oms-status-stack__badge ${statusBadgeClass(statusVal)}`}
+                                        title="Change POS status"
+                                        onClick={() => handleOpenStatusModal(item)}
+                                      >
+                                        {String(statusVal)}
+                                      </button>
+                                    ) : (
+                                      <span
+                                        className={`badge text-xxs oms-status-stack__badge ${statusBadgeClass(statusVal)}`}
+                                        title="POS status"
+                                      >
+                                        {String(statusVal)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {showWebsiteStatusColumn ? (
+                                    <div className="oms-status-stack__row oms-status-stack__row--web">
+                                      <span className="oms-status-stack__tag" title="Website status">
+                                        Web
+                                      </span>
+                                      {websiteStatus ? (
+                                        <span
+                                          className={`badge text-xxs oms-status-stack__badge ${statusBadgeClass(websiteStatus)}`}
+                                          title={`Website status: ${websiteStatus}`}
+                                        >
+                                          {formatWebsiteStatusLabel(websiteStatus)}
+                                        </span>
+                                      ) : (
+                                        <span className="oms-status-stack__empty text-muted">—</span>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </td>
                             ) : null}
                             {isVisible('tags') ? (
@@ -3279,36 +3410,6 @@ export default function OrdersListPage({ config }) {
                                     </div>
                                   );
                                 })()}
-                              </td>
-                            ) : null}
-                            {showWebsiteStatusColumn && isVisible('order_website_status') ? (
-                              <td className="text-sm">
-                                {websiteStatus ? (
-                                  <span
-                                    className={`badge text-xxs ${statusBadgeClass(websiteStatus)}`}
-                                    title={websiteStatus}
-                                  >
-                                    {formatWebsiteStatusLabel(websiteStatus)}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
-                              </td>
-                            ) : null}
-                            {isVisible('channel') ? (
-                              <td className="text-sm">
-                                {orderType ? (
-                                  <span
-                                    className={`badge text-xxs ${orderTypeBadgeClass(orderType)}`}
-                                    title={orderType}
-                                  >
-                                    {formatOrderTypeLabel(orderType)}
-                                  </span>
-                                ) : (
-                                  <span className={`badge text-xxs ${channelBadgeClass(onlineChannel)}`}>
-                                    {onlineChannel ? 'Online' : 'Offline'}
-                                  </span>
-                                )}
                               </td>
                             ) : null}
                             {showTrackingColumn && isVisible('tracking') ? (
@@ -3506,8 +3607,26 @@ export default function OrdersListPage({ config }) {
                                 )}
                               </td>
                             ) : null}
-                            <td className="text-end">
-                              <div className="list-table-actions">
+                            <td className="text-end list-col-actions">
+                              <div className="list-table-actions oms-row-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-dark mb-0 px-2"
+                                  title="Customer past order history"
+                                  aria-label="Customer past order history"
+                                  onClick={() =>
+                                    setOrderHistoryModal({
+                                      open: true,
+                                      phone: phone !== '—' ? phone : '',
+                                      email: email !== '—' ? email : '',
+                                      customerName: customerName !== '—' ? customerName : '',
+                                      currentOrderId: orderId || '',
+                                    })
+                                  }
+                                  disabled={phone === '—' && email === '—'}
+                                >
+                                  <NavIcon icon={FaUserClock} size={14} />
+                                </button>
                                 {showValidateAddressAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
@@ -3551,14 +3670,25 @@ export default function OrdersListPage({ config }) {
                                     className="btn btn-sm btn-outline-info mb-0 px-2"
                                     title="Order status history"
                                     aria-label="Order status history"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      const rawIntegrationOrderId =
+                                        integrationOrderId !== '—'
+                                          ? String(integrationOrderId || '').trim()
+                                          : '';
+                                      const websiteOrderLabel = storeOrderAdminLabel
+                                        ? `${storeOrderAdminLabel} order`
+                                        : rawIntegrationOrderId
+                                          ? 'Website order'
+                                          : '';
                                       setStatusHistoryModal({
                                         open: true,
                                         orderId: orderId || '',
                                         orderNo: orderNo !== '—' ? orderNo : '',
                                         currentStatus: statusVal || '',
-                                      })
-                                    }
+                                        integrationOrderId: rawIntegrationOrderId,
+                                        websiteOrderLabel,
+                                      });
+                                    }}
                                     disabled={!orderId}
                                   >
                                     <NavIcon icon={FaClockRotateLeft} size={14} />
@@ -3716,12 +3846,16 @@ export default function OrdersListPage({ config }) {
             orderId={statusHistoryModal.orderId}
             orderNo={statusHistoryModal.orderNo}
             currentStatus={statusHistoryModal.currentStatus}
+            integrationOrderId={statusHistoryModal.integrationOrderId}
+            websiteOrderLabel={statusHistoryModal.websiteOrderLabel}
             onClose={() =>
               setStatusHistoryModal({
                 open: false,
                 orderId: '',
                 orderNo: '',
                 currentStatus: '',
+                integrationOrderId: '',
+                websiteOrderLabel: '',
               })
             }
           />
@@ -3755,6 +3889,17 @@ export default function OrdersListPage({ config }) {
           setConfirmationModal({ open: false, orderId: '', orderNo: '', tags: [] })
         }
         onSaved={handleConfirmationTagsUpdated}
+      />
+
+      <OrderNotesModal
+        open={notesModal.open}
+        orderId={notesModal.orderId}
+        orderNo={notesModal.orderNo}
+        currentNote={notesModal.note}
+        onClose={() =>
+          setNotesModal({ open: false, orderId: '', orderNo: '', note: '' })
+        }
+        onSaved={handleNotesUpdated}
       />
 
       <ValidateOrderAddressModal

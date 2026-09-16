@@ -683,6 +683,8 @@ export default function OrderStatusUpdatesModal({
   orderId,
   orderNo,
   currentStatus = '',
+  integrationOrderId = '',
+  websiteOrderLabel = '',
   onClose,
 }) {
   const [status, setStatus] = useState('idle');
@@ -754,6 +756,13 @@ export default function OrderStatusUpdatesModal({
 
   const title = orderNo || 'Order';
   const invoiceHref = orderId ? withBase(posInvoiceRoutePath(orderId)) : '';
+  const websiteOrderNo = String(integrationOrderId || '')
+    .trim()
+    .replace(/^—$/, '');
+  const websiteOrderDisplay = websiteOrderNo
+    ? `#${websiteOrderNo.replace(/^#/, '')}`
+    : '';
+  const websiteOrderKicker = websiteOrderLabel || 'Website order';
 
   const latestStatus = useMemo(() => {
     const fromHistory = getOrderStatus(updates[0]);
@@ -880,8 +889,20 @@ export default function OrderStatusUpdatesModal({
         {status === 'succeeded' ? (
           <>
             <section className="psh-summary">
-              <p className="psh-summary-kicker">OMS order</p>
-              <h6 className="psh-summary-title">{title}</h6>
+              <div className="osh-summary-orders">
+                <div className="osh-summary-order">
+                  <p className="psh-summary-kicker">OMS order</p>
+                  <h6 className="psh-summary-title mb-0">{title}</h6>
+                </div>
+                {websiteOrderDisplay ? (
+                  <div className="osh-summary-order osh-summary-order--website">
+                    <p className="psh-summary-kicker">{websiteOrderKicker}</p>
+                    <h6 className="psh-summary-title mb-0" title={websiteOrderDisplay}>
+                      {websiteOrderDisplay}
+                    </h6>
+                  </div>
+                ) : null}
+              </div>
               <div className="psh-summary-stats">
                 <div className="psh-stat">
                   <span className="psh-stat-icon">

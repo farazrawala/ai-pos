@@ -100,6 +100,11 @@
   background-image: none !important;
 }
 
+.list-col-address {
+  max-width: 12rem;
+  min-width: 7rem;
+}
+
 .list-col-customer {
   min-width: 11rem;
   max-width: 16rem;
@@ -115,6 +120,102 @@
 .oms-order-no-link:hover {
   color: var(--app-theme, #5e72e4);
   text-decoration: underline;
+}
+
+.oms-order-no-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.oms-order-no-text {
+  font-weight: 700;
+  color: #344767;
+}
+
+.oms-order-no-cell__type {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oms-status-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 7.5rem;
+  max-width: 11rem;
+}
+
+.oms-status-stack--paired {
+  padding: 0.28rem;
+  border: 1px solid #e9ecef;
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.oms-status-stack__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.22rem 0.3rem;
+  border-radius: 0.4rem;
+}
+
+.oms-status-stack__row--pos {
+  background: rgba(52, 71, 103, 0.06);
+  border-left: 2px solid #344767;
+}
+
+.oms-status-stack__row--web {
+  background: rgba(17, 205, 239, 0.08);
+  border-left: 2px solid #11cdef;
+}
+
+.oms-status-stack__tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.28rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.oms-status-stack__row--pos .oms-status-stack__tag {
+  color: #344767;
+  background: rgba(52, 71, 103, 0.12);
+}
+
+.oms-status-stack__row--web .oms-status-stack__tag {
+  color: #0b8498;
+  background: rgba(17, 205, 239, 0.18);
+}
+
+.oms-status-stack__badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oms-status-stack__badge.border-0 {
+  cursor: pointer;
+}
+
+.oms-status-stack__empty {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  padding-left: 0.1rem;
 }
 
 .oms-store-order-link {
@@ -150,6 +251,17 @@
 .oms-store-order-link--shopify .oms-store-order-link__hint {
   background: #e3f3d8;
   color: #3d5c0a;
+}
+
+.oms-store-order-no {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #67748e;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .oms-customer-cell__name {
@@ -453,6 +565,31 @@
     max-width: none;
     flex: 1 1 140px;
   }
+}
+
+/* OMS / Orders actions — wrap icon/text buttons onto 2–3 lines */
+.list-data-table--oms .list-col-actions,
+.list-data-table--orders .list-col-actions {
+  min-width: 9.5rem;
+  width: 9.5rem;
+  max-width: 10rem;
+  vertical-align: middle;
+}
+
+.list-data-table .oms-row-actions.list-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  max-width: 9rem;
+  margin-left: auto;
+}
+
+.list-data-table .oms-row-actions .btn {
+  flex: 0 0 auto;
+  margin-bottom: 0;
 }
 
 

@@ -5,6 +5,27 @@
   margin-left: 0.35rem;
 }
 
+.osh-summary-orders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.85rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.osh-summary-order .psh-summary-kicker {
+  margin-bottom: 0.15rem;
+}
+
+.osh-summary-order .psh-summary-title {
+  margin-bottom: 0;
+}
+
+.osh-summary-order--website {
+  padding-left: 1.5rem;
+  border-left: 1px solid #e8edf3;
+}
+
 .osh-timeline {
   display: flex;
   flex-direction: column;

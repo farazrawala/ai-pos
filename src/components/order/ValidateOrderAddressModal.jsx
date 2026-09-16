@@ -36,7 +36,8 @@ const truthyFlag = (value) =>
 
 /**
  * Detect house / flat / plot / shop numbers from free-text address.
- * Examples: "Flat no 104", "House 12", "H# 5", "Plot 22", "Shop 3", "456 First Ave"
+ * Examples: "Flat no 104", "House 12", "H# 5", "Plot 22", "Shop 3", "F-103",
+ * "First Floor", "456 First Ave"
  */
 export function extractHouseNumberFromAddress(addressText) {
   const text = String(addressText || '').trim();
@@ -50,6 +51,11 @@ export function extractHouseNumberFromAddress(addressText) {
     /\b(?:building|bldg)\s*(?:no\.?|number|#)?\s*([A-Za-z0-9\-_/]+)/i,
     /\bh\s*[#:-]?\s*([A-Za-z0-9\-_/]+)/i,
     /#\s*([A-Za-z0-9\-_/]+)/,
+    // Mall / plaza unit codes: "F-103", "G-12", "SF-22", "A 15"
+    /\b([A-Za-z]{1,3}[\s-]?\d{1,5}[A-Za-z]?)\b/,
+    // Floor markers: "First Floor", "1st Fl", "Floor 3", "Ground Floor"
+    /\b((?:ground|first|second|third|fourth|fifth|sixth|1st|2nd|3rd|4th|5th|6th|\d+(?:st|nd|rd|th)?)\s*(?:floor|fl\.?|flr))\b/i,
+    /\b(?:floor|fl\.?|flr)\s*(?:no\.?|number|#)?\s*([A-Za-z0-9\-_/]+)/i,
     // US-style leading street number: "456 First Ave"
     /^(\d+[A-Za-z]?)\s+[A-Za-z]/,
   ];
@@ -59,9 +65,12 @@ export function extractHouseNumberFromAddress(addressText) {
     if (!match?.[1]) continue;
     const value = String(match[1]).replace(/[.,;]+$/g, '').trim();
     if (!value) continue;
-    // Ignore tiny non-numeric tokens that are likely false positives
-    if (!/[0-9]/.test(value)) continue;
-    return value;
+    const isFloorPhrase = /floor|fl\.?|flr/i.test(value) || /^(?:ground|first|second|third|fourth|fifth|sixth)$/i.test(value);
+    // Ignore tiny non-numeric tokens that are likely false positives (floor words OK)
+    if (!/[0-9]/.test(value) && !isFloorPhrase) continue;
+    // Avoid matching lone city/road tokens like "M9" without a separator when digit-only suffix is tiny
+    if (/^[A-Za-z]{1,3}\d{1,2}$/.test(value) && !/[\s-]/.test(match[0])) continue;
+    return value.replace(/\s+/g, ' ');
   }
   return '';
 }

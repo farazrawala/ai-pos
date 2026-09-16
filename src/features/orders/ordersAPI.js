@@ -1893,6 +1893,186 @@ export async function updateOrderAddressRequest(orderId, payload = {}) {
   return result;
 }
 
+export const ORDER_NOTES_LIST_PATH = 'order_notes/get-all-active';
+export const ORDER_NOTES_CREATE_PATH = 'order_notes/order_notes_create';
+export const ORDER_NOTES_LIST_POPULATE = 'created_by,order_id';
+
+/**
+ * GET `order_notes/get-all-active?order_id=&populate=&sortBy=&sortOrder=&skip=&limit=`
+ */
+export async function fetchOrderNotesRequest(params = {}) {
+  const orderId = String(params.order_id ?? params.orderId ?? '').trim();
+  if (!orderId) {
+    throw new Error('Order id is required');
+  }
+
+  const query = new URLSearchParams();
+  query.set('order_id', orderId);
+  query.set(
+    'populate',
+    String(params.populate ?? ORDER_NOTES_LIST_POPULATE).trim() || ORDER_NOTES_LIST_POPULATE
+  );
+  query.set('sortBy', String(params.sortBy ?? 'createdAt').trim() || 'createdAt');
+  query.set('sortOrder', String(params.sortOrder ?? 'desc').trim() || 'desc');
+
+  const limit = Number(params.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    query.set('limit', String(limit));
+    const page = Number(params.page);
+    if (Number.isFinite(page) && page > 1) {
+      query.set('skip', String((page - 1) * limit));
+    } else if (params.skip != null && String(params.skip).trim() !== '') {
+      query.set('skip', String(params.skip));
+    }
+  } else if (params.skip != null && String(params.skip).trim() !== '') {
+    query.set('skip', String(params.skip));
+  } else {
+    query.set('limit', '100');
+  }
+
+  const url = `${BASE_URL}${ORDER_NOTES_LIST_PATH}?${query.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers: getHeaders({ json: false }) });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessageFromResponse(response));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { data: [], total: 0 };
+  }
+
+  const data = Array.isArray(result?.data)
+    ? result.data
+    : Array.isArray(result?.order_notes)
+      ? result.order_notes
+      : Array.isArray(result?.order_note)
+        ? result.order_note
+        : Array.isArray(result?.notes)
+          ? result.notes
+          : [];
+
+  const total =
+    result?.pagination?.total ?? result?.total ?? (Array.isArray(data) ? data.length : 0);
+
+  return {
+    data: Array.isArray(data) ? data : [],
+    total: Number.isFinite(Number(total)) ? Number(total) : data.length,
+    pagination: result?.pagination ?? null,
+  };
+}
+
+/**
+ * POST `order_notes/order_notes_create`
+ * @example { "order_id": "...", "type": "notes", "note": "Called customer" }
+ */
+export async function createOrderNoteRequest(payload = {}) {
+  const orderId = String(payload.order_id ?? payload.orderId ?? '').trim();
+  if (!orderId) {
+    throw new Error('Order id is required');
+  }
+
+  const note = String(payload.note ?? payload.notes ?? payload.message ?? '').trim();
+  if (!note) {
+    throw new Error('Note text is required');
+  }
+
+  const type = String(payload.type ?? 'notes').trim() || 'notes';
+  const body = {
+    order_id: orderId,
+    type,
+    note,
+    notes: note,
+    message: note,
+  };
+
+  const response = await fetch(`${BASE_URL}${ORDER_NOTES_CREATE_PATH}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to create order note');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true, note, type, order_id: orderId };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to create order note';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
+export const ORDER_UPDATE_NOTES_PATH = 'order/order_update';
+
+/**
+ * PATCH `/api/order/order_update/:orderId` — persist internal order notes.
+ * Sends multipart `note` (and `notes` alias) to match POS update shape.
+ *
+ * @example
+ * { "note": "Customer asked to call before delivery" }
+ */
+export async function updateOrderNotesRequest(orderId, payload = {}) {
+  const id = String(orderId || '').trim();
+  if (!id) {
+    throw new Error('Order id is required');
+  }
+
+  const note = String(payload?.note ?? payload?.notes ?? '');
+  const form = new FormData();
+  form.append('note', note);
+  form.append('notes', note);
+
+  const response = await fetch(
+    `${BASE_URL}${ORDER_UPDATE_NOTES_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: getHeaders({ json: false }),
+      body: form,
+    }
+  );
+
+  if (!response.ok) {
+    const message = await getErrorMessageFromResponse(response);
+    const err = new Error(message || 'Failed to update order notes');
+    err.status = response.status;
+    throw err;
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    return { success: true, note };
+  }
+
+  if (result && result.success === false) {
+    const msg =
+      typeof result.message === 'string' && result.message.trim() !== ''
+        ? result.message
+        : 'Failed to update order notes';
+    throw new Error(msg);
+  }
+
+  return result;
+}
+
 export const ORDER_UPDATE_TAGS_PATH = 'order/update-tags';
 
 /**

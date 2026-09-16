@@ -1,0 +1,97 @@
+.oms-address-hover-trigger {
+  display: inline;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline dotted rgba(131, 146, 171, 0.85);
+  text-underline-offset: 0.15em;
+  cursor: help;
+}
+
+.oms-address-hover-trigger:hover,
+.oms-address-hover-trigger:focus-visible {
+  color: #344767;
+  text-decoration-color: #344767;
+  outline: none;
+}
+
+.oms-address-hover-trigger__text {
+  display: inline-block;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.oms-address-hover-popup {
+  position: fixed;
+  z-index: 1080;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.55rem;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  transform: translateY(0);
+}
+
+.oms-address-hover-popup--above {
+  transform: translateY(-100%);
+}
+
+.oms-address-hover-popup__head {
+  padding: 0.55rem 0.75rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8392ab;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.oms-address-hover-popup__list {
+  margin: 0;
+  padding: 0.35rem 0;
+}
+
+.oms-address-hover-popup__row {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.35rem 0.75rem;
+}
+
+.oms-address-hover-popup__row + .oms-address-hover-popup__row {
+  border-top: 1px solid #f1f5f9;
+}
+
+.oms-address-hover-popup__row dt {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  color: #8392ab;
+}
+
+.oms-address-hover-popup__row dt::after {
+  content: ' :';
+}
+
+.oms-address-hover-popup__row dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #344767;
+  line-height: 1.35;
+  word-break: break-word;
+}
