@@ -1065,6 +1065,8 @@ const Pos = () => {
   );
   const [cartProductFilter, setCartProductFilter] = useState('');
   const [activeDraftId, setActiveDraftId] = useState(() => initialCartSession?.activeDraftId || null);
+  const activeDraftIdRef = useRef(activeDraftId);
+  activeDraftIdRef.current = activeDraftId;
   const [cartSessionReady, setCartSessionReady] = useState(() => initialCartSession != null);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDeletingId, setDraftDeletingId] = useState(null);
@@ -2566,6 +2568,28 @@ const Pos = () => {
     [isOnline, companyId, activeDraftId, refreshCompanyAfterDraftMutate]
   );
 
+  const removeLoadedDraftAfterSale = useCallback(
+    async (draftId) => {
+      const id = draftId != null ? String(draftId).trim() : '';
+      if (!id || id.startsWith('draft-') || !companyId || !isOnline) return;
+      try {
+        const result = await removeCompanyDraftOrder(companyId, id);
+        await refreshCompanyAfterDraftMutate(result);
+        try {
+          await refreshDraftsFromServer();
+        } catch {
+          /* list refresh is best-effort; delete already succeeded */
+        }
+      } catch (err) {
+        console.warn('[POS] Order saved but failed to remove loaded draft', err);
+        toast.warning(
+          'Order saved, but the loaded draft could not be removed. You can delete it from Drafts.'
+        );
+      }
+    },
+    [companyId, isOnline, refreshCompanyAfterDraftMutate, refreshDraftsFromServer]
+  );
+
   const handlePaymentComplete = useCallback(
     async (payment) => {
       const tAll = performance.now();
@@ -2593,7 +2617,9 @@ const Pos = () => {
         } else {
           showToast('successToast', 'Order saved successfully.');
         }
+        const loadedDraftId = activeDraftIdRef.current;
         clearCartAfterSale();
+        await removeLoadedDraftAfterSale(loadedDraftId);
         if (normalizeCatalogRefresh(posLayout.catalogRefresh) === POS_CATALOG_REFRESH_AFTER_SAVE) {
           refreshCatalogQuietly();
         }
@@ -2620,7 +2646,14 @@ const Pos = () => {
         setOrderSaving(false);
       }
     },
-    [savePosOrder, clearCartAfterSale, cartLines, posLayout.catalogRefresh, refreshCatalogQuietly]
+    [
+      savePosOrder,
+      clearCartAfterSale,
+      removeLoadedDraftAfterSale,
+      cartLines,
+      posLayout.catalogRefresh,
+      refreshCatalogQuietly,
+    ]
   );
 
   const handlePaymentCompletePrint = useCallback(
@@ -2734,7 +2767,9 @@ const Pos = () => {
               : 'Order saved and sent to printer.'
           );
         }
+        const loadedDraftId = activeDraftIdRef.current;
         clearCartAfterSale();
+        await removeLoadedDraftAfterSale(loadedDraftId);
         if (normalizeCatalogRefresh(posLayout.catalogRefresh) === POS_CATALOG_REFRESH_AFTER_SAVE) {
           refreshCatalogQuietly();
         }
@@ -2757,6 +2792,7 @@ const Pos = () => {
     [
       savePosOrder,
       clearCartAfterSale,
+      removeLoadedDraftAfterSale,
       cartLines,
       cartSubtotal,
       shippingNum,
