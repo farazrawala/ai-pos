@@ -33,17 +33,30 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import {
   PO_STATUS_OPTIONS,
+  SR_LINE_ORDER_AMOUNT,
+  SR_LINE_ORDER_AMOUNT_ASC,
+  SR_LINE_ORDER_AMOUNT_DESC,
   SR_LINE_ORDER_FIFO,
   SR_LINE_ORDER_LIFO,
+  SR_LINE_ORDER_MODES,
+  SR_LINE_ORDER_PRICE_ASC,
+  SR_LINE_ORDER_PRICE_DESC,
+  applySrLineOrder,
   clearSrDraftCache,
+  insertSrLine,
+  isSrLineAmountOrder,
+  isSrLinePriceOrder,
+  isSrLineValueOrder,
   persistSrDraftCache,
   persistSrLineOrder,
   readSrDraftCache,
   readStoredSrLineOrder,
   sanitizeAmountPaidInput,
+  sortSrLinesByOrder,
 } from './srFormConstants.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { FaTrashCan } from 'react-icons/fa6';
 import { toast } from '../../utils/toast.js';
 import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import '../purchase_order/po-form-module.css';
@@ -136,6 +149,9 @@ function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtNum = (n) =>
+  Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const roundMoney2 = (n) => {
   const x = Number(n);
@@ -552,11 +568,13 @@ const SalesReturnEdit = () => {
     const cached = companyId ? readSrDraftCache('edit', companyId, id) : null;
     if (cached) {
       setForm({ ...recordToForm(currentSalesReturn), ...(cached.form || {}) });
-      setLines(cached.lines);
+      setLines(applySrLineOrder(cached.lines, lineDisplayOrderRef.current));
       if (cached.amountPaidDirty) setAmountPaidDirty(true);
     } else {
       setForm(recordToForm(currentSalesReturn));
-      setLines(linesFromPurchaseOrder(currentSalesReturn));
+      setLines(
+        applySrLineOrder(linesFromPurchaseOrder(currentSalesReturn), lineDisplayOrderRef.current)
+      );
       setAmountPaidDirty(false);
     }
     hydratedRecordIdRef.current = String(id).trim();
@@ -646,6 +664,41 @@ const SalesReturnEdit = () => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
 
+  const setLineOrderMode = useCallback((nextOrder) => {
+    if (!SR_LINE_ORDER_MODES.has(nextOrder)) return;
+    const prevOrder = lineDisplayOrderRef.current;
+    if (prevOrder === nextOrder) {
+      if (isSrLineValueOrder(nextOrder)) {
+        setLines((rows) => sortSrLinesByOrder(rows, nextOrder));
+      }
+      return;
+    }
+    lineDisplayOrderRef.current = nextOrder;
+    setLineDisplayOrder(nextOrder);
+    setLines((rows) => applySrLineOrder(rows, nextOrder));
+    persistSrLineOrder(nextOrder);
+  }, []);
+
+  const handleAmountOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === SR_LINE_ORDER_AMOUNT_ASC ? SR_LINE_ORDER_AMOUNT_DESC : SR_LINE_ORDER_AMOUNT_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const handlePriceOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === SR_LINE_ORDER_PRICE_ASC ? SR_LINE_ORDER_PRICE_DESC : SR_LINE_ORDER_PRICE_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const resortLinesIfValueOrder = useCallback(() => {
+    const order = lineDisplayOrderRef.current;
+    if (!isSrLineValueOrder(order)) return;
+    setLines((rows) => sortSrLinesByOrder(rows, order));
+  }, []);
+
   const removeLine = useCallback((key) => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
@@ -685,9 +738,7 @@ const SalesReturnEdit = () => {
         presetWarehouseInventoryId: '',
         presetWarehouseId: '',
       };
-      setLines((prev) =>
-        lineDisplayOrderRef.current === SR_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
-      );
+      setLines((prev) => insertSrLine(prev, newLine, lineDisplayOrderRef.current));
       addProductQueryRef.current = '';
       setAddProductQuery('');
       setAddProductResults([]);
@@ -1240,19 +1291,13 @@ const SalesReturnEdit = () => {
                     <label className="form-label" htmlFor="po-edit-product-search">
                       Add product
                     </label>
-                    <div className="po-form-segment" role="group" aria-label="Line item add order">
+                    <div className="po-form-segment" role="group" aria-label="Line item display order">
                       <button
                         type="button"
                         className={`po-form-segment__btn${
                           lineDisplayOrder === SR_LINE_ORDER_FIFO ? ' is-active' : ''
                         }`}
-                        onClick={() => {
-                          if (lineDisplayOrderRef.current === SR_LINE_ORDER_FIFO) return;
-                          lineDisplayOrderRef.current = SR_LINE_ORDER_FIFO;
-                          setLineDisplayOrder(SR_LINE_ORDER_FIFO);
-                          persistSrLineOrder(SR_LINE_ORDER_FIFO);
-                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                        }}
+                        onClick={() => setLineOrderMode(SR_LINE_ORDER_FIFO)}
                         disabled={isSubmitting}
                         title="First in, first out — oldest products at the top"
                         aria-pressed={lineDisplayOrder === SR_LINE_ORDER_FIFO}
@@ -1264,18 +1309,61 @@ const SalesReturnEdit = () => {
                         className={`po-form-segment__btn${
                           lineDisplayOrder === SR_LINE_ORDER_LIFO ? ' is-active' : ''
                         }`}
-                        onClick={() => {
-                          if (lineDisplayOrderRef.current === SR_LINE_ORDER_LIFO) return;
-                          lineDisplayOrderRef.current = SR_LINE_ORDER_LIFO;
-                          setLineDisplayOrder(SR_LINE_ORDER_LIFO);
-                          persistSrLineOrder(SR_LINE_ORDER_LIFO);
-                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                        }}
+                        onClick={() => setLineOrderMode(SR_LINE_ORDER_LIFO)}
                         disabled={isSubmitting}
                         title="Last in, first out — newest products at the top"
                         aria-pressed={lineDisplayOrder === SR_LINE_ORDER_LIFO}
                       >
                         LIFO
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          isSrLinePriceOrder(lineDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handlePriceOrderClick}
+                        disabled={isSubmitting}
+                        title="Click to toggle sort by price: ascending, then descending, and so on."
+                        aria-pressed={isSrLinePriceOrder(lineDisplayOrder)}
+                        aria-label={
+                          lineDisplayOrder === SR_LINE_ORDER_PRICE_DESC
+                            ? 'Sort by price descending. Click again for ascending.'
+                            : lineDisplayOrder === SR_LINE_ORDER_PRICE_ASC
+                              ? 'Sort by price ascending. Click again for descending.'
+                              : 'Sort by price. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Price
+                        {lineDisplayOrder === SR_LINE_ORDER_PRICE_ASC
+                          ? ' ↑'
+                          : lineDisplayOrder === SR_LINE_ORDER_PRICE_DESC
+                            ? ' ↓'
+                            : ''}
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          isSrLineAmountOrder(lineDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handleAmountOrderClick}
+                        disabled={isSubmitting}
+                        title="Click to toggle sort by amount: ascending, then descending, and so on."
+                        aria-pressed={isSrLineAmountOrder(lineDisplayOrder)}
+                        aria-label={
+                          lineDisplayOrder === SR_LINE_ORDER_AMOUNT_DESC
+                            ? 'Sort by amount descending. Click again for ascending.'
+                            : lineDisplayOrder === SR_LINE_ORDER_AMOUNT_ASC
+                              ? 'Sort by amount ascending. Click again for descending.'
+                              : 'Sort by amount. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Amount
+                        {lineDisplayOrder === SR_LINE_ORDER_AMOUNT_ASC
+                          ? ' ↑'
+                          : lineDisplayOrder === SR_LINE_ORDER_AMOUNT_DESC ||
+                              lineDisplayOrder === SR_LINE_ORDER_AMOUNT
+                            ? ' ↓'
+                            : ''}
                       </button>
                     </div>
                   </div>
@@ -1345,7 +1433,7 @@ const SalesReturnEdit = () => {
                             <th className="text-center po-form-col-sno">#</th>
                             <th className="po-form-col-desc">Description</th>
                             <th className="po-form-col-wh">Warehouse</th>
-                            <th className="text-end po-form-col-num">Rate</th>
+                            <th className="text-end po-form-col-rate">Rate</th>
                             <th className="text-end po-form-col-num">Qty</th>
                             <th className="text-end po-form-col-ship">Ship / unit</th>
                             <th className="text-end po-form-col-ship">Total ship</th>
@@ -1386,7 +1474,7 @@ const SalesReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'warehouseId', e.target.value)
                                       }
-                                      disabled={isSubmitting || warehousesStatus === 'loading'}
+                                      disabled
                                     >
                                       <option value="">Select</option>
                                       {(() => {
@@ -1426,6 +1514,7 @@ const SalesReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'rate', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1440,6 +1529,7 @@ const SalesReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'qty', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1449,7 +1539,7 @@ const SalesReturnEdit = () => {
                                       title="Total shipping ÷ qty"
                                       aria-label={`Shipping per unit for line ${i + 1}`}
                                     >
-                                      {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                                      {hasLineShipping ? fmtNum(shippingPerUnit) : '—'}
                                     </div>
                                   </td>
                                   <td className="text-end">
@@ -1464,21 +1554,24 @@ const SalesReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'totalShipping', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
                                   <td className="text-end fw-semibold text-nowrap">
-                                    {fmt(amount)}
+                                    {fmtNum(amount)}
                                   </td>
                                   <td className="text-center">
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center p-0"
+                                      style={{ width: '32px', height: '32px' }}
+                                      title="Remove line"
                                       aria-label={`Remove line ${i + 1}`}
                                       onClick={() => removeLine(row.key)}
                                       disabled={isSubmitting}
                                     >
-                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                      <FaTrashCan size={14} aria-hidden="true" />
                                     </button>
                                   </td>
                                 </tr>

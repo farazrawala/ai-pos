@@ -1026,6 +1026,7 @@ const Pos = () => {
   );
   const [selectedCustomerRecord, setSelectedCustomerRecord] = useState(null);
   const selectedCustomerRecordRef = useRef(null);
+  const defaultCustomerIdRef = useRef('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const customerPickerRef = useRef(null);
@@ -1335,6 +1336,11 @@ const Pos = () => {
     }
   };
 
+  const rememberDefaultCustomerFromList = useCallback((arr) => {
+    const id = getDefaultPosCustomerUserId(arr);
+    if (id) defaultCustomerIdRef.current = id;
+  }, []);
+
   const applyCustomerList = useCallback((arr, selectAfter) => {
     setUsers(arr);
     setUsersStatus('succeeded');
@@ -1364,7 +1370,9 @@ const Pos = () => {
             setUsersStatus('failed');
             return;
           }
-          applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
+          const next = mergePickerCustomers(cached, [pinned]);
+          rememberDefaultCustomerFromList(next);
+          applyCustomerList(next, selectAfter);
         } catch (err) {
           console.warn('[POS] Failed to load customers from offline cache', err);
           setUsers([]);
@@ -1379,7 +1387,9 @@ const Pos = () => {
         const cached = await readCachedPickerCustomers();
         if (cached.length > 0) {
           hadCache = true;
-          applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
+          const next = mergePickerCustomers(cached, [pinned]);
+          rememberDefaultCustomerFromList(next);
+          applyCustomerList(next, selectAfter);
         } else {
           setUsersStatus('loading');
         }
@@ -1404,7 +1414,9 @@ const Pos = () => {
       try {
         const list = await fetchPosCustomerPickerRequest();
         const arr = (Array.isArray(list) ? list : []).filter((u) => getUserOptionValue(u));
-        applyCustomerList(mergePickerCustomers(arr, [pinned]), selectAfter);
+        const next = mergePickerCustomers(arr, [pinned]);
+        rememberDefaultCustomerFromList(next);
+        applyCustomerList(next, selectAfter);
         upsertCustomers(arr).catch((cacheErr) => {
           console.warn('[POS] Failed to cache customers', cacheErr);
         });
@@ -1414,7 +1426,9 @@ const Pos = () => {
         try {
           const cached = await readCachedPickerCustomers();
           if (cached.length > 0) {
-            applyCustomerList(mergePickerCustomers(cached, [pinned]), selectAfter);
+            const next = mergePickerCustomers(cached, [pinned]);
+            rememberDefaultCustomerFromList(next);
+            applyCustomerList(next, selectAfter);
             return;
           }
         } catch (cacheErr) {
@@ -1425,7 +1439,7 @@ const Pos = () => {
         setUsersStatus('failed');
       }
     },
-    [isOnline, applyCustomerList]
+    [isOnline, applyCustomerList, rememberDefaultCustomerFromList]
   );
 
   const loadCategories = useCallback(async () => {
@@ -2253,6 +2267,10 @@ const Pos = () => {
 
   const clearCartAfterSale = useCallback(() => {
     const nextDateTime = nowDatetimeLocalValue();
+    const defaultCustomerId =
+      defaultCustomerIdRef.current || getDefaultPosCustomerUserId(users) || '';
+    const defaultRecord =
+      users.find((u) => getUserOptionValue(u) === defaultCustomerId) || null;
     setCartLines([]);
     setShipping('');
     setOrderDateTime(nextDateTime);
@@ -2260,10 +2278,15 @@ const Pos = () => {
     setExtraDiscountPercent('');
     discountEditSourceRef.current = null;
     setActiveDraftId(null);
+    setSelectedCustomerId(defaultCustomerId);
+    setSelectedCustomerRecord(defaultRecord);
+    selectedCustomerRecordRef.current = defaultRecord;
+    setCustomerFilter('');
+    setCustomerMenuOpen(false);
     persistCartSession(
       {
         cartLines: [],
-        selectedCustomerId,
+        selectedCustomerId: defaultCustomerId,
         shipping: '',
         orderDateTime: nextDateTime,
         extraDiscount: '',
@@ -2273,7 +2296,8 @@ const Pos = () => {
       companyId,
       userId
     );
-  }, [selectedCustomerId, companyId, userId]);
+    loadUsers();
+  }, [users, companyId, userId, loadUsers]);
 
   const draftOrders = useMemo(() => normalizeCompanyDraftOrders(authCompany), [authCompany]);
 

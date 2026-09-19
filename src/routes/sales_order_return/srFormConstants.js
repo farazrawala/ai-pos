@@ -1,13 +1,129 @@
-/** Line-item add order on sales return add/edit (same idea as POS cart / PO forms). */
+/** Line-item display order on sales return add/edit (same idea as POS cart). */
 export const SR_LINE_ORDER_STORAGE_KEY = 'salesReturn.lineDisplayOrder';
 export const SR_LINE_ORDER_FIFO = 'fifo';
 export const SR_LINE_ORDER_LIFO = 'lifo';
+export const SR_LINE_ORDER_AMOUNT_ASC = 'amount_asc';
+export const SR_LINE_ORDER_AMOUNT_DESC = 'amount_desc';
+export const SR_LINE_ORDER_AMOUNT = 'amount';
+export const SR_LINE_ORDER_PRICE_ASC = 'price_asc';
+export const SR_LINE_ORDER_PRICE_DESC = 'price_desc';
+export const SR_LINE_ORDER_MODES = new Set([
+  SR_LINE_ORDER_FIFO,
+  SR_LINE_ORDER_LIFO,
+  SR_LINE_ORDER_AMOUNT_ASC,
+  SR_LINE_ORDER_AMOUNT_DESC,
+  SR_LINE_ORDER_AMOUNT,
+  SR_LINE_ORDER_PRICE_ASC,
+  SR_LINE_ORDER_PRICE_DESC,
+]);
+
+export function isSrLineAmountOrder(order) {
+  return (
+    order === SR_LINE_ORDER_AMOUNT_ASC ||
+    order === SR_LINE_ORDER_AMOUNT_DESC ||
+    order === SR_LINE_ORDER_AMOUNT
+  );
+}
+
+export function isSrLinePriceOrder(order) {
+  return order === SR_LINE_ORDER_PRICE_ASC || order === SR_LINE_ORDER_PRICE_DESC;
+}
+
+export function isSrLineValueOrder(order) {
+  return isSrLineAmountOrder(order) || isSrLinePriceOrder(order);
+}
+
+function parseSrLineNumber(raw) {
+  const n = parseFloat(String(raw ?? '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+const roundSrMoney2 = (n) => Math.round(n * 100) / 100;
+
+/** Base product rate (Rate column) — used by Price sort. */
+export function srLinePrice(line) {
+  return parseSrLineNumber(line?.rate);
+}
+
+/** Displayed line amount (final rate × qty) — used by Amount sort. */
+export function srLineAmount(line) {
+  const qty = parseSrLineNumber(line?.qty);
+  const baseRate = parseSrLineNumber(line?.rate);
+  const tsRaw = String(line?.totalShipping ?? '').trim();
+  if (tsRaw === '') return roundSrMoney2(qty * baseRate);
+  const totalShippingNum = roundSrMoney2(parseSrLineNumber(tsRaw));
+  const shippingPerUnit = qty > 0 ? roundSrMoney2(totalShippingNum / qty) : 0;
+  const finalRate = roundSrMoney2(baseRate + shippingPerUnit);
+  return roundSrMoney2(finalRate * qty);
+}
+
+export function nextSrLineSeq(lines) {
+  let max = -1;
+  for (const line of lines || []) {
+    const n = Number(line?.addedSeq);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max + 1;
+}
+
+/** Fill missing insertion order so FIFO/LIFO still work after price/amount sorts. */
+export function ensureSrLineSeq(lines, currentOrder) {
+  if (!Array.isArray(lines) || lines.length === 0) return lines || [];
+  if (lines.every((line) => Number.isFinite(Number(line?.addedSeq)))) return lines;
+  const n = lines.length;
+  return lines.map((line, i) => {
+    if (Number.isFinite(Number(line?.addedSeq))) return line;
+    const addedSeq = currentOrder === SR_LINE_ORDER_LIFO ? n - 1 - i : i;
+    return { ...line, addedSeq };
+  });
+}
+
+export function sortSrLinesByOrder(lines, order) {
+  if (!Array.isArray(lines) || lines.length <= 1) return lines;
+  const copy = [...lines];
+  const seq = (line) => Number(line?.addedSeq) || 0;
+  if (order === SR_LINE_ORDER_AMOUNT_ASC) {
+    copy.sort((a, b) => srLineAmount(a) - srLineAmount(b) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === SR_LINE_ORDER_AMOUNT_DESC || order === SR_LINE_ORDER_AMOUNT) {
+    copy.sort((a, b) => srLineAmount(b) - srLineAmount(a) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === SR_LINE_ORDER_PRICE_ASC) {
+    copy.sort((a, b) => srLinePrice(a) - srLinePrice(b) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === SR_LINE_ORDER_PRICE_DESC) {
+    copy.sort((a, b) => srLinePrice(b) - srLinePrice(a) || seq(a) - seq(b));
+    return copy;
+  }
+  if (order === SR_LINE_ORDER_LIFO) {
+    copy.sort((a, b) => seq(b) - seq(a));
+    return copy;
+  }
+  copy.sort((a, b) => seq(a) - seq(b));
+  return copy;
+}
+
+export function applySrLineOrder(lines, order) {
+  return sortSrLinesByOrder(ensureSrLineSeq(lines, order), order);
+}
+
+export function insertSrLine(prev, newLine, order) {
+  const withSeq = { ...newLine, addedSeq: nextSrLineSeq(prev) };
+  if (isSrLineValueOrder(order)) {
+    return sortSrLinesByOrder([...prev, withSeq], order);
+  }
+  return order === SR_LINE_ORDER_LIFO ? [withSeq, ...prev] : [...prev, withSeq];
+}
 
 export function readStoredSrLineOrder() {
   if (typeof window === 'undefined') return SR_LINE_ORDER_FIFO;
   try {
     const value = window.localStorage.getItem(SR_LINE_ORDER_STORAGE_KEY);
-    if (value === SR_LINE_ORDER_LIFO || value === SR_LINE_ORDER_FIFO) return value;
+    if (value === SR_LINE_ORDER_AMOUNT) return SR_LINE_ORDER_AMOUNT_DESC;
+    if (SR_LINE_ORDER_MODES.has(value)) return value;
   } catch {
     /* ignore */
   }
@@ -16,7 +132,7 @@ export function readStoredSrLineOrder() {
 
 export function persistSrLineOrder(order) {
   if (typeof window === 'undefined') return;
-  if (order !== SR_LINE_ORDER_FIFO && order !== SR_LINE_ORDER_LIFO) return;
+  if (!SR_LINE_ORDER_MODES.has(order)) return;
   try {
     window.localStorage.setItem(SR_LINE_ORDER_STORAGE_KEY, order);
   } catch {
@@ -77,6 +193,7 @@ export function sanitizeSrDraftLines(raw) {
           : [],
         presetWarehouseInventoryId: String(row.presetWarehouseInventoryId ?? ''),
         presetWarehouseId: String(row.presetWarehouseId ?? row.warehouseId ?? ''),
+        addedSeq: Number.isFinite(Number(row.addedSeq)) ? Number(row.addedSeq) : undefined,
       };
     })
     .filter(Boolean);

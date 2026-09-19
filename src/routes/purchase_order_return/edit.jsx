@@ -32,14 +32,27 @@ import { fetchAccountsRequest } from '../../features/accounts/accountsAPI.js';
 import { buildExpenseDefaultAccountFilterParams } from '../../features/expenses/expensesAPI.js';
 import {
   PO_STATUS_OPTIONS,
+  PO_LINE_ORDER_AMOUNT,
+  PO_LINE_ORDER_AMOUNT_ASC,
+  PO_LINE_ORDER_AMOUNT_DESC,
   PO_LINE_ORDER_FIFO,
   PO_LINE_ORDER_LIFO,
+  PO_LINE_ORDER_MODES,
+  PO_LINE_ORDER_PRICE_ASC,
+  PO_LINE_ORDER_PRICE_DESC,
+  applyPoLineOrder,
+  insertPoLine,
+  isPoLineAmountOrder,
+  isPoLinePriceOrder,
+  isPoLineValueOrder,
   persistPoLineOrder,
   readStoredPoLineOrder,
   sanitizeAmountPaidInput,
+  sortPoLinesByOrder,
 } from './poFormConstants.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
+import { FaTrashCan } from 'react-icons/fa6';
 import { toast } from '../../utils/toast.js';
 import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import '../purchase_order/po-form-module.css';
@@ -105,6 +118,9 @@ function resolveWarehouseInventoryId(warehouseInventoryRows, warehouseId) {
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtNum = (n) =>
+  Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const roundMoney2 = (n) => {
   const x = Number(n);
@@ -502,7 +518,9 @@ const PurchaseOrderReturnEdit = () => {
   useEffect(() => {
     if (currentPurchaseOrderReturn) {
       setForm(recordToForm(currentPurchaseOrderReturn));
-      setLines(linesFromPurchaseOrder(currentPurchaseOrderReturn));
+      setLines(
+        applyPoLineOrder(linesFromPurchaseOrder(currentPurchaseOrderReturn), lineDisplayOrderRef.current)
+      );
       setAmountPaidDirty(false);
     }
   }, [currentPurchaseOrderReturn]);
@@ -584,6 +602,41 @@ const PurchaseOrderReturnEdit = () => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
 
+  const setLineOrderMode = useCallback((nextOrder) => {
+    if (!PO_LINE_ORDER_MODES.has(nextOrder)) return;
+    const prevOrder = lineDisplayOrderRef.current;
+    if (prevOrder === nextOrder) {
+      if (isPoLineValueOrder(nextOrder)) {
+        setLines((rows) => sortPoLinesByOrder(rows, nextOrder));
+      }
+      return;
+    }
+    lineDisplayOrderRef.current = nextOrder;
+    setLineDisplayOrder(nextOrder);
+    setLines((rows) => applyPoLineOrder(rows, nextOrder));
+    persistPoLineOrder(nextOrder);
+  }, []);
+
+  const handleAmountOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === PO_LINE_ORDER_AMOUNT_ASC ? PO_LINE_ORDER_AMOUNT_DESC : PO_LINE_ORDER_AMOUNT_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const handlePriceOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === PO_LINE_ORDER_PRICE_ASC ? PO_LINE_ORDER_PRICE_DESC : PO_LINE_ORDER_PRICE_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const resortLinesIfValueOrder = useCallback(() => {
+    const order = lineDisplayOrderRef.current;
+    if (!isPoLineValueOrder(order)) return;
+    setLines((rows) => sortPoLinesByOrder(rows, order));
+  }, []);
+
   const removeLine = useCallback((key) => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
@@ -622,9 +675,7 @@ const PurchaseOrderReturnEdit = () => {
         presetWarehouseInventoryId: '',
         presetWarehouseId: '',
       };
-      setLines((prev) =>
-        lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
-      );
+      setLines((prev) => insertPoLine(prev, newLine, lineDisplayOrderRef.current));
       playPosScanBeep('success');
       setAddProductQuery('');
       setAddProductResults([]);
@@ -1124,19 +1175,13 @@ const PurchaseOrderReturnEdit = () => {
                     <label className="form-label" htmlFor="po-edit-product-search">
                       Add product
                     </label>
-                    <div className="po-form-segment" role="group" aria-label="Line item add order">
+                    <div className="po-form-segment" role="group" aria-label="Line item display order">
                       <button
                         type="button"
                         className={`po-form-segment__btn${
                           lineDisplayOrder === PO_LINE_ORDER_FIFO ? ' is-active' : ''
                         }`}
-                        onClick={() => {
-                          if (lineDisplayOrderRef.current === PO_LINE_ORDER_FIFO) return;
-                          lineDisplayOrderRef.current = PO_LINE_ORDER_FIFO;
-                          setLineDisplayOrder(PO_LINE_ORDER_FIFO);
-                          persistPoLineOrder(PO_LINE_ORDER_FIFO);
-                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                        }}
+                        onClick={() => setLineOrderMode(PO_LINE_ORDER_FIFO)}
                         disabled={isSubmitting}
                         title="First in, first out — oldest products at the top"
                         aria-pressed={lineDisplayOrder === PO_LINE_ORDER_FIFO}
@@ -1148,18 +1193,61 @@ const PurchaseOrderReturnEdit = () => {
                         className={`po-form-segment__btn${
                           lineDisplayOrder === PO_LINE_ORDER_LIFO ? ' is-active' : ''
                         }`}
-                        onClick={() => {
-                          if (lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO) return;
-                          lineDisplayOrderRef.current = PO_LINE_ORDER_LIFO;
-                          setLineDisplayOrder(PO_LINE_ORDER_LIFO);
-                          persistPoLineOrder(PO_LINE_ORDER_LIFO);
-                          setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                        }}
+                        onClick={() => setLineOrderMode(PO_LINE_ORDER_LIFO)}
                         disabled={isSubmitting}
                         title="Last in, first out — newest products at the top"
                         aria-pressed={lineDisplayOrder === PO_LINE_ORDER_LIFO}
                       >
                         LIFO
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          isPoLinePriceOrder(lineDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handlePriceOrderClick}
+                        disabled={isSubmitting}
+                        title="Click to toggle sort by price: ascending, then descending, and so on."
+                        aria-pressed={isPoLinePriceOrder(lineDisplayOrder)}
+                        aria-label={
+                          lineDisplayOrder === PO_LINE_ORDER_PRICE_DESC
+                            ? 'Sort by price descending. Click again for ascending.'
+                            : lineDisplayOrder === PO_LINE_ORDER_PRICE_ASC
+                              ? 'Sort by price ascending. Click again for descending.'
+                              : 'Sort by price. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Price
+                        {lineDisplayOrder === PO_LINE_ORDER_PRICE_ASC
+                          ? ' ↑'
+                          : lineDisplayOrder === PO_LINE_ORDER_PRICE_DESC
+                            ? ' ↓'
+                            : ''}
+                      </button>
+                      <button
+                        type="button"
+                        className={`po-form-segment__btn${
+                          isPoLineAmountOrder(lineDisplayOrder) ? ' is-active' : ''
+                        }`}
+                        onClick={handleAmountOrderClick}
+                        disabled={isSubmitting}
+                        title="Click to toggle sort by amount: ascending, then descending, and so on."
+                        aria-pressed={isPoLineAmountOrder(lineDisplayOrder)}
+                        aria-label={
+                          lineDisplayOrder === PO_LINE_ORDER_AMOUNT_DESC
+                            ? 'Sort by amount descending. Click again for ascending.'
+                            : lineDisplayOrder === PO_LINE_ORDER_AMOUNT_ASC
+                              ? 'Sort by amount ascending. Click again for descending.'
+                              : 'Sort by amount. Click for ascending, click again for descending.'
+                        }
+                      >
+                        Amount
+                        {lineDisplayOrder === PO_LINE_ORDER_AMOUNT_ASC
+                          ? ' ↑'
+                          : lineDisplayOrder === PO_LINE_ORDER_AMOUNT_DESC ||
+                              lineDisplayOrder === PO_LINE_ORDER_AMOUNT
+                            ? ' ↓'
+                            : ''}
                       </button>
                     </div>
                   </div>
@@ -1223,7 +1311,7 @@ const PurchaseOrderReturnEdit = () => {
                             <th className="text-center po-form-col-sno">#</th>
                             <th className="po-form-col-desc">Description</th>
                             <th className="po-form-col-wh">Warehouse</th>
-                            <th className="text-end po-form-col-num">Rate</th>
+                            <th className="text-end po-form-col-rate">Rate</th>
                             <th className="text-end po-form-col-num">Qty</th>
                             <th className="text-end po-form-col-ship">Ship / unit</th>
                             <th className="text-end po-form-col-ship">Total ship</th>
@@ -1264,7 +1352,7 @@ const PurchaseOrderReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'warehouseId', e.target.value)
                                       }
-                                      disabled={isSubmitting || warehousesStatus === 'loading'}
+                                      disabled
                                     >
                                       <option value="">Select</option>
                                       {(() => {
@@ -1304,6 +1392,7 @@ const PurchaseOrderReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'rate', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1318,6 +1407,7 @@ const PurchaseOrderReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'qty', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
@@ -1327,7 +1417,7 @@ const PurchaseOrderReturnEdit = () => {
                                       title="Total shipping ÷ qty"
                                       aria-label={`Shipping per unit for line ${i + 1}`}
                                     >
-                                      {hasLineShipping ? fmt(shippingPerUnit) : '—'}
+                                      {hasLineShipping ? fmtNum(shippingPerUnit) : '—'}
                                     </div>
                                   </td>
                                   <td className="text-end">
@@ -1342,21 +1432,24 @@ const PurchaseOrderReturnEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'totalShipping', e.target.value)
                                       }
+                                      onBlur={resortLinesIfValueOrder}
                                       disabled={isSubmitting}
                                     />
                                   </td>
                                   <td className="text-end fw-semibold text-nowrap">
-                                    {fmt(amount)}
+                                    {fmtNum(amount)}
                                   </td>
                                   <td className="text-center">
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-danger py-0 px-2"
+                                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center p-0"
+                                      style={{ width: '32px', height: '32px' }}
+                                      title="Remove line"
                                       aria-label={`Remove line ${i + 1}`}
                                       onClick={() => removeLine(row.key)}
                                       disabled={isSubmitting}
                                     >
-                                      <i className="fas fa-trash-alt" aria-hidden="true" />
+                                      <FaTrashCan size={14} aria-hidden="true" />
                                     </button>
                                   </td>
                                 </tr>

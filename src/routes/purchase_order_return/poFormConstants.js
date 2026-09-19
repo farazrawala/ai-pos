@@ -1,8 +1,20 @@
 export {
+  PO_LINE_ORDER_AMOUNT,
+  PO_LINE_ORDER_AMOUNT_ASC,
+  PO_LINE_ORDER_AMOUNT_DESC,
   PO_LINE_ORDER_FIFO,
   PO_LINE_ORDER_LIFO,
+  PO_LINE_ORDER_MODES,
+  PO_LINE_ORDER_PRICE_ASC,
+  PO_LINE_ORDER_PRICE_DESC,
+  applyPoLineOrder,
+  insertPoLine,
+  isPoLineAmountOrder,
+  isPoLinePriceOrder,
+  isPoLineValueOrder,
   persistPoLineOrder,
   readStoredPoLineOrder,
+  sortPoLinesByOrder,
 } from '../purchase_order/poFormConstants.js';
 
 /** Keep only digits and at most one decimal point (max 2 decimal places). */

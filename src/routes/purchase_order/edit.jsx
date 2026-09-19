@@ -1832,7 +1832,7 @@ const PurchaseOrderEdit = () => {
                                       onChange={(e) =>
                                         handleLineEdit(row.key, 'warehouseId', e.target.value)
                                       }
-                                      disabled={isSubmitting || warehousesStatus === 'loading'}
+                                      disabled
                                     >
                                       <option value="">Select</option>
                                       {(() => {

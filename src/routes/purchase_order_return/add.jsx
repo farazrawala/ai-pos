@@ -37,18 +37,35 @@ import {
 } from '../../constants/pakistanLocations.js';
 import {
   PO_STATUS_OPTIONS,
+  PO_LINE_ORDER_AMOUNT,
+  PO_LINE_ORDER_AMOUNT_ASC,
+  PO_LINE_ORDER_AMOUNT_DESC,
   PO_LINE_ORDER_FIFO,
   PO_LINE_ORDER_LIFO,
+  PO_LINE_ORDER_MODES,
+  PO_LINE_ORDER_PRICE_ASC,
+  PO_LINE_ORDER_PRICE_DESC,
+  applyPoLineOrder,
+  insertPoLine,
+  isPoLineAmountOrder,
+  isPoLinePriceOrder,
+  isPoLineValueOrder,
   persistPoLineOrder,
   readStoredPoLineOrder,
   sanitizeAmountPaidInput,
+  sortPoLinesByOrder,
 } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
+import { FaTrashCan } from 'react-icons/fa6';
+import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import '../purchase_order/po-form-module.css';
 
 const fmt = (n) =>
   `PKR ${Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtNum = (n) =>
+  Number(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const roundMoney2 = (n) => {
   const x = Number(n);
@@ -437,6 +454,41 @@ const PurchaseOrderReturnAdd = () => {
     setLines((prev) => prev.map((row) => (row.key === key ? { ...row, [field]: rawValue } : row)));
   }, []);
 
+  const setLineOrderMode = useCallback((nextOrder) => {
+    if (!PO_LINE_ORDER_MODES.has(nextOrder)) return;
+    const prevOrder = lineDisplayOrderRef.current;
+    if (prevOrder === nextOrder) {
+      if (isPoLineValueOrder(nextOrder)) {
+        setLines((rows) => sortPoLinesByOrder(rows, nextOrder));
+      }
+      return;
+    }
+    lineDisplayOrderRef.current = nextOrder;
+    setLineDisplayOrder(nextOrder);
+    setLines((rows) => applyPoLineOrder(rows, nextOrder));
+    persistPoLineOrder(nextOrder);
+  }, []);
+
+  const handleAmountOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === PO_LINE_ORDER_AMOUNT_ASC ? PO_LINE_ORDER_AMOUNT_DESC : PO_LINE_ORDER_AMOUNT_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const handlePriceOrderClick = useCallback(() => {
+    const current = lineDisplayOrderRef.current;
+    const next =
+      current === PO_LINE_ORDER_PRICE_ASC ? PO_LINE_ORDER_PRICE_DESC : PO_LINE_ORDER_PRICE_ASC;
+    setLineOrderMode(next);
+  }, [setLineOrderMode]);
+
+  const resortLinesIfValueOrder = useCallback(() => {
+    const order = lineDisplayOrderRef.current;
+    if (!isPoLineValueOrder(order)) return;
+    setLines((rows) => sortPoLinesByOrder(rows, order));
+  }, []);
+
   const removeLine = useCallback((key) => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
@@ -473,9 +525,7 @@ const PurchaseOrderReturnAdd = () => {
             ? product.warehouse_inventory
             : [],
       };
-      setLines((prev) =>
-        lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [newLine, ...prev] : [...prev, newLine]
-      );
+      setLines((prev) => insertPoLine(prev, newLine, lineDisplayOrderRef.current));
       playPosScanBeep('success');
       setAddProductQuery('');
       setAddProductResults([]);
@@ -1111,24 +1161,23 @@ const PurchaseOrderReturnAdd = () => {
             </div>
           </div>
 
-          <div className="mb-3 po-form-page">
+          <div className="mb-4 po-form-page">
+            <div className="po-form-section-title">Line items</div>
+            <p className="po-form-section-hint">
+              Search to add products, then set warehouse, rate, quantity, and optional shipping per
+              line.
+            </p>
             <div className="po-form-lines-toolbar">
-              <label className="form-label small text-muted mb-0" htmlFor="po-add-product-search">
+              <label className="form-label" htmlFor="po-add-product-search">
                 Add product
               </label>
-              <div className="po-form-segment" role="group" aria-label="Line item add order">
+              <div className="po-form-segment" role="group" aria-label="Line item display order">
                 <button
                   type="button"
                   className={`po-form-segment__btn${
                     lineDisplayOrder === PO_LINE_ORDER_FIFO ? ' is-active' : ''
                   }`}
-                  onClick={() => {
-                    if (lineDisplayOrderRef.current === PO_LINE_ORDER_FIFO) return;
-                    lineDisplayOrderRef.current = PO_LINE_ORDER_FIFO;
-                    setLineDisplayOrder(PO_LINE_ORDER_FIFO);
-                    persistPoLineOrder(PO_LINE_ORDER_FIFO);
-                    setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                  }}
+                  onClick={() => setLineOrderMode(PO_LINE_ORDER_FIFO)}
                   disabled={isSubmitting}
                   title="First in, first out — oldest products at the top"
                   aria-pressed={lineDisplayOrder === PO_LINE_ORDER_FIFO}
@@ -1140,203 +1189,245 @@ const PurchaseOrderReturnAdd = () => {
                   className={`po-form-segment__btn${
                     lineDisplayOrder === PO_LINE_ORDER_LIFO ? ' is-active' : ''
                   }`}
-                  onClick={() => {
-                    if (lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO) return;
-                    lineDisplayOrderRef.current = PO_LINE_ORDER_LIFO;
-                    setLineDisplayOrder(PO_LINE_ORDER_LIFO);
-                    persistPoLineOrder(PO_LINE_ORDER_LIFO);
-                    setLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
-                  }}
+                  onClick={() => setLineOrderMode(PO_LINE_ORDER_LIFO)}
                   disabled={isSubmitting}
                   title="Last in, first out — newest products at the top"
                   aria-pressed={lineDisplayOrder === PO_LINE_ORDER_LIFO}
                 >
                   LIFO
                 </button>
+                <button
+                  type="button"
+                  className={`po-form-segment__btn${
+                    isPoLinePriceOrder(lineDisplayOrder) ? ' is-active' : ''
+                  }`}
+                  onClick={handlePriceOrderClick}
+                  disabled={isSubmitting}
+                  title="Click to toggle sort by price: ascending, then descending, and so on."
+                  aria-pressed={isPoLinePriceOrder(lineDisplayOrder)}
+                  aria-label={
+                    lineDisplayOrder === PO_LINE_ORDER_PRICE_DESC
+                      ? 'Sort by price descending. Click again for ascending.'
+                      : lineDisplayOrder === PO_LINE_ORDER_PRICE_ASC
+                        ? 'Sort by price ascending. Click again for descending.'
+                        : 'Sort by price. Click for ascending, click again for descending.'
+                  }
+                >
+                  Price
+                  {lineDisplayOrder === PO_LINE_ORDER_PRICE_ASC
+                    ? ' ↑'
+                    : lineDisplayOrder === PO_LINE_ORDER_PRICE_DESC
+                      ? ' ↓'
+                      : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`po-form-segment__btn${
+                    isPoLineAmountOrder(lineDisplayOrder) ? ' is-active' : ''
+                  }`}
+                  onClick={handleAmountOrderClick}
+                  disabled={isSubmitting}
+                  title="Click to toggle sort by amount: ascending, then descending, and so on."
+                  aria-pressed={isPoLineAmountOrder(lineDisplayOrder)}
+                  aria-label={
+                    lineDisplayOrder === PO_LINE_ORDER_AMOUNT_DESC
+                      ? 'Sort by amount descending. Click again for ascending.'
+                      : lineDisplayOrder === PO_LINE_ORDER_AMOUNT_ASC
+                        ? 'Sort by amount ascending. Click again for descending.'
+                        : 'Sort by amount. Click for ascending, click again for descending.'
+                  }
+                >
+                  Amount
+                  {lineDisplayOrder === PO_LINE_ORDER_AMOUNT_ASC
+                    ? ' ↑'
+                    : lineDisplayOrder === PO_LINE_ORDER_AMOUNT_DESC ||
+                        lineDisplayOrder === PO_LINE_ORDER_AMOUNT
+                      ? ' ↓'
+                      : ''}
+                </button>
               </div>
             </div>
-            <input
-              id="po-add-product-search"
-              type="search"
-              className="form-control form-control-sm"
-              placeholder="Search name, SKU, or barcode (min. 2 characters)…"
-              value={addProductQuery}
-              onChange={(e) => setAddProductQuery(e.target.value)}
-              onFocus={unlockPosScanAudio}
-              autoComplete="off"
-              disabled={isSubmitting}
-            />
-            {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
-            {addProductError ? (
-              <div className="text-danger small mt-1" role="alert">
-                {addProductError}
+            <div className="po-form-product-search mb-3">
+              <div className="input-group input-group-sm">
+                <span className="input-group-text">
+                  <SearchInputIcon />
+                </span>
+                <input
+                  id="po-add-product-search"
+                  type="search"
+                  className="form-control"
+                  placeholder="Search name, SKU, or barcode (min. 2 characters)…"
+                  value={addProductQuery}
+                  onChange={(e) => setAddProductQuery(e.target.value)}
+                  onFocus={unlockPosScanAudio}
+                  autoComplete="off"
+                  disabled={isSubmitting}
+                />
               </div>
-            ) : null}
-            {addProductResults.length > 0 ? (
-              <ul
-                className="list-group position-relative w-100 shadow-sm mt-1"
-                style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
-              >
-                {addProductResults.map((p) => {
-                  const pk = String(p._id ?? p.id ?? '');
-                  return (
-                    <li key={pk} className="list-group-item p-0">
-                      <button
-                        type="button"
-                        className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
-                        onClick={() => appendProduct(p)}
-                      >
-                        <span className="fw-semibold">{productPickerLabel(p)}</span>
-                        <span className="text-muted ms-2">
-                          Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </div>
-
-          <p className="small text-muted mb-2">
-            Set <strong>Warehouse</strong>, <strong>Rate</strong> (wholesale price),{' '}
-            <strong>Qty</strong>, and optional <strong>Total Shipping</strong> per line.{' '}
-            <strong>Shipping per unit</strong> is calculated automatically; <strong>Amount</strong>{' '}
-            uses final rate (rate + shipping per unit) × qty. Remove rows you do not need.
-          </p>
-
-          <div className="table-responsive mb-4">
-            <table className="table table-bordered po-add-table mb-0">
-              <thead>
-                <tr>
-                  <th style={{ width: '48px' }}>#</th>
-                  <th>Description</th>
-                  <th style={{ minWidth: '180px' }}>Warehouse</th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Rate
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Qty
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Shipping / unit
-                  </th>
-                  <th className="text-end" style={{ minWidth: '130px' }}>
-                    Total shipping
-                  </th>
-                  <th className="text-end" style={{ width: '120px' }}>
-                    Amount
-                  </th>
-                  <th className="text-center" style={{ width: '72px' }} aria-label="Remove row" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center text-muted py-4">
-                      No line items. Use <strong>Add product</strong> above to add rows.
-                    </td>
-                  </tr>
-                ) : (
-                  lines.map((row, i) => {
-                    const derived = computeLineDerived(row);
-                    const { shippingPerUnit, amount, hasLineShipping } = derived;
+              {addProductLoading ? <div className="small text-muted mt-1">Searching…</div> : null}
+              {addProductError ? (
+                <div className="text-danger small mt-1" role="alert">
+                  {addProductError}
+                </div>
+              ) : null}
+              {addProductResults.length > 0 ? (
+                <ul
+                  className="list-group position-relative w-100 shadow-sm mt-1"
+                  style={{ zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}
+                >
+                  {addProductResults.map((p) => {
+                    const pk = String(p._id ?? p.id ?? '');
                     return (
-                      <tr key={row.key}>
-                        <td className="text-center">{i + 1}</td>
-                        <td>
-                          <div>{row.label}</div>
-                          {!String(row.productId || '').trim() ? (
-                            <div className="small text-warning">
-                              Missing product — remove or pick again.
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="align-middle">
-                          <select
-                            className="form-select form-select-sm"
-                            aria-label={`Warehouse for line ${i + 1}`}
-                            value={String(row.warehouseId ?? '')}
-                            onChange={(e) => handleLineEdit(row.key, 'warehouseId', e.target.value)}
-                            disabled={isSubmitting || warehousesStatus === 'loading'}
-                          >
-                            <option value="">Select warehouse</option>
-                            {warehouseOptions.map((w) => {
-                              const value = warehouseOptionValue(w);
-                              return (
-                                <option key={value} value={value}>
-                                  {warehouseOptionLabel(w)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Rate for line ${i + 1}`}
-                            value={row.rate}
-                            onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            aria-label={`Quantity for line ${i + 1}`}
-                            value={row.qty}
-                            onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end align-middle">
-                          <div
-                            className="form-control form-control-sm text-end bg-light border mb-0 py-1"
-                            title="Total shipping ÷ qty (read-only)"
-                            aria-label={`Shipping per unit for line ${i + 1}`}
-                          >
-                            {hasLineShipping ? fmt(shippingPerUnit) : '—'}
-                          </div>
-                        </td>
-                        <td className="text-end align-middle">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            className="form-control form-control-sm text-end"
-                            placeholder="0.00"
-                            aria-label={`Total shipping for line ${i + 1}`}
-                            value={row.totalShipping ?? ''}
-                            onChange={(e) =>
-                              handleLineEdit(row.key, 'totalShipping', e.target.value)
-                            }
-                            disabled={isSubmitting}
-                          />
-                        </td>
-                        <td className="text-end fw-semibold align-middle">{fmt(amount)}</td>
-                        <td className="text-center align-middle">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger py-0 px-2"
-                            aria-label={`Remove line ${i + 1}`}
-                            onClick={() => removeLine(row.key)}
-                            disabled={isSubmitting}
-                          >
-                            <i className="fas fa-trash-alt" aria-hidden="true" />
-                          </button>
+                      <li key={pk} className="list-group-item p-0">
+                        <button
+                          type="button"
+                          className="list-group-item list-group-item-action border-0 py-2 px-3 text-start w-100"
+                          onClick={() => appendProduct(p)}
+                        >
+                          <span className="fw-semibold">{productPickerLabel(p)}</span>
+                          <span className="text-muted ms-2">
+                            Wholesale {fmt(productPickerWholesalePrice(p) ?? productPickerUnitPrice(p))}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="po-form-table-wrap">
+              <div className="po-form-table-scroll">
+                <table className="table po-form-table mb-0">
+                  <thead>
+                    <tr>
+                      <th className="text-center po-form-col-sno">#</th>
+                      <th className="po-form-col-desc">Description</th>
+                      <th className="po-form-col-wh">Warehouse</th>
+                      <th className="text-end po-form-col-rate">Rate</th>
+                      <th className="text-end po-form-col-num">Qty</th>
+                      <th className="text-end po-form-col-ship">Ship / unit</th>
+                      <th className="text-end po-form-col-ship">Total ship</th>
+                      <th className="text-end po-form-col-amt">Amount</th>
+                      <th className="text-center po-form-col-action" aria-label="Remove row" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center text-muted py-4">
+                          No line items. Search above to add products.
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                    ) : (
+                      lines.map((row, i) => {
+                        const derived = computeLineDerived(row);
+                        const { shippingPerUnit, amount, hasLineShipping } = derived;
+                        return (
+                          <tr key={row.key}>
+                            <td className="text-center text-muted">{i + 1}</td>
+                            <td>
+                              <div className="po-form-line-desc" title={row.label}>
+                                {row.label}
+                              </div>
+                              {!String(row.productId || '').trim() ? (
+                                <div className="small text-warning">Missing product</div>
+                              ) : null}
+                            </td>
+                            <td>
+                              <select
+                                className="form-select form-select-sm"
+                                aria-label={`Warehouse for line ${i + 1}`}
+                                value={String(row.warehouseId ?? '')}
+                                onChange={(e) =>
+                                  handleLineEdit(row.key, 'warehouseId', e.target.value)
+                                }
+                                disabled
+                              >
+                                <option value="">Select</option>
+                                {warehouseOptions.map((w) => {
+                                  const value = warehouseOptionValue(w);
+                                  return (
+                                    <option key={value} value={value}>
+                                      {warehouseOptionLabel(w)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </td>
+                            <td className="text-end">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="form-control form-control-sm text-end"
+                                aria-label={`Rate for line ${i + 1}`}
+                                value={row.rate}
+                                onChange={(e) => handleLineEdit(row.key, 'rate', e.target.value)}
+                                onBlur={resortLinesIfValueOrder}
+                                disabled={isSubmitting}
+                              />
+                            </td>
+                            <td className="text-end">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="form-control form-control-sm text-end"
+                                aria-label={`Quantity for line ${i + 1}`}
+                                value={row.qty}
+                                onChange={(e) => handleLineEdit(row.key, 'qty', e.target.value)}
+                                onBlur={resortLinesIfValueOrder}
+                                disabled={isSubmitting}
+                              />
+                            </td>
+                            <td className="text-end">
+                              <div
+                                className="po-form-readonly-cell"
+                                title="Total shipping ÷ qty"
+                                aria-label={`Shipping per unit for line ${i + 1}`}
+                              >
+                                {hasLineShipping ? fmtNum(shippingPerUnit) : '—'}
+                              </div>
+                            </td>
+                            <td className="text-end">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="form-control form-control-sm text-end"
+                                placeholder="0"
+                                aria-label={`Total shipping for line ${i + 1}`}
+                                value={row.totalShipping ?? ''}
+                                onChange={(e) =>
+                                  handleLineEdit(row.key, 'totalShipping', e.target.value)
+                                }
+                                onBlur={resortLinesIfValueOrder}
+                                disabled={isSubmitting}
+                              />
+                            </td>
+                            <td className="text-end fw-semibold text-nowrap">{fmtNum(amount)}</td>
+                            <td className="text-center">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center p-0"
+                                style={{ width: '32px', height: '32px' }}
+                                title="Remove line"
+                                aria-label={`Remove line ${i + 1}`}
+                                onClick={() => removeLine(row.key)}
+                                disabled={isSubmitting}
+                              >
+                                <FaTrashCan size={14} aria-hidden="true" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           <div className="row mb-2">
