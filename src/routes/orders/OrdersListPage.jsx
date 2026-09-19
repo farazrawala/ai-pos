@@ -90,9 +90,9 @@ import ChangeOrderStatusModal, {
   formatOrderStatusOptionLabel,
   mapPosOrderStatusToWebsiteStatus,
 } from '../../components/order/ChangeOrderStatusModal.jsx';
-import { orderStatusBadgeClass } from '../../components/order/orderStatusBadge.js';
 import OrderStatusUpdatesModal from '../../components/order/OrderStatusUpdatesModal.jsx';
 import CustomerOrderHistoryModal from '../../components/order/CustomerOrderHistoryModal.jsx';
+import OrderStatusCell from '../../components/order/OrderStatusCell.jsx';
 import OrderConfirmationTagsModal, {
   normalizeOrderTags,
   ORDER_CONFIRMATION_TAG_VALUES,
@@ -516,14 +516,15 @@ function isStoreChannelOrder(orderType, integration) {
   return STORE_CHANNEL_ORDER_TYPES.has(storeType);
 }
 
-function OmsTrackingCourierBadge({ provider, integration, orderType }) {
+function OmsTrackingCourierBadge({ provider, integration, orderType, trackingStatus = '' }) {
   const [logoFailed, setLogoFailed] = useState(false);
-  if (!provider) return null;
+  if (!provider && !trackingStatus) return null;
 
   const fromShop = isStoreChannelOrder(orderType, integration);
   const logoSrc = fromShop && integration ? pickIntegrationStoreLogoUrl(integration) : '';
   const storeName = integration ? integrationNameFromRecord(integration) : '';
-  const label = formatCourierLabel(provider);
+  const label = provider ? formatCourierLabel(provider) : '';
+  const statusLabel = trackingStatus ? formatWebsiteStatusLabel(trackingStatus) : '';
 
   return (
     <div className="oms-tracking-courier-row">
@@ -536,12 +537,22 @@ function OmsTrackingCourierBadge({ provider, integration, orderType }) {
           onError={() => setLogoFailed(true)}
         />
       ) : null}
-      <span
-        className={`badge text-xxs oms-tracking-courier ${courierProviderBadgeClass(provider)}`}
-        title={`Courier: ${label}`}
-      >
-        {label}
-      </span>
+      {label ? (
+        <span
+          className={`badge text-xxs oms-tracking-courier ${courierProviderBadgeClass(provider)}`}
+          title={`Courier: ${label}`}
+        >
+          {label}
+        </span>
+      ) : null}
+      {statusLabel ? (
+        <span
+          className={`badge text-xxs oms-tracking-status ${trackingStatusBadgeClass(trackingStatus)}`}
+          title={`Tracking status: ${statusLabel}`}
+        >
+          {statusLabel}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -703,8 +714,6 @@ const formatOrderTypeLabel = (value) => {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 };
-
-const statusBadgeClass = (status) => orderStatusBadgeClass(status);
 
 const trackingStatusBadgeClass = (status) => {
   const s = String(status || '')
@@ -3358,51 +3367,13 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             {isVisible('status') ? (
                               <td className="text-sm">
-                                <div
-                                  className={`oms-status-stack${
-                                    showWebsiteStatusColumn ? ' oms-status-stack--paired' : ''
-                                  }`}
-                                >
-                                  <div className="oms-status-stack__row oms-status-stack__row--pos">
-                                    <span className="oms-status-stack__tag" title="POS status">
-                                      POS
-                                    </span>
-                                    {canChangeStatus && orderId ? (
-                                      <button
-                                        type="button"
-                                        className={`badge text-xxs border-0 oms-status-stack__badge ${statusBadgeClass(statusVal)}`}
-                                        title="Change POS status"
-                                        onClick={() => handleOpenStatusModal(item)}
-                                      >
-                                        {String(statusVal)}
-                                      </button>
-                                    ) : (
-                                      <span
-                                        className={`badge text-xxs oms-status-stack__badge ${statusBadgeClass(statusVal)}`}
-                                        title="POS status"
-                                      >
-                                        {String(statusVal)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {showWebsiteStatusColumn ? (
-                                    <div className="oms-status-stack__row oms-status-stack__row--web">
-                                      <span className="oms-status-stack__tag" title="Website status">
-                                        Web
-                                      </span>
-                                      {websiteStatus ? (
-                                        <span
-                                          className={`badge text-xxs oms-status-stack__badge ${statusBadgeClass(websiteStatus)}`}
-                                          title={`Website status: ${websiteStatus}`}
-                                        >
-                                          {formatWebsiteStatusLabel(websiteStatus)}
-                                        </span>
-                                      ) : (
-                                        <span className="oms-status-stack__empty text-muted">—</span>
-                                      )}
-                                    </div>
-                                  ) : null}
-                                </div>
+                                <OrderStatusCell
+                                  posStatus={statusVal}
+                                  websiteStatus={websiteStatus}
+                                  showWebsiteStatus={showWebsiteStatusColumn}
+                                  canChangePos={Boolean(canChangeStatus && orderId)}
+                                  onChangePos={() => handleOpenStatusModal(item)}
+                                />
                               </td>
                             ) : null}
                             {isVisible('tags') ? (
@@ -3454,11 +3425,12 @@ export default function OrdersListPage({ config }) {
                               <td className="text-sm">
                                 {trackingInfo?.hasTracking ? (
                                   <div className="oms-tracking-cell">
-                                    {trackingInfo.provider ? (
+                                    {trackingInfo.provider || trackingInfo.trackingStatus ? (
                                       <OmsTrackingCourierBadge
                                         provider={trackingInfo.provider}
                                         integration={integrationRecord}
                                         orderType={orderType}
+                                        trackingStatus={trackingInfo.trackingStatus}
                                       />
                                     ) : null}
                                     {trackingInfo.trackingId ? (
@@ -3523,16 +3495,6 @@ export default function OrdersListPage({ config }) {
                                           </button>
                                         </div>
                                       </div>
-                                    ) : null}
-                                    {trackingInfo.trackingStatus ? (
-                                      <span
-                                        className={`badge text-xxs oms-tracking-status ${trackingStatusBadgeClass(
-                                          trackingInfo.trackingStatus
-                                        )}`}
-                                        title={trackingInfo.trackingStatus}
-                                      >
-                                        {formatWebsiteStatusLabel(trackingInfo.trackingStatus)}
-                                      </span>
                                     ) : null}
                                     {isCancelledShipmentStatus(trackingInfo.trackingStatus) &&
                                     hasOrderItems ? (

@@ -175,7 +175,7 @@ export default function ChangeOrderStatusModal({
             <div className="modal-header">
               <div className="min-width-0">
                 <h5 className="modal-title mb-0" id="changeOrderStatusModalLabel">
-                  Change order status
+                  Change POS status
                 </h5>
                 {displayOrderNo ? (
                   <p className="text-sm text-primary fw-semibold mb-0 mt-1" title={displayOrderNo}>
@@ -194,13 +194,13 @@ export default function ChangeOrderStatusModal({
             <div className="modal-body">
               <p className="text-sm text-muted mb-3">
                 {displayOrderNo
-                  ? `Update status for order ${displayOrderNo}.`
-                  : 'Select a new status for this order.'}
+                  ? `Update the POS status for order ${displayOrderNo}. Website (WEB) status is synced from the connected store and is not changed here.`
+                  : 'Select a new POS status. Website (WEB) status is synced from the connected store and is not changed here.'}
               </p>
 
               <div className="mb-0">
                 <span className="form-label d-block" id="changeOrderStatusSelectLabel">
-                  Status <span className="text-danger">*</span>
+                  POS status <span className="text-danger">*</span>
                 </span>
                 <div ref={dropdownRef} className="oms-status-dropdown position-relative">
                   <button
