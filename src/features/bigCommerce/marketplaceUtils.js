@@ -929,12 +929,16 @@ export function renderStars(rating, { max = 5 } = {}) {
   return `${'★'.repeat(filled)}${'☆'.repeat(max - filled)}`;
 }
 
-/** Digits-only phone for WhatsApp `wa.me` links. */
+/** Digits-only phone for WhatsApp `wa.me` / Web send links (PK → 92…). */
 export function toWhatsAppPhoneDigits(phone) {
   let digits = String(phone || '').replace(/\D/g, '');
-  // Local PK mobiles (03XXXXXXXXX) → international 92…
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('92') && digits.length >= 12) return digits;
+  // Local PK mobiles: 03XXXXXXXXX (11) or 3XXXXXXXXX (10) → 923XXXXXXXXX
   if (digits.length === 11 && digits.startsWith('0')) {
     digits = `92${digits.slice(1)}`;
+  } else if (digits.length === 10 && digits.startsWith('3')) {
+    digits = `92${digits}`;
   }
   return digits.length >= 7 ? digits : '';
 }
@@ -944,11 +948,22 @@ export function toWhatsAppPhoneDigits(phone) {
  * - With phone: opens chat with that number
  * - Phone omitted but message set: opens WhatsApp so the user can pick a contact
  */
-export function buildWhatsAppUrl(phone, message = '') {
+export function buildWhatsAppUrl(phone, message = '', options = {}) {
   const digits = toWhatsAppPhoneDigits(phone);
   const text = String(message || '').trim();
   if (!digits && !text) return '';
-  if (!digits) return `https://wa.me/?text=${encodeURIComponent(text)}`;
-  if (!text) return `https://wa.me/${digits}`;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+  const useWeb = options.web === true;
+  if (!digits) {
+    return useWeb
+      ? `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  }
+  if (!text) {
+    return useWeb
+      ? `https://web.whatsapp.com/send?phone=${digits}`
+      : `https://wa.me/${digits}`;
+  }
+  return useWeb
+    ? `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}`
+    : `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }

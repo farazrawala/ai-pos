@@ -120,6 +120,7 @@ import {
   TCS_TRACKING_DETAIL_URL,
 } from '../../features/courier/courierAPI.js';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
+import { buildPublicInvoiceUrl, pickPublicInvoiceToken } from '../../utils/publicInvoiceUrl.js';
 import { DEBUG } from '../../config/env.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
 import { posInvoiceRoutePath } from '../../config/appBase.js';
@@ -338,6 +339,36 @@ const companyDisplayName = (company) => {
   if (!company || typeof company !== 'object') return '';
   return String(company.company_name ?? company.name ?? '').trim();
 };
+
+function shareOrderInvoiceOnWhatsApp({ phone, customerName, orderNo, total, companyName, order }) {
+  const contact = String(phone || '').trim();
+  if (!contact || contact === '—') {
+    toast.error('No phone number');
+    return;
+  }
+
+  const publicUrl = buildPublicInvoiceUrl(pickPublicInvoiceToken(order));
+  if (!publicUrl) {
+    toast.error('Public invoice link is not available yet.');
+    return;
+  }
+
+  const name = String(customerName || '').trim();
+  const greeting = name && name !== '—' ? `Hello ${name},` : 'Hello,';
+  const invoiceLabel = orderNo && orderNo !== '—' ? String(orderNo) : 'your invoice';
+  const companyLabel = String(companyName || '').trim() || 'us';
+  const totalLabel = total && total !== '—' ? `PKR ${total}` : '';
+  const lines = [greeting, '', `Here is ${invoiceLabel} from ${companyLabel}.`];
+  if (totalLabel) lines.push(`Total: ${totalLabel}`);
+  lines.push('', publicUrl);
+
+  const url = buildWhatsAppUrl(contact, lines.join('\n'), { web: true });
+  if (!url) {
+    toast.error('Could not open WhatsApp.');
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 function OrderIntegrationMergedCell({
   integration,
@@ -3241,19 +3272,21 @@ export default function OrdersListPage({ config }) {
                                       className="btn btn-link btn-sm p-0 mb-0 oms-customer-cell__whatsapp"
                                       title={
                                         phone !== '—'
-                                          ? 'Open WhatsApp Web chat'
+                                          ? 'Share invoice on WhatsApp Web'
                                           : 'No phone number'
                                       }
-                                      aria-label="Open WhatsApp Web chat"
+                                      aria-label="Share invoice on WhatsApp Web"
                                       disabled={phone === '—'}
-                                      onClick={() => {
-                                        const url = buildWhatsAppUrl(phone !== '—' ? phone : '');
-                                        if (!url) {
-                                          toast.error('Could not open WhatsApp.');
-                                          return;
-                                        }
-                                        window.open(url, '_blank', 'noopener,noreferrer');
-                                      }}
+                                      onClick={() =>
+                                        shareOrderInvoiceOnWhatsApp({
+                                          phone,
+                                          customerName,
+                                          orderNo,
+                                          total,
+                                          companyName: shopCompanyName,
+                                          order: item,
+                                        })
+                                      }
                                     >
                                       <NavIcon icon={FaWhatsapp} size={14} />
                                     </button>
