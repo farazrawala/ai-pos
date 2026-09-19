@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import moment from 'moment';
-import { FaClockRotateLeft, FaPhone, FaEnvelope, FaWhatsapp } from 'react-icons/fa6';
+import { FaClockRotateLeft, FaPhone, FaEnvelope, FaWhatsapp, FaXmark } from 'react-icons/fa6';
 import {
   fetchOrdersRequest,
   pickOrderDocumentId,
@@ -233,7 +233,15 @@ export default function CustomerOrderHistoryModal({
                   </div>
                 </div>
               </div>
-              <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
+              <button
+                type="button"
+                className="coh-modal__close"
+                aria-label="Close"
+                title="Close"
+                onClick={onClose}
+              >
+                <NavIcon icon={FaXmark} size={14} />
+              </button>
             </div>
 
             <div className="modal-body coh-modal__body pt-3">

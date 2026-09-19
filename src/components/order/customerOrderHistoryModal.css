@@ -7,6 +7,35 @@
 
 .coh-modal__header {
   padding: 1.25rem 1.35rem 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.coh-modal__close {
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
+  margin: 0.05rem -0.15rem 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #8392ab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.coh-modal__close:hover,
+.coh-modal__close:focus-visible {
+  background: #f8f9fa;
+  color: #344767;
+  outline: none;
 }
 
 .coh-modal__icon {

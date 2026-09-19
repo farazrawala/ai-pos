@@ -353,18 +353,19 @@ function OrderIntegrationMergedCell({
 
   if (isShop) {
     const shopTitle = companyName || 'Shop order';
+    const showLogo = Boolean(companyLogoUrl) && !logoFailed;
     return (
-      <div className="d-flex flex-column align-items-center gap-1 min-width-0 oms-integration-shop">
-        {companyLogoUrl && !logoFailed ? (
+      <div className="oms-integration-cell oms-integration-cell--shop">
+        {showLogo ? (
           <img
             src={companyLogoUrl}
             alt={shopTitle}
             title={shopTitle}
-            className="list-product-thumb flex-shrink-0 oms-integration-shop__logo"
+            className="oms-integration-cell__logo"
             onError={() => setLogoFailed(true)}
           />
         ) : companyName ? (
-          <span className="list-cell-truncate-sm text-sm font-weight-bold" title={shopTitle}>
+          <span className="oms-integration-cell__name" title={shopTitle}>
             {companyName}
           </span>
         ) : null}
@@ -401,7 +402,7 @@ function OrderIntegrationMergedCell({
 
   const orderIdNode = hasOrderId ? (
     storeOrderAdminUrl ? (
-      <div className="d-flex flex-column align-items-center gap-0 min-width-0 oms-store-order-block">
+      <div className="oms-store-order-block">
         <a
           href={storeOrderAdminUrl}
           target="_blank"
@@ -411,45 +412,44 @@ function OrderIntegrationMergedCell({
           }`}
           title={`Open ${storeOrderAdminLabel || 'store'} order edit ${storeOrderNoDisplay}`.trim()}
         >
-          <span className="oms-store-order-link__hint">
-            {storeOrderAdminLabel === 'Shopify'
-              ? 'Shopify edit'
-              : storeOrderAdminLabel === 'WooCommerce'
-                ? 'Woo edit'
-                : 'Edit'}
+          <span className="oms-store-order-no" title={storeOrderNoDisplay}>
+            {storeOrderNoDisplay}
           </span>
           <NavIcon icon={FaArrowUpRightFromSquare} size={10} />
         </a>
-        <span className="oms-store-order-no" title={storeOrderNoDisplay}>
-          {storeOrderNoDisplay}
+        <span className="oms-store-order-link__hint">
+          {storeOrderAdminLabel === 'Shopify'
+            ? 'Shopify'
+            : storeOrderAdminLabel === 'WooCommerce'
+              ? 'Woo'
+              : 'Store'}
         </span>
       </div>
     ) : (
-      <span className="font-weight-bold text-nowrap" title={String(integrationOrderId)}>
-        {integrationOrderId}
+      <span className="oms-store-order-no" title={String(integrationOrderId)}>
+        {storeOrderNoDisplay || integrationOrderId}
       </span>
     )
   ) : null;
 
+  const showLogo = Boolean(logoSrc) && !logoFailed;
   let identityNode = null;
-  if (integration) {
-    if (logoSrc && !logoFailed) {
-      identityNode = (
-        <img
-          src={logoSrc}
-          alt={displayName || 'Integration'}
-          title={integrationTitle || undefined}
-          className="list-product-thumb flex-shrink-0"
-          onError={() => setLogoFailed(true)}
-        />
-      );
-    } else if (displayName) {
-      identityNode = (
-        <span className="list-cell-truncate-sm text-sm" title={integrationTitle || displayName}>
-          {displayName}
-        </span>
-      );
-    }
+  if (showLogo) {
+    identityNode = (
+      <img
+        src={logoSrc}
+        alt={displayName || 'Integration'}
+        title={integrationTitle || displayName || 'Integration'}
+        className="oms-integration-cell__logo"
+        onError={() => setLogoFailed(true)}
+      />
+    );
+  } else if (displayName) {
+    identityNode = (
+      <span className="oms-integration-cell__name" title={integrationTitle || displayName}>
+        {displayName}
+      </span>
+    );
   }
 
   if (!identityNode && !orderIdNode) {
@@ -457,7 +457,7 @@ function OrderIntegrationMergedCell({
   }
 
   return (
-    <div className="d-flex flex-column align-items-center gap-1 min-width-0 oms-integration-cell">
+    <div className="oms-integration-cell">
       {identityNode}
       {orderIdNode}
     </div>
@@ -2539,22 +2539,24 @@ export default function OrdersListPage({ config }) {
               ) : null}
             </div>
           ) : null}
-          <div className="card shadow-sm" style={{ maxWidth: '100%' }}>
-            <div className="card-header pb-3">
+          <div className={`card shadow-sm oms-list-shell oms-list-shell--${idPrefix}`} style={{ maxWidth: '100%' }}>
+            <div className="card-header oms-list-header pb-3">
               <div className="row align-items-center w-100 g-2">
                 <div className="col-lg-5 col-md-6">
-                  <h5 className="mb-1">{listHeading}</h5>
-                  {isBigcommerceView ? (
-                    <p className="text-sm text-muted mb-0">
-                      Line items sold from your catalog (origin company).
-                    </p>
-                  ) : pageSubtitle ? (
-                    <p className="text-sm text-muted mb-0">{pageSubtitle}</p>
-                  ) : DEBUG ? (
-                    <p className="text-sm text-muted mb-0">Server-side pagination and search.</p>
-                  ) : null}
+                  <div className="oms-list-header__titles">
+                    <h5 className="oms-list-header__title mb-0">{listHeading}</h5>
+                    {isBigcommerceView ? (
+                      <p className="oms-list-header__subtitle mb-0">
+                        Line items sold from your catalog (origin company).
+                      </p>
+                    ) : pageSubtitle ? (
+                      <p className="oms-list-header__subtitle mb-0">{pageSubtitle}</p>
+                    ) : DEBUG ? (
+                      <p className="oms-list-header__subtitle mb-0">Server-side pagination and search.</p>
+                    ) : null}
+                  </div>
                   {showDeletedTab || showBigcommerceTab ? (
-                    <div className="btn-group btn-group-sm mt-2 flex-wrap" role="group" aria-label="Orders list tabs">
+                    <div className="btn-group btn-group-sm mt-2 flex-wrap oms-list-tabs" role="group" aria-label="Orders list tabs">
                       <button
                         type="button"
                         className={`btn mb-0 ${listTab === 'orders' ? 'btn-primary' : 'btn-outline-primary'}`}
@@ -2587,8 +2589,8 @@ export default function OrdersListPage({ config }) {
                   ) : null}
                 </div>
                 <div className="col-lg-7 col-md-6">
-                  <div className="d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
-                    <div className="input-group input-group-sm" style={{ maxWidth: '260px' }}>
+                  <div className="oms-list-toolbar d-flex flex-wrap justify-content-md-end align-items-center gap-2 mt-2 mt-md-0">
+                    <div className="input-group input-group-sm oms-list-search">
                       <span className="input-group-text text-body">
                         <SearchInputIcon />
                       </span>
@@ -2626,7 +2628,7 @@ export default function OrdersListPage({ config }) {
                       <>
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-primary mb-0"
+                          className="btn btn-sm btn-outline-secondary mb-0 oms-list-toolbar__btn"
                           onClick={() => setFetchOrdersModalOpen(true)}
                         >
                           <i className="fas fa-cloud-download-alt me-1" aria-hidden="true" />
@@ -2634,7 +2636,7 @@ export default function OrdersListPage({ config }) {
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-primary mb-0"
+                          className="btn btn-sm btn-primary mb-0 oms-list-toolbar__btn"
                           onClick={() => setSyncOrdersModalOpen(true)}
                         >
                           <NavIcon icon={FaCloudArrowUp} className="me-1" size={14} />
@@ -2645,8 +2647,8 @@ export default function OrdersListPage({ config }) {
                     {!isBigcommerceView ? (
                     <button
                       type="button"
-                      className={`btn btn-sm mb-0 position-relative ${
-                        showFilters || activeFilterCount > 0 ? 'btn-primary' : 'btn-outline-primary'
+                      className={`btn btn-sm mb-0 position-relative oms-list-toolbar__btn oms-list-toolbar__filter ${
+                        showFilters || activeFilterCount > 0 ? 'btn-primary' : 'btn-outline-secondary'
                       }`}
                       onClick={() => setShowFilters((prev) => !prev)}
                       aria-expanded={showFilters}
@@ -3148,7 +3150,10 @@ export default function OrdersListPage({ config }) {
                         const shopCompanyLogoUrl = pickCompanyLogoUrl(orderCompany);
                         const shopCompanyName = companyDisplayName(orderCompany);
                         return (
-                          <tr key={key} className={isRowSelected ? 'table-active' : undefined}>
+                          <tr
+                            key={key}
+                            className={`oms-order-row${isRowSelected ? ' table-active oms-order-row--selected' : ''}`}
+                          >
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
                             {showRowSelection ? (
                               <td className="text-center list-col-check">
@@ -3216,8 +3221,8 @@ export default function OrdersListPage({ config }) {
                                     <button
                                       type="button"
                                       className="btn btn-link btn-sm p-0 mb-0 text-secondary"
-                                      title="Order history"
-                                      aria-label="Order history"
+                                      title="Customer past order history"
+                                      aria-label="Customer past order history"
                                       onClick={() =>
                                         setOrderHistoryModal({
                                           open: true,
@@ -3229,7 +3234,7 @@ export default function OrdersListPage({ config }) {
                                       }
                                       disabled={phone === '—' && email === '—'}
                                     >
-                                      <NavIcon icon={FaClockRotateLeft} size={13} />
+                                      <NavIcon icon={FaUserClock} size={13} />
                                     </button>
                                     <button
                                       type="button"
@@ -3380,7 +3385,7 @@ export default function OrdersListPage({ config }) {
                                     Boolean(orderId) &&
                                     (canEdit || canCreate);
                                   return (
-                                    <div className="d-flex flex-wrap gap-1 justify-content-center">
+                                    <div className="oms-tags-cell">
                                       {rowTags.map((tag) => {
                                         const label = formatOrderTagLabel(tag);
                                         if (canEditTags) {
@@ -3388,7 +3393,7 @@ export default function OrdersListPage({ config }) {
                                             <button
                                               key={tag}
                                               type="button"
-                                              className={`badge text-xxs border-0 ${orderTagBadgeClass(tag)}`}
+                                              className={`badge text-xxs border-0 oms-tag-pill ${orderTagBadgeClass(tag)}`}
                                               style={{ cursor: 'pointer' }}
                                               title="Edit confirmation tags"
                                               onClick={() => handleOpenConfirmationModal(item)}
@@ -3400,7 +3405,7 @@ export default function OrdersListPage({ config }) {
                                         return (
                                           <span
                                             key={tag}
-                                            className={`badge text-xxs ${orderTagBadgeClass(tag)}`}
+                                            className={`badge text-xxs oms-tag-pill ${orderTagBadgeClass(tag)}`}
                                             title={tag}
                                           >
                                             {label}
@@ -3560,7 +3565,7 @@ export default function OrdersListPage({ config }) {
                                       }
                                     >
                                       {created
-                                        ? moment(created).format('DD MMM YYYY h:mm a')
+                                        ? moment(created).format('DD MMM YYYY, h:mm A')
                                         : '—'}
                                     </div>
                                     <div
@@ -3609,9 +3614,10 @@ export default function OrdersListPage({ config }) {
                             ) : null}
                             <td className="text-end list-col-actions">
                               <div className="list-table-actions oms-row-actions">
+                                <div className="oms-row-actions__icons" role="group" aria-label="Order tools">
                                 <button
                                   type="button"
-                                  className="btn btn-sm btn-outline-dark mb-0 px-2"
+                                  className="btn btn-sm oms-action-icon mb-0"
                                   title="Customer past order history"
                                   aria-label="Customer past order history"
                                   onClick={() =>
@@ -3625,49 +3631,49 @@ export default function OrdersListPage({ config }) {
                                   }
                                   disabled={phone === '—' && email === '—'}
                                 >
-                                  <NavIcon icon={FaUserClock} size={14} />
+                                  <NavIcon icon={FaUserClock} size={13} />
                                 </button>
                                 {showValidateAddressAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-secondary mb-0 px-2"
+                                    className="btn btn-sm oms-action-icon mb-0"
                                     title="Validate address"
                                     aria-label="Validate address"
                                     onClick={() => handleOpenValidateAddressModal(item)}
                                     disabled={!orderId && !buildOrderAddressText(item)}
                                   >
-                                    <NavIcon icon={FaLocationDot} size={14} />
+                                    <NavIcon icon={FaLocationDot} size={13} />
                                   </button>
                                 ) : null}
                                 {showConfirmationAction && !isDeletedView && !viewReadOnly ? (
                                   <button
                                     type="button"
-                                    className={`btn btn-sm mb-0 px-2 ${(() => {
+                                    className={`btn btn-sm oms-action-icon mb-0 ${(() => {
                                       const tags = getOrderTags(item, orderId);
                                       if (tags.includes('incomplete_address')) {
-                                        return 'btn-outline-danger';
+                                        return 'oms-action-icon--danger';
                                       }
                                       if (
                                         ORDER_CONFIRMATION_TAG_VALUES.some((tag) =>
                                           tags.includes(tag)
                                         )
                                       ) {
-                                        return 'btn-outline-success';
+                                        return 'oms-action-icon--success';
                                       }
-                                      return 'btn-outline-secondary';
+                                      return '';
                                     })()}`}
                                     title="Confirmation"
                                     aria-label="Confirmation"
                                     onClick={() => handleOpenConfirmationModal(item)}
                                     disabled={!orderId || !(canEdit || canCreate)}
                                   >
-                                    <NavIcon icon={FaCircleCheck} size={14} />
+                                    <NavIcon icon={FaCircleCheck} size={13} />
                                   </button>
                                 ) : null}
                                 {showStatusHistoryAction && showStatusChangeModal ? (
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-info mb-0 px-2"
+                                    className="btn btn-sm oms-action-icon mb-0"
                                     title="Order status history"
                                     aria-label="Order status history"
                                     onClick={() => {
@@ -3691,17 +3697,15 @@ export default function OrdersListPage({ config }) {
                                     }}
                                     disabled={!orderId}
                                   >
-                                    <NavIcon icon={FaClockRotateLeft} size={14} />
+                                    <NavIcon icon={FaClockRotateLeft} size={13} />
                                   </button>
                                 ) : null}
                                 {showRowSyncButton && !isDeletedView ? (
                                   <>
                                     <button
                                       type="button"
-                                      className={`btn btn-sm mb-0 px-2 ${
-                                        hasTrackingNo
-                                          ? 'btn-outline-success'
-                                          : 'btn-outline-secondary'
+                                      className={`btn btn-sm oms-action-icon mb-0 ${
+                                        hasTrackingNo ? 'oms-action-icon--success' : ''
                                       }`}
                                       title={
                                         hasTrackingNo
@@ -3726,12 +3730,12 @@ export default function OrdersListPage({ config }) {
                                           aria-hidden="true"
                                         />
                                       ) : (
-                                        <NavIcon icon={FaTruckFast} size={16} />
+                                        <NavIcon icon={FaTruckFast} size={14} />
                                       )}
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-info mb-0 px-2"
+                                      className="btn btn-sm oms-action-icon mb-0"
                                       title="Pull order (store → POS)"
                                       aria-label="Pull order"
                                       onClick={() =>
@@ -3746,12 +3750,12 @@ export default function OrdersListPage({ config }) {
                                           aria-hidden="true"
                                         />
                                       ) : (
-                                        <NavIcon icon={FaDownload} size={16} />
+                                        <NavIcon icon={FaDownload} size={14} />
                                       )}
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-warning mb-0 px-2"
+                                      className="btn btn-sm oms-action-icon mb-0"
                                       title="Push order (POS → store)"
                                       aria-label="Push order"
                                       onClick={() =>
@@ -3766,15 +3770,17 @@ export default function OrdersListPage({ config }) {
                                           aria-hidden="true"
                                         />
                                       ) : (
-                                        <NavIcon icon={FaUpload} size={16} />
+                                        <NavIcon icon={FaUpload} size={14} />
                                       )}
                                     </button>
                                   </>
                                 ) : null}
+                                </div>
+                                <div className="oms-row-actions__primary">
                                 {canViewOrder ? (
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-primary mb-0"
+                                    className="btn btn-sm btn-primary mb-0 oms-action-view"
                                     disabled={isRowLoading}
                                     onClick={() => handleOpenInvoice(item)}
                                   >
@@ -3784,13 +3790,14 @@ export default function OrdersListPage({ config }) {
                                 {canDelete && !isDeletedView ? (
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-danger mb-0"
+                                    className="btn btn-sm btn-outline-danger mb-0 oms-action-delete"
                                     onClick={() => handleDelete(item)}
                                     disabled={deleteStatus === 'loading'}
                                   >
                                     Delete
                                   </button>
                                 ) : null}
+                                </div>
                               </div>
                             </td>
                           </tr>
