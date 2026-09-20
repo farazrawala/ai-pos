@@ -93,16 +93,16 @@ export const integrationRecordToForm = (record) => {
     store_type: record.store_type || record.storeType || 'shopify',
     name: record.name || record.store_name || record.storeName || '',
     storeLogoUrl: pickStoreLogoUrl(record),
-    address: record.address || '',
-    city: record.city || '',
-    state: record.state || '',
+    address: displayOptionalApiText(record.address),
+    city: displayOptionalApiText(record.city),
+    state: displayOptionalApiText(record.state),
     email: record.email || '',
     phone: record.phone || '',
     url: record.url || '',
     integrationKey: record.key || record.api_key || record.apiKey || '',
     integrationSecret: record.secret || record.secret_key || record.secretKey || '',
     token: record.token || '',
-    description: record.description || '',
+    description: displayOptionalApiText(record.description),
     smtp_host: record.smtp_host || record.smtpHost || EMPTY_INTEGRATION_FORM.smtp_host,
     smtp_port:
       record.smtp_port != null || record.smtpPort != null
@@ -115,6 +115,16 @@ export const integrationRecordToForm = (record) => {
 };
 
 const fieldValue = (form, field) => String(form?.[field] ?? '').trim();
+
+/** API still requires these keys; UI treats them as optional. */
+const OPTIONAL_API_PLACEHOLDER = '-';
+
+const optionalApiText = (form, field) => fieldValue(form, field) || OPTIONAL_API_PLACEHOLDER;
+
+const displayOptionalApiText = (value) => {
+  const text = String(value ?? '').trim();
+  return !text || text === OPTIONAL_API_PLACEHOLDER ? '' : text;
+};
 
 export const syncIntegrationFormFromDom = (form, formElement) => {
   if (!formElement) return form;
@@ -173,12 +183,12 @@ export const buildIntegrationPayload = (form, { isEdit = false } = {}) => {
   const payload = {
     store_type: fieldValue(form, 'store_type'),
     name: fieldValue(form, 'name'),
-    address: fieldValue(form, 'address'),
-    city: fieldValue(form, 'city'),
-    state: fieldValue(form, 'state'),
+    address: optionalApiText(form, 'address'),
+    city: optionalApiText(form, 'city'),
+    state: optionalApiText(form, 'state'),
     url: fieldValue(form, 'url'),
     key: fieldValue(form, 'integrationKey'),
-    description: fieldValue(form, 'description'),
+    description: optionalApiText(form, 'description'),
   };
 
   const secret = fieldValue(form, 'integrationSecret');

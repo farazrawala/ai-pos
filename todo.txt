@@ -133,5 +133,4 @@ En-Route to {city} warehouse
 
 
 // bug 
-
 Me too : Vendor price will be not be affected : 

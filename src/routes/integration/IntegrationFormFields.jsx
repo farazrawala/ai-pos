@@ -110,7 +110,9 @@ export default function IntegrationFormFields({
           <i className="fas fa-location-dot text-primary" aria-hidden="true" />
           Location
         </div>
-        <p className="integration-form-section-hint">Business address associated with this store.</p>
+        <p className="integration-form-section-hint">
+          Optional business address for this store. Leave blank if you do not have one.
+        </p>
 
         <div className="row g-3">
           <div className="col-12">
