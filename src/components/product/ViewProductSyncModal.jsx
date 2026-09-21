@@ -163,6 +163,15 @@ const isWooLikeStore = (integration) => {
   return !storeType || storeType === 'woocommerce' || storeType === 'wordpress';
 };
 
+const storeTypeBadgeLabel = (integration) => {
+  const type = String(integration?.store_type || integration?.storeType || '').toLowerCase();
+  if (type === 'shopify') return 'Shopify';
+  if (type === 'woocommerce' || type === 'wordpress') return 'WP';
+  if (type === 'daraz') return 'Daraz';
+  if (!type) return '';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+};
+
 /** WordPress product edit: /wp-admin/post.php?post={id}&action=edit */
 const buildWooCommerceProductAdminUrl = (integration, referenceId) => {
   const productId = pickWooCommerceProductId(referenceId);
@@ -1754,12 +1763,20 @@ export default function ViewProductSyncModal({
                       const wooProductId = pickWooCommerceProductId(referenceId);
                       const shopifyAdminUrl = buildShopifyProductAdminUrl(integration, referenceId);
                       const shopifyProductId = pickShopifyProductIds(referenceId).productId;
+                      const typeBadge = storeTypeBadgeLabel(integration);
                       const storeAdminUrl = shopifyAdminUrl || wpAdminUrl || '';
                       const storeLogoTitle = shopifyAdminUrl
                         ? `Open in Shopify (product ${shopifyProductId})`
                         : wpAdminUrl
                           ? `Open in WordPress (post ${wooProductId})`
                           : integrationLabel(integration || item.integration_id);
+                      const typeBadgeTitle = shopifyAdminUrl
+                        ? `Open in Shopify (product ${shopifyProductId})`
+                        : wpAdminUrl
+                          ? `Open in WordPress (post ${wooProductId})`
+                          : typeBadge
+                            ? `${typeBadge} store`
+                            : '';
                       return (
                         <tr key={rowId || index}>
                           <td>
@@ -1773,29 +1790,23 @@ export default function ViewProductSyncModal({
                                 <span className="ps-integration-name">
                                   {integrationLabel(integration || item.integration_id)}
                                 </span>
-                                {wpAdminUrl ? (
-                                  <a
-                                    href={wpAdminUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ps-wp-link"
-                                    title={`Open in WordPress (post ${wooProductId})`}
-                                    aria-label="Open in WordPress"
-                                  >
-                                    WP
-                                  </a>
-                                ) : null}
-                                {shopifyAdminUrl ? (
-                                  <a
-                                    href={shopifyAdminUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ps-wp-link"
-                                    title={`Open in Shopify (product ${shopifyProductId})`}
-                                    aria-label="Open in Shopify"
-                                  >
-                                    Shopify
-                                  </a>
+                                {typeBadge ? (
+                                  storeAdminUrl ? (
+                                    <a
+                                      href={storeAdminUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="ps-wp-link"
+                                      title={typeBadgeTitle}
+                                      aria-label={typeBadgeTitle}
+                                    >
+                                      {typeBadge}
+                                    </a>
+                                  ) : (
+                                    <span className="ps-wp-link ps-wp-link--static" title={typeBadgeTitle}>
+                                      {typeBadge}
+                                    </span>
+                                  )
                                 ) : null}
                               </div>
                               <button

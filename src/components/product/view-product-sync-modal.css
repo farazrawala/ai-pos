@@ -292,6 +292,11 @@
   color: #2f5fbf;
 }
 
+.ps-wp-link--static {
+  cursor: default;
+  pointer-events: none;
+}
+
 .ps-unlink-btn {
   display: inline-flex;
   align-items: center;
