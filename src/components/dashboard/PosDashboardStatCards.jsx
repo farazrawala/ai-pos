@@ -13,25 +13,28 @@ import { useTotalUsers } from '../../hooks/useTotalUsers.js';
 import { useDashboardGraphs } from '../../hooks/useDashboardGraphs.js';
 import { DASHBOARD_STAT_KEYS } from '../../constants/dashboardGraphs.js';
 
-function StatCard({ title, value, footer, icon: Icon, iconClass }) {
+function StatCard({ title, titleAside, value, footer, icon: Icon, iconClass }) {
   return (
     <div className="col-lg-3 col-md-6 col-12">
       <div className="card mb-4">
         <div className="card-body p-3">
-          <div className="row">
-            <div className="col-8">
-              <div className="numbers">
-                <p className="text-sm mb-0 text-uppercase font-weight-bold">{title}</p>
-                <h5 className="font-weight-bolder">{value}</h5>
-                <p className="mb-0">{footer}</p>
-              </div>
+          <div className="d-flex justify-content-between align-items-start gap-2">
+            <div className="numbers flex-grow-1" style={{ minWidth: 0 }}>
+              <p className="text-sm mb-0 text-uppercase font-weight-bold d-flex align-items-baseline justify-content-between gap-2">
+                <span>{title}</span>
+                {titleAside ? (
+                  <span className="text-xs text-secondary font-weight-normal text-capitalize text-end text-nowrap">
+                    {titleAside}
+                  </span>
+                ) : null}
+              </p>
+              <h5 className="font-weight-bolder">{value}</h5>
+              <p className="mb-0">{footer}</p>
             </div>
-            <div className="col-4 text-end">
-              <div
-                className={`icon icon-shape ${iconClass} text-center rounded-circle d-flex align-items-center justify-content-center`}
-              >
-                <NavIcon icon={Icon} className="text-white opacity-10" size={22} />
-              </div>
+            <div
+              className={`icon icon-shape ${iconClass} text-center rounded-circle d-flex align-items-center justify-content-center flex-shrink-0`}
+            >
+              <NavIcon icon={Icon} className="text-white opacity-10" size={22} />
             </div>
           </div>
         </div>
@@ -128,10 +131,20 @@ function TotalCustomersCard() {
 }
 
 function SalesCard() {
-  const { loading, totalAmount, orderCount, momPercent, error } = useCurrentMonthSales();
+  const { loading, totalAmount, orderCount, momPercent, expectedMonthlyAmount, error } =
+    useCurrentMonthSales();
+  const expectedLabel =
+    !loading && !error && expectedMonthlyAmount != null
+      ? `Expected ${formatCurrency(expectedMonthlyAmount)}`
+      : null;
   return (
     <StatCard
       title="Sales"
+      titleAside={
+        expectedLabel ? (
+          <span title="Projected month-end total from sales so far this month">{expectedLabel}</span>
+        ) : null
+      }
       value={loading || error ? '—' : formatCurrency(totalAmount ?? 0)}
       icon={FaCartShopping}
       iconClass="bg-gradient-warning shadow-warning"

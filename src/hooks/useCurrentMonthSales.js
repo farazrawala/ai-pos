@@ -10,12 +10,25 @@ function computeMomPercent(current, previous) {
   return ((c - p) / p) * 100;
 }
 
+/** Projected month-end total from sales so far this month. */
+export function expectedTotalMonthlySale(currentAmount, now = new Date()) {
+  const amount = Number(currentAmount);
+  if (!Number.isFinite(amount)) return null;
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysElapsed = Math.min(Math.max(day, 1), daysInMonth);
+  return (amount / daysElapsed) * daysInMonth;
+}
+
 export function useCurrentMonthSales() {
   const [state, setState] = useState({
     loading: true,
     totalAmount: null,
     orderCount: null,
     momPercent: null,
+    expectedMonthlyAmount: null,
     error: null,
   });
 
@@ -33,8 +46,16 @@ export function useCurrentMonthSales() {
           lastMonth != null
             ? computeMomPercent(totalAmount, lastMonth.totalAmount)
             : null;
+        const expectedMonthlyAmount = expectedTotalMonthlySale(totalAmount);
 
-        setState({ loading: false, totalAmount, orderCount, momPercent, error: null });
+        setState({
+          loading: false,
+          totalAmount,
+          orderCount,
+          momPercent,
+          expectedMonthlyAmount,
+          error: null,
+        });
       } catch (e) {
         if (cancelled) return;
         setState({
@@ -42,6 +63,7 @@ export function useCurrentMonthSales() {
           totalAmount: null,
           orderCount: null,
           momPercent: null,
+          expectedMonthlyAmount: null,
           error: e?.message || 'Could not load sales',
         });
       }
