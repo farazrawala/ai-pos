@@ -153,7 +153,7 @@ export default function UserLedgerDetailPage() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState('asc');
-  const [viewMode, setViewMode] = useState('table');
+  const [viewMode, setViewMode] = useState('taccount');
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [timelineLimit, setTimelineLimit] = useState(TIMELINE_INITIAL);
