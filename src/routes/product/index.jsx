@@ -43,6 +43,7 @@ import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx
 import { formatMoney } from '../../utils/formatMoney.js';
 import {
   fetchAllProductsForExportRequest,
+  fetchProductActiveRequest,
   fetchProductVariationRequest,
   deleteProductRequest,
   PRODUCT_DELETED_LIST_PATH,
@@ -213,6 +214,7 @@ const PRODUCT_COLUMNS = [
   { key: 'barcode', label: 'Barcode' },
   { key: 'type', label: 'Type' },
   { key: 'status', label: 'Status' },
+  { key: 'show_on_bigcommerce', label: 'Show on BC' },
   { key: 'dates', label: 'Created / Updated' },
   { key: 'integration', label: 'Integration' },
   { key: 'actors', label: 'Created / Updated by' },
@@ -252,6 +254,14 @@ const productIsActive = (item) =>
 const pickProductDeletedOn = (item) =>
   item?.deletedAt ?? item?.deleted_at ?? item?.deleted_on ?? item?.deletedOn ?? null;
 
+const productShowOnBigcommerce = (item) => {
+  const raw = item?.show_on_bigcommerce ?? item?.showOnBigcommerce;
+  if (raw === true || raw === 1) return true;
+  if (raw === false || raw === 0 || raw == null || raw === '') return false;
+  const s = String(raw).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'on';
+};
+
 /** Product.bigcommerce_sync_status — boolean (also accepts active/true strings from older data). */
 const productBigcommerceSyncIsOn = (item) => {
   const raw = item?.bigcommerce_sync_status ?? item?.bigcommerceSyncStatus;
@@ -273,11 +283,68 @@ const collectVariationIds = (product) => {
   return ids;
 };
 
+const recordId = (item) => String(item?._id ?? item?.id ?? item?.product_id ?? '').trim();
+
+/** Variation ids from get-product-variation (parent+kids object, kids array, or nested fields). */
+const collectVariationIdsFromPayload = (payload) => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) {
+    return payload.flatMap((item) => {
+      const nested = collectVariationIds(item);
+      if (nested.length) return nested;
+      const id = recordId(item);
+      return id ? [id] : [];
+    });
+  }
+  const record = payload.data ?? payload.product ?? payload.products ?? payload;
+  if (Array.isArray(record)) return collectVariationIdsFromPayload(record);
+  if (record && typeof record === 'object') return collectVariationIds(record);
+  return [];
+};
+
 const isVariableProduct = (product) => {
   if (!product) return false;
   const type = String(product.product_type ?? product.productType ?? '').trim().toLowerCase();
   if (type === 'variable') return true;
   return collectVariationIds(product).length > 0;
+};
+
+const collectCascadeChildIds = async (productId, list) => {
+  const rows = Array.isArray(list) ? list : [];
+  const id = String(productId || '').trim();
+  if (!id) return [];
+  const product =
+    rows.find((item) => String(productIdFromRecord(item)) === id) || null;
+  const listChildIds = rows
+    .filter((item) => String(parentProductIdFromRecord(item)) === id)
+    .map((item) => String(productIdFromRecord(item)))
+    .filter(Boolean);
+  let childIds = collectVariationIds(product);
+  const looksVariable = isVariableProduct(product) || listChildIds.length > 0;
+  if (looksVariable) {
+    try {
+      const result = await fetchProductVariationRequest(id);
+      childIds = [...childIds, ...collectVariationIdsFromPayload(result)];
+    } catch (err) {
+      console.error('Failed to load variations for cascade:', err);
+    }
+    try {
+      const result = await fetchProductActiveRequest({
+        search: id,
+        searchFields: 'parent_product_id',
+        page: 1,
+        limit: 200,
+        includeInactive: true,
+      });
+      const extra = (Array.isArray(result?.data) ? result.data : [])
+        .map((item) => String(productIdFromRecord(item) || '').trim())
+        .filter(Boolean);
+      childIds = [...childIds, ...extra];
+    } catch (err) {
+      console.error('Failed to load variation rows for cascade:', err);
+    }
+  }
+  return [...new Set([...childIds, ...listChildIds])].filter((childId) => String(childId) !== id);
 };
 
 const categoryOptionValue = (c) => String(c?._id ?? c?.id ?? '');
@@ -361,6 +428,10 @@ const Product = () => {
   const [restoringProductId, setRestoringProductId] = useState(null);
   const [togglingProductId, setTogglingProductId] = useState(null);
   const [togglingSyncProductId, setTogglingSyncProductId] = useState(null);
+  const [togglingShowBcId, setTogglingShowBcId] = useState(null);
+  const [selectedProductIds, setSelectedProductIds] = useState(() => new Set());
+  const [bulkShowBcBusy, setBulkShowBcBusy] = useState(false);
+  const selectAllPageRef = useRef(null);
   const [warehouseStockTarget, setWarehouseStockTarget] = useState(null);
   const [fetchProductsModalOpen, setFetchProductsModalOpen] = useState(false);
   const [syncProductsModalOpen, setSyncProductsModalOpen] = useState(false);
@@ -376,6 +447,7 @@ const Product = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [showOnBigcommerceFilter, setShowOnBigcommerceFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deletingProduct, setDeletingProduct] = useState(false);
@@ -384,11 +456,13 @@ const Product = () => {
   const activeFilterCount =
     (categoryFilter ? 1 : 0) +
     (!isDeletedView && statusFilter !== 'all' ? 1 : 0) +
-    (typeFilter !== 'all' ? 1 : 0);
+    (typeFilter !== 'all' ? 1 : 0) +
+    (showOnBigcommerceFilter !== 'all' ? 1 : 0);
 
   // Get product permissions
   const { canView, canCreate, canEdit, canDelete } = usePermissions('products');
   useRequireModuleAccess('products');
+  const showRowSelection = !isDeletedView && canEdit;
 
   // Show/hide table columns (persisted in cache).
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
@@ -417,6 +491,11 @@ const Product = () => {
     } else if (typeFilter === 'variant') {
       params.productType = 'Variable';
     }
+    if (showOnBigcommerceFilter === 'yes') {
+      params.showOnBigcommerce = true;
+    } else if (showOnBigcommerceFilter === 'no') {
+      params.showOnBigcommerce = false;
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -429,6 +508,7 @@ const Product = () => {
     categoryFilter,
     statusFilter,
     typeFilter,
+    showOnBigcommerceFilter,
     isDeletedView,
     sort.sortBy,
     sort.sortOrder,
@@ -569,6 +649,7 @@ const Product = () => {
   const handleDeletedTabChange = (nextDeleted) => {
     if (Boolean(nextDeleted) === isDeletedView) return;
     setShowDeleted(Boolean(nextDeleted));
+    setSelectedProductIds(new Set());
     dispatch(setPage(1));
   };
 
@@ -596,10 +677,19 @@ const Product = () => {
     [dispatch]
   );
 
+  const handleShowOnBigcommerceFilterChange = useCallback(
+    (e) => {
+      setShowOnBigcommerceFilter(e.target.value);
+      dispatch(setPage(1));
+    },
+    [dispatch]
+  );
+
   const handleClearProductFilters = useCallback(() => {
     setCategoryFilter('');
     setStatusFilter('all');
     setTypeFilter('all');
+    setShowOnBigcommerceFilter('all');
     dispatch(setPage(1));
   }, [dispatch]);
 
@@ -633,9 +723,40 @@ const Product = () => {
   };
 
   const filteredData = useMemo(() => {
-    // Status + type are filtered server-side on get-all-active-pos.
-    return Array.isArray(data) ? data : [];
-  }, [data]);
+    const rows = Array.isArray(data) ? data : [];
+    if (showOnBigcommerceFilter === 'all') return rows;
+    const wantYes = showOnBigcommerceFilter === 'yes';
+    return rows.filter((item) => productShowOnBigcommerce(item) === wantYes);
+  }, [data, showOnBigcommerceFilter]);
+
+  const selectablePageIds = useMemo(
+    () =>
+      filteredData
+        .map((item) => String(productIdFromRecord(item) || '').trim())
+        .filter(Boolean),
+    [filteredData]
+  );
+  const selectedCount = selectedProductIds.size;
+  const allPageSelected =
+    selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedProductIds.has(id));
+  const somePageSelected = selectablePageIds.some((id) => selectedProductIds.has(id));
+
+  useEffect(() => {
+    const el = selectAllPageRef.current;
+    if (el) el.indeterminate = somePageSelected && !allPageSelected;
+  }, [somePageSelected, allPageSelected]);
+
+  const handleToggleSelectAllPage = () => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        selectablePageIds.forEach((id) => next.delete(id));
+      } else {
+        selectablePageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
 
   /** Id → product for resolving parent images when a child has none. */
   const productsById = useMemo(() => {
@@ -838,6 +959,93 @@ const Product = () => {
     } finally {
       setTogglingSyncProductId(null);
     }
+  };
+
+  const applyShowOnBigcommerce = async (productIds, nextOn) => {
+    const ids = [...new Set((productIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+    if (!ids.length) {
+      toast.warning('Select at least one product.');
+      return;
+    }
+    const value = Boolean(nextOn);
+    const selectedSet = new Set(ids);
+    const allIds = new Set(ids);
+    const listRows = Array.isArray(data) ? data : [];
+    for (const id of ids) {
+      const kids = await collectCascadeChildIds(id, listRows);
+      kids.forEach((childId) => allIds.add(String(childId)));
+    }
+    const targetIds = [...allIds];
+    const results = await Promise.allSettled(
+      targetIds.map((id) => updateProductRequest(id, { show_on_bigcommerce: value }, []))
+    );
+    const succeededIds = targetIds.filter((_, index) => results[index]?.status === 'fulfilled');
+    const failed = targetIds.length - succeededIds.length;
+    const cascadedCount = succeededIds.filter((id) => !selectedSet.has(String(id))).length;
+    if (succeededIds.length) {
+      dispatch(
+        setListProductsStatus({
+          ids: succeededIds,
+          patch: { show_on_bigcommerce: value },
+        })
+      );
+    }
+    const yesNo = value ? 'Yes' : 'No';
+    const successLabel =
+      cascadedCount > 0
+        ? `Show on BigCommerce set to ${yesNo} for ${succeededIds.length - cascadedCount} product(s) and ${cascadedCount} variation(s).`
+        : `Show on BigCommerce set to ${yesNo} for ${succeededIds.length} product(s).`;
+    if (failed > 0 && succeededIds.length === 0) {
+      throw new Error('Failed to update Show on BigCommerce');
+    }
+    if (failed > 0) {
+      toast.warning(`${successLabel} ${failed} could not be updated.`);
+      return;
+    }
+    toast.success(successLabel);
+  };
+
+  const handleToggleShowOnBigcommerce = async (productId, currentlyOn) => {
+    if (!productId) return;
+    setTogglingShowBcId(productId);
+    try {
+      await applyShowOnBigcommerce([productId], !currentlyOn);
+    } catch (error) {
+      console.error('Toggle show_on_bigcommerce error:', error);
+      toast.error(error?.message || 'Failed to update Show on BigCommerce');
+    } finally {
+      setTogglingShowBcId(null);
+    }
+  };
+
+  const handleBulkShowOnBigcommerce = async (nextOn) => {
+    if (bulkShowBcBusy || togglingShowBcId) return;
+    const ids = [...selectedProductIds];
+    if (!ids.length) {
+      toast.warning('Select at least one product.');
+      return;
+    }
+    setBulkShowBcBusy(true);
+    try {
+      await applyShowOnBigcommerce(ids, nextOn);
+      setSelectedProductIds(new Set());
+    } catch (error) {
+      console.error('Bulk show_on_bigcommerce error:', error);
+      toast.error(error?.message || 'Failed to update Show on BigCommerce');
+    } finally {
+      setBulkShowBcBusy(false);
+    }
+  };
+
+  const handleToggleSelectProduct = (productId) => {
+    const id = String(productId || '').trim();
+    if (!id) return;
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const handleDeleteClick = (product, productId, productName) => {
@@ -1082,6 +1290,8 @@ const Product = () => {
       listQuery.set('status', String(params.status));
     }
     if (params.productType) listQuery.set('product_type', String(params.productType));
+    if (params.showOnBigcommerce === true) listQuery.set('show_on_bigcommerce', 'true');
+    else if (params.showOnBigcommerce === false) listQuery.set('show_on_bigcommerce', 'false');
     if (params.sortBy) listQuery.set('sortBy', String(params.sortBy));
     if (params.sortOrder) listQuery.set('sortOrder', String(params.sortOrder));
     listQuery.set('populate', PRODUCTS_LIST_POPULATE);
@@ -1197,6 +1407,11 @@ const Product = () => {
     } else if (typeFilter === 'variant') {
       params.productType = 'Variable';
     }
+    if (showOnBigcommerceFilter === 'yes') {
+      params.showOnBigcommerce = true;
+    } else if (showOnBigcommerceFilter === 'no') {
+      params.showOnBigcommerce = false;
+    }
     if (sort.sortBy) {
       params.sortBy = sort.sortBy;
       params.sortOrder = sort.sortOrder;
@@ -1207,7 +1422,11 @@ const Product = () => {
   const handleExport = async (format) => {
     setExporting(true);
     try {
-      const records = await fetchAllProductsForExportRequest(buildExportParams());
+      let records = await fetchAllProductsForExportRequest(buildExportParams());
+      if (showOnBigcommerceFilter !== 'all') {
+        const wantYes = showOnBigcommerceFilter === 'yes';
+        records = records.filter((item) => productShowOnBigcommerce(item) === wantYes);
+      }
       if (!records.length) {
         toast.info('No products to export.');
         return;
@@ -1291,6 +1510,41 @@ const Product = () => {
                         aria-label={isDeletedView ? 'Search deleted products' : 'Search products'}
                       />
                     </div>
+                    {!isDeletedView && canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-success mb-0"
+                          disabled={selectedCount < 1 || bulkShowBcBusy}
+                          onClick={() => handleBulkShowOnBigcommerce(true)}
+                          title={
+                            selectedCount < 1
+                              ? 'Select products first'
+                              : `Set Show on BigCommerce to Yes for ${selectedCount} selected`
+                          }
+                        >
+                          {bulkShowBcBusy ? 'Updating…' : 'Show on BC: Yes'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary mb-0"
+                          disabled={selectedCount < 1 || bulkShowBcBusy}
+                          onClick={() => handleBulkShowOnBigcommerce(false)}
+                          title={
+                            selectedCount < 1
+                              ? 'Select products first'
+                              : `Set Show on BigCommerce to No for ${selectedCount} selected`
+                          }
+                        >
+                          Show on BC: No
+                        </button>
+                        {selectedCount > 0 ? (
+                          <span className="text-xs text-secondary text-nowrap">
+                            {selectedCount} selected
+                          </span>
+                        ) : null}
+                      </>
+                    ) : null}
                     <ColumnVisibilityMenu
                       columns={PRODUCT_COLUMNS}
                       isVisible={isVisible}
@@ -1416,6 +1670,25 @@ const Product = () => {
                         <option value="variant">Variant</option>
                       </select>
                     </div>
+                    <div className="col-xl-3 col-md-4 col-sm-6">
+                      <label
+                        className="form-label mb-1 text-xs text-uppercase fw-bold text-muted"
+                        htmlFor="products-show-on-bc-filter"
+                      >
+                        Show on BigCommerce
+                      </label>
+                      <select
+                        id="products-show-on-bc-filter"
+                        className="form-select form-select-sm"
+                        value={showOnBigcommerceFilter}
+                        onChange={handleShowOnBigcommerceFilterChange}
+                        aria-label="Filter by show on BigCommerce"
+                      >
+                        <option value="all">All</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </div>
                     <div className="col-xl-3 col-md-12 d-flex flex-wrap align-items-center gap-2">
                       <button
                         type="button"
@@ -1491,6 +1764,21 @@ const Product = () => {
                 <table className="table align-items-center mb-0">
                   <thead>
                     <tr>
+                      {showRowSelection ? (
+                        <th className="text-center list-col-check" scope="col">
+                          <label className="list-row-check">
+                            <input
+                              ref={selectAllPageRef}
+                              type="checkbox"
+                              className="form-check-input list-row-check__input"
+                              checked={allPageSelected}
+                              onChange={handleToggleSelectAllPage}
+                              disabled={selectablePageIds.length === 0 || bulkShowBcBusy}
+                              aria-label="Select all products on this page"
+                            />
+                          </label>
+                        </th>
+                      ) : null}
                       <th className="text-center list-col-sno">#</th>
                       {isVisible('image') ? <th className="list-col-product-img">Image</th> : null}
                       {sortableTh('name', 'Name', 'list-col-truncate')}
@@ -1519,6 +1807,11 @@ const Product = () => {
                         ? sortableTh('product_type', 'Type', 'list-col-truncate-sm')
                         : null}
                       {isVisible('status') ? sortableTh('status', 'Status') : null}
+                      {isVisible('show_on_bigcommerce') ? (
+                        <th className="text-center" title="Show on BigCommerce">
+                          Show on BC
+                        </th>
+                      ) : null}
                       {isVisible('dates')
                         ? sortableTh(
                             isDeletedView ? 'deletedAt' : 'createdAt',
@@ -1549,7 +1842,7 @@ const Product = () => {
                   <tbody>
                     {filteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={visibleCount} className="text-center py-5 text-muted">
+                        <td colSpan={visibleCount + (showRowSelection ? 1 : 0)} className="text-center py-5 text-muted">
                           {isDeletedView
                             ? 'No deleted products found. Try adjusting your search.'
                             : 'No products found. Try adjusting your search.'}
@@ -1593,6 +1886,9 @@ const Product = () => {
                           getProductStockDisplay(item);
                         const isActive = productIsActive(item);
                         const isToggling = togglingProductId === productId;
+                        const showOnBc = productShowOnBigcommerce(item);
+                        const isTogglingShowBc = togglingShowBcId === productId;
+                        const rowSelected = Boolean(productId) && selectedProductIds.has(String(productId));
                         const syncOn = productBigcommerceSyncIsOn(item);
                         const isTogglingSync = togglingSyncProductId === productId;
                         const created = item.createdAt ?? item.created_at;
@@ -1618,7 +1914,24 @@ const Product = () => {
                             : 0;
 
                         return (
-                          <tr key={productId || index}>
+                          <tr
+                            key={productId || index}
+                            className={rowSelected ? 'list-row-selected' : undefined}
+                          >
+                            {showRowSelection ? (
+                              <td className="text-center list-col-check">
+                                <label className="list-row-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input list-row-check__input"
+                                    checked={rowSelected}
+                                    onChange={() => handleToggleSelectProduct(productId)}
+                                    disabled={!productId || bulkShowBcBusy}
+                                    aria-label={`Select ${productName}`}
+                                  />
+                                </label>
+                              </td>
+                            ) : null}
                             <td className="text-center text-muted text-sm">{seriesNumber}</td>
                             {isVisible('image') ? (
                               <td>
@@ -1774,6 +2087,42 @@ const Product = () => {
                                       aria-label={`Toggle ${productName} status`}
                                     />
                                     {isToggling ? (
+                                      <span
+                                        className="spinner-border spinner-border-sm text-primary ms-1"
+                                        role="status"
+                                        aria-hidden="true"
+                                      />
+                                    ) : null}
+                                  </div>
+                                )}
+                              </td>
+                            ) : null}
+                            {isVisible('show_on_bigcommerce') ? (
+                              <td className="text-sm text-center">
+                                {isDeletedView ? (
+                                  <span className="text-xs text-secondary">
+                                    {showOnBc ? 'Yes' : 'No'}
+                                  </span>
+                                ) : (
+                                  <div className="form-check form-switch mb-0 list-status-switch d-inline-flex align-items-center justify-content-center">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`show-bc-${productId || index}`}
+                                      checked={showOnBc}
+                                      onChange={() =>
+                                        handleToggleShowOnBigcommerce(productId, showOnBc)
+                                      }
+                                      disabled={!canEdit || isTogglingShowBc || bulkShowBcBusy}
+                                      aria-label={`Toggle ${productName} Show on BigCommerce`}
+                                      title={
+                                        showOnBc
+                                          ? 'Show on BigCommerce: Yes'
+                                          : 'Show on BigCommerce: No'
+                                      }
+                                    />
+                                    {isTogglingShowBc ? (
                                       <span
                                         className="spinner-border spinner-border-sm text-primary ms-1"
                                         role="status"

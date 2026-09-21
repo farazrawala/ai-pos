@@ -31,6 +31,7 @@ export const EMPTY_INTEGRATION_FORM = {
     sync_product_price: 'yes',
     sync_product_description: 'yes',
     sync_product_status: 'yes',
+    sync_product_stock: 'yes',
   },
 };
 
@@ -41,6 +42,7 @@ export const PRODUCT_SETTING_FIELDS = [
   { key: 'sync_product_price', label: 'Sync product price' },
   { key: 'sync_product_description', label: 'Sync product description' },
   { key: 'sync_product_status', label: 'Sync product status' },
+  { key: 'sync_product_stock', label: 'Sync product stock' },
 ];
 
 const toYesNo = (value) => {

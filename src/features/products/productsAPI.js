@@ -49,7 +49,8 @@ const buildApiErrorMessage = (errorData, status) => {
 
 /**
  * POS flat list (parents + child variants as rows).
- * Supported filters: product_type, status / include_inactive (+ pagination/search/sort/category).
+ * Supported filters: product_type, status / include_inactive, show_on_bigcommerce
+ * (+ pagination/search/sort/category).
  * Default (no status params) = active only.
  */
 const resolveProductsListPath = () => 'product/get-all-active-pos';
@@ -64,6 +65,27 @@ const PRODUCT_RESTORE_FALLBACK_PATH = 'products/restore';
 /** Populate Me-too origin + category + create/update actors. */
 export const PRODUCTS_LIST_POPULATE =
   'fetch_from_company_id,fetch_from_product_id,category_id,created_by,updated_by';
+
+/** Append boolean query params as `true` / `false` (skips All / unset). */
+const appendBooleanQueryParam = (queryParams, key, raw) => {
+  if (raw === undefined || raw === null || raw === '' || raw === 'all') return;
+  if (raw === true || raw === 1) {
+    queryParams.append(key, 'true');
+    return;
+  }
+  if (raw === false || raw === 0) {
+    queryParams.append(key, 'false');
+    return;
+  }
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'yes' || s === 'on') {
+    queryParams.append(key, 'true');
+    return;
+  }
+  if (s === 'false' || s === '0' || s === 'no' || s === 'off') {
+    queryParams.append(key, 'false');
+  }
+};
 
 /** Append POS status query params per backend contract. */
 const appendPosStatusParams = (queryParams, params = {}) => {
@@ -166,6 +188,11 @@ const buildProductsListQueryParams = (params = {}, { includeStatus = true } = {}
   if (includeStatus) appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
+  appendBooleanQueryParam(
+    queryParams,
+    'show_on_bigcommerce',
+    params.show_on_bigcommerce ?? params.showOnBigcommerce
+  );
   queryParams.set(
     'populate',
     params.populate != null && String(params.populate).trim() !== ''
@@ -255,7 +282,7 @@ export const PRODUCT_LIST_SEARCH_FIELDS =
 export const POS_PRODUCT_SEARCH_FIELDS = PRODUCT_LIST_SEARCH_FIELDS;
 
 /**
- * POS / search: `GET product/get-all-active-pos?...&status=active|inactive&include_inactive=true&product_type=Single|Variable`
+ * POS / search: `GET product/get-all-active-pos?...&status=active|inactive&include_inactive=true&product_type=Single|Variable&show_on_bigcommerce=true|false`
  * Batch by id: `?_id=id1,id2` (aliases: ids, product_ids, product_id).
  * Default (no status params) = active only. Pagination.total matches the status filter.
  */
@@ -305,6 +332,11 @@ export const fetchProductActiveRequest = async (params = {}) => {
   appendPosStatusParams(queryParams, params);
   const productType = params.product_type ?? params.productType;
   if (productType) queryParams.append('product_type', String(productType));
+  appendBooleanQueryParam(
+    queryParams,
+    'show_on_bigcommerce',
+    params.show_on_bigcommerce ?? params.showOnBigcommerce
+  );
   queryParams.set(
     'populate',
     params.populate != null && String(params.populate).trim() !== ''
