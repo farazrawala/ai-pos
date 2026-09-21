@@ -28,10 +28,10 @@ export default defineConfig(({ mode }) => {
   const normalizedBase =
     basePath === '/' ? '/' : `/${String(basePath).replace(/^\/+|\/+$/g, '')}/`;
 
-  if (mode === 'live') {
-    console.log('[build:live] Using .env.live');
-    console.log('[build:live] VITE_API_BASE_URL =', env.VITE_API_BASE_URL || '(not set)');
-    console.log('[build:live] VITE_BASE_PATH =', normalizedBase);
+  if (mode === 'live' || mode === 'tgcrm') {
+    console.log(`[build:${mode}] Using .env.${mode}`);
+    console.log(`[build:${mode}] VITE_API_BASE_URL =`, env.VITE_API_BASE_URL || '(not set)');
+    console.log(`[build:${mode}] VITE_BASE_PATH =`, normalizedBase);
   }
 
   const manifestBase = JSON.parse(

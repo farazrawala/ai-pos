@@ -1,6 +1,6 @@
 {
   "name": "ai-pos",
-  "version": "1.0.345",
+  "version": "1.0.346",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "build:local": "vite build --mode localhost",
     "build:development": "vite build --mode development",
     "build:live": "vite build --mode live",
+    "build:tgcrm": "vite build --mode tgcrm",
     "preview": "vite preview",
     "preview:live": "vite preview --mode live",
     "dev:orders-hub": "vite --config vite.orders-hub.config.js --mode localhost",
