@@ -14,6 +14,9 @@ import {
 import {
   pickIntegrationStoreLogoUrl,
   generateIntegrationTokenRequest,
+  generateDarazTokenRequest,
+  refreshDarazTokenRequest,
+  fetchIntegrationByIdRequest,
 } from '../../features/integration/integrationAPI.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { useRequireModuleAccess } from '../../hooks/useRequireModuleAccess.js';
@@ -25,7 +28,17 @@ import { useColumnVisibility } from '../../hooks/useColumnVisibility.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import AddNewButton from '../../components/AddNewButton.jsx';
 import { DEBUG } from '../../config/env.js';
-import { integrationIdFromRecord, integrationNameFromRecord, storeTypeLabel } from './integrationForm.js';
+import {
+  darazTokenAction,
+  extractDarazSellerCode,
+  integrationIdFromRecord,
+  integrationNameFromRecord,
+  isDarazCallbackUrlWithoutCode,
+  pickDarazAppKey,
+  pickDarazAuthCode,
+  buildDarazAuthorizeUrl,
+  storeTypeLabel,
+} from './integrationForm.js';
 
 /** Integrations table columns. `sno`, `name`, `actions` are always visible. */
 const INTEGRATION_COLUMNS = [
@@ -123,8 +136,20 @@ function formatIntegrationExpiryRemaining(value) {
   return parts.join(' ');
 }
 
+function integrationStoreType(item) {
+  return String(item?.store_type || item?.storeType || '').toLowerCase();
+}
+
 function isShopifyStoreType(item) {
-  return String(item?.store_type || item?.storeType || '').toLowerCase() === 'shopify';
+  return integrationStoreType(item) === 'shopify';
+}
+
+function isDarazStoreType(item) {
+  return integrationStoreType(item) === 'daraz';
+}
+
+function storeTypeSupportsTokenRefresh(item) {
+  return isShopifyStoreType(item) || isDarazStoreType(item);
 }
 
 const Integration = () => {
@@ -144,7 +169,7 @@ const Integration = () => {
   useRequireModuleAccess('integration');
   const loading = status === 'loading';
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
-  const [refreshingTokens, setRefreshingTokens] = useState(false);
+  const [refreshingTokenId, setRefreshingTokenId] = useState('');
   const searchTimeoutRef = useRef(null);
 
   const { isVisible, toggle, reset, visibleCount } = useColumnVisibility(
@@ -208,20 +233,84 @@ const Integration = () => {
     }
   };
 
-  const handleRefreshToken = async (integrationId) => {
-    if (refreshingTokens) return;
-    const id = String(integrationId || '').trim();
+  const handleRefreshToken = async (item) => {
+    if (refreshingTokenId) return;
+    const id = String(integrationIdFromRecord(item) || '').trim();
     if (!id) {
       toast.error('Integration id is missing.');
       return;
     }
-    setRefreshingTokens(true);
+    const isDaraz = isDarazStoreType(item);
+    const label = isDaraz ? 'Daraz' : 'Shopify';
+    let action = isDaraz ? 'generate' : 'refresh';
+    let darazPopup = null;
+    const needsDarazAuthorize =
+      isDaraz && darazTokenAction(item) === 'generate' && !pickDarazAuthCode(item);
+    if (needsDarazAuthorize && typeof window !== 'undefined') {
+      const authorizeUrl = buildDarazAuthorizeUrl({
+        appKey: pickDarazAppKey(item),
+        integrationId: id,
+      });
+      darazPopup = window.open(authorizeUrl || 'about:blank', 'daraz-authorize');
+    }
+    setRefreshingTokenId(id);
     try {
-      const result = await generateIntegrationTokenRequest(id);
+      let record = item;
+      if (isDaraz) {
+        try {
+          const fresh = await fetchIntegrationByIdRequest(id);
+          if (fresh && typeof fresh === 'object') record = fresh;
+        } catch {
+          /* list row is enough to attempt generate */
+        }
+      }
+      action = isDaraz ? darazTokenAction(record) : 'refresh';
+      let sellerCode = isDaraz ? pickDarazAuthCode(record) : '';
+      if (isDaraz && action === 'generate' && !sellerCode) {
+        const authorizeUrl = buildDarazAuthorizeUrl({
+          appKey: pickDarazAppKey(record) || pickDarazAppKey(item),
+          integrationId: id,
+        });
+        if (!authorizeUrl) {
+          if (darazPopup && !darazPopup.closed) darazPopup.close();
+          throw new Error('Daraz App Key is missing. Save the App Key on the integration, then click Generate Token.');
+        }
+        if (darazPopup && !darazPopup.closed) {
+          darazPopup.location.href = authorizeUrl;
+        } else {
+          window.open(authorizeUrl, 'daraz-authorize');
+        }
+        const pasted = window.prompt(
+          'A Daraz Pakistan login tab opened.\n\n1. Sign in and click Authorize.\n2. Daraz sends code=4_... to your webhook (emailed to faraz.rawala@gmail.com).\n3. Paste that code, the callback URL that contains code=4_..., or the webhook JSON/email text.\n\nDo not paste webhook.php?hello=test or the Callback URL without code=.',
+          '',
+        );
+        if (pasted == null) {
+          return;
+        }
+        sellerCode = extractDarazSellerCode(pasted);
+        if (!sellerCode) {
+          throw new Error(
+            isDarazCallbackUrlWithoutCode(pasted)
+              ? 'That is your Daraz webhook URL, not a seller code. After you authorize, paste the URL or email that contains code=4_... (not webhook.php?hello=test).'
+              : 'That is not a Daraz seller code. Paste code=4_... (or the callback URL / webhook email that contains it).',
+          );
+        }
+      } else if (darazPopup && !darazPopup.closed) {
+        darazPopup.close();
+      }
+      let result;
+      if (!isDaraz) {
+        result = await generateIntegrationTokenRequest(id);
+      } else if (action === 'generate') {
+        result = await generateDarazTokenRequest(id, { code: sellerCode });
+      } else {
+        result = await refreshDarazTokenRequest(id);
+      }
+      const fallback =
+        isDaraz && action === 'generate' ? 'Daraz token generated.' : `${label} token refreshed.`;
       const message =
-        (result && typeof result === 'object' && (result.message || result.msg)) ||
-        'Shopify token refreshed.';
-      toast.success(typeof message === 'string' ? message : 'Shopify token refreshed.');
+        (result && typeof result === 'object' && (result.message || result.msg)) || fallback;
+      toast.success(typeof message === 'string' ? message : fallback);
       const params = { page: pagination.page, limit: pagination.limit };
       if (searchTerm) params.search = searchTerm;
       if (sort.sortBy) {
@@ -230,9 +319,14 @@ const Integration = () => {
       }
       dispatch(fetchIntegrations(params));
     } catch (err) {
-      toast.error(err?.message || 'Failed to refresh Shopify token.');
+      toast.error(
+        err?.message ||
+          (isDaraz && action === 'generate'
+            ? 'Failed to generate Daraz token.'
+            : `Failed to refresh ${label} token.`)
+      );
     } finally {
-      setRefreshingTokens(false);
+      setRefreshingTokenId('');
     }
   };
 
@@ -338,8 +432,14 @@ const Integration = () => {
                         const tokenExpiryLabel = formatIntegrationExpiryRemaining(tokenExpiryAt);
                         const tokenExpired = tokenExpiryLabel === 'Expired';
                         const tokenExpiryEmpty = !tokenExpiryLabel;
+                        const darazAction = isDarazStoreType(item) ? darazTokenAction(item) : null;
                         const showRefreshUnderExpiry =
-                          isShopifyStoreType(item) && (tokenExpired || tokenExpiryEmpty);
+                          storeTypeSupportsTokenRefresh(item) && (tokenExpired || tokenExpiryEmpty);
+                        const rowRefreshing = refreshingTokenId === String(id || '');
+                        const tokenActionLabel =
+                          darazAction === 'generate' ? 'Generate Token' : 'Refresh Token';
+                        const tokenActionBusyLabel =
+                          darazAction === 'generate' ? 'Generating…' : 'Refreshing…';
                         return (
                           <tr key={id || index}>
                             <td>{seriesNumber}</td>
@@ -385,10 +485,10 @@ const Integration = () => {
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-info mb-0"
-                                        onClick={() => handleRefreshToken(id)}
-                                      disabled={refreshingTokens}
+                                      onClick={() => handleRefreshToken(item)}
+                                      disabled={Boolean(refreshingTokenId)}
                                     >
-                                      {refreshingTokens ? 'Refreshing…' : 'Refresh Token'}
+                                      {rowRefreshing ? tokenActionBusyLabel : tokenActionLabel}
                                     </button>
                                   ) : null}
                                 </div>

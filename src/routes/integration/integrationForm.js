@@ -81,6 +81,132 @@ export const storeTypeLabel = (value) => {
   return match ? match.label : value || '-';
 };
 
+/** Live PK codes look like 4_506036_…. Docs examples use 0_…. */
+const DARAZ_AUTH_CODE_RE = /^\d+_[A-Za-z0-9._-]+$/;
+
+const takeDarazAuthCode = (value) => {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const token = text.split(/[\s&#?"'<>]/)[0];
+  return DARAZ_AUTH_CODE_RE.test(token) ? token : '';
+};
+
+/** Pull a Daraz seller code (`4_506036_…` or `0_…`) from Token, a callback URL, webhook JSON, or `?code=`. */
+export const extractDarazSellerCode = (value) => {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+
+  const asCode = takeDarazAuthCode(text);
+  if (asCode) return asCode;
+
+  if (text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text);
+      const qs =
+        parsed?.captured?.query_string ||
+        parsed?.query_string ||
+        parsed?.captured?.query ||
+        null;
+      if (qs) {
+        return extractDarazSellerCode(
+          String(qs).includes('=') && !String(qs).includes('://')
+            ? `https://callback.local/?${qs}`
+            : qs,
+        );
+      }
+      const nested =
+        parsed?.code ||
+        parsed?.get?.code ||
+        parsed?.captured?.code ||
+        parsed?.captured?.get?.code ||
+        parsed?.data?.code ||
+        null;
+      if (nested) return extractDarazSellerCode(nested);
+    } catch {
+      /* not JSON */
+    }
+  }
+
+  try {
+    if (text.includes('://') || text.startsWith('http')) {
+      const url = new URL(text);
+      const fromQuery = takeDarazAuthCode(url.searchParams.get('code'));
+      if (fromQuery) return fromQuery;
+    }
+  } catch {
+    /* not a URL */
+  }
+
+  const queryMatch = text.match(/[?&]code=(\d+_[A-Za-z0-9._-]+)/i);
+  if (queryMatch) return queryMatch[1];
+
+  const embedded = text.match(/(?:^|[^A-Za-z0-9])(\d+_[A-Za-z0-9._-]+)/);
+  if (embedded) return takeDarazAuthCode(embedded[1]);
+
+  if (/^[^=&]*&?[^=]+=/.test(text) && /code=/i.test(text)) {
+    return extractDarazSellerCode(`https://callback.local/?${text}`);
+  }
+
+  return '';
+};
+
+export const isDarazCallbackUrlWithoutCode = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (extractDarazSellerCode(text)) return false;
+  return /webhook\.php|pos_webhook|callback/i.test(text);
+};
+
+export const isDarazAuthCode = (value) => Boolean(extractDarazSellerCode(value));
+
+export const pickDarazAuthCode = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  const candidates = [item.code, item.seller_code, item.sellerCode, item.token];
+  for (const raw of candidates) {
+    const extracted = extractDarazSellerCode(raw);
+    if (extracted) return extracted;
+  }
+  return '';
+};
+
+export const pickDarazRefreshToken = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  const candidates = [item.refresh_token, item.refreshToken];
+  for (const raw of candidates) {
+    const value = String(raw ?? '').trim();
+    if (value) return value;
+  }
+  return '';
+};
+
+export const DARAZ_PK_AUTHORIZE_BASE = 'https://api.daraz.pk/oauth/authorize';
+export const DARAZ_PK_CALLBACK_URL =
+  'https://testv3.websitedemolynk.com/pos_webhook/webhook.php?callback';
+
+export const pickDarazAppKey = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  return String(item.key || item.app_key || item.appKey || item.client_id || '').trim();
+};
+
+export const buildDarazAuthorizeUrl = ({ appKey, integrationId, redirectUri } = {}) => {
+  const clientId = String(appKey || '').trim();
+  if (!clientId) return '';
+  const query = new URLSearchParams({
+    response_type: 'code',
+    force_auth: 'true',
+    redirect_uri: String(redirectUri || DARAZ_PK_CALLBACK_URL).trim(),
+    client_id: clientId,
+  });
+  if (integrationId) query.set('state', String(integrationId));
+  return `${DARAZ_PK_AUTHORIZE_BASE}?${query.toString()}`;
+};
+
+export const darazTokenAction = (item) => {
+  if (pickDarazRefreshToken(item)) return 'refresh';
+  if (pickDarazAuthCode(item)) return 'generate';
+  return String(item?.token ?? '').trim() ? 'refresh' : 'generate';
+};
+
 const pickStoreLogoUrl = (record) => {
   if (!record || typeof record !== 'object') return '';
   const raw = record.image ?? record.store_logo ?? record.storeLogo ?? record.logo ?? '';
@@ -171,6 +297,13 @@ export const validateIntegrationForm = (form, { isEdit = false } = {}) => {
   if (!isEdit && !fieldValue(form, 'integrationSecret')) {
     errors.integrationSecret = 'Secret is required';
   }
+  if (storeType === 'daraz') {
+    const token = fieldValue(form, 'token');
+    if (token && isDarazCallbackUrlWithoutCode(token) && !extractDarazSellerCode(token)) {
+      errors.token =
+        'That is the webhook URL, not a seller code. Leave Token empty and use Generate Token.';
+    }
+  }
   const email = fieldValue(form, 'email');
   if (email && !/^\S+@\S+\.\S+$/.test(email)) {
     errors.email = 'Enter a valid email';
@@ -205,7 +338,7 @@ export const buildIntegrationPayload = (form, { isEdit = false } = {}) => {
 
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
-  if (token) payload.token = token;
+  if (token || fieldValue(form, 'store_type') === 'daraz') payload.token = token;
   if (smtpHost) payload.smtp_host = smtpHost;
   if (Number.isFinite(smtpPort)) payload.smtp_port = smtpPort;
   if (smtpUsername) payload.smtp_username = smtpUsername;

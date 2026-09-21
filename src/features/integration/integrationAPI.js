@@ -277,7 +277,11 @@ export const fetchIntegrationByIdRequest = async (integrationId) => {
 
   let response;
   try {
-    response = await fetch(url, { method: 'GET', headers: getHeaders() });
+    response = await fetch(url, {
+      method: 'GET',
+      headers: getHeaders(),
+      cache: 'no-store',
+    });
   } catch (err) {
     logIntegrationModuleError('fetchIntegrationByIdRequest network error', {
       integrationId,
@@ -418,6 +422,134 @@ export const generateIntegrationTokenRequest = async (integrationId) => {
     const errorData = await response.json().catch(() => ({}));
     const message = errorData.message || `HTTP error! status: ${response.status}`;
     logIntegrationModuleError('generateIntegrationTokenRequest failed', {
+      status: response.status,
+      integrationId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/** Pakistan seller login URL (`GET integration/daraz/authorize-url/:id`). */
+export const fetchDarazAuthorizeUrlRequest = async (integrationId) => {
+  const id = String(integrationId || '').trim();
+  if (!id) throw new Error('Integration id is required');
+
+  const url = `${BASE_URL}integration/daraz/authorize-url/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: getHeaders(),
+      cache: 'no-store',
+    });
+  } catch (err) {
+    logIntegrationModuleError('fetchDarazAuthorizeUrlRequest network error', {
+      url,
+      integrationId: id,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('fetchDarazAuthorizeUrlRequest failed', {
+      status: response.status,
+      integrationId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/** Generate Daraz tokens from seller code (`POST integration/daraz/generate-token/:id`). */
+export const generateDarazTokenRequest = async (integrationId, { code } = {}) => {
+  const id = String(integrationId || '').trim();
+  const sellerCode = String(code || '').trim();
+  if (!id) throw new Error('Integration id is required');
+
+  const url = `${BASE_URL}integration/daraz/generate-token/${encodeURIComponent(id)}`;
+  const body = sellerCode ? { code: sellerCode } : {};
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    logIntegrationModuleError('generateDarazTokenRequest network error', {
+      url,
+      integrationId: id,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('generateDarazTokenRequest failed', {
+      status: response.status,
+      integrationId: id,
+      errorData,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return { success: true };
+  }
+};
+
+/** Refresh one Daraz integration token (`POST integration/daraz/refresh-token/:id`). */
+export const refreshDarazTokenRequest = async (integrationId) => {
+  const id = String(integrationId || '').trim();
+  if (!id) throw new Error('Integration id is required');
+
+  const url = `${BASE_URL}integration/daraz/refresh-token/${encodeURIComponent(id)}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({}),
+    });
+  } catch (err) {
+    logIntegrationModuleError('refreshDarazTokenRequest network error', {
+      url,
+      integrationId: id,
+      error: err,
+    });
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.message || `HTTP error! status: ${response.status}`;
+    logIntegrationModuleError('refreshDarazTokenRequest failed', {
       status: response.status,
       integrationId: id,
       errorData,

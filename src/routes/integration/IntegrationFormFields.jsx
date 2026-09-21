@@ -4,7 +4,7 @@ import { STORE_TYPE_OPTIONS } from './integrationForm.js';
 const CREDENTIAL_LABELS = {
   shopify: { key: 'API key', secret: 'API secret key', token: 'Admin API access token' },
   woocommerce: { key: 'Consumer key', secret: 'Consumer secret', token: 'Access token' },
-  daraz: { key: 'App Key', secret: 'App Secret', token: 'Access token' },
+  daraz: { key: 'App Key', secret: 'App Secret', token: 'Seller code / refresh token' },
 };
 
 const DEFAULT_CREDENTIAL_LABELS = {
@@ -256,14 +256,24 @@ export default function IntegrationFormFields({
             </label>
             <input
               type="text"
-              className="form-control integration-form-control"
+              className={`form-control integration-form-control ${errors.token ? 'is-invalid' : ''}`}
               id="token"
               name="token"
               value={form.token}
               onChange={onChange}
               disabled={disabled}
               autoComplete="off"
+              placeholder={form.store_type === 'daraz' ? '4_506036_....' : undefined}
             />
+            {errors.token ? <div className="invalid-feedback">{errors.token}</div> : null}
+            {form.store_type === 'daraz' ? (
+              <p className="integration-form-section-hint mb-0 mt-1">
+                Leave Token empty on first save. On the list, click Generate Token — a Daraz
+                Pakistan login opens. After you authorize, paste <code>code=4_...</code> from
+                the webhook email (not the webhook URL itself). Later clicks use the stored
+                refresh token.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
