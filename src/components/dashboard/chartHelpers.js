@@ -73,6 +73,31 @@ export function periodLabelFromMonthWiseApi(period) {
   return periodLabelFromPeakApi(period) || DASHBOARD_PERIOD_LABELS.current_year;
 }
 
+/** Compact week axis label, e.g. `Aug 4–10`. */
+export function weekRangeLabel(fromKey, toKey) {
+  const from = new Date(`${String(fromKey || '').slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(from.getTime())) return String(fromKey || '');
+  const fromLabel = from.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const to = toKey ? new Date(`${String(toKey).slice(0, 10)}T12:00:00`) : null;
+  if (!to || Number.isNaN(to.getTime())) return fromLabel;
+  if (from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()) {
+    return `${fromLabel}–${to.getDate()}`;
+  }
+  const toLabel = to.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${fromLabel}–${toLabel}`;
+}
+
+/** Full week tooltip title, e.g. `Aug 4 – Aug 10, 2026`. */
+export function weekRangeTitle(fromKey, toKey) {
+  const from = new Date(`${String(fromKey || '').slice(0, 10)}T12:00:00`);
+  const to = toKey ? new Date(`${String(toKey).slice(0, 10)}T12:00:00`) : null;
+  if (Number.isNaN(from.getTime())) return String(fromKey || '');
+  const fmt = (d) =>
+    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  if (!to || Number.isNaN(to.getTime())) return fmt(from);
+  return `${fmt(from)} – ${fmt(to)}`;
+}
+
 /** @param {string} name @param {number} [maxLen] */
 export function truncateChartLabel(name, maxLen = 22) {
   const s = String(name ?? '').trim();

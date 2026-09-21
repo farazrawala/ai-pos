@@ -160,6 +160,8 @@ export async function getErrorMessageFromResponse(response) {
 const TOTAL_SALES_CURRENT_MONTH_PATH = 'order/total-sales-current-month';
 const SALES_LAST_30_DAYS_PATH = 'orders/sales-last-30-days';
 const SALES_MONTH_WISE_PATH = 'order/sales-month-wise';
+const SALES_DAY_WISE_PATHS = ['order/sales-day-wise', 'orders/sales-day-wise', SALES_LAST_30_DAYS_PATH];
+const SALES_WEEK_WISE_PATHS = ['order/sales-week-wise', 'orders/sales-week-wise'];
 const PEAK_SALES_HOURS_PATH = 'order/peak-sales-hours';
 const TOP_SELLING_PRODUCTS_PATH = 'order/top-selling-products';
 const PRODUCT_TOP_SELLING_PATH = 'product/top-selling';
@@ -380,6 +382,128 @@ export async function fetchSalesMonthWiseRequest(params = {}) {
     months,
     summary: parseSalesMonthWiseSummary(result.summary ?? result),
     period: result?.period && typeof result.period === 'object' ? result.period : null,
+  };
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const d = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseSalesWeekEntry(row) {
+  if (!row || typeof row !== 'object') {
+    return { week: '', from: '', to: '', totalAmount: 0, orderCount: 0, averageOrderValue: 0 };
+  }
+  const parsed = parseSalesMonthEntry(row);
+  const from = String(
+    row.from ?? row.week_start ?? row.weekStart ?? row.start ?? row.week ?? parsed.month ?? ''
+  ).slice(0, 10);
+  const toRaw = String(row.to ?? row.week_end ?? row.weekEnd ?? row.end ?? '').slice(0, 10);
+  const to = toRaw || (from ? addDaysToIsoDate(from, 6) : '');
+  const averageOrderValue =
+    parsed.averageOrderValue || (parsed.orderCount > 0 ? parsed.totalAmount / parsed.orderCount : 0);
+  return {
+    week: String(row.week ?? row.week_key ?? row.label ?? from),
+    from,
+    to,
+    totalAmount: parsed.totalAmount,
+    orderCount: parsed.orderCount,
+    averageOrderValue,
+  };
+}
+
+function isoWeekStartDate(dateStr) {
+  const d = new Date(`${String(dateStr || '').slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + offset);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+export function groupSalesDaysIntoWeeks(days) {
+  const map = new Map();
+  for (const row of days || []) {
+    const date = String(row.date || '').slice(0, 10);
+    const from = isoWeekStartDate(date);
+    if (!from) continue;
+    const prev = map.get(from) || { from, to: date, totalAmount: 0, orderCount: 0 };
+    prev.totalAmount += Number(row.totalAmount) || 0;
+    prev.orderCount += Number(row.orderCount) || 0;
+    if (date > prev.to) prev.to = date;
+    map.set(from, prev);
+  }
+  return [...map.values()]
+    .sort((a, b) => a.from.localeCompare(b.from))
+    .map((week) => ({
+      week: week.from,
+      from: week.from,
+      to: week.to || addDaysToIsoDate(week.from, 6),
+      totalAmount: week.totalAmount,
+      orderCount: week.orderCount,
+      averageOrderValue: week.orderCount > 0 ? week.totalAmount / week.orderCount : 0,
+    }));
+}
+
+/**
+ * GET `order/sales-day-wise` (fallbacks: `orders/sales-day-wise`, `orders/sales-last-30-days`).
+ */
+export async function fetchSalesByDayReportRequest(params = {}) {
+  const query = buildReportPeriodQuery(params, 'current_month');
+  const result = await fetchFirstReportJson(SALES_DAY_WISE_PATHS, query);
+  const days = parseReportDays(result);
+  return {
+    days,
+    summary: parseOrderSalesTotals(result.summary ?? result),
+    period: result?.period && typeof result.period === 'object' ? result.period : null,
+  };
+}
+
+/**
+ * GET `order/sales-week-wise` when available; otherwise buckets day-wise sales into weeks.
+ */
+export async function fetchSalesWeekWiseRequest(params = {}) {
+  const query = buildReportPeriodQuery(params, 'last_90_days');
+  try {
+    const result = await fetchFirstReportJson(SALES_WEEK_WISE_PATHS, query);
+    const raw = Array.isArray(result.weeks)
+      ? result.weeks
+      : Array.isArray(result.data)
+        ? result.data
+        : [];
+    if (raw.length > 0) {
+      return {
+        weeks: raw.map(parseSalesWeekEntry),
+        summary: parseSalesMonthWiseSummary(result.summary ?? result),
+        period: result?.period && typeof result.period === 'object' ? result.period : null,
+      };
+    }
+  } catch {
+    /* fall through to day-wise grouping */
+  }
+
+  const byDay = await fetchSalesByDayReportRequest(
+    params.from && params.to ? params : { period: params.period || 'last_90_days' }
+  );
+  const weeks = groupSalesDaysIntoWeeks(byDay.days);
+  const totalAmount = weeks.reduce((sum, row) => sum + row.totalAmount, 0);
+  const orderCount = weeks.reduce((sum, row) => sum + row.orderCount, 0);
+  return {
+    weeks,
+    summary: {
+      totalAmount,
+      orderCount,
+      averageOrderValue: orderCount > 0 ? totalAmount / orderCount : 0,
+    },
+    period: byDay.period,
   };
 }
 
@@ -681,6 +805,18 @@ async function fetchOrderReportJson(path, query) {
   }
 
   return result;
+}
+
+async function fetchFirstReportJson(paths, query) {
+  let lastErr;
+  for (const path of paths) {
+    try {
+      return await fetchOrderReportJson(path, query);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Request failed');
 }
 
 function parseReportDays(result, dayParser = parseSalesDayEntry) {
