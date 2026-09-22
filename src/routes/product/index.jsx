@@ -1952,13 +1952,13 @@ const Product = () => {
                               </td>
                             ) : null}
                             <td
-                              className="text-sm font-weight-bold text-dark list-cell-truncate"
+                              className="text-sm font-weight-bold text-dark list-cell-wrap"
                               title={productName !== 'Product' ? productName : undefined}
                             >
                               {canEdit && !isDeletedView ? (
                                 <button
                                   type="button"
-                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-truncate text-start"
+                                  className="btn btn-link btn-sm p-0 mb-0 text-dark font-weight-bold text-decoration-none d-block w-100 text-start"
                                   title={`Edit ${productName}`}
                                   onClick={() => navigate(`/products/edit/${productEditId}`)}
                                 >

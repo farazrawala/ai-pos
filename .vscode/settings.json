@@ -49,7 +49,7 @@
     "source.fixAll": "explicit"
   },
   "nuxt.isNuxtApp": false,
-  "workbench.colorTheme": "Default Dark Modern",
+  "workbench.colorTheme": "Dark Modern",
   "workbench.colorCustomizations": {
     "sideBar.background": "#344767",
     "sideBar.foreground": "#E9ECEF",

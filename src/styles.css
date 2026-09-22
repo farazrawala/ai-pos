@@ -727,6 +727,14 @@ body {
   white-space: nowrap;
 }
 
+.list-data-table .list-cell-wrap {
+  max-width: 18rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
 .list-data-table .list-table-actions {
   display: inline-flex;
   flex-wrap: nowrap;
