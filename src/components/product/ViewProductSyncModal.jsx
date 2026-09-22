@@ -327,6 +327,17 @@ const matchKeysForProduct = (name, sku) => {
 const storeVariationReferenceId = (variation, parentRemoteId) =>
   String(variation?.reference_id || `${parentRemoteId}:${variation?.id || ''}`).trim();
 
+/** Resolve a numeric parent product id from a store-variations response's `parent` field. */
+const pickResolvedParentId = (parent) => {
+  if (!parent) return '';
+  if (typeof parent === 'object') {
+    return String(
+      parent.id || parent._id || parent.product_id || parent.reference_id || ''
+    ).trim();
+  }
+  return String(parent).trim();
+};
+
 const matchStoreVariation = (posProduct, storeVariations, usedIds) => {
   const posKeys = matchKeysForProduct(posProduct?.name, posProduct?.sku);
   if (!posKeys.length) return null;
@@ -402,6 +413,7 @@ export default function ViewProductSyncModal({
   const [selectedStoreVariationId, setSelectedStoreVariationId] = useState('');
   const [pendingParentRemoteId, setPendingParentRemoteId] = useState('');
   const hydratedIntegrationIdsRef = useRef(new Set());
+  const resolvedParentRemoteIdRef = useRef('');
 
   const resetVariationPicker = useCallback(() => {
     setStoreVariations([]);
@@ -557,10 +569,22 @@ export default function ViewProductSyncModal({
     };
   }, [open, loadStatus, list, integrations]);
 
-  const parsedLink = useMemo(
-    () => parseStoreProductLink(linkUrl, integrations),
-    [linkUrl, integrations]
-  );
+  const parsedLink = useMemo(() => {
+    const parsed = parseStoreProductLink(linkUrl, integrations);
+    if (parsed.integrationId || !linkUrl.trim() || !selectedIntegrationId) return parsed;
+    // Domain matching fails for Shopify custom storefront domains (e.g. a pasted
+    // live-site product link won't match the *.myshopify.com/admin URL saved on the
+    // integration). Fall back to the integration already chosen in step 1.
+    const fallback = integrations.find(
+      (item) => String(integrationIdFromRecord(item)) === String(selectedIntegrationId)
+    );
+    if (!fallback) return parsed;
+    return {
+      ...parsed,
+      integration: fallback,
+      integrationId: String(integrationIdFromRecord(fallback)),
+    };
+  }, [linkUrl, integrations, selectedIntegrationId]);
 
   const selectedStoreVariation = useMemo(
     () =>
@@ -612,7 +636,14 @@ export default function ViewProductSyncModal({
     }
   };
 
-  const writeLinkMapping = async (targetProductId, referenceId, integrationId) => {
+  const writeLinkMapping = async (targetProductId, referenceId, integrationId, existingSyncId) => {
+    if (existingSyncId) {
+      await updateSyncProductRequest(existingSyncId, {
+        refference_id: String(referenceId || '').trim(),
+        status: 'active',
+      });
+      return;
+    }
     await createSyncProductRequest({
       product_id: targetProductId,
       integration_id: integrationId,
@@ -621,13 +652,15 @@ export default function ViewProductSyncModal({
     });
   };
 
-  const createLinkMapping = async (referenceId, integration, integrationId) => {
-    await writeLinkMapping(productId, referenceId, integrationId);
+  const createLinkMapping = async (referenceId, integration, integrationId, existingSyncId) => {
+    await writeLinkMapping(productId, referenceId, integrationId, existingSyncId);
     setLinkStatus('succeeded');
     setLinkSuccess(
       isVariableParent
         ? `Linked parent to ${integrationOptionLabel(integration)} (product ${referenceId}).`
-        : `Linked to ${integrationOptionLabel(integration)} (ID ${referenceId}).`
+        : existingSyncId
+          ? `Updated existing link to ${integrationOptionLabel(integration)} (ID ${referenceId}).`
+          : `Linked to ${integrationOptionLabel(integration)} (ID ${referenceId}).`
     );
     if (!isVariableParent) {
       setLinkUrl('');
@@ -636,32 +669,41 @@ export default function ViewProductSyncModal({
     loadSyncRecords();
   };
 
-  const loadStoreVariationsForLink = async () => {
+  const loadStoreVariationsForLink = async (remoteIdOverride) => {
+    const queryId = remoteIdOverride || parsedLink.productId;
     const result = await fetchStoreProductVariationsRequest(
       parsedLink.integrationId,
-      parsedLink.productId
+      queryId
     );
     const variations = Array.isArray(result?.data) ? result.data : [];
+    const parentId = pickResolvedParentId(result?.parent) || queryId;
+    resolvedParentRemoteIdRef.current = parentId;
     setStoreVariations(variations);
     setStoreVariationsStatus('succeeded');
-    setPendingParentRemoteId(parsedLink.productId);
-    return variations;
+    setPendingParentRemoteId(queryId);
+    return { variations, parentId };
   };
+
+  // Some pasted links only carry a variant id (e.g. a storefront/customer product
+  // URL like /products/handle?variant=123, which has no numeric parent id at all).
+  // Look those up too — the backend resolves the parent from the variant id.
+  const lookupRemoteId = parsedLink.productId || parsedLink.variantId;
+  const hasBothStoreIds = Boolean(parsedLink.productId && parsedLink.variantId);
 
   useEffect(() => {
     if (!open) return undefined;
     if (!isPosVariantChild && !isVariableParent) return undefined;
-    if (!parsedLink.productId || !parsedLink.integrationId || parsedLink.variantId) {
+    if (!lookupRemoteId || !parsedLink.integrationId || hasBothStoreIds) {
       return undefined;
     }
-    if (!/^\d{6,}$/.test(String(parsedLink.productId))) return undefined;
-    if (String(pendingParentRemoteId) === String(parsedLink.productId)) return undefined;
+    if (!/^\d{6,}$/.test(String(lookupRemoteId))) return undefined;
+    if (String(pendingParentRemoteId) === String(lookupRemoteId)) return undefined;
 
     let cancelled = false;
     (async () => {
       setStoreVariationsStatus('loading');
       try {
-        await loadStoreVariationsForLink();
+        await loadStoreVariationsForLink(lookupRemoteId);
       } catch (err) {
         if (cancelled) return;
         setStoreVariationsStatus('failed');
@@ -674,15 +716,15 @@ export default function ViewProductSyncModal({
     return () => {
       cancelled = true;
     };
-    // Load once per pasted Shopify product URL (parent or child).
+    // Load once per pasted Shopify product URL (parent, child, or storefront variant link).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     isPosVariantChild,
     isVariableParent,
-    parsedLink.productId,
+    lookupRemoteId,
+    hasBothStoreIds,
     parsedLink.integrationId,
-    parsedLink.variantId,
     pendingParentRemoteId,
   ]);
 
@@ -695,9 +737,9 @@ export default function ViewProductSyncModal({
       setLinkError('Please paste a store product URL.');
       return;
     }
-    if (!parsedLink.productId && !parsedLink.externalProductId) {
+    if (!parsedLink.productId && !parsedLink.externalProductId && !parsedLink.variantId) {
       setLinkError(
-        'Could not extract a product id from this URL. Use a WordPress edit URL (?post=189) or Shopify product/variant URL.'
+        'Could not extract a product id from this URL. Use a WordPress edit URL (?post=189) or a Shopify product/variant URL (admin or storefront).'
       );
       return;
     }
@@ -708,7 +750,10 @@ export default function ViewProductSyncModal({
       return;
     }
 
-    const alreadyLinked = list.some((item) => {
+    // Reuse the existing sync row for this integration when present (update its
+    // reference id) instead of blocking — e.g. correcting a parent-only mapping to
+    // point at the right child variation.
+    const existingRowForIntegration = list.find((item) => {
       const rowIntegrationId =
         item?.integration_id?._id ||
         item?.integration_id?.id ||
@@ -716,10 +761,9 @@ export default function ViewProductSyncModal({
         '';
       return String(rowIntegrationId) === String(parsedLink.integrationId);
     });
-    if (alreadyLinked) {
-      setLinkError('This product is already linked to that integration.');
-      return;
-    }
+    const existingSyncId = existingRowForIntegration
+      ? syncIdFromRecord(existingRowForIntegration)
+      : '';
 
     // Variable parent: one Shopify product URL → parent mapping only (no variation picker).
     if (isVariableParent && parsedLink.productId && !selectedStoreVariation) {
@@ -732,7 +776,8 @@ export default function ViewProductSyncModal({
         await createLinkMapping(
           parsedLink.productId,
           parsedLink.integration,
-          parsedLink.integrationId
+          parsedLink.integrationId,
+          existingSyncId
         );
       } catch (err) {
         setLinkStatus('failed');
@@ -741,6 +786,66 @@ export default function ViewProductSyncModal({
           productId,
           integrationId: parsedLink.integrationId,
           refference_id: parsedLink.productId,
+          error: err,
+        });
+      }
+      return;
+    }
+
+    // Storefront/customer link with only a variant id (no numeric parent id in the
+    // URL at all) — resolve it via the backend and link straight to that variant.
+    const needsVariantResolve =
+      isPosVariantChild &&
+      !parsedLink.productId &&
+      Boolean(parsedLink.variantId) &&
+      !selectedStoreVariation;
+
+    if (needsVariantResolve) {
+      setLinkStatus('loading');
+      setLinkError(null);
+      setLinkSuccess(null);
+      setSyncError(null);
+      setSyncSuccess(null);
+
+      try {
+        let variations = storeVariations;
+        let parentId = resolvedParentRemoteIdRef.current;
+        if (!variations.length) {
+          setStoreVariationsStatus('loading');
+          const result = await loadStoreVariationsForLink(parsedLink.variantId);
+          variations = result.variations;
+          parentId = result.parentId;
+        }
+
+        const match = variations.find(
+          (item) => String(item?.id || '') === String(parsedLink.variantId)
+        );
+
+        if (!match) {
+          setLinkStatus('failed');
+          setLinkError(
+            'Could not find this exact variant on the store. Pick the matching variation from the dropdown below.'
+          );
+          return;
+        }
+
+        await createLinkMapping(
+          storeVariationReferenceId(match, parentId),
+          parsedLink.integration,
+          parsedLink.integrationId,
+          existingSyncId
+        );
+      } catch (err) {
+        setStoreVariationsStatus('failed');
+        setLinkStatus('failed');
+        setLinkError(
+          err?.message ||
+            'Could not resolve this storefront link. Paste the Shopify admin product URL instead (Products → open item → copy the address bar link).'
+        );
+        console.error('[Sync product module] Failed to resolve storefront variant link', {
+          productId,
+          integrationId: parsedLink.integrationId,
+          variantId: parsedLink.variantId,
           error: err,
         });
       }
@@ -768,7 +873,8 @@ export default function ViewProductSyncModal({
           String(pendingParentRemoteId) !== String(parsedLink.productId)
         ) {
           setStoreVariationsStatus('loading');
-          variations = await loadStoreVariationsForLink();
+          const result = await loadStoreVariationsForLink(parsedLink.productId);
+          variations = result.variations;
         }
         setLinkStatus('idle');
 
@@ -777,7 +883,8 @@ export default function ViewProductSyncModal({
           await createLinkMapping(
             parsedLink.productId,
             parsedLink.integration,
-            parsedLink.integrationId
+            parsedLink.integrationId,
+            existingSyncId
           );
           return;
         }
@@ -788,7 +895,8 @@ export default function ViewProductSyncModal({
           await createLinkMapping(
             storeVariationReferenceId(only, parsedLink.productId),
             parsedLink.integration,
-            parsedLink.integrationId
+            parsedLink.integrationId,
+            existingSyncId
           );
           return;
         }
@@ -838,7 +946,8 @@ export default function ViewProductSyncModal({
       await createLinkMapping(
         referenceId,
         parsedLink.integration,
-        parsedLink.integrationId
+        parsedLink.integrationId,
+        existingSyncId
       );
     } catch (err) {
       setLinkStatus('failed');
@@ -884,7 +993,8 @@ export default function ViewProductSyncModal({
       let variations = storeVariations;
       if (!variations.length) {
         setStoreVariationsStatus('loading');
-        variations = await loadStoreVariationsForLink();
+        const result = await loadStoreVariationsForLink(parsedLink.productId);
+        variations = result.variations;
       }
 
       if (!variations.length) {
@@ -1263,7 +1373,7 @@ export default function ViewProductSyncModal({
   const linkStepHint = isVariableParent
     ? 'Paste the Shopify product URL once (…/products/10608704782635). That links this parent only. Optionally use Link matching children, or open each child and pick a variation.'
     : isPosVariantChild
-      ? 'Paste the Shopify parent product URL, then choose this child’s variation from the dropdown.'
+      ? 'Paste the Shopify parent product URL and pick this child’s variation from the dropdown, or paste the storefront product link (…/products/handle?variant=123) to link straight to that variant.'
       : 'Paste the existing Shopify product URL to link this POS product. This does not create a new store product.';
 
   const storeVariationRemoteId = pendingParentRemoteId || parsedLink.productId || '';
@@ -1593,7 +1703,9 @@ export default function ViewProductSyncModal({
                                 : isPosVariantChild
                                   ? ` · Product ID ${parsedLink.productId || parsedLink.externalProductId} · pick a variation below`
                                   : ` · Product ID ${parsedLink.productId || parsedLink.externalProductId}`
-                            : ' · product id not found in URL'}
+                            : parsedLink.variantId
+                              ? ` · Variant ID ${parsedLink.variantId} detected (storefront link) · click ${primaryLinkLabel}`
+                              : ' · product id not found in URL'}
                         </span>
                       ) : (
                         <span>No matching integration for this domain yet.</span>
