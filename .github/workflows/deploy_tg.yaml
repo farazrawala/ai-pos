@@ -9,10 +9,11 @@
 
 name: Deploy TG live (FTP)
 
+# Manual only (Actions → Deploy TG live (FTP) → Run workflow).
+# Running on every push to main raced with deploy-live.yml and overwrote
+# https://testv3.websitedemolynk.com/pos/ with the root-path tgcrm build.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: deploy-tgcrm-ftp
