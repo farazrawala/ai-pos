@@ -44,7 +44,7 @@ jobs:
           username: ${{ secrets.FTP_TG_USERNAME }}
           password: ${{ secrets.FTP_TG_PASSWORD }}
           local-dir: ./dist/
-          server-dir: /
+          server-dir: /pos/
           dangerous-clean-slate: false
           exclude: |
             **/.git*
