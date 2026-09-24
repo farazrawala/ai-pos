@@ -102,7 +102,7 @@ export default function CalculatorModal({
             </h5>
             <button
               type="button"
-              className="btn-close"
+              className="btn-close app-modal-close ms-auto"
               data-bs-dismiss="modal"
               aria-label="Close"
               onClick={onClose}
