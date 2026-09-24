@@ -78,13 +78,9 @@ export default defineConfig(({ mode }) => {
           'pwa-icon-192.png',
           'pwa-icon-512.png',
           'manifest.json',
-          'assets/css/argon-dashboard.min.css',
-          'assets/css/pos-sidenav-override.css',
-          'assets/js/core/popper.min.js',
-          'assets/js/core/bootstrap.min.js',
-          'assets/js/plugins/perfect-scrollbar.min.js',
-          'assets/js/plugins/smooth-scrollbar.min.js',
-          'assets/js/argon-dashboard.min.js',
+          // assets/** is already precached by workbox.globPatterns; listing those files here too
+          // adds a second entry with a different revision and the SW install fails
+          // (add-to-cache-list-conflicting-entries).
         ],
         manifest: pwaManifest,
         workbox: {
