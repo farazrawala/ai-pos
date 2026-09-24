@@ -45,11 +45,14 @@ const Header = () => {
   const showMobilePosButton =
     isAuthenticated && !isPosCheckout && (isAdmin || canView('pos'));
 
-  const handleSignOut = (e) => {
+  const handleSignOut = async (e) => {
     e.preventDefault();
-    clearOfflineDb().catch((err) => {
+    // Wait for the wipe so the next company's login can't read this tenant's cache.
+    try {
+      await clearOfflineDb();
+    } catch (err) {
       console.warn('[POS] Failed to clear offline data on logout', err);
-    });
+    }
     dispatch(clearUser());
     navigate('/signin');
   };

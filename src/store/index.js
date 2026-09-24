@@ -1,4 +1,4 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import userReducer from '../features/user/userSlice.js';
 import postsReducer from '../features/posts/postsSlice.js';
 import loaderReducer from '../features/loader/loaderSlice.js';
@@ -41,8 +41,7 @@ import supportReducer from '../features/support/supportSlice.js';
 import tasksReducer from '../features/tasks/tasksSlice.js';
 import { injectStore } from '../api/apiClient.js';
 
-const store = configureStore({
-  reducer: {
+const appReducer = combineReducers({
     user: userReducer,
     posts: postsReducer,
     loader: loaderReducer,
@@ -83,7 +82,21 @@ const store = configureStore({
     whatsappChat: whatsappChatReducer,
     support: supportReducer,
     tasks: tasksReducer,
-  },
+});
+
+// Login/logout: drop every cached list (orders, products, …) so the next
+// company never sees the previous tenant's data; only the user slice survives.
+const SESSION_RESET_ACTIONS = new Set(['user/clearUser', 'user/setLoginSession']);
+
+const rootReducer = (state, action) => {
+  if (state && SESSION_RESET_ACTIONS.has(action.type)) {
+    return appReducer({ user: state.user }, action);
+  }
+  return appReducer(state, action);
+};
+
+const store = configureStore({
+  reducer: rootReducer,
 });
 
 injectStore(store);

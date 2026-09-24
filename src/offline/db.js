@@ -102,4 +102,19 @@ export async function clearOfflineDb() {
   ]);
 }
 
+/**
+ * Wipe offline stores when they belong to another company (or to no known company),
+ * so a new login never reads the previous tenant's cached products/customers.
+ */
+export async function clearOfflineDbIfCompanyChanged(companyId) {
+  const next = String(companyId ?? '').trim();
+  await ensureOfflineDbOpen();
+  const row = await offlineDb.meta.get(META_KEYS.COMPANY_ID);
+  const cached = String(row?.value ?? '').trim();
+  if (cached && cached === next) return false;
+  if (!cached && (await offlineDb.products.count()) === 0) return false;
+  await clearOfflineDb();
+  return true;
+}
+
 export { ensureOfflineDbOpen };

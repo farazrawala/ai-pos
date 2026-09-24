@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setLoginSession } from '../features/user/userSlice.js';
-import { extractCompanyFromUser } from '../features/company/companyAPI.js';
+import { extractCompanyFromUser, getCompanyIdFromUser } from '../features/company/companyAPI.js';
 import { triggerMasterSyncAfterLogin } from '../offline/masterSync.js';
+import { clearOfflineDbIfCompanyChanged } from '../offline/db.js';
 import { useOnlineStatus } from '../hooks/useOnlineStatus.js';
 import { hasCachedAuthSession, OFFLINE_SIGN_IN_MESSAGE } from '../utils/offlineAuth.js';
 import apiClient from '../api/apiClient.js';
@@ -34,6 +35,19 @@ const SignIn = () => {
       [name]: type === 'checkbox' ? checked : value,
     }));
     setError('');
+  };
+
+  /** Drop another company's offline cache before the new session renders any page. */
+  const startSession = async (payload, userData) => {
+    const company = extractCompanyFromUser(userData);
+    const companyId = getCompanyIdFromUser(userData) || String(company?._id ?? company?.id ?? '');
+    try {
+      await clearOfflineDbIfCompanyChanged(companyId);
+    } catch (err) {
+      console.warn('[POS] Failed to clear offline data for company switch', err);
+    }
+    dispatch(setLoginSession(payload));
+    triggerMasterSyncAfterLogin(userData, company);
   };
 
   const handleSubmit = async (event) => {
@@ -69,15 +83,13 @@ const SignIn = () => {
         if (!userData.token) {
           userData.token = data.token || data.access_token || data.accessToken || userData.token;
         }
-        dispatch(setLoginSession({ ...data, user: userData }));
-        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
+        await startSession({ ...data, user: userData }, userData);
       } else if (data?._id || data?.email) {
         const userData = { ...data };
         if (!userData.token) {
           userData.token = data.token || data.access_token || data.accessToken;
         }
-        dispatch(setLoginSession({ success: true, user: userData }));
-        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
+        await startSession({ success: true, user: userData }, userData);
       } else {
         const displayName =
           data?.name ||
@@ -87,13 +99,7 @@ const SignIn = () => {
           'User';
         const token = data?.token || data?.access_token || data?.accessToken || data?.user?.token;
         const userData = { name: displayName, email: form.email, token };
-        dispatch(
-          setLoginSession({
-            success: true,
-            user: userData,
-          })
-        );
-        triggerMasterSyncAfterLogin(userData, extractCompanyFromUser(userData));
+        await startSession({ success: true, user: userData }, userData);
       }
 
       setForm(initialForm);
