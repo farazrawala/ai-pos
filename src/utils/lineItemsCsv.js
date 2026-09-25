@@ -145,29 +145,28 @@ export async function resolveLineItemsCsvFile(file) {
 }
 
 /**
- * Merge imported lines into `prev`: a product already present takes the imported qty/rate,
- * anything else is placed with `insert(list, line)`.
+ * Merge imported lines into `prev`, one CSV row per line: the nth row for a product updates
+ * the nth existing line for that product; extra rows are placed with `insert(list, line)`.
+ * Re-importing an exported file therefore keeps repeated products as separate lines.
  */
 export function mergeCsvLines(prev, imported, insert) {
-  let next = [...prev];
-  const seen = new Map();
-  imported.forEach((line) => {
-    const pid = String(line.productId ?? '');
-    const idx = next.findIndex((d) => String(d.productId ?? '') === pid);
-    if (idx !== -1) {
-      next[idx] = { ...next[idx], qty: line.qty, rate: line.rate };
-      return;
-    }
-    const dup = seen.get(pid);
-    if (dup) {
-      Object.assign(dup, { qty: line.qty, rate: line.rate });
-      return;
-    }
-    const copy = { ...line };
-    seen.set(pid, copy);
-    next = insert(next, copy);
+  const existingKeys = new Map();
+  prev.forEach((d) => {
+    const pid = String(d.productId ?? '');
+    if (!existingKeys.has(pid)) existingKeys.set(pid, []);
+    existingKeys.get(pid).push(d.key);
   });
-  return next;
+  const updates = new Map();
+  let next = [...prev];
+  imported.forEach((line) => {
+    const key = existingKeys.get(String(line.productId ?? ''))?.shift();
+    if (key !== undefined) updates.set(key, line);
+    else next = insert(next, { ...line });
+  });
+  return next.map((d) => {
+    const line = updates.get(d.key);
+    return line ? { ...d, qty: line.qty, rate: line.rate } : d;
+  });
 }
 
 export function reportLineItemsCsvImport(importedCount, notFound, saveHint = 'save') {
