@@ -1,0 +1,15 @@
+.line-items-csv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.line-items-csv-btn.btn {
+  display: inline-flex;
+  align-items: center;
+  height: 1.85rem;
+  padding: 0 0.6rem;
+  font-size: 0.7rem;
+  text-transform: none;
+}

@@ -43,6 +43,14 @@ import {
   sanitizeAmountPaidInput,
 } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import {
+  exportLineItemsCsv,
+  mapInChunks,
+  mergeCsvLines,
+  reportLineItemsCsvImport,
+  resolveLineItemsCsvFile,
+} from '../../utils/lineItemsCsv.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
@@ -300,6 +308,7 @@ const PurchaseOrderAdd = () => {
   const vendorPickerRef = useRef(null);
 
   const [lines, setLines] = useState([]);
+  const [linesCsvBusy, setLinesCsvBusy] = useState(false);
   const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredPoLineOrder);
   const lineDisplayOrderRef = useRef(lineDisplayOrder);
   lineDisplayOrderRef.current = lineDisplayOrder;
@@ -609,6 +618,41 @@ const PurchaseOrderAdd = () => {
         setAddProductError('');
       } finally {
         setAddingSelectedProducts(false);
+      }
+    },
+    [buildLineFromProduct]
+  );
+
+  const handleExportLinesCsv = useCallback(async () => {
+    setLinesCsvBusy(true);
+    try {
+      await exportLineItemsCsv(lines, 'purchase-order-new-items');
+    } finally {
+      setLinesCsvBusy(false);
+    }
+  }, [lines]);
+
+  const handleImportLinesCsv = useCallback(
+    async (file) => {
+      setLinesCsvBusy(true);
+      try {
+        const { matches, notFound } = await resolveLineItemsCsvFile(file);
+        const built = (
+          await mapInChunks(matches, async ({ product, qty, rate }) => {
+            const line = await buildLineFromProduct(product);
+            if (!line) return null;
+            return { ...line, qty: String(qty ?? line.qty), rate: String(rate ?? line.rate) };
+          })
+        ).filter(Boolean);
+        setLines((prev) =>
+          mergeCsvLines(prev, built, (list, line) =>
+            lineDisplayOrderRef.current === PO_LINE_ORDER_LIFO ? [line, ...list] : [...list, line])
+        );
+        reportLineItemsCsvImport(built.length, notFound, 'save');
+      } catch (err) {
+        toast.error(err?.message || 'Could not import the CSV file.');
+      } finally {
+        setLinesCsvBusy(false);
       }
     },
     [buildLineFromProduct]
@@ -1333,6 +1377,14 @@ const PurchaseOrderAdd = () => {
                     <label className="form-label" htmlFor="po-add-product-search">
                       Add product
                     </label>
+                    <div className="line-items-csv-actions">
+                      <LineItemsCsvButtons
+                        onExport={handleExportLinesCsv}
+                        onImport={handleImportLinesCsv}
+                        busy={linesCsvBusy}
+                        exportDisabled={lines.length === 0}
+                        importDisabled={isSubmitting}
+                      />
                     <div className="po-form-segment" role="group" aria-label="Line item add order">
                       <button
                         type="button"
@@ -1370,6 +1422,7 @@ const PurchaseOrderAdd = () => {
                       >
                         LIFO
                       </button>
+                    </div>
                     </div>
                   </div>
                   <div className="po-form-product-search mb-3">

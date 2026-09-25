@@ -55,6 +55,14 @@ import {
   sortSrLinesByOrder,
 } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
+import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import {
+  exportLineItemsCsv,
+  mapInChunks,
+  mergeCsvLines,
+  reportLineItemsCsvImport,
+  resolveLineItemsCsvFile,
+} from '../../utils/lineItemsCsv.js';
 import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
@@ -287,6 +295,7 @@ const SalesReturnAdd = () => {
   const customerPickerRef = useRef(null);
 
   const [lines, setLines] = useState([]);
+  const [linesCsvBusy, setLinesCsvBusy] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [lineDisplayOrder, setLineDisplayOrder] = useState(readStoredSrLineOrder);
   const lineDisplayOrderRef = useRef(lineDisplayOrder);
@@ -569,12 +578,11 @@ const SalesReturnAdd = () => {
     setLines((prev) => prev.filter((row) => row.key !== key));
   }, []);
 
-  const appendProduct = useCallback(
+  const buildLineFromProduct = useCallback(
     async (product) => {
-      if (!product || typeof product !== 'object') return;
+      if (!product || typeof product !== 'object') return null;
       const id = String(product._id ?? product.id ?? '').trim();
-      if (!id) return;
-      playPosScanBeep('success');
+      if (!id) return null;
 
       let resolved = product;
       if (!productHasListedPrice(product)) {
@@ -588,7 +596,7 @@ const SalesReturnAdd = () => {
       }
 
       const rate = productPickerDefaultLineRate(resolved);
-      const newLine = {
+      return {
         key: newLineKey(),
         productId: id,
         label: productPickerLabel(resolved),
@@ -602,13 +610,62 @@ const SalesReturnAdd = () => {
             ? product.warehouse_inventory
             : [],
       };
+    },
+    [defaultWarehouseId]
+  );
+
+  const appendProduct = useCallback(
+    async (product) => {
+      if (!product || typeof product !== 'object') return;
+      const id = String(product._id ?? product.id ?? '').trim();
+      if (!id) return;
+      playPosScanBeep('success');
+
+      const newLine = await buildLineFromProduct(product);
+      if (!newLine) return;
       setLines((prev) => insertSrLine(prev, newLine, lineDisplayOrderRef.current));
       addProductQueryRef.current = '';
       setAddProductQuery('');
       setAddProductResults([]);
       setAddProductError('');
     },
-    [defaultWarehouseId]
+    [buildLineFromProduct]
+  );
+
+  const handleExportLinesCsv = useCallback(async () => {
+    setLinesCsvBusy(true);
+    try {
+      await exportLineItemsCsv(lines, 'sales-return-new-items');
+    } finally {
+      setLinesCsvBusy(false);
+    }
+  }, [lines]);
+
+  const handleImportLinesCsv = useCallback(
+    async (file) => {
+      setLinesCsvBusy(true);
+      try {
+        const { matches, notFound } = await resolveLineItemsCsvFile(file);
+        const built = (
+          await mapInChunks(matches, async ({ product, qty, rate }) => {
+            const line = await buildLineFromProduct(product);
+            if (!line) return null;
+            return { ...line, qty: String(qty ?? line.qty), rate: String(rate ?? line.rate) };
+          })
+        ).filter(Boolean);
+        setLines((prev) =>
+          mergeCsvLines(prev, built, (list, line) =>
+            insertSrLine(list, line, lineDisplayOrderRef.current))
+        );
+        resortLinesIfValueOrder();
+        reportLineItemsCsvImport(built.length, notFound, 'save');
+      } catch (err) {
+        toast.error(err?.message || 'Could not import the CSV file.');
+      } finally {
+        setLinesCsvBusy(false);
+      }
+    },
+    [buildLineFromProduct, resortLinesIfValueOrder]
   );
 
   const findExactProductForScan = useCallback(
@@ -1373,6 +1430,14 @@ const SalesReturnAdd = () => {
               <label className="form-label" htmlFor="po-add-product-search">
                 Add product
               </label>
+              <div className="line-items-csv-actions">
+                <LineItemsCsvButtons
+                  onExport={handleExportLinesCsv}
+                  onImport={handleImportLinesCsv}
+                  busy={linesCsvBusy}
+                  exportDisabled={lines.length === 0}
+                  importDisabled={isSubmitting}
+                />
               <div className="po-form-segment" role="group" aria-label="Line item display order">
                 <button
                   type="button"
@@ -1447,6 +1512,7 @@ const SalesReturnAdd = () => {
                       ? ' ↓'
                       : ''}
                 </button>
+              </div>
               </div>
             </div>
             <div className="po-form-product-search mb-3">
