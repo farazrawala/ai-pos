@@ -13,7 +13,59 @@ body {
 
 .navbar-version-badge {
   flex-shrink: 0;
+}
+
+/* Version + server IP pill (Header, POS page) */
+.version-badge {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
   white-space: nowrap;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: #344767;
+  cursor: default;
+}
+
+.version-badge__segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.version-badge__segment--server {
+  border-left: 1px solid rgba(52, 71, 103, 0.15);
+  background: rgba(52, 71, 103, 0.05);
+}
+
+.version-badge__icon {
+  font-size: 0.7rem;
+  color: #8392ab;
+}
+
+.version-badge__label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8392ab;
+}
+
+.version-badge__value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #344767;
+}
+
+@media (max-width: 767.98px) {
+  .version-badge__label {
+    display: none;
+  }
 }
 
 .navbar-mobile-pos-btn {
@@ -64,7 +116,10 @@ body {
 
   .navbar-main.navbar-pos .navbar-version-badge {
     font-size: 0.65rem;
-    padding: 0.2rem 0.4rem !important;
+  }
+
+  .navbar-main.navbar-pos .navbar-version-badge .version-badge__segment {
+    padding: 0.25rem 0.4rem;
   }
 }
 

@@ -39,19 +39,6 @@
   min-width: 0;
 }
 
-.pos-page .pos-page-header__version {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #344767;
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-  white-space: nowrap;
-}
 
 .pos-page .pos-master-sync-status {
   min-height: 1.25rem;
