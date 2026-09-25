@@ -250,6 +250,8 @@ const warehouseOptionLabel = (w) => {
   return w.name ?? w.warehouse_name ?? w.title ?? 'Warehouse';
 };
 
+const isActiveWarehouse = (w) => String(w?.status ?? '').toLowerCase() === 'active';
+
 /** Coerce populated warehouse refs to an id string. */
 function idFromWarehouseRef(raw) {
   if (raw == null || raw === '') return '';
@@ -493,7 +495,7 @@ const PurchaseOrderAdd = () => {
   );
 
   const warehouseOptions = useMemo(
-    () => [...warehouses].filter((w) => warehouseOptionValue(w)),
+    () => warehouses.filter((w) => warehouseOptionValue(w) && isActiveWarehouse(w)),
     [warehouses]
   );
 

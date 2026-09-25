@@ -116,6 +116,8 @@ const warehouseOptionLabel = (w) => {
   return w.name ?? w.warehouse_name ?? w.title ?? 'Warehouse';
 };
 
+const isActiveWarehouse = (w) => String(w?.status ?? '').toLowerCase() === 'active';
+
 /** API may return populated refs; coerce to a plain id string for `<select value>` and comparisons. */
 function pickIdString(raw) {
   if (raw == null || raw === '') return '';
@@ -642,7 +644,7 @@ const PurchaseOrderEdit = () => {
     accountOptions.some((a) => accountOptionValue(a) === String(form.account_id));
 
   const warehouseOptions = useMemo(
-    () => [...warehouses].filter((w) => warehouseOptionValue(w)),
+    () => warehouses.filter((w) => warehouseOptionValue(w) && isActiveWarehouse(w)),
     [warehouses]
   );
 
@@ -1843,9 +1845,15 @@ const PurchaseOrderEdit = () => {
                                             (w) => warehouseOptionValue(w) === wid
                                           )
                                         ) {
+                                          // Keep an inactive warehouse already on this line selectable by name.
+                                          const current = warehouses.find(
+                                            (w) => warehouseOptionValue(w) === wid
+                                          );
                                           return (
                                             <option value={wid} title={wid}>
-                                              Current (not in list)
+                                              {current
+                                                ? `${warehouseOptionLabel(current)} (inactive)`
+                                                : 'Current (not in list)'}
                                             </option>
                                           );
                                         }
