@@ -9,7 +9,9 @@
 
 <IfModule mod_headers.c>
   Header set Cache-Control "no-cache, no-store, must-revalidate" env=REDIRECT_no_cache
-  <FilesMatch "^(sw\.js|workbox-.*\.js|registerSW\.js)$">
+  # App shell + update files must always be revalidated, or browsers keep serving an old
+  # index.html (which points at old hashed bundles) after a deploy.
+  <FilesMatch "^(index\.html|sw\.js|workbox-.*\.js|registerSW\.js|version\.json|manifest\.webmanifest|server-info\.php)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
   </FilesMatch>
 </IfModule>
