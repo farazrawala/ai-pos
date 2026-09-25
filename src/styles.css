@@ -38,6 +38,51 @@ body {
   padding: 0.35rem 0.6rem;
 }
 
+.version-badge__segment--version {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.version-badge__segment--version:hover:not(:disabled),
+.version-badge__segment--version:focus-visible {
+  background: rgba(52, 71, 103, 0.08);
+  outline: none;
+}
+
+.version-badge__segment--version:disabled {
+  cursor: progress;
+}
+
+.version-badge__segment--version.is-latest .version-badge__icon,
+.version-badge__segment--version.is-latest .version-badge__status {
+  color: #2dce89;
+}
+
+.version-badge__segment--version.is-offline .version-badge__status,
+.version-badge__segment--version.is-error .version-badge__status {
+  color: #f5365c;
+}
+
+.version-badge__status {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #5e72e4;
+}
+
+.version-badge__icon--spin {
+  animation: version-badge-spin 0.8s linear infinite;
+}
+
+@keyframes version-badge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .version-badge__segment--server {
   border-left: 1px solid rgba(52, 71, 103, 0.15);
   background: rgba(52, 71, 103, 0.05);

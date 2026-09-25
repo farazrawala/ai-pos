@@ -69,6 +69,19 @@ export default defineConfig(({ mode }) => {
         include: ['**/*.jsx', '**/*.js', '**/*.tsx', '**/*.ts'],
       }),
       projectDevLogPlugin({ logFile: projectDevLogFile }),
+      {
+        // Published next to index.html so a running (possibly SW-cached) app can ask the
+        // server which build is current — see src/utils/appUpdate.js.
+        name: 'emit-version-json',
+        apply: 'build',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: readFileSync(resolve(__dirname, 'src/version.json'), 'utf-8'),
+          });
+        },
+      },
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: false,
@@ -85,7 +98,7 @@ export default defineConfig(({ mode }) => {
         manifest: pwaManifest,
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,eot,ttf,json,webmanifest}'],
-          globIgnores: ['**/assets/scss/**', '**/assets/js/argon-dashboard.js', '**/assets/css/argon-dashboard.css'],
+          globIgnores: ['version.json', '**/assets/scss/**', '**/assets/js/argon-dashboard.js', '**/assets/css/argon-dashboard.css'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           navigateFallback,
           navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/storage\//],

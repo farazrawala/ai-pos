@@ -40,5 +40,6 @@ export function versionBadgeTitle(serverInfo) {
     lines.push(`Server IP: ${serverInfo.ip}`);
     if (serverInfo.host) lines.push(`Host: ${serverInfo.host}`);
   }
+  lines.push('Click the version to check for updates');
   return lines.join('\n');
 }
