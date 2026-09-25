@@ -60,10 +60,22 @@ import { queueOrderPushToStore } from '../../utils/orderStoreSync.js';
 import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import SearchableSelect from '../../components/common/SearchableSelect.jsx';
 import NavIcon from '../../components/NavIcon.jsx';
-import { FaCopy, FaFloppyDisk, FaLink, FaPrint, FaReceipt, FaTrash, FaWhatsapp } from 'react-icons/fa6';
+import {
+  FaCopy,
+  FaFileExport,
+  FaFileImport,
+  FaFloppyDisk,
+  FaLink,
+  FaPrint,
+  FaReceipt,
+  FaTrash,
+  FaWhatsapp,
+} from 'react-icons/fa6';
 import { buildWhatsAppUrl } from '../../features/bigCommerce/marketplaceUtils.js';
 import { poStatusBadgeClass } from '../purchase_order/poFormConstants.js';
 import { buildApiUrl } from '../../config/apiConfig.js';
+import { exportRowsToCsv } from '../../utils/listExport.js';
+import { parseCsvText } from '../../features/products/productImportParse.js';
 import { DEBUG } from '../../config/env.js';
 import { PAPER_SIZE_OPTIONS } from '../../features/printLayout/printLayoutDefaults.js';
 import { fetchPrintLayoutSettings } from '../../features/printLayout/fetchPrintLayoutSettings.js';
@@ -277,6 +289,46 @@ const productPickerUnitPrice = (p) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const productBarcode = (p) =>
+  p && typeof p === 'object' ? String(p.barcode ?? p.product_barcode ?? '').trim() : '';
+
+const LINE_CSV_COLUMNS = [
+  { key: 'productId', label: 'product_id' },
+  { key: 'barcode', label: 'barcode' },
+  { key: 'qty', label: 'qty' },
+  { key: 'rate', label: 'rate' },
+  { key: 'label', label: 'product_name' },
+];
+
+/** Parse a line-items CSV (product_id, barcode, qty, rate); headers are case-insensitive. */
+function parseLineItemsCsv(text) {
+  const [header, ...body] = parseCsvText(text);
+  const norm = header.map((h) =>
+    String(h ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_')
+  );
+  const col = (...names) => norm.findIndex((h) => names.includes(h));
+  const idIdx = col('product_id', 'productid', '_id', 'id');
+  const barcodeIdx = col('barcode');
+  const qtyIdx = col('qty', 'quantity');
+  const rateIdx = col('rate', 'price', 'unit_price');
+  if (idIdx === -1 && barcodeIdx === -1) {
+    throw new Error('CSV needs a product_id or barcode column.');
+  }
+  const cell = (row, idx) => (idx === -1 ? '' : String(row[idx] ?? '').trim());
+  return body
+    .map((row, i) => ({
+      rowNumber: i + 2,
+      productId: cell(row, idIdx),
+      barcode: cell(row, barcodeIdx),
+      qty: cell(row, qtyIdx),
+      rate: cell(row, rateIdx),
+    }))
+    .filter((r) => r.productId || r.barcode);
+}
+
 /** Matches backend `order_status` enum (default on server: placed). */
 const ORDER_STATUS_OPTIONS = [
   'active', // Live / open POS-style order
@@ -437,6 +489,8 @@ const PosInvoice = () => {
   const lineDisplayOrderRef = useRef(lineDisplayOrder);
   lineDisplayOrderRef.current = lineDisplayOrder;
   const [addProductQuery, setAddProductQuery] = useState('');
+  const [linesCsvBusy, setLinesCsvBusy] = useState(false);
+  const linesCsvInputRef = useRef(null);
   const [addProductResults, setAddProductResults] = useState([]);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductError, setAddProductError] = useState('');
@@ -488,6 +542,7 @@ const PosInvoice = () => {
           key: String(line._id ?? line.id ?? `row-${idx}-${pid || 'x'}`),
           productId: pid,
           label: describeOrderLineItem(line),
+          barcode: productBarcode(product),
           taxPct: Number(product?.tax_rate) || 0,
           qty: Number.isFinite(qty) ? String(qty) : '0',
           rate: Number.isFinite(rate) ? String(rate) : '0',
@@ -1212,6 +1267,7 @@ const PosInvoice = () => {
       key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       productId: id,
       label: productPickerLabel(product),
+      barcode: productBarcode(product),
       taxPct,
       qty: '1',
       rate: String(rate),
@@ -1231,6 +1287,143 @@ const PosInvoice = () => {
     setLineDisplayOrder(nextOrder);
     persistInvoiceLineOrder(nextOrder);
     setInvoiceDraftLines((prev) => (prev.length > 1 ? [...prev].reverse() : prev));
+  }, []);
+
+  const handleExportLinesCsv = useCallback(async () => {
+    const lines = invoiceDraftLines.filter((d) => String(d?.productId ?? '').trim());
+    if (lines.length === 0) {
+      toast.error('No line items to export.');
+      return;
+    }
+    setLinesCsvBusy(true);
+    try {
+      // Fill barcodes the order payload did not include.
+      const missing = [...new Set(lines.filter((d) => !d.barcode).map((d) => d.productId))];
+      const barcodeById = new Map();
+      if (missing.length > 0) {
+        try {
+          const res = await fetchProductActiveRequest({
+            _id: missing,
+            includeInactive: true,
+            page: 1,
+            limit: missing.length,
+          });
+          (res?.data || []).forEach((p) => {
+            barcodeById.set(String(p._id ?? p.id ?? ''), productBarcode(p));
+          });
+        } catch (err) {
+          console.warn('[POS] Could not load barcodes for export', err);
+        }
+      }
+      const rows = lines.map((d) => ({
+        ...d,
+        barcode: d.barcode || barcodeById.get(d.productId) || '',
+      }));
+      const ref = String(invoiceId || 'invoice').replace(/[^\w-]+/g, '_');
+      exportRowsToCsv({ columns: LINE_CSV_COLUMNS, rows, filename: `invoice-${ref}-items` });
+    } finally {
+      setLinesCsvBusy(false);
+    }
+  }, [invoiceDraftLines, invoiceId]);
+
+  const handleImportLinesCsv = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setLinesCsvBusy(true);
+    try {
+      const rows = parseLineItemsCsv(await file.text());
+      if (rows.length === 0) throw new Error('No product rows found in the file.');
+
+      const byId = new Map();
+      const byBarcode = new Map();
+      const ids = [...new Set(rows.map((r) => r.productId).filter(Boolean))];
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const res = await fetchProductActiveRequest({ _id: chunk, page: 1, limit: chunk.length });
+        (res?.data || []).forEach((p) => byId.set(String(p._id ?? p.id ?? ''), p));
+      }
+      // Rows without a usable product_id fall back to an exact barcode match.
+      const barcodes = [
+        ...new Set(rows.filter((r) => !byId.has(r.productId) && r.barcode).map((r) => r.barcode)),
+      ];
+      for (let i = 0; i < barcodes.length; i += 5) {
+        await Promise.all(
+          barcodes.slice(i, i + 5).map(async (code) => {
+            const res = await fetchProductActiveRequest({
+              search: code,
+              searchFields: 'barcode',
+              page: 1,
+              limit: 5,
+            });
+            const hit = (res?.data || []).find((p) => productBarcode(p) === code);
+            if (hit) byBarcode.set(code, hit);
+          })
+        );
+      }
+
+      const notFound = [];
+      const imported = [];
+      rows.forEach((r) => {
+        const product = byId.get(r.productId) || byBarcode.get(r.barcode);
+        if (!product) {
+          notFound.push(r.rowNumber);
+          return;
+        }
+        const qty = parseFloat(String(r.qty).replace(/,/g, ''));
+        const rate = parseFloat(String(r.rate).replace(/,/g, ''));
+        imported.push({
+          productId: String(product._id ?? product.id ?? '').trim(),
+          label: productPickerLabel(product),
+          barcode: productBarcode(product),
+          taxPct: Number(product.tax_rate) || 0,
+          qty: String(Number.isFinite(qty) && qty > 0 ? qty : 1),
+          rate: String(Number.isFinite(rate) ? rate : productPickerUnitPrice(product)),
+        });
+      });
+
+      // Products already on the invoice take the file's qty/rate; the rest are added.
+      setInvoiceDraftLines((prev) => {
+        const next = [...prev];
+        const added = [];
+        imported.forEach((line) => {
+          const idx = next.findIndex((d) => d.productId === line.productId);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], qty: line.qty, rate: line.rate };
+            return;
+          }
+          const dup = added.find((d) => d.productId === line.productId);
+          if (dup) {
+            dup.qty = line.qty;
+            dup.rate = line.rate;
+            return;
+          }
+          added.push({
+            ...line,
+            key: `csv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          });
+        });
+        return lineDisplayOrderRef.current === POS_LINE_ORDER_LIFO
+          ? [...added.reverse(), ...next]
+          : [...next, ...added];
+      });
+
+      if (imported.length > 0) {
+        toast.success(`Imported ${imported.length} line item(s). Click Update invoice to save.`);
+      }
+      if (notFound.length > 0) {
+        const shown = notFound.slice(0, 10).join(', ');
+        toast.error(
+          `${notFound.length} row(s) skipped, product not found (rows ${shown}${
+            notFound.length > 10 ? '…' : ''
+          }).`
+        );
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Could not import the CSV file.');
+    } finally {
+      setLinesCsvBusy(false);
+    }
   }, []);
 
   const invoiceLineTotals = useMemo(() => {
@@ -2200,6 +2393,34 @@ const PosInvoice = () => {
                           <label className="form-label" htmlFor="pos-inv-add-product">
                             Add product
                           </label>
+                          <div className="pos-inv-lines-toolbar__actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary mb-0 pos-inv-csv-btn"
+                              onClick={handleExportLinesCsv}
+                              disabled={linesCsvBusy || invoiceDraftLines.length === 0}
+                              title="Download line items as CSV (product_id, barcode, qty, rate)"
+                            >
+                              <NavIcon icon={FaFileExport} className="me-1" size={11} />
+                              Export CSV
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary mb-0 pos-inv-csv-btn"
+                              onClick={() => linesCsvInputRef.current?.click()}
+                              disabled={linesCsvBusy || invoiceSaving}
+                              title="Add or update line items from a CSV with product_id or barcode, qty, rate"
+                            >
+                              <NavIcon icon={FaFileImport} className="me-1" size={11} />
+                              {linesCsvBusy ? 'Working…' : 'Import CSV'}
+                            </button>
+                            <input
+                              ref={linesCsvInputRef}
+                              type="file"
+                              accept=".csv,text/csv"
+                              className="d-none"
+                              onChange={handleImportLinesCsv}
+                            />
                           <div
                             className="pos-inv-segment"
                             role="group"
@@ -2229,6 +2450,7 @@ const PosInvoice = () => {
                             >
                               LIFO
                             </button>
+                          </div>
                           </div>
                         </div>
                         <div className="pos-inv-product-search position-relative">
