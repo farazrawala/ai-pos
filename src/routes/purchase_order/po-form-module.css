@@ -435,7 +435,7 @@
 }
 
 .po-form-page .po-form-col-desc {
-  min-width: 8rem;
+  min-width: 12rem;
 }
 
 .po-form-page .po-form-col-wh {
@@ -465,9 +465,9 @@
 .po-form-page .po-form-line-desc {
   font-weight: 600;
   color: var(--po-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .po-form-page .po-form-summary-panel {

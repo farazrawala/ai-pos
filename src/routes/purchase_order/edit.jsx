@@ -51,6 +51,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import DevApiSourcesFooter from '../../components/common/DevApiSourcesFooter.jsx';
 import { toast } from '../../utils/toast.js';
 import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import ClearLinesButton from '../../components/common/ClearLinesButton.jsx';
 import {
   exportLineItemsCsv,
   mapInChunks,
@@ -1852,7 +1853,9 @@ const PurchaseOrderEdit = () => {
                             <th
                               className="text-center po-form-col-action"
                               aria-label="Barcode and remove"
-                            />
+                            >
+                              <ClearLinesButton count={lines.length} onClear={() => setLines([])} disabled={isSubmitting} />
+                            </th>
                           </tr>
                         </thead>
                         <tbody>

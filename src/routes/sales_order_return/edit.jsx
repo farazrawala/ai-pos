@@ -59,6 +59,7 @@ import SearchInputIcon from '../../components/SearchInputIcon.jsx';
 import { FaTrashCan } from 'react-icons/fa6';
 import { toast } from '../../utils/toast.js';
 import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import ClearLinesButton from '../../components/common/ClearLinesButton.jsx';
 import {
   exportLineItemsCsv,
   mapInChunks,
@@ -1507,7 +1508,9 @@ const SalesReturnEdit = () => {
                             <th
                               className="text-center po-form-col-action"
                               aria-label="Remove row"
-                            />
+                            >
+                              <ClearLinesButton count={lines.length} onClear={() => setLines([])} disabled={isSubmitting} />
+                            </th>
                           </tr>
                         </thead>
                         <tbody>

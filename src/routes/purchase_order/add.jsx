@@ -44,6 +44,7 @@ import {
 } from './poFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import ClearLinesButton from '../../components/common/ClearLinesButton.jsx';
 import {
   exportLineItemsCsv,
   mapInChunks,
@@ -1548,7 +1549,9 @@ const PurchaseOrderAdd = () => {
                             <th
                               className="text-center po-form-col-action"
                               aria-label="Barcode and remove"
-                            />
+                            >
+                              <ClearLinesButton count={lines.length} onClear={() => setLines([])} disabled={isSubmitting} />
+                            </th>
                           </tr>
                         </thead>
                         <tbody>

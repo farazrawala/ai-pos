@@ -13,3 +13,11 @@
   font-size: 0.7rem;
   text-transform: none;
 }
+
+.line-items-clear-btn.btn {
+  height: 1.6rem;
+  padding: 0 0.45rem;
+  font-size: 0.65rem;
+  text-transform: none;
+  white-space: nowrap;
+}

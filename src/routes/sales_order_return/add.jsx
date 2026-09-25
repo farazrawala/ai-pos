@@ -56,6 +56,7 @@ import {
 } from './srFormConstants.js';
 import { toast } from '../../utils/toast.js';
 import LineItemsCsvButtons from '../../components/common/LineItemsCsvButtons.jsx';
+import ClearLinesButton from '../../components/common/ClearLinesButton.jsx';
 import {
   exportLineItemsCsv,
   mapInChunks,
@@ -1583,7 +1584,9 @@ const SalesReturnAdd = () => {
                       <th className="text-end po-form-col-ship">Ship / unit</th>
                       <th className="text-end po-form-col-ship">Total ship</th>
                       <th className="text-end po-form-col-amt">Amount</th>
-                      <th className="text-center po-form-col-action" aria-label="Remove row" />
+                      <th className="text-center po-form-col-action" aria-label="Remove row">
+                        <ClearLinesButton count={lines.length} onClear={() => setLines([])} disabled={isSubmitting} />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
