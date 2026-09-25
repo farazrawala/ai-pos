@@ -5,7 +5,6 @@ import { withBase } from '../config/appBase.js';
 import {
   FaBars,
   FaBell,
-  FaBox,
   FaChevronDown,
   FaClock,
   FaGear,
@@ -36,10 +35,6 @@ const Header = () => {
   const { isAdmin, canView } = usePermissions();
   const [cacheNotice, setCacheNotice] = useState(null);
 
-  const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
-  const firstSegment = pathSegment
-    ? pathSegment.charAt(0).toUpperCase() + pathSegment.slice(1)
-    : 'Dashboard';
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
   const isPosCheckout = /(^|\/)pos$/.test(normalizedPath);
   const showMobilePosButton =
@@ -82,18 +77,6 @@ const Header = () => {
         >
           <NavIcon icon={FaBars} className="text-white" size={18} />
         </button>
-        <nav aria-label="breadcrumb">
-          <ol className="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-2">
-            <li className="breadcrumb-item text-sm">
-              <a className="text-white d-inline-flex align-items-center" href="javascript:;">
-                <NavIcon icon={FaBox} className="text-white" size={14} />
-              </a>
-            </li>
-            <li className="breadcrumb-item text-sm text-white active" aria-current="page">
-              {firstSegment}
-            </li>
-          </ol>
-        </nav>
         <VersionBadge className="navbar-version-badge" />
         {showMobilePosButton ? (
           <Link

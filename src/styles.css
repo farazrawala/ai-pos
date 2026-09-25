@@ -155,10 +155,6 @@ body {
     width: auto;
   }
 
-  .navbar-main.navbar-pos .breadcrumb {
-    margin-right: 0.35rem !important;
-  }
-
   .navbar-main.navbar-pos .navbar-version-badge {
     font-size: 0.65rem;
   }
