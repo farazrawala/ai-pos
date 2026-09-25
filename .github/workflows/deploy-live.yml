@@ -1,7 +1,7 @@
 # Deploy live build to FTP (https://testv3.websitedemolynk.com/pos/)
 #
 # Required GitHub repo secrets (Settings → Secrets and variables → Actions):
-#   FTP_SERVER      → 192.249.118.80
+#   Servers are listed in the job matrix below (deployed in parallel, same creds).
 #   FTP_USERNAME    → pos@testv3.websitedemolynk.com
 #   FTP_PASSWORD    → (your FTP password — never commit this)
 # Optional:
@@ -21,6 +21,12 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        server:
+          - 203.161.41.148
+          - 192.249.118.80
 
     steps:
       - name: Checkout
@@ -37,10 +43,10 @@ jobs:
       - name: Build for live
         run: npm run build:live
 
-      - name: Deploy dist to FTP
+      - name: Deploy dist to FTP (${{ matrix.server }})
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
+          server: ${{ matrix.server }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
