@@ -9,12 +9,28 @@ const readEnv = (key, fallback = '') => {
 };
 
 /**
+ * Built app served from `{origin}/pos/` — its backend lives beside it at `{origin}/pos_admin/`.
+ * Checked at runtime so one build works on any host (testv3, pos.tgcrm.net, …).
+ */
+function isPosDeploy() {
+  if (import.meta.env.DEV || typeof window === 'undefined' || !window.location?.origin) {
+    return false;
+  }
+  const appBase = import.meta.env.BASE_URL || '/';
+  return appBase.includes('/pos') || /^\/pos(\/|$)/.test(window.location.pathname);
+}
+
+/**
  * Resolve API base for fetch/axios.
  * - Dev: `/api` → Vite proxy
- * - Live build with full `VITE_API_BASE_URL` → use as-is
- * - Live at `/pos/` with relative `/api` → `{origin}/pos_admin/api` (not `{origin}/api`)
+ * - Live at `{origin}/pos/` → `{origin}/pos_admin/api` (same host as the page, whatever the env says)
+ * - Other live builds with full `VITE_API_BASE_URL` → use as-is
  */
 function resolveApiBaseUrl() {
+  if (isPosDeploy()) {
+    return `${window.location.origin}/pos_admin/api`;
+  }
+
   const configured = trimTrailingSlashes(readEnv('VITE_API_BASE_URL', '/api'));
 
   if (/^https?:\/\//i.test(configured)) {
@@ -23,22 +39,8 @@ function resolveApiBaseUrl() {
 
   const relativePath = configured.startsWith('/') ? configured : `/${configured}`;
 
-  if (import.meta.env.DEV) {
-    return relativePath;
-  }
-
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    const { origin } = window.location;
-    const appBase = import.meta.env.BASE_URL || '/';
-    const onPosDeploy =
-      relativePath === '/api' &&
-      (appBase.includes('/pos') || window.location.pathname.startsWith('/pos/'));
-
-    if (onPosDeploy) {
-      return `${origin}/pos_admin/api`;
-    }
-
-    return `${origin}${relativePath}`;
+  if (!import.meta.env.DEV && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${relativePath}`;
   }
 
   return relativePath;
@@ -52,6 +54,9 @@ function resolveApiBaseUrl() {
 export const API_BASE_URL = resolveApiBaseUrl();
 
 function resolveApiMediaOrigin() {
+  if (isPosDeploy()) {
+    return API_BASE_URL;
+  }
   const configured = trimTrailingSlashes(
     readEnv('VITE_API_MEDIA_ORIGIN', readEnv('VITE_API_ORIGIN', ''))
   );

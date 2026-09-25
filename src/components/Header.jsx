@@ -22,7 +22,8 @@ import { clearUser, selectIsAuthenticated } from '../features/user/userSlice.js'
 import { clearOfflineDb } from '../offline/db.js';
 import { useSidenav } from '../context/SidenavContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import { APP_VERSION, APP_BUILT_AT } from '../config/appVersion.js';
+import { APP_VERSION } from '../config/appVersion.js';
+import { useServerInfo, versionBadgeTitle } from '../hooks/useServerInfo.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 
 const Header = () => {
@@ -35,6 +36,7 @@ const Header = () => {
   const { togglePanel } = useTheme();
   const { isAdmin, canView } = usePermissions();
   const [cacheNotice, setCacheNotice] = useState(null);
+  const serverInfo = useServerInfo();
 
   const pathSegment = location.pathname.split('/').filter(Boolean)[0] || '';
   const firstSegment = pathSegment
@@ -96,9 +98,10 @@ const Header = () => {
         </nav>
         <span
           className="badge bg-white text-dark text-xs mb-0 py-1 px-2 font-weight-bold navbar-version-badge"
-          title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
+          title={versionBadgeTitle(serverInfo)}
         >
           v{APP_VERSION}
+          {serverInfo?.ip ? `, ${serverInfo.ip}` : ''}
         </span>
         {showMobilePosButton ? (
           <Link

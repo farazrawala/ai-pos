@@ -102,7 +102,8 @@ import { playPosScanBeep, unlockPosScanAudio } from '../../utils/posScanBeep.js'
 import { shopName } from '../../features/orders/invoiceViewMapper.js';
 import PakistanCityStateFields from '../../components/users/PakistanCityStateFields.jsx';
 import { DEFAULT_USER_CITY, DEFAULT_USER_STATE } from '../../constants/pakistanLocations.js';
-import { APP_VERSION, APP_BUILT_AT } from '../../config/appVersion.js';
+import { APP_VERSION } from '../../config/appVersion.js';
+import { useServerInfo, versionBadgeTitle } from '../../hooks/useServerInfo.js';
 import './pos-module.css';
 
 const ADD_CUSTOMER_INITIAL = {
@@ -1018,6 +1019,7 @@ const Pos = () => {
   }
   const initialCartSession = initialCartSessionRef.current;
 
+  const serverInfo = useServerInfo();
   const [users, setUsers] = useState([]);
   const [usersStatus, setUsersStatus] = useState('idle');
   const [usersError, setUsersError] = useState(null);
@@ -3124,9 +3126,10 @@ const Pos = () => {
         <div className="pos-page-header__meta">
           <span
             className="pos-page-header__version"
-            title={APP_BUILT_AT ? `Built ${new Date(APP_BUILT_AT).toLocaleString()}` : 'App version'}
+            title={versionBadgeTitle(serverInfo)}
           >
             v{APP_VERSION}
+            {serverInfo?.ip ? `, ${serverInfo.ip}` : ''}
           </span>
           <div className="pos-master-sync-status">
             {masterSyncProgress?.message ? (
