@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { FaArrowLeft, FaMagnifyingGlass } from 'react-icons/fa6';
+import {
+  FaArrowLeft,
+  FaCircleExclamation,
+  FaComments,
+  FaMagnifyingGlass,
+  FaUserSlash,
+  FaWhatsapp,
+} from 'react-icons/fa6';
 import {
   searchWhatsappContacts,
   loadWhatsappChat,
@@ -265,8 +272,20 @@ export default function WhatsappChatLayout() {
         {/* Left: search + contacts */}
         <aside className="wa-chat-sidebar">
           <div className="wa-side-header">
-            <h5>WhatsApp Chat</h5>
-            <p>Search contacts by name or phone</p>
+            <div className="wa-side-title">
+              <span className="wa-side-logo" aria-hidden>
+                <FaWhatsapp />
+              </span>
+              <div>
+                <h5>WhatsApp Chat</h5>
+                <p>Customer conversations</p>
+              </div>
+              {searchStatus === 'succeeded' ? (
+                <span className="wa-side-count">
+                  {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
+                </span>
+              ) : null}
+            </div>
             {DEBUG ? (
               <p className="wa-debug-our-number">
                 My number (company.whatsapp_number):{' '}
@@ -296,6 +315,10 @@ export default function WhatsappChatLayout() {
 
             {searchStatus === 'failed' ? (
               <div className="wa-error">
+                <span className="wa-state-icon">
+                  <FaCircleExclamation />
+                </span>
+                <strong>Couldn&apos;t load contacts</strong>
                 <div>{searchError || 'Search failed'}</div>
                 <button
                   type="button"
@@ -308,7 +331,13 @@ export default function WhatsappChatLayout() {
             ) : null}
 
             {searchStatus === 'succeeded' && contacts.length === 0 ? (
-              <div className="wa-empty">No user found.</div>
+              <div className="wa-empty">
+                <span className="wa-state-icon">
+                  <FaUserSlash />
+                </span>
+                <strong>No contacts found</strong>
+                <div>Try a different name or phone number.</div>
+              </div>
             ) : null}
 
             {searchStatus !== 'failed'
@@ -328,8 +357,11 @@ export default function WhatsappChatLayout() {
         <section className="wa-chat-main">
           {!selectedContact ? (
             <div className="wa-placeholder-main">
-              <h4>WhatsApp Chat Search</h4>
-              <p>Select a contact from the left to view the conversation.</p>
+              <span className="wa-placeholder-icon">
+                <FaWhatsapp />
+              </span>
+              <h4>WhatsApp Chat</h4>
+              <p>Select a contact from the list to view the conversation and send messages.</p>
             </div>
           ) : (
             <>
@@ -351,8 +383,10 @@ export default function WhatsappChatLayout() {
                 <div className="wa-chat-header-info">
                   <p className="name">{selectedContact.name}</p>
                   <p className="sub">
-                    {selectedContact.phone}
-                    {subtitle && subtitle !== selectedContact.phone ? ` · ${subtitle}` : ''}
+                    <span>{selectedContact.phone ? `+${String(selectedContact.phone).replace(/^\+/, '')}` : ''}</span>
+                    {subtitle && subtitle !== selectedContact.phone ? (
+                      <span className={selectedContact.online ? 'is-online' : undefined}>· {subtitle}</span>
+                    ) : null}
                   </p>
                 </div>
                 <div className="wa-header-actions">
@@ -380,7 +414,11 @@ export default function WhatsappChatLayout() {
               ) : null}
 
               {chatStatus === 'failed' && messages.length === 0 ? (
-                <div className="wa-error" style={{ margin: 'auto' }}>
+                <div className="wa-error">
+                  <span className="wa-state-icon">
+                    <FaCircleExclamation />
+                  </span>
+                  <strong>Couldn&apos;t load conversation</strong>
                   <div>{chatError || 'Previous chat not found.'}</div>
                   <button
                     type="button"
@@ -416,8 +454,12 @@ export default function WhatsappChatLayout() {
               ) : null}
 
               {chatStatus === 'succeeded' && messages.length === 0 ? (
-                <div className="wa-empty" style={{ margin: 'auto' }}>
-                  No messages yet. Say hello!
+                <div className="wa-empty">
+                  <span className="wa-state-icon">
+                    <FaComments />
+                  </span>
+                  <strong>No messages yet</strong>
+                  <div>Send a message to start the conversation.</div>
                 </div>
               ) : null}
 

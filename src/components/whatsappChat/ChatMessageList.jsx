@@ -1,4 +1,4 @@
-import { FaClock, FaMagnifyingGlass, FaPaperclip, FaFaceSmile, FaPaperPlane } from 'react-icons/fa6';
+import { FaCircleExclamation, FaClock, FaMagnifyingGlass, FaPaperclip, FaFaceSmile, FaPaperPlane } from 'react-icons/fa6';
 import { getChatMessageDirection } from '../../features/whatsappChat/whatsappChatAPI.js';
 import { deliveryTicks, formatMessageClock, groupMessagesByDate, highlightText } from './chatUtils.jsx';
 
@@ -87,7 +87,7 @@ function MessageBody({ message, searchQuery }) {
     );
   }
 
-  return <div>{highlightText(message.message || '', q)}</div>;
+  return <span className="wa-bubble-content">{highlightText(message.message || '', q)}</span>;
 }
 
 export function ChatMessageBubble({
@@ -96,10 +96,12 @@ export function ChatMessageBubble({
   isActiveMatch,
   messageRef,
   ourNumber = '',
+  isFirst = true,
 }) {
   const isSystem = message.type === 'system';
   const direction = isSystem ? 'incoming' : getChatMessageDirection(message, ourNumber);
   const ticks = direction === 'outgoing' && !isSystem ? deliveryTicks(message.status) : null;
+  const failed = ticks?.title === 'Failed';
 
   if (isSystem) {
     return (
@@ -116,14 +118,19 @@ export function ChatMessageBubble({
   }
 
   return (
-    <div className={`wa-bubble-row ${direction}`}>
+    <div className={`wa-bubble-row ${direction}${isFirst ? ' is-first' : ''}`}>
       <div
         ref={messageRef}
-        className={`wa-bubble${message.unread ? ' is-unread' : ''}${isActiveMatch ? ' is-match-active' : ''}`}
+        className={`wa-bubble${message.unread ? ' is-unread' : ''}${failed ? ' is-failed' : ''}${isActiveMatch ? ' is-match-active' : ''}`}
         data-message-id={message.id}
       >
         <MessageBody message={message} searchQuery={searchQuery} />
         <div className="wa-bubble-meta">
+          {failed ? (
+            <span className="wa-failed-label" title="Not delivered">
+              <FaCircleExclamation aria-hidden /> Failed
+            </span>
+          ) : null}
           <span>{formatMessageClock(message.timestamp)}</span>
           {ticks?.kind === 'icon' ? (
             <span className={ticks.className} title={ticks.title} aria-label={ticks.title}>
@@ -162,12 +169,18 @@ export function ChatMessageList({
         <div className="wa-load-older">Scroll up for older messages</div>
       ) : null}
       {groups.map((group) => (
-        <div key={group.key}>
+        <div key={group.key} className="wa-msg-group">
           <div className="wa-date-sep">{group.label}</div>
-          {group.messages.map((msg) => (
+          {group.messages.map((msg, i) => (
             <ChatMessageBubble
               key={msg.id}
               message={msg}
+              isFirst={
+                i === 0 ||
+                getChatMessageDirection(group.messages[i - 1], ourNumber) !==
+                  getChatMessageDirection(msg, ourNumber) ||
+                group.messages[i - 1].type === 'system'
+              }
               searchQuery={searchQuery}
               isActiveMatch={activeMatchId === msg.id}
               ourNumber={ourNumber}

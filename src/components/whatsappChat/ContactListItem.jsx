@@ -5,7 +5,7 @@ export default function ContactListItem({ contact, active, onSelect }) {
   return (
     <button
       type="button"
-      className={`wa-contact-item${active ? ' is-active' : ''}`}
+      className={`wa-contact-item${active ? ' is-active' : ''}${contact.unread > 0 ? ' has-unread' : ''}`}
       onClick={() => onSelect(contact)}
     >
       <WhatsappAvatar name={contact.name} src={contact.avatarUrl} online={contact.online} />
